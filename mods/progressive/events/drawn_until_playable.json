@@ -1,0 +1,11 @@
+{
+  "uni:format_version": "1.0.0",
+  "uni:event": {
+    "uni:description": { "uni:identifier": "progressive:drawn_until_playable" },
+    "uni:payload": {
+      "uni:fields": {
+        "target": { "uni:type": "seat", "uni:audience": "all" }
+      }
+    }
+  }
+}

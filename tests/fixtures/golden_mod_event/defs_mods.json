@@ -1,0 +1,37 @@
+{
+  "defs_digest": "0f5da11069008da8",
+  "events": [
+    {
+      "context": [],
+      "def_hash": "88e2524b3aba0cfc",
+      "fields": [
+        {
+          "name": "color",
+          "type": "color"
+        },
+        {
+          "name": "count",
+          "type": "integer"
+        },
+        {
+          "name": "secret",
+          "type": "string"
+        },
+        {
+          "name": "target",
+          "type": "seat"
+        }
+      ],
+      "id": "fixture_mod:apple_eaten",
+      "retention": "log"
+    }
+  ],
+  "mods": [
+    {
+      "hash": "8f86d43d698ce56de006f52ff3935d8c2780ab46033471ba8624334e74e42adc",
+      "id": "fixture_mod",
+      "index": 0,
+      "version": "2.5.0"
+    }
+  ]
+}

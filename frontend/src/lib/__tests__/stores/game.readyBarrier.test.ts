@@ -44,8 +44,8 @@ import { storeGame, type GameState } from "$lib/stores/game.svelte";
 const MATCH_START_PAYLOAD = {
 	defs_digest: "digest-1",
 	mods: [],
-	deck_id: "vanilla",
-	deck_name: "Vanilla",
+	deck_id: "uni",
+	deck_name: "Classic",
 	settings: {}
 };
 
@@ -61,7 +61,7 @@ const FIXTURE_STATE: GameState = {
 let seq = 0;
 
 function pushMatchEvent(type: string, payload: unknown = {}) {
-	handlers["match_event"]({ seq: ++seq, type, payload });
+	handlers["match_event"]({ sequence: ++seq, id: type, payload });
 }
 
 describe("storeGame ready barrier", () => {

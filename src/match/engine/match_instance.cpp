@@ -5,6 +5,8 @@
 #include "match/ops/op_helpers.hpp"
 #include "match/rng.hpp"
 #include "match/status.hpp"
+#include "match/view/event_audience.hpp"
+#include "match/view/streak_view.hpp"
 
 #include <logger.hpp>
 
@@ -101,6 +103,60 @@ std::optional<ecs::Entity> EnvelopeEntity(const json& envelope,
     return EntityFromJson(*it);
 }
 
+/** @brief Read the optional `cause_event` field from a schedule envelope. */
+std::optional<int64_t> EnvelopeCause(const json& envelope) {
+    const auto it = envelope.find("cause_event");
+    if (it == envelope.end() || !it->is_number_integer()) return std::nullopt;
+    return it->get<int64_t>();
+}
+
+/**
+ * @brief Set the match's causal frame for one entry point.
+ *
+ * The previous frame returns when the scope ends, so a nested entry point
+ * (a forced play inside a window route) restores its caller's frame.
+ */
+class CausalScope {
+public:
+    CausalScope(ops::CausalFrame& slot, std::optional<ecs::Entity> actor,
+                std::string_view cause)
+        : slot_(slot), saved_(slot) {
+        slot_.actor = actor;
+        slot_.cause = std::string(cause);
+        slot_.cause_event.reset();
+    }
+    CausalScope(const CausalScope&) = delete;
+    CausalScope& operator=(const CausalScope&) = delete;
+    ~CausalScope() { slot_ = std::move(saved_); }
+
+private:
+    ops::CausalFrame& slot_;
+    ops::CausalFrame saved_;
+};
+
+/**
+ * @brief Set only the causal frame's `cause_event` for one resumed graph.
+ *
+ * A resume that starts from a pause a play chain parked (a window route, an
+ * armed schedule) must run inside that chain, so the graph's events and any
+ * prompt it parks name the play that started it. The previous value returns
+ * when the scope ends, so the enclosing entry point keeps its own cause.
+ */
+class ResumeCauseScope {
+public:
+    ResumeCauseScope(ops::CausalFrame& slot, std::optional<int64_t> cause)
+        : slot_(slot), saved_(slot.cause_event) {
+        slot_.cause_event = cause;
+    }
+    ResumeCauseScope(const ResumeCauseScope&) = delete;
+    ResumeCauseScope& operator=(const ResumeCauseScope&) = delete;
+    ~ResumeCauseScope() { slot_.cause_event = std::move(saved_); }
+
+private:
+    ops::CausalFrame& slot_;
+    std::optional<int64_t> saved_;
+};
+
 }  // namespace
 
 // --- construction / start --------------------------------------------------
@@ -126,6 +182,11 @@ MatchInstance::MatchInstance(std::unique_ptr<MatchAssembly> assembly,
         finished_ = true;
         return;
     }
+    if (assembly_->resolver != nullptr) {
+        assembly_->resolver->SetCausalSource(&causal_frame_);
+    }
+    streaks_.SetDefinitions(assembly_->registries.streaks);
+    derived_.SetDefinitions(assembly_->registries.derived);
     Start();
 }
 
@@ -232,6 +293,7 @@ bool MatchInstance::PlayCard(const std::string& username, ecs::Entity card) {
 
     const std::optional<ecs::Entity> player = FindPlayer(username);
     if (!player.has_value()) return false;
+    const CausalScope causal_scope(causal_frame_, player, ops::kCausePlay);
 
     // INFO:  - while a playable voluntary draw holds the turn, only the
     //       holder may act and only by playing the held card. Clearing the
@@ -365,6 +427,7 @@ bool MatchInstance::DrawCard(const std::string& username) {
     if (!player.has_value()) return false;
     const std::optional<ecs::Entity> current = CurrentPlayer();
     if (!current.has_value() || !(*current == *player)) return false;
+    const CausalScope causal_scope(causal_frame_, player, ops::kCauseDraw);
 
     // INFO:  - a held playable draw owns the turn until it is played, kept
     //       or the turn clock expires; the holder cannot draw again.
@@ -422,6 +485,9 @@ bool MatchInstance::DrawCard(const std::string& username) {
                              {"count", 1},
                              {"source", "draw_pile"},
                              {"held", holds_turn},
+                             {"hand_size_after",
+                              ops::HandSizeOf(store, *player)},
+                             {"from_debt", false},
                              {"cards", json::array({EntityJson(*card)})}});
 
     // INFO: An `after:draw` graph may request a forced play of the
@@ -441,6 +507,12 @@ bool MatchInstance::DrawCard(const std::string& username) {
     return true;
 }
 
+void MatchInstance::EmitDrawnCardKept(const PendingPlayDrawn& pending) {
+    Emit("drawn_card_kept",
+         json{{"player", PlayerUsername(assembly_->store, pending.player)},
+              {"card", EntityJson(pending.card)}});
+}
+
 bool MatchInstance::KeepDrawn(const std::string& username) {
     if (!started_ || finished_ || assembly_ == nullptr) return false;
     if (!awaiting_play_drawn_.has_value()) return false;
@@ -450,6 +522,9 @@ bool MatchInstance::KeepDrawn(const std::string& username) {
         return false;
     }
 
+    const CausalScope causal_scope(causal_frame_, player,
+                                   ops::kCauseKeepDrawn);
+    EmitDrawnCardKept(*awaiting_play_drawn_);
     awaiting_play_drawn_.reset();
     AdvanceTurn();
     return true;
@@ -459,6 +534,8 @@ bool MatchInstance::SubmitInput(const std::string& username,
                                 const nlohmann::json& value) {
     if (!started_ || finished_ || assembly_ == nullptr) return false;
     if (!pending_input_.has_value()) return false;
+    const CausalScope causal_scope(causal_frame_, FindPlayer(username),
+                                   ops::kCausePromptAnswer);
 
     // INFO: Defence in depth - a card prompt must be answered with a
     //       `CompactCardV2.bits` integer that maps to a live card. Validate it
@@ -534,6 +611,7 @@ bool MatchInstance::SubmitInput(const std::string& username,
     if (prompt_card.has_value()) answer = EntityJson(*prompt_card);
 
     ops::ResolutionFrame frame = pending.frame;
+    frame.causal.cause_event = pending.cause_event;
     const resolver::ResolveResult result = assembly_->resolver->ResumeInput(
         graph, pending.mod_id, pending.context, frame, pending.pause,
         std::move(answer));
@@ -587,6 +665,8 @@ void MatchInstance::Tick() {
     //       first response already decided the outcome, so waiting longer
     //       would be a hidden stall.
     if (WindowWinnerReady()) {
+        const CausalScope causal_scope(causal_frame_, WindowWinnerActor(),
+                                       ops::kCauseWindowResponse);
         CloseWindowRoute("response");
         ExecuteScheduled(scheduler_.Tick(store, registries.match, Now()));
         return;
@@ -594,8 +674,12 @@ void MatchInstance::Tick() {
     const match::MatchTimerTick tick =
         timers_.Tick(store, registries.match, *current);
     if (tick.window_timeout) {
+        const CausalScope causal_scope(causal_frame_, std::nullopt,
+                                       ops::kCauseWindowTimeout);
         CloseWindowRoute("timeout");
     } else if (tick.window_early_closed) {
+        const CausalScope causal_scope(causal_frame_, WindowWinnerActor(),
+                                       ops::kCauseWindowResponse);
         CloseWindowRoute(pending_window_.has_value()
                                  && pending_window_->has_winner
                              ? "response"
@@ -604,6 +688,11 @@ void MatchInstance::Tick() {
         // INFO: engine default for a lapsed turn clock; the engine may refine
         //       the AFK/bot takeover policy. A parked play/keep choice is
         //       dropped with the turn it belonged to.
+        const CausalScope causal_scope(causal_frame_, current,
+                                       ops::kCauseTurnTimerExpired);
+        if (awaiting_play_drawn_.has_value()) {
+            EmitDrawnCardKept(*awaiting_play_drawn_);
+        }
         awaiting_play_drawn_.reset();
         AdvanceTurn();
     }
@@ -634,12 +723,13 @@ void MatchInstance::AdvanceTurn() {
     // INFO: Reuse the `advance_turn` op so the direction / extra-turn /
     //       one-shot-skip bookkeeping exists in exactly one place.
     ops::ResolutionFrame frame;
+    frame.causal = causal_frame_;
     ops::OpContext context(assembly_->bus, assembly_->budget, frame);
     ops::OpArgs args("advance_turn");
     ops::OpResult result = assembly_->runtime.Invoke(
         "advance_turn", assembly_->store, args, context);
     for (json& event : result.events) {
-        events_.push_back(std::move(event));
+        PushEvent(std::move(event));
     }
 
     if (before.has_value()) {
@@ -839,7 +929,7 @@ void MatchInstance::DeclareHandEmptyWin(ecs::Entity player) {
 
     winner_ = player;
     finished_ = true;
-    Emit("placement",
+    Emit("placement_set",
          json{{"player", PlayerUsername(store, player)}, {"place", place}});
     EmitMatchEnd();
 }
@@ -854,7 +944,7 @@ void MatchInstance::DeclareRaceFinish(ecs::Entity player,
     if (std::find(placements.order.begin(), placements.order.end(), player)
         == placements.order.end()) {
         placements.order.push_back(player);
-        Emit("placement",
+        Emit("placement_set",
              json{{"player", PlayerUsername(store, player)},
                   {"place", placements.order.size()}});
     }
@@ -908,13 +998,13 @@ void MatchInstance::EndRace(ecs::Placements& placements) {
 }
 
 void MatchInstance::EmitMatchEnd() {
-    // INFO: `match_end` closes the match. The settings snapshot is the
+    // INFO: `match_ended` closes the match. The settings snapshot is the
     //       deck settings retained at assembly (the session; was an empty
     //       object until the assembly carried it).
     json end_data = json{{"settings", assembly_->Deck().settings}};
     Before("match_end", end_data);
     After("match_end", end_data);
-    Emit("match_end", end_data);
+    Emit("match_ended", end_data);
 }
 
 // --- the engine response-window path
@@ -1138,7 +1228,7 @@ void MatchInstance::OpenWindow(WindowPause pause, bool fresh_situation) {
     json hook_data = json{{"window", body}};
     Before("window_open", hook_data);
     After("window_open", hook_data);
-    Emit("window_open", body);
+    Emit("window_opened", body);
 }
 
 void MatchInstance::OpenWindowGroup(std::vector<WindowPause> windows) {
@@ -1173,7 +1263,7 @@ void MatchInstance::AdoptPlayedColor(ecs::Entity card,
 }
 
 void MatchInstance::CommitWinningPlay(ecs::Entity player, ecs::Entity card,
-                                      bool stacks_penalty) {
+                                      bool stacks_penalty, bool deflects_penalty) {
     ecs::EntityStore& store = assembly_->store;
     if (!store.IsAlive(card)) return;
 
@@ -1209,15 +1299,27 @@ void MatchInstance::CommitWinningPlay(ecs::Entity player, ecs::Entity card,
               {"card", EntityJson(card)},
               {"kind", kind},
               {"from_ordinal", ordinal.value_or(0)}});
+    const std::optional<ecs::Entity> previous_attacker =
+        last_play_.has_value() ? std::optional<ecs::Entity>(last_play_->player)
+                               : std::nullopt;
     last_play_ =
         LastPlay{player, card, static_cast<uint32_t>(ordinal.value_or(0))};
-    AdoptPlayedColor(card, kind);
+    // INFO: a wild response never drains its own prompt here (see below), so
+    //       adopting its placeholder white would leave the table on a colour
+    //       no card can match. The previous colour stands; a prompt plays on
+    //       the turn (PlayCard) still adopts and its answer overrides.
+    if (!ops::CardHasTag(&assembly_->registries, kind, "wild")) {
+        AdoptPlayedColor(card, kind);
+    }
 
     // INFO: Each response appends its own N to the debt, which
     //       passes on to the seat after the responder.
     if (stacks_penalty) {
         last_play_->penalty_recorded = true;
         RecordDrawPenalty(card, player);
+    } else if (deflects_penalty) {
+        last_play_->penalty_recorded = true;
+        RecordDeflectedDrawDebt(card, player, previous_attacker);
     }
     // INFO: the winning response's own behavior graph is not re-drained; the
     //       window's `on_response` route is the resolution continuation.
@@ -1257,6 +1359,7 @@ std::optional<std::size_t> MatchInstance::StackingMember(
 
 bool MatchInstance::WindowStacksPenalty(
     const resolver::WindowRequest& request, ecs::Entity card) const {
+    if (WindowDeflectsPenalty(request, card)) return false;
     const std::string kind = ops::CardKindId(assembly_->store, card);
     if (kind.empty() || !request.respond_with.is_object()) return false;
     const auto tags = request.respond_with.find("any_tag");
@@ -1269,6 +1372,39 @@ bool MatchInstance::WindowStacksPenalty(
         }
     }
     return false;
+}
+
+bool MatchInstance::WindowDeflectsPenalty(
+    const resolver::WindowRequest& request, ecs::Entity card) const {
+    const std::string kind = ops::CardKindId(assembly_->store, card);
+    if (kind.empty()) return false;
+    const bool is_reverse = ops::CardHasTag(&assembly_->registries, kind, "reverse")
+        || ops::CardHasTag(&assembly_->registries, kind, "uni:reverse");
+    if (!is_reverse) return false;
+    if (request.kind == "reverse_deflection") return true;
+    if (request.on_response.contains("plays_reverse_response")) return true;
+    return false;
+}
+
+bool MatchInstance::GroupDeflectsPenalty(const WindowPause& group,
+                                         ecs::Entity card) const {
+    for (std::size_t member = 0; member < group.MemberCount(); ++member) {
+        if (WindowDeflectsPenalty(group.Member(member).request, card)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+std::optional<std::size_t> MatchInstance::DeflectingMember(
+    const WindowPause& group, ecs::Entity card) const {
+    for (std::size_t member = 0; member < group.MemberCount(); ++member) {
+        if (WindowDeflectsPenalty(group.Member(member).request, card)
+            && WindowReopens(group.Member(member).request)) {
+            return member;
+        }
+    }
+    return std::nullopt;
 }
 
 int32_t MatchInstance::DrawPenaltyMagnitude(ecs::Entity card) const {
@@ -1306,7 +1442,7 @@ int32_t MatchInstance::RemoveDrawDebt(std::optional<ecs::Entity> keep) {
             json payload = json{{"target", EntityJson(holder)},
                                 {"status_kind", removed.status_id},
                                 {"instance", removed.instance_id}};
-            events_.push_back(ops::MakeEvent("status_removed", payload));
+            PushEvent(ops::MakeEvent("status_removed", payload));
             BridgeRunEvent(events_.back());
         }
     }
@@ -1345,7 +1481,42 @@ void MatchInstance::RecordDrawPenalty(ecs::Entity card, ecs::Entity player) {
                         {"status_kind", applied.status_id},
                         {"magnitude", applied.magnitude},
                         {"instance", applied.instance_id}};
-    events_.push_back(ops::MakeEvent("status_applied", payload));
+    PushEvent(ops::MakeEvent("status_applied", payload));
+    BridgeRunEvent(events_.back());
+}
+
+void MatchInstance::RecordDeflectedDrawDebt(ecs::Entity card, ecs::Entity player,
+                                            std::optional<ecs::Entity> attacker) {
+    ecs::EntityStore& store = assembly_->store;
+    if (!store.IsAlive(card) || assembly_->resolver == nullptr) return;
+
+    ecs::Entity target{};
+    if (attacker.has_value() && store.IsAlive(*attacker)) {
+        target = *attacker;
+    } else {
+        const std::optional<ecs::Entity> prev =
+            assembly_->resolver->PreviousInTurnOrder(player);
+        if (!prev.has_value()) return;
+        target = *prev;
+    }
+
+    const int32_t carried = RemoveDrawDebt(target);
+    if (carried <= 0) return;
+
+    status::ApplyRequest request;
+    request.status_id = std::string(ops::kDrawDebtStatusId);
+    request.magnitude = carried;
+    request.has_stack_policy = true;
+    request.stack_policy = ecs::StackPolicy::kAccumulate;
+    const status::ApplyResult applied =
+        status::Apply(store, target, request);
+    if (!applied.applied) return;
+
+    json payload = json{{"target", EntityJson(target)},
+                        {"status_kind", applied.status_id},
+                        {"magnitude", applied.magnitude},
+                        {"instance", applied.instance_id}};
+    PushEvent(ops::MakeEvent("status_applied", payload));
     BridgeRunEvent(events_.back());
 }
 
@@ -1366,20 +1537,29 @@ void MatchInstance::CloseWindowRoute(const std::string& outcome) {
     //       re-opens. Any other winner supersedes the play instead.
     std::size_t route_member = group.winner_member;
     bool stacks = false;
+    bool deflects = false;
     if (group.has_winner && store.IsAlive(group.winner_card)) {
         const bool debt_pending =
             last_play_.has_value() && last_play_->penalty_recorded;
         const std::optional<std::size_t> stacker =
             StackingMember(group, group.winner_card);
-        if (debt_pending && stacker.has_value()) route_member = *stacker;
+        const std::optional<std::size_t> deflector =
+            DeflectingMember(group, group.winner_card);
+        if (debt_pending && stacker.has_value()) {
+            route_member = *stacker;
+        } else if (debt_pending && deflector.has_value()) {
+            route_member = *deflector;
+        }
         stacks = WindowStacksPenalty(group.Member(route_member).request,
                                      group.winner_card);
-        // INFO: a non-stacking win supersedes the play, so the debt the group
+        deflects = WindowDeflectsPenalty(group.Member(route_member).request,
+                                         group.winner_card);
+        // INFO: a non-stacking, non-deflecting win supersedes the play, so the debt the group
         //       recorded for it is stale and must not linger. With the shipped
         //       mods no jump-in on a debt-carrying play reaches this: it
         //       stacks above.
-        if (!stacks && debt_pending) RemoveDrawDebt(std::nullopt);
-        CommitWinningPlay(group.winner, group.winner_card, stacks);
+        if (!stacks && !deflects && debt_pending) RemoveDrawDebt(std::nullopt);
+        CommitWinningPlay(group.winner, group.winner_card, stacks, deflects);
     }
 
     // INFO: a winning response supersedes the play: only its owning member
@@ -1389,6 +1569,11 @@ void MatchInstance::CloseWindowRoute(const std::string& outcome) {
     const auto queue_member = [&](std::size_t index, const std::string& route) {
         QueuedRoute queued{group.Member(index), route};
         queued.member.followers.clear();
+        for (std::size_t i = 0; i < group.MemberCount(); ++i) {
+            if (i != index) {
+                queued.member.followers.push_back(group.Member(i));
+            }
+        }
         queued.member.settle_play = group.settle_play;
         queued.member.actor = group.actor;
         queued.member.has_winner = group.has_winner;
@@ -1427,7 +1612,7 @@ void MatchInstance::CloseWindowRoute(const std::string& outcome) {
     json hook_data = json{{"window", body}};
     Before("window_close", hook_data);
     After("window_close", hook_data);
-    Emit("window_close", body);
+    Emit("window_closed", body);
 
     // INFO: routes queued by an enclosing group wait behind this window's.
     group_routes_.insert(group_routes_.begin(),
@@ -1437,6 +1622,7 @@ void MatchInstance::CloseWindowRoute(const std::string& outcome) {
 }
 
 void MatchInstance::RunGroupRoutes(bool settle_play, ecs::Entity actor) {
+    ecs::EntityStore& store = assembly_->store;
     while (!group_routes_.empty()) {
         QueuedRoute queued = std::move(group_routes_.front());
         group_routes_.erase(group_routes_.begin());
@@ -1449,6 +1635,9 @@ void MatchInstance::RunGroupRoutes(bool settle_play, ecs::Entity actor) {
         resolver::SelectorContext context = pause.context;
         if (pause.has_winner) context.responder = pause.winner;
         context.in_window = true;
+        // INFO: the route graph runs inside the play that opened the window,
+        //       so its events and any prompt it parks keep that play's cause.
+        const ResumeCauseScope resume_cause(causal_frame_, pause.cause_event);
         ops::ResolutionFrame frame;
         const resolver::ResolveResult result =
             assembly_->resolver->ResumeWindow(graph, pause.mod_id, context,
@@ -1489,6 +1678,14 @@ void MatchInstance::RunGroupRoutes(bool settle_play, ecs::Entity actor) {
                 reopen_context.self = pause.winner;
                 reopen_context.target = pause.winner;
                 reopen_context.in_window = true;
+
+                for (ecs::Entity holder : store.EntitiesWith<ecs::PlayerInfo>()) {
+                    if (status::Find(store, holder, ops::kDrawDebtStatusId) != nullptr) {
+                        reopen_context.target = holder;
+                        break;
+                    }
+                }
+
                 ops::ResolutionFrame reopen_frame;
                 const resolver::ResolveResult reopened =
                     assembly_->resolver->ResumeWindow(
@@ -1504,6 +1701,48 @@ void MatchInstance::RunGroupRoutes(bool settle_play, ecs::Entity actor) {
                     next.mod_id = pause.mod_id;
                     next.settle_play = pause.settle_play;
                     next.actor = pause.actor;
+                    next.cause_event = pause.cause_event;
+
+                    if (reopen_context.target.has_value()
+                        && *reopen_context.target != pause.winner) {
+                        next.request.responders = {*reopen_context.target};
+                    }
+
+                    for (const WindowPause& follower : pause.followers) {
+                        if (WindowReopens(follower.request)
+                            && follower.system_index < assembly_->systems.size()) {
+                            const modload::BehaviorGraph& f_graph =
+                                assembly_->systems[follower.system_index].graph;
+                            ops::ResolutionFrame f_frame;
+                            resolver::SelectorContext f_ctx = reopen_context;
+                            f_ctx.responder = pause.winner;
+                            f_ctx.self = pause.winner;
+                            f_ctx.target = reopen_context.target;
+                            f_ctx.in_window = true;
+                            const resolver::ResolveResult f_reopened =
+                                assembly_->resolver->ResumeWindow(
+                                    f_graph, follower.mod_id, f_ctx, f_frame,
+                                    follower.pause, follower.request.node_id);
+                            if (f_reopened.status == resolver::ResolveStatus::kWindow
+                                && f_reopened.window.has_value()) {
+                                WindowPause f_next;
+                                f_next.request = *f_reopened.window;
+                                f_next.pause = f_reopened;
+                                f_next.context = f_ctx;
+                                f_next.system_index = follower.system_index;
+                                f_next.mod_id = follower.mod_id;
+                                f_next.settle_play = follower.settle_play;
+                                f_next.actor = follower.actor;
+                                f_next.cause_event = follower.cause_event;
+                                if (reopen_context.target.has_value()
+                                    && *reopen_context.target != pause.winner) {
+                                    f_next.request.responders = {*reopen_context.target};
+                                }
+                                next.followers.push_back(std::move(f_next));
+                            }
+                        }
+                    }
+
                     OpenWindow(std::move(next), /*fresh_situation=*/false);
                     return;
                 }
@@ -1548,6 +1787,8 @@ bool MatchInstance::RespondWindow(const std::string& username,
 
     const std::optional<ecs::Entity> player = FindPlayer(username);
     if (!player.has_value()) return false;
+    const CausalScope causal_scope(causal_frame_, player,
+                                   ops::kCauseWindowResponse);
     if (std::find(window->responders.begin(), window->responders.end(),
                   *player)
         == window->responders.end()) {
@@ -1616,13 +1857,27 @@ bool MatchInstance::RespondWindow(const std::string& username,
         pending_window_->winner_member = *owner;
     }
 
+    // INFO: `window_kind` is public; a lost response must not reveal the
+    //       member kind of its hidden card, so it shows the group leader.
+    //       A winning stack answers as the stacking member (the route half
+    //       reroutes to it), so the wire reports its kind; any other win
+    //       reports the owning member kind.
+    const std::string& window_kind_for_loser = window->kind;
+    std::optional<std::size_t> stacker;
+    if (winning) stacker = StackingMember(*pending_window_, card);
+    const std::string& window_kind_for_winner =
+        stacker.has_value()
+            ? pending_window_->Member(*stacker).request.kind
+            : pending_window_->Member(*owner).request.kind;
     const ecs::CardIdentity* identity = store.Get<ecs::CardIdentity>(card);
-    Emit("window_response",
+    Emit("window_responded",
          json{{"window", window->window_id},
               {"player", username},
               {"card", EntityJson(card)},
               {"kind", identity == nullptr ? std::string()
                                            : identity->kind_id},
+              {"window_kind", winning ? window_kind_for_winner
+                                   : window_kind_for_loser},
               {"pass", false},
               {"outcome", winning ? "winning" : "lost"}});
 
@@ -1630,6 +1885,13 @@ bool MatchInstance::RespondWindow(const std::string& username,
         CloseWindowRoute("response");
     }
     return true;
+}
+
+std::optional<ecs::Entity> MatchInstance::WindowWinnerActor() const {
+    if (!pending_window_.has_value() || !pending_window_->has_winner) {
+        return std::nullopt;
+    }
+    return pending_window_->winner;
 }
 
 bool MatchInstance::PassWindow(const std::string& username) {
@@ -1643,6 +1905,8 @@ bool MatchInstance::PassWindow(const std::string& username) {
 
     const std::optional<ecs::Entity> player = FindPlayer(username);
     if (!player.has_value()) return false;
+    const CausalScope causal_scope(causal_frame_, player,
+                                   ops::kCauseWindowResponse);
     if (std::find(window->responders.begin(), window->responders.end(),
                   *player)
         == window->responders.end()) {
@@ -1667,9 +1931,10 @@ bool MatchInstance::PassWindow(const std::string& username) {
     response.pass = true;
     response.arrival_seq = pending_window_->next_arrival++;
     window->responses.push_back(response);
-    Emit("window_response", json{{"window", window->window_id},
+    Emit("window_responded", json{{"window", window->window_id},
                                  {"player", username},
                                  {"pass", true},
+                                 {"window_kind", window->kind},
                                  {"outcome", "pass"}});
 
     if (held || timers_.Window().AllResponded(*window)) {
@@ -1808,7 +2073,7 @@ void MatchInstance::CollectRuns() {
         const HookRun run = assembly_->runs[collected_runs_++];
 
         for (const json& event : run.events) {
-            events_.push_back(event);
+            PushEvent(event);
             BridgeRunEvent(event);
         }
 
@@ -1827,6 +2092,7 @@ void MatchInstance::CollectRuns() {
                 pending.context = run.context;
                 pending.system_index = run.system_index;
                 pending.mod_id = run.mod_id;
+                pending.cause_event = causal_frame_.cause_event;
                 pending_input_ = std::move(pending);
             }
         } else if (run.status == resolver::ResolveStatus::kWindow
@@ -1841,6 +2107,7 @@ void MatchInstance::CollectRuns() {
             window.context = run.context;
             window.system_index = run.system_index;
             window.mod_id = run.mod_id;
+            window.cause_event = causal_frame_.cause_event;
             if (!pending_window_.has_value()
                 && !pending_input_.has_value()) {
                 // INFO: windows resolved by the same dispatch merge into one
@@ -1908,7 +2175,8 @@ void MatchInstance::BridgeRunEvent(const nlohmann::json& event) {
         After(type.c_str(), data);
         return;
     }
-    if (type == "roll_result") {
+    // INFO: only a dice roll (`outcomes`) is a `roll`; a table pick is not.
+    if (type == "outcome_rolled" && payload.contains("outcomes")) {
         json data = json{{"spec", payload.contains("spec")
                                       ? payload["spec"]
                                       : json::object()},
@@ -2002,6 +2270,11 @@ bool MatchInstance::AutoPlayCard(ecs::Entity card, const char* trigger) {
     const json player_json =
         owner.has_value() ? EntityJson(*owner) : json(nullptr);
 
+    // INFO: an auto play is its own causal chain, like a manual play: the
+    //       events of its graph and any prompt it parks are attributed to the
+    //       card's own `card_played` and not to the enclosing play.
+    const CausalScope causal_scope(causal_frame_, owner, ops::kCausePlay);
+
     json zone_data = json{{"card", EntityJson(card)},
                           {"from", from_zone},
                           {"to", to_zone}};
@@ -2012,6 +2285,14 @@ bool MatchInstance::AutoPlayCard(ecs::Entity card, const char* trigger) {
                                      ecs::Entity{}});
     After("card_left_zone", zone_data);
     After("card_entered_zone", zone_data);
+
+    // INFO: the play events lead the graph so a client binding that reads the
+    //       cause of a graph event sees this card's `card_played`.
+    Emit("card_played", json{{"player", player_json},
+                             {"card", EntityJson(card)}});
+    Emit("auto_played", json{{"player", player_json},
+                             {"card", EntityJson(card)},
+                             {"trigger", trigger}});
 
     // INFO: run the auto-trigger graph with must-apply semantics so the
     //       Resolver's `must_apply` depth cap bounds re-triggering.
@@ -2030,7 +2311,7 @@ bool MatchInstance::AutoPlayCard(ecs::Entity card, const char* trigger) {
     const resolver::ResolveResult result = assembly_->resolver->Resolve(
         graph, std::string(), context, frame, std::string(), true);
     for (const json& event : result.events) {
-        events_.push_back(event);
+        PushEvent(event);
         BridgeRunEvent(event);
     }
 
@@ -2045,21 +2326,17 @@ bool MatchInstance::AutoPlayCard(ecs::Entity card, const char* trigger) {
         pending.context = context;
         pending.frame = frame;
         pending.system_index = assembly_->systems.size();
+        pending.cause_event = causal_frame_.cause_event;
         pending_input_ = std::move(pending);
     }
 
-    Emit("card_played", json{{"player", player_json},
-                             {"card", EntityJson(card)}});
-    Emit("auto_played", json{{"player", player_json},
-                             {"card", EntityJson(card)},
-                             {"trigger", trigger}});
     CollectRuns();
     return true;
 }
 
 void MatchInstance::AppendEvents(const resolver::ResolveResult& result) {
     for (const json& event : result.events) {
-        events_.push_back(event);
+        PushEvent(event);
         BridgeRunEvent(event);
     }
     CollectRuns();
@@ -2087,6 +2364,7 @@ void MatchInstance::AppendResult(const resolver::ResolveResult& result,
         next.mod_id = mod_id;
         next.settle_play = settle_play;
         next.actor = actor;
+        next.cause_event = frame.causal.cause_event;
         pending_input_ = std::move(next);
         return;
     }
@@ -2100,6 +2378,7 @@ void MatchInstance::AppendResult(const resolver::ResolveResult& result,
         next.mod_id = mod_id;
         next.settle_play = settle_play;
         next.actor = actor;
+        next.cause_event = frame.causal.cause_event;
         OpenWindow(std::move(next), /*fresh_situation=*/false);
         return;
     }
@@ -2167,7 +2446,7 @@ void MatchInstance::ArmSchedule(const resolver::ScheduleRequest& schedule,
 
     // INFO: the envelope is the JSON the Scheduler stores and returns on
     //       expiry; it carries everything a fresh Resolve chain needs.
-    const json envelope =
+    json envelope =
         json{{"system_index", system_index},
              {"mod_id", mod_id},
              {"resume_node", schedule.resume_node},
@@ -2178,6 +2457,12 @@ void MatchInstance::ArmSchedule(const resolver::ScheduleRequest& schedule,
              {"card", EntityOrNull(context.card)},
              {"in_window", context.in_window},
              {"in_card_context", context.in_card_context}};
+
+    // INFO: JSON holds no empty optional, so the cause is stamped only when the
+    //       arm ran inside a play chain; a missing key means "no cause".
+    if (causal_frame_.cause_event.has_value()) {
+        envelope["cause_event"] = *causal_frame_.cause_event;
+    }
 
     const std::optional<uint32_t> id = scheduler_.Arm(
         assembly_->store, assembly_->registries.match, envelope, *duration);
@@ -2249,6 +2534,9 @@ void MatchInstance::RunScheduledEnvelope(const nlohmann::json& envelope) {
 
     // INFO: a schedule resumes as a FRESH chain (ResumeToken doc), so no
     //       chain budget is reused; the result feeds the same pause path.
+    // INFO: the leg was armed inside a play chain, so the subgraph resumes as
+    //       part of that chain and its events keep the play's cause.
+    const ResumeCauseScope resume_cause(causal_frame_, EnvelopeCause(envelope));
     ops::ResolutionFrame frame;
     const resolver::ResolveResult result = assembly_->resolver->Resolve(
         system.graph, mod_id, context, frame, resume_node,
@@ -2576,7 +2864,120 @@ std::vector<nlohmann::json> MatchInstance::TakeEvents() {
 // --- private helpers -------------------------------------------------------
 
 void MatchInstance::Emit(std::string_view type, nlohmann::json payload) {
-    events_.push_back(ops::MakeEvent(type, std::move(payload)));
+    PushEvent(ops::MakeEvent(type, std::move(payload)));
+}
+
+std::optional<uint32_t> MatchInstance::AdmitModEvent(nlohmann::json& event) {
+    const nlohmann::json& body = event["payload"];
+    const std::string event_ref =
+        body.is_object() ? body.value("id", std::string()) : std::string();
+    const std::string mod_id = event_ref.substr(0, event_ref.find(':'));
+    const nlohmann::json& frame = event["causal_frame"];
+    const uint32_t turn = frame.value("turn", 0u);
+    ecs::ModEventLedger& ledger = assembly_->budget.mod_events;
+
+    uint32_t chain_length = 1;
+    if (causal_frame_.mod_cause_event.has_value()) {
+        const auto parent = mod_event_chain_lengths_.find(
+            *causal_frame_.mod_cause_event);
+        if (parent != mod_event_chain_lengths_.end()) {
+            chain_length = parent->second + 1;
+            event["causal_frame"]["cause_event"] =
+                *causal_frame_.mod_cause_event;
+        }
+    }
+
+    if (assembly_->bus.IsDisarmed(mod_id)) return std::nullopt;
+    std::optional<ecs::ModEventBudget> broken;
+    if (chain_length > ledger.Limits().cause_chain_max) {
+        broken = ecs::ModEventBudget::kCauseChain;
+    } else if (!ledger.CountEvent(mod_id, turn)) {
+        broken = ecs::ModEventBudget::kPerTurn;
+    }
+    if (!broken.has_value()) return chain_length;
+
+    if (ledger.NoteDrop(mod_id, event_ref, *broken, turn)) {
+        DisarmOffender(mod_id);
+    }
+    return std::nullopt;
+}
+
+std::vector<match::streak::Derivation> MatchInstance::ObserveStreaks(
+    nlohmann::json& event) {
+    if (streaks_.Empty() && derived_.Empty()) return {};
+    const std::optional<match::streak::ClientEventView> view =
+        match::view::BuildStreakEventView(*this, event);
+    if (!view.has_value()) return {};
+    streaks_.Observe(*view);
+
+    std::vector<std::string> requested;
+    if (event.value("type", std::string()) == "mod_event") {
+        const auto definition = assembly_->registries.events.find(view->id);
+        if (definition != assembly_->registries.events.end()) {
+            requested = definition->second.context;
+        }
+    } else {
+        requested = match::view::CoreContextNames(view->id);
+    }
+    nlohmann::json context = streaks_.ContextFor(requested);
+    if (!context.is_null()) event["context"] = std::move(context);
+
+    return derived_.Evaluate(
+        *view, [this](int64_t turn, const std::string&) {
+            return streaks_.TryCharge(turn);
+        });
+}
+
+void MatchInstance::PushDerivedEvents(
+    int64_t base_event_id, const nlohmann::json& base_frame,
+    const std::vector<match::streak::Derivation>& derivations) {
+    for (const match::streak::Derivation& derivation : derivations) {
+        nlohmann::json event = ops::MakeEvent(
+            derivation.event_id, nlohmann::json{{"target", derivation.seat}});
+        nlohmann::json frame = base_frame;
+        frame["cause_event"] = base_event_id;
+        frame["actor"] = derivation.actor.empty()
+                             ? nlohmann::json(nullptr)
+                             : nlohmann::json(derivation.actor);
+        event["causal_frame"] = std::move(frame);
+        event["derived"] = true;
+        event["event_id"] = next_event_id_++;
+        events_.push_back(std::move(event));
+    }
+}
+
+void MatchInstance::DisarmOffender(const std::string& mod_id) {
+    if (!assembly_->bus.Disarm(mod_id)) return;
+    Logger::Error("[ModEventBudget] mod '", mod_id,
+                  "' disarmed: it broke a mod event budget in ",
+                  assembly_->budget.mod_events.Limits().violation_turns,
+                  " distinct turns");
+    Emit("mod_disarmed", json{{"mod", mod_id}});
+}
+
+void MatchInstance::PushEvent(nlohmann::json event) {
+    ops::StampCausalFrame(assembly_->store, causal_frame_, event);
+    std::optional<uint32_t> chain_length;
+    if (event.value("type", std::string()) == "mod_event") {
+        chain_length = AdmitModEvent(event);
+        if (!chain_length.has_value()) return;
+    }
+    const int64_t event_id = next_event_id_++;
+    if (chain_length.has_value()) {
+        mod_event_chain_lengths_[event_id] = *chain_length;
+        causal_frame_.mod_cause_event = event_id;
+    }
+    event["event_id"] = event_id;
+    const std::vector<match::streak::Derivation> derivations =
+        ObserveStreaks(event);
+    const bool starts_play_chain =
+        event.value("type", std::string()) == "card_played";
+    if (starts_play_chain && !causal_frame_.cause_event.has_value()) {
+        causal_frame_.cause_event = event_id;
+    }
+    const nlohmann::json base_frame = event["causal_frame"];
+    events_.push_back(std::move(event));
+    PushDerivedEvents(event_id, base_frame, derivations);
 }
 
 }  // namespace match::engine

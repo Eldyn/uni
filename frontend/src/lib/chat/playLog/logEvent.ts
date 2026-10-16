@@ -1,45 +1,9 @@
-export type LogEvent =
-	| {
-			kind: "play";
-			seq: number;
-			player: string;
-			cardKind: string;
-			color: string;
-			auto?: boolean;
-	  }
-	| { kind: "auto_play"; seq: number; player: string; cardKind: string; color: string }
-	| { kind: "skip"; seq: number; player: string; actor?: string }
-	| { kind: "reverse"; seq: number }
-	| { kind: "reshuffle"; seq: number }
-	| { kind: "keep"; seq: number; player: string }
-	| { kind: "wild"; seq: number; player: string; color: string }
-	| { kind: "near_win"; seq: number; player: string }
-	| { kind: "win"; seq: number; player: string }
-	| { kind: "elimination"; seq: number; player: string; place: number; finished: boolean }
-	| {
-			kind: "draw";
-			seq: number;
-			player: string;
-			count: number;
-			penalty: boolean;
-			amount?: number;
-			total?: number;
-			handSize?: number;
-			victim?: string;
-			actor?: string;
-	  };
-
-export type StreakInfo = {
-	skipRun: number;
-	reverseRun: number;
-	drawRun: number;
-	totalDraws: number;
-	wildRun: number;
-	lastWildColor: string | null;
-	prevWildColor: string | null;
-	nearWinTarget: string | null;
-	nearWinOpen: boolean;
-};
+/**
+ * The server streak values of one event envelope (`uni:skip_run`, ...). The
+ * beats carry them unchanged and the presentation bindings read them, so a
+ * variant can test a run without the client counting anything.
+ */
+export type EventContext = Readonly<Record<string, unknown>>;
 
 export type LogLine = {
 	kind: "log";

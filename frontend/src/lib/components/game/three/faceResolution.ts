@@ -61,7 +61,7 @@ export interface FacePlan {
 	keep: string[];
 	color?: string;
 	label?: string;
-	/** True when the vanilla procedural atlas should draw the face. */
+	/** True when the default procedural atlas should draw the face. */
 	procedural: boolean;
 }
 

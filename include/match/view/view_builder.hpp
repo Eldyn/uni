@@ -18,7 +18,7 @@
  * and wraps it through the `EventSink`. The `all`-visibility rows are
  * delegated to `ProjectPublicEvent`; the filtered rows are built here:
  *
- * - `play_rejected`, `prompt_open`, `prompt_close`: target player only.
+ * - `play_rejected`, `prompt_opened`, `prompt_answered`: target player only.
  * - `cards_drawn`: the owner gets card identities when the descriptor carries
  *   them; every other viewer gets `count` only.
  * - `status_applied` / `status_removed`: a status whose definition is
@@ -34,8 +34,8 @@
  * untouched. Payload JSON is built directly against.
  *
  * The view layer adds `BuildSnapshot` over the same builder: base
- * visibility, `VisibilityGrant` aspects, spectator omniscience with
- * per-player `privacy_from_spectators`, and the own-hand playability flag.
+ * visibility, `VisibilityGrant` aspects, per-seat spectator
+ * privacy (`Viewer::private_seats`), and the own-hand playability flag.
  */
 
 namespace match::engine {
@@ -47,6 +47,8 @@ struct LoadedMod;
 }  // namespace match::modload
 
 namespace match::view {
+
+class EventTail;
 
 /**
  * @struct Viewer
@@ -60,6 +62,15 @@ namespace match::view {
 struct Viewer {
     std::string username;         /**< player username; empty for spectator. */
     bool is_spectator = false;    /**< true for a non-seated connection. */
+    /**
+     * Owners with Streamer/Privacy Mode on. A spectator sees card backs for
+     * the seats of these owners. Empty for a player.
+     */
+    std::vector<std::string> private_seats;
+    /** True for the public projection: no seat owner shows hidden cards. */
+    bool hides_every_seat = false;
+    /** True when host has Creative x-ray in prod and dev. */
+    bool director = false;
 
     /** @brief A seated player viewer. */
     static Viewer Player(std::string username) {
@@ -69,11 +80,40 @@ struct Viewer {
         return viewer;
     }
 
-    /** @brief An anonymous spectator viewer. */
-    static Viewer Spectator() {
+    /** @brief A Creative host viewer with x-ray and seat privacy bypass. */
+    static Viewer PlayerDirector(std::string username) {
+        Viewer viewer = Player(std::move(username));
+        viewer.director = true;
+        return viewer;
+    }
+
+    /**
+     * @brief An anonymous spectator viewer.
+     *
+     * @param private_seats Owners whose seats show card backs.
+     */
+    static Viewer Spectator(std::vector<std::string> private_seats = {}) {
         Viewer viewer;
         viewer.is_spectator = true;
+        viewer.private_seats = std::move(private_seats);
         return viewer;
+    }
+
+    /** @brief A spectator that sees card backs for every seat. */
+    static Viewer PublicSpectator() {
+        Viewer viewer = Spectator();
+        viewer.hides_every_seat = true;
+        return viewer;
+    }
+
+    /** @brief True when this spectator sees card backs for `owner`. */
+    bool SeesCardBacksOf(const std::string& owner) const {
+        if (director) return false;
+        if (hides_every_seat) return true;
+        for (const std::string& private_owner : private_seats) {
+            if (private_owner == owner) return true;
+        }
+        return false;
     }
 };
 
@@ -81,16 +121,11 @@ struct Viewer {
  * @struct SnapshotOptions
  * @brief Per-match snapshot inputs the engine does not own.
  *
- * The lobby owns the phase-1 per-player `privacy_from_spectators` toggle, so
- * the flag is supplied here rather than stored on the engine.
- * A listed player's hidden aspects (hand identity/colour/value/position and
- * hidden statuses) are stripped from spectator views; every other
- * player stays fully visible to a spectator (spectators default omniscient).
+ * A private seat (`Viewer::private_seats`) shows no hand identity, colour,
+ * value or position and no hidden status to a spectator. Every other seat
+ * stays visible. The draw pile never lists its cards to a spectator.
  */
 struct SnapshotOptions {
-    /** Usernames whose hidden aspects are hidden from spectators. */
-    std::vector<std::string> privacy_from_spectators;
-
     /**
      * Connected spectators watching each player's POV, keyed by the watched
      * player's username. A spectator with no explicit choice is attributed to
@@ -101,8 +136,12 @@ struct SnapshotOptions {
     /** Total connected spectators in the lobby (all POVs). */
     int spectator_count = 0;
 
-    /** @brief True when `username` opted into spectator privacy. */
-    bool PrivacyOn(const std::string& username) const;
+    /**
+     * The retained client events for the play log. When set, the snapshot
+     * gets `match_state.tail` (a warm-up snapshot for a late joiner or a
+     * snapshot request). A snapshot for a live seat leaves it unset.
+     */
+    const EventTail* tail = nullptr;
 };
 
 
@@ -157,16 +196,33 @@ public:
                                        EventSink& sink) const;
 
     /**
-     * @brief Synthesize a `prompt_open` for the viewer's parked op input.
+     * @brief The retained client events, projected for `viewer`.
      *
-     * The engine has no `prompt_open` descriptor yet (`kNeedsInput` parks the
+     * Each stored logical event goes through the same projector as a live
+     * event. The result is a self-contained list: its `sequence` starts at 0
+     * and counts the tail only, so it never consumes the live stream of the
+     * viewer. Every envelope has `replayed: true`. `cause` points to an event
+     * of the tail, or it is absent. A client feeds the tail to the play log
+     * only: it starts no animation, no sound and no timer.
+     *
+     * @param viewer Recipient to build for.
+     * @param tail   The stored logical events.
+     * @return The array of envelopes, in engine order.
+     */
+    nlohmann::json BuildTail(const Viewer& viewer,
+                             const EventTail& tail) const;
+
+    /**
+     * @brief Synthesize a `prompt_opened` for the viewer's parked op input.
+     *
+     * The engine has no `prompt_opened` descriptor yet (`kNeedsInput` parks the
      * pause); this is the seam that turns `PendingInput` into the
      * packet for the target player only. Returns `nullopt` for any other
      * viewer or when no input is parked.
      *
      * @param viewer Recipient to build for.
      * @param sink   Per-recipient sequence source.
-     * @return The `prompt_open` envelope, or `nullopt`.
+     * @return The `prompt_opened` envelope, or `nullopt`.
      */
     std::optional<nlohmann::json> BuildPendingPrompt(
         const Viewer& viewer, EventSink& sink) const;
@@ -182,7 +238,13 @@ public:
      * pile count only, discard top identity + count, played/public info);
      * `VisibilityGrant` entries reveal the granted aspects of another hand or
      * a pile. A spectator is omniscient except for players opted into
-     * `privacy_from_spectators`. Own-hand entries carry a `can_play` flag
+     * the private seats. Own-hand entries carry a `can_play` flag
+     *
+     * `match_state.context` holds the engine-owned values (active color,
+     * direction, draw debt, play-drawn hold, live timers, sequence of the last
+     * client event, and an empty `streaks` map that the server streak
+     * tickets fill), so a late joiner rebuilds nothing from events. It is
+     * redacted for the viewer: only the owner of a hold sees its card.
      *
      * The watermark is `sink.NextSeq()`, so a caller builds the viewer's
      * packets into `sink` first and then the snapshot reconciles exactly the
@@ -200,7 +262,7 @@ public:
      *
      * @param viewer  Recipient to build for.
      * @param sink    The viewer's stream, read for the seq watermark.
-     * @param options Lobby-owned snapshot options (`privacy_from_spectators`).
+     * @param options Lobby-owned snapshot options (spectator counts).
      * @return The `match_state_updated` envelope.
      */
     nlohmann::json BuildSnapshot(const Viewer& viewer, const EventSink& sink,
@@ -225,6 +287,11 @@ public:
     const match::engine::MatchInstance& Match() const { return match_; }
 
 private:
+    /** @brief Wrap a mod event: `type` is `mod_event`, `id` the event id. */
+    std::optional<nlohmann::json> WrapModEvent(
+        const nlohmann::json& engine_event, const nlohmann::json& body,
+        const Viewer& viewer, EventSink& sink) const;
+
     const match::engine::MatchInstance& match_;
     /** status_id -> declared `hidden`. */
     std::unordered_map<std::string, bool> hidden_status_;

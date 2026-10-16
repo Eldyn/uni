@@ -1,0 +1,36 @@
+{
+  "actor": {
+    "actor": "player0",
+    "id": "test:apple_eaten",
+    "payload": {
+      "color": "red",
+      "count": 3,
+      "target": "player0"
+    },
+    "round": 0,
+    "sequence": 0,
+    "turn": 0
+  },
+  "other_seat": {
+    "actor": "player0",
+    "id": "test:apple_eaten",
+    "payload": {
+      "count": 3,
+      "target": "player0"
+    },
+    "round": 0,
+    "sequence": 0,
+    "turn": 0
+  },
+  "public_spectator": {
+    "actor": "player0",
+    "id": "test:apple_eaten",
+    "payload": {
+      "count": 3,
+      "target": "player0"
+    },
+    "round": 0,
+    "sequence": 0,
+    "turn": 0
+  }
+}

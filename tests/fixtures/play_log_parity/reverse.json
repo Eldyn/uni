@@ -1,0 +1,75 @@
+{
+  "uni:format_version": "1.0.0",
+  "uni:binding": {
+    "uni:description": {
+      "uni:identifier": "parity:reverse"
+    },
+    "uni:event": "direction_changed",
+    "uni:select": "first",
+    "uni:cases": [
+      {
+        "uni:tests": [
+          {
+            "uni:test": "gte",
+            "uni:streak": "uni:reverse_run",
+            "uni:value": 4
+          }
+        ],
+        "uni:present": {
+          "uni:log": {
+            "uni:variants": [
+              "uni:log.reverse_spin",
+              "uni:log.reverse_spin_2"
+            ],
+            "uni:params": {}
+          }
+        }
+      },
+      {
+        "uni:tests": [
+          {
+            "uni:test": "equals",
+            "uni:streak": "uni:reverse_run",
+            "uni:value": 3
+          }
+        ],
+        "uni:present": {
+          "uni:log": {
+            "uni:variants": [
+              "uni:log.reverse_again"
+            ],
+            "uni:params": {}
+          }
+        }
+      },
+      {
+        "uni:tests": [
+          {
+            "uni:test": "equals",
+            "uni:streak": "uni:reverse_run",
+            "uni:value": 2
+          }
+        ],
+        "uni:present": {
+          "uni:log": {
+            "uni:variants": [
+              "uni:log.reverse_back",
+              "uni:log.reverse_back_2"
+            ],
+            "uni:params": {}
+          }
+        }
+      },
+      {
+        "uni:present": {
+          "uni:log": {
+            "uni:variants": [
+              "uni:log.reverse"
+            ],
+            "uni:params": {}
+          }
+        }
+      }
+    ]
+  }
+}

@@ -90,6 +90,18 @@ void StatsController::HandleGetMe(AppResponse* res, AppRequest* req) {
 }
 
 void StatsController::HandleGetLeaderboard(AppResponse* res, AppRequest* req) {
+    (void)req;
+    // Fast path: serve the cached serialized body (no json alloc on loop).
+    {
+        std::lock_guard<std::mutex> lock(lb_body_mu_);
+        if (!lb_body_.empty() && std::chrono::steady_clock::now() < lb_body_expires_) {
+            res->writeHeader("Content-Type", "application/json")
+               ->writeHeader("Cache-Control", "public, max-age=15")
+               ->end(lb_body_);
+            return;
+        }
+    }
+
     auto entries_result = stats_service_.GetLeaderboard();
     if (!entries_result) {
         Logger::Error("[Stats] DB query failed: " + entries_result.error().message);
@@ -108,9 +120,16 @@ void StatsController::HandleGetLeaderboard(AppResponse* res, AppRequest* req) {
     }
 
     json response_data = { {"leaderboard", leaderboard} };
+    const std::string body = response_data.dump();
+    {
+        std::lock_guard<std::mutex> lock(lb_body_mu_);
+        lb_body_ = body;
+        lb_body_expires_ = std::chrono::steady_clock::now() + std::chrono::seconds(15);
+    }
 
     res->writeHeader("Content-Type", "application/json")
-       ->end(response_data.dump());
+       ->writeHeader("Cache-Control", "public, max-age=15")
+       ->end(body);
 }
 
 void StatsController::HandleGetOnline(AppResponse* res, AppRequest* /*req*/) {

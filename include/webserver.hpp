@@ -213,16 +213,35 @@ private:
 
     /**
      * @brief Walks `frontend_path_` once at startup and loads every regular file's
-     * contents into `static_file_cache_`, so `ReadFile` becomes a hot-path lookup
-     * instead of a per-request disk read. ETags stay live (stat-based via
-     * `http::MakeETag`) so a file replaced on disk after startup still revalidates
-     * correctly even though its cached bytes are stale; only newly added files are
-     * not served until the process restarts and re-populates the cache.
+     * contents into `static_file_cache_` as `CachedAsset{bytes, etag}`, so a cache
+     * hit serves the frozen bytes with their frozen validator — no per-request
+     * disk read, `stat`, or copy. A file replaced on disk after startup keeps
+     * serving the startup bytes (and their ETag) until the process restarts;
+     * only files added after startup miss the cache and fall back to `ReadFile`
+     * + live `http::MakeETag`.
      */
     void LoadStaticFileCache();
 
+    /**
+     * @brief One cached static asset: its bytes plus the ETag computed once
+     * at load time, so a cache hit serves the body and the validator with no
+     * disk read, no `stat` and no per-request copy.
+     */
+    struct CachedAsset {
+        std::string bytes;
+        std::string etag;
+    };
+
+    /**
+     * @brief Look up a startup-cached asset by canonical absolute path.
+     * @return Pointer into `static_file_cache_`, or nullptr on a miss
+     * (cache disabled, or a file added after startup — caller falls back
+     * to `ReadFile` + live `http::MakeETag`).
+     */
+    const CachedAsset* FindCachedAsset(std::string_view path) const;
+
     /** In-memory cache of static file contents, keyed by canonical absolute path. */
-    std::unordered_map<std::string, std::string> static_file_cache_;
+    std::unordered_map<std::string, CachedAsset> static_file_cache_;
 
     std::vector<ConnectionHandler> on_open_hooks_;   /**< List of connection open hooks. */
     std::vector<ConnectionHandler> on_close_hooks_;  /**< List of connection close hooks. */

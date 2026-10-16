@@ -9,8 +9,9 @@ export type ViewportClass = "desktop" | "tablet" | "mobile";
 const MOBILE_MAX_WIDTH = 640;
 const TABLET_MAX_WIDTH = 1024;
 
-function classify(viewport: ViewportInfo): ViewportClass {
-	if (viewport.width <= MOBILE_MAX_WIDTH) return "mobile";
+export function classify(viewport: ViewportInfo): ViewportClass {
+	const shortSide = Math.min(viewport.width, viewport.height);
+	if (shortSide <= MOBILE_MAX_WIDTH) return "mobile";
 	if (viewport.width <= TABLET_MAX_WIDTH) return "tablet";
 	return "desktop";
 }

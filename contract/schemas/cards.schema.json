@@ -62,7 +62,7 @@
           "type": "string",
           "enum": ["inset", "replace", "overlay"],
           "default": "inset",
-          "description": "Layer composition (D6): inset draws art inside the vanilla frame, replace covers the whole card, overlay draws over the vanilla composite."
+          "description": "Layer composition (D6): inset draws art inside the default frame, replace covers the whole card, overlay draws over the default composite."
         },
         "art_fit": {
           "type": "string",

@@ -1,0 +1,878 @@
+{
+  "entries": {
+    "uni:draw": {
+      "id": "uni:draw",
+      "title": "Добір",
+      "description": "Взяти одну або кілька карт з [k=uni:draw_pile]колоди добору[/k] у свою руку.",
+      "tags": [
+        {
+          "label": "Дія",
+          "bg": "var(--glossary-tag-action)",
+          "shadowColor": "var(--glossary-tag-action-shadow)"
+        }
+      ]
+    },
+    "uni:skip": {
+      "id": "uni:skip",
+      "title": "Пропуск",
+      "description": "Змушує наступного гравця за [k=uni:turn]чергою[/k] втратити свій хід.",
+      "tags": [
+        {
+          "label": "Дія",
+          "bg": "var(--glossary-tag-action)",
+          "shadowColor": "var(--glossary-tag-action-shadow)"
+        }
+      ]
+    },
+    "uni:reverse": {
+      "id": "uni:reverse",
+      "title": "Реверс",
+      "description": "Змінює напрямок гри. У матчі на 2 гравців діє як [k=uni:skip]пропуск[/k].",
+      "tags": [
+        {
+          "label": "Дія",
+          "bg": "var(--glossary-tag-action)",
+          "shadowColor": "var(--glossary-tag-action-shadow)"
+        }
+      ]
+    },
+    "uni:wild": {
+      "id": "uni:wild",
+      "title": "Дика карта",
+      "description": "Можна зіграти на будь-яку карту. Гравець вибирає активний [k=uni:color]колір[/k].",
+      "tags": [
+        {
+          "label": "Дія",
+          "bg": "var(--glossary-tag-action)",
+          "shadowColor": "var(--glossary-tag-action-shadow)"
+        }
+      ]
+    },
+    "uni:turn": {
+      "id": "uni:turn",
+      "title": "Хід",
+      "description": "Нагода гравця [k=uni:play]зіграти[/k] допустиму карту або [k=uni:draw]взяти[/k].",
+      "tags": [
+        {
+          "label": "Хід",
+          "bg": "var(--glossary-tag-flow)",
+          "shadowColor": "var(--glossary-tag-flow-shadow)"
+        }
+      ]
+    },
+    "uni:color": {
+      "id": "uni:color",
+      "title": "Колір",
+      "description": "Активна масть (червона, синя, зелена, жовта), яка визначає допустимі ходи."
+    },
+    "uni:draw_pile": {
+      "id": "uni:draw_pile",
+      "title": "Колода добору",
+      "description": "Центральна колода, з якої гравці [k=uni:draw]добирають[/k] карти, коли не можуть або не хочуть грати.",
+      "tags": [
+        {
+          "label": "Стопка",
+          "bg": "var(--glossary-tag-pile)",
+          "shadowColor": "var(--glossary-tag-pile-shadow)"
+        }
+      ]
+    },
+    "uni:discard_pile": {
+      "id": "uni:discard_pile",
+      "title": "Колода скидання",
+      "description": "Стопка, куди зіграні карти кладуться горілиць.",
+      "tags": [
+        {
+          "label": "Стопка",
+          "bg": "var(--glossary-tag-pile)",
+          "shadowColor": "var(--glossary-tag-pile-shadow)"
+        }
+      ]
+    },
+    "uni:play": {
+      "id": "uni:play",
+      "title": "Гра",
+      "description": "Покласти відповідну карту з руки на [k=uni:discard_pile]колоду скидання[/k].",
+      "tags": [
+        {
+          "label": "Дія",
+          "bg": "var(--glossary-tag-action)",
+          "shadowColor": "var(--glossary-tag-action-shadow)"
+        }
+      ]
+    },
+    "uni:seven_zero": {
+      "id": "uni:seven_zero",
+      "title": "Правило 7-0",
+      "description": "Гра 7 дозволяє обмінятися руками з будь-яким гравцем. Гра 0 обертає всі руки за [k=uni:turn]чергою[/k].",
+      "tags": [
+        {
+          "label": "Правило",
+          "bg": "var(--glossary-tag-rule)",
+          "shadowColor": "var(--glossary-tag-rule-shadow)"
+        }
+      ]
+    },
+    "uni:draw_stacking": {
+      "id": "uni:draw_stacking",
+      "title": "Накопичення добору",
+      "description": "Накладайте карти +2 або +4, щоб передати накопичений штраф [k=uni:draw]добору[/k] наступному гравцю.",
+      "tags": [
+        {
+          "label": "Правило",
+          "bg": "var(--glossary-tag-rule)",
+          "shadowColor": "var(--glossary-tag-rule-shadow)"
+        }
+      ]
+    },
+    "uni:force_play": {
+      "id": "uni:force_play",
+      "title": "Обов'язкова гра",
+      "description": "Коли ви добираєте карту, якою можна грати, з колоди, ви мусите зіграти її негайно.",
+      "tags": [
+        {
+          "label": "Правило",
+          "bg": "var(--glossary-tag-rule)",
+          "shadowColor": "var(--glossary-tag-rule-shadow)"
+        }
+      ]
+    },
+    "uni:jump_in": {
+      "id": "uni:jump_in",
+      "title": "Втручання",
+      "description": "Грайте поза чергою, якщо у вас є точно така сама карта (того самого кольору й значення), як верхня карта.",
+      "tags": [
+        {
+          "label": "Правило",
+          "bg": "var(--glossary-tag-rule)",
+          "shadowColor": "var(--glossary-tag-rule-shadow)"
+        }
+      ]
+    },
+    "uni:progressive": {
+      "id": "uni:progressive",
+      "title": "Прогресивний",
+      "description": "Карти, що збігаються за значенням з верхньою картою, можна складати в ланцюжок протягом одного [k=uni:turn]ходу[/k].",
+      "tags": [
+        {
+          "label": "Правило",
+          "bg": "var(--glossary-tag-rule)",
+          "shadowColor": "var(--glossary-tag-rule-shadow)"
+        }
+      ]
+    },
+    "uni:race": {
+      "id": "uni:race",
+      "title": "Змагання",
+      "description": "Перші гравці, які спорожнили руку, перемагають. Матч закінчується, коли фінішує достатньо гравців, а всі інші програють.",
+      "tags": [
+        {
+          "label": "Правило",
+          "bg": "var(--glossary-tag-rule)",
+          "shadowColor": "var(--glossary-tag-rule-shadow)"
+        }
+      ]
+    },
+    "uni:blue_0": {
+      "id": "uni:blue_0",
+      "title": "0",
+      "description": "Карта з числом 0. Якщо правило [k=uni:seven_zero]7-0[/k] активне, обертає всі руки за [k=uni:turn]чергою[/k]."
+    },
+    "uni:blue_1": {
+      "id": "uni:blue_1",
+      "title": "1",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "uni:blue_2": {
+      "id": "uni:blue_2",
+      "title": "2",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "uni:blue_3": {
+      "id": "uni:blue_3",
+      "title": "3",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "uni:blue_4": {
+      "id": "uni:blue_4",
+      "title": "4",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "uni:blue_5": {
+      "id": "uni:blue_5",
+      "title": "5",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "uni:blue_6": {
+      "id": "uni:blue_6",
+      "title": "6",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "uni:blue_7": {
+      "id": "uni:blue_7",
+      "title": "7",
+      "description": "Карта з числом 7. Якщо правило [k=uni:seven_zero]7-0[/k] активне, обміняйтеся руками з будь-яким гравцем."
+    },
+    "uni:blue_8": {
+      "id": "uni:blue_8",
+      "title": "8",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "uni:blue_9": {
+      "id": "uni:blue_9",
+      "title": "9",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "uni:blue_draw2": {
+      "id": "uni:blue_draw2",
+      "title": "Взяти дві (+2)",
+      "description": "Змушує наступного гравця [k=uni:draw]взяти[/k] 2 карти з [k=uni:draw_pile]колоди добору[/k] і [k=uni:skip]пропустити[/k] свій [k=uni:turn]хід[/k]."
+    },
+    "uni:blue_reverse": {
+      "id": "uni:blue_reverse",
+      "title": "Реверс",
+      "description": "[k=uni:reverse]Змінює[/k] напрямок [k=uni:play]гри[/k]. У грі на 2 гравців діє як [k=uni:skip]пропуск[/k]."
+    },
+    "uni:blue_skip": {
+      "id": "uni:blue_skip",
+      "title": "Пропуск",
+      "description": "Змушує наступного гравця за [k=uni:turn]чергою[/k] бути [k=uni:skip]пропущеним[/k]."
+    },
+    "uni:green_0": {
+      "id": "uni:green_0",
+      "title": "0",
+      "description": "Карта з числом 0. Якщо правило [k=uni:seven_zero]7-0[/k] активне, обертає всі руки за [k=uni:turn]чергою[/k]."
+    },
+    "uni:green_1": {
+      "id": "uni:green_1",
+      "title": "1",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "uni:green_2": {
+      "id": "uni:green_2",
+      "title": "2",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "uni:green_3": {
+      "id": "uni:green_3",
+      "title": "3",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "uni:green_4": {
+      "id": "uni:green_4",
+      "title": "4",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "uni:green_5": {
+      "id": "uni:green_5",
+      "title": "5",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "uni:green_6": {
+      "id": "uni:green_6",
+      "title": "6",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "uni:green_7": {
+      "id": "uni:green_7",
+      "title": "7",
+      "description": "Карта з числом 7. Якщо правило [k=uni:seven_zero]7-0[/k] активне, обміняйтеся руками з будь-яким гравцем."
+    },
+    "uni:green_8": {
+      "id": "uni:green_8",
+      "title": "8",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "uni:green_9": {
+      "id": "uni:green_9",
+      "title": "9",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "uni:green_draw2": {
+      "id": "uni:green_draw2",
+      "title": "Взяти дві (+2)",
+      "description": "Змушує наступного гравця [k=uni:draw]взяти[/k] 2 карти з [k=uni:draw_pile]колоди добору[/k] і [k=uni:skip]пропустити[/k] свій [k=uni:turn]хід[/k]."
+    },
+    "uni:green_reverse": {
+      "id": "uni:green_reverse",
+      "title": "Реверс",
+      "description": "[k=uni:reverse]Змінює[/k] напрямок [k=uni:play]гри[/k]. У грі на 2 гравців діє як [k=uni:skip]пропуск[/k]."
+    },
+    "uni:green_skip": {
+      "id": "uni:green_skip",
+      "title": "Пропуск",
+      "description": "Змушує наступного гравця за [k=uni:turn]чергою[/k] бути [k=uni:skip]пропущеним[/k]."
+    },
+    "uni:red_0": {
+      "id": "uni:red_0",
+      "title": "0",
+      "description": "Карта з числом 0. Якщо правило [k=uni:seven_zero]7-0[/k] активне, обертає всі руки за [k=uni:turn]чергою[/k]."
+    },
+    "uni:red_1": {
+      "id": "uni:red_1",
+      "title": "1",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "uni:red_2": {
+      "id": "uni:red_2",
+      "title": "2",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "uni:red_3": {
+      "id": "uni:red_3",
+      "title": "3",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "uni:red_4": {
+      "id": "uni:red_4",
+      "title": "4",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "uni:red_5": {
+      "id": "uni:red_5",
+      "title": "5",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "uni:red_6": {
+      "id": "uni:red_6",
+      "title": "6",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "uni:red_7": {
+      "id": "uni:red_7",
+      "title": "7",
+      "description": "Карта з числом 7. Якщо правило [k=uni:seven_zero]7-0[/k] активне, обміняйтеся руками з будь-яким гравцем."
+    },
+    "uni:red_8": {
+      "id": "uni:red_8",
+      "title": "8",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "uni:red_9": {
+      "id": "uni:red_9",
+      "title": "9",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "uni:red_draw2": {
+      "id": "uni:red_draw2",
+      "title": "Взяти дві (+2)",
+      "description": "Змушує наступного гравця [k=uni:draw]взяти[/k] 2 карти з [k=uni:draw_pile]колоди добору[/k] і [k=uni:skip]пропустити[/k] свій [k=uni:turn]хід[/k]."
+    },
+    "uni:red_reverse": {
+      "id": "uni:red_reverse",
+      "title": "Реверс",
+      "description": "[k=uni:reverse]Змінює[/k] напрямок [k=uni:play]гри[/k]. У грі на 2 гравців діє як [k=uni:skip]пропуск[/k]."
+    },
+    "uni:red_skip": {
+      "id": "uni:red_skip",
+      "title": "Пропуск",
+      "description": "Змушує наступного гравця за [k=uni:turn]чергою[/k] бути [k=uni:skip]пропущеним[/k]."
+    },
+    "uni:wild_draw4": {
+      "id": "uni:wild_draw4",
+      "title": "Дика карта «візьми чотири» (+4)",
+      "description": "Виберіть активний [k=uni:color]колір[/k]. Наступний гравець мусить [k=uni:draw]взяти[/k] 4 карти й [k=uni:skip]пропустити[/k] свій [k=uni:turn]хід[/k]."
+    },
+    "uni:yellow_0": {
+      "id": "uni:yellow_0",
+      "title": "0",
+      "description": "Карта з числом 0. Якщо правило [k=uni:seven_zero]7-0[/k] активне, обертає всі руки за [k=uni:turn]чергою[/k]."
+    },
+    "uni:yellow_1": {
+      "id": "uni:yellow_1",
+      "title": "1",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "uni:yellow_2": {
+      "id": "uni:yellow_2",
+      "title": "2",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "uni:yellow_3": {
+      "id": "uni:yellow_3",
+      "title": "3",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "uni:yellow_4": {
+      "id": "uni:yellow_4",
+      "title": "4",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "uni:yellow_5": {
+      "id": "uni:yellow_5",
+      "title": "5",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "uni:yellow_6": {
+      "id": "uni:yellow_6",
+      "title": "6",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "uni:yellow_7": {
+      "id": "uni:yellow_7",
+      "title": "7",
+      "description": "Карта з числом 7. Якщо правило [k=uni:seven_zero]7-0[/k] активне, обміняйтеся руками з будь-яким гравцем."
+    },
+    "uni:yellow_8": {
+      "id": "uni:yellow_8",
+      "title": "8",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "uni:yellow_9": {
+      "id": "uni:yellow_9",
+      "title": "9",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "uni:yellow_draw2": {
+      "id": "uni:yellow_draw2",
+      "title": "Взяти дві (+2)",
+      "description": "Змушує наступного гравця [k=uni:draw]взяти[/k] 2 карти з [k=uni:draw_pile]колоди добору[/k] і [k=uni:skip]пропустити[/k] свій [k=uni:turn]хід[/k]."
+    },
+    "uni:yellow_reverse": {
+      "id": "uni:yellow_reverse",
+      "title": "Реверс",
+      "description": "[k=uni:reverse]Змінює[/k] напрямок [k=uni:play]гри[/k]. У грі на 2 гравців діє як [k=uni:skip]пропуск[/k]."
+    },
+    "uni:yellow_skip": {
+      "id": "uni:yellow_skip",
+      "title": "Пропуск",
+      "description": "Змушує наступного гравця за [k=uni:turn]чергою[/k] бути [k=uni:skip]пропущеним[/k]."
+    }
+  },
+  "cardKinds": {
+    "uni:blue_0": {
+      "title": "0",
+      "description": "Карта з числом 0. Якщо правило [k=uni:seven_zero]7-0[/k] активне, обертає всі руки за [k=uni:turn]чергою[/k]."
+    },
+    "uni:blue_1": {
+      "title": "1",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "uni:blue_2": {
+      "title": "2",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "uni:blue_3": {
+      "title": "3",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "uni:blue_4": {
+      "title": "4",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "uni:blue_5": {
+      "title": "5",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "uni:blue_6": {
+      "title": "6",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "uni:blue_7": {
+      "title": "7",
+      "description": "Карта з числом 7. Якщо правило [k=uni:seven_zero]7-0[/k] активне, обміняйтеся руками з будь-яким гравцем."
+    },
+    "uni:blue_8": {
+      "title": "8",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "uni:blue_9": {
+      "title": "9",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "uni:blue_draw2": {
+      "title": "Взяти дві (+2)",
+      "description": "Змушує наступного гравця [k=uni:draw]взяти[/k] 2 карти з [k=uni:draw_pile]колоди добору[/k] і [k=uni:skip]пропустити[/k] свій [k=uni:turn]хід[/k]."
+    },
+    "uni:blue_reverse": {
+      "title": "Реверс",
+      "description": "[k=uni:reverse]Змінює[/k] напрямок [k=uni:play]гри[/k]. У грі на 2 гравців діє як [k=uni:skip]пропуск[/k]."
+    },
+    "uni:blue_skip": {
+      "title": "Пропуск",
+      "description": "Змушує наступного гравця за [k=uni:turn]чергою[/k] бути [k=uni:skip]пропущеним[/k]."
+    },
+    "uni:green_0": {
+      "title": "0",
+      "description": "Карта з числом 0. Якщо правило [k=uni:seven_zero]7-0[/k] активне, обертає всі руки за [k=uni:turn]чергою[/k]."
+    },
+    "uni:green_1": {
+      "title": "1",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "uni:green_2": {
+      "title": "2",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "uni:green_3": {
+      "title": "3",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "uni:green_4": {
+      "title": "4",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "uni:green_5": {
+      "title": "5",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "uni:green_6": {
+      "title": "6",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "uni:green_7": {
+      "title": "7",
+      "description": "Карта з числом 7. Якщо правило [k=uni:seven_zero]7-0[/k] активне, обміняйтеся руками з будь-яким гравцем."
+    },
+    "uni:green_8": {
+      "title": "8",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "uni:green_9": {
+      "title": "9",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "uni:green_draw2": {
+      "title": "Взяти дві (+2)",
+      "description": "Змушує наступного гравця [k=uni:draw]взяти[/k] 2 карти з [k=uni:draw_pile]колоди добору[/k] і [k=uni:skip]пропустити[/k] свій [k=uni:turn]хід[/k]."
+    },
+    "uni:green_reverse": {
+      "title": "Реверс",
+      "description": "[k=uni:reverse]Змінює[/k] напрямок [k=uni:play]гри[/k]. У грі на 2 гравців діє як [k=uni:skip]пропуск[/k]."
+    },
+    "uni:green_skip": {
+      "title": "Пропуск",
+      "description": "Змушує наступного гравця за [k=uni:turn]чергою[/k] бути [k=uni:skip]пропущеним[/k]."
+    },
+    "uni:red_0": {
+      "title": "0",
+      "description": "Карта з числом 0. Якщо правило [k=uni:seven_zero]7-0[/k] активне, обертає всі руки за [k=uni:turn]чергою[/k]."
+    },
+    "uni:red_1": {
+      "title": "1",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "uni:red_2": {
+      "title": "2",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "uni:red_3": {
+      "title": "3",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "uni:red_4": {
+      "title": "4",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "uni:red_5": {
+      "title": "5",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "uni:red_6": {
+      "title": "6",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "uni:red_7": {
+      "title": "7",
+      "description": "Карта з числом 7. Якщо правило [k=uni:seven_zero]7-0[/k] активне, обміняйтеся руками з будь-яким гравцем."
+    },
+    "uni:red_8": {
+      "title": "8",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "uni:red_9": {
+      "title": "9",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "uni:red_draw2": {
+      "title": "Взяти дві (+2)",
+      "description": "Змушує наступного гравця [k=uni:draw]взяти[/k] 2 карти з [k=uni:draw_pile]колоди добору[/k] і [k=uni:skip]пропустити[/k] свій [k=uni:turn]хід[/k]."
+    },
+    "uni:red_reverse": {
+      "title": "Реверс",
+      "description": "[k=uni:reverse]Змінює[/k] напрямок [k=uni:play]гри[/k]. У грі на 2 гравців діє як [k=uni:skip]пропуск[/k]."
+    },
+    "uni:red_skip": {
+      "title": "Пропуск",
+      "description": "Змушує наступного гравця за [k=uni:turn]чергою[/k] бути [k=uni:skip]пропущеним[/k]."
+    },
+    "uni:wild": {
+      "title": "Дика карта",
+      "description": "[k=uni:wild]Дика[/k] карта, яку можна зіграти на будь-яку карту. Виберіть активний [k=uni:color]колір[/k]."
+    },
+    "uni:wild_draw4": {
+      "title": "Дика карта «візьми чотири» (+4)",
+      "description": "Виберіть активний [k=uni:color]колір[/k]. Наступний гравець мусить [k=uni:draw]взяти[/k] 4 карти й [k=uni:skip]пропустити[/k] свій [k=uni:turn]хід[/k]."
+    },
+    "uni:yellow_0": {
+      "title": "0",
+      "description": "Карта з числом 0. Якщо правило [k=uni:seven_zero]7-0[/k] активне, обертає всі руки за [k=uni:turn]чергою[/k]."
+    },
+    "uni:yellow_1": {
+      "title": "1",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "uni:yellow_2": {
+      "title": "2",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "uni:yellow_3": {
+      "title": "3",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "uni:yellow_4": {
+      "title": "4",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "uni:yellow_5": {
+      "title": "5",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "uni:yellow_6": {
+      "title": "6",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "uni:yellow_7": {
+      "title": "7",
+      "description": "Карта з числом 7. Якщо правило [k=uni:seven_zero]7-0[/k] активне, обміняйтеся руками з будь-яким гравцем."
+    },
+    "uni:yellow_8": {
+      "title": "8",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "uni:yellow_9": {
+      "title": "9",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "uni:yellow_draw2": {
+      "title": "Взяти дві (+2)",
+      "description": "Змушує наступного гравця [k=uni:draw]взяти[/k] 2 карти з [k=uni:draw_pile]колоди добору[/k] і [k=uni:skip]пропустити[/k] свій [k=uni:turn]хід[/k]."
+    },
+    "uni:yellow_reverse": {
+      "title": "Реверс",
+      "description": "[k=uni:reverse]Змінює[/k] напрямок [k=uni:play]гри[/k]. У грі на 2 гравців діє як [k=uni:skip]пропуск[/k]."
+    },
+    "uni:yellow_skip": {
+      "title": "Пропуск",
+      "description": "Змушує наступного гравця за [k=uni:turn]чергою[/k] бути [k=uni:skip]пропущеним[/k]."
+    }
+  },
+  "cardInfos": {
+    "blue_0": {
+      "title": "Blue 0",
+      "description": "Карта з числом 0. Якщо правило [k=uni:seven_zero]7-0[/k] активне, обертає всі руки за [k=uni:turn]чергою[/k]."
+    },
+    "blue_1": {
+      "title": "Blue 1",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "blue_2": {
+      "title": "Blue 2",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "blue_3": {
+      "title": "Blue 3",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "blue_4": {
+      "title": "Blue 4",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "blue_5": {
+      "title": "Blue 5",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "blue_6": {
+      "title": "Blue 6",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "blue_7": {
+      "title": "Blue 7",
+      "description": "Карта з числом 7. Якщо правило [k=uni:seven_zero]7-0[/k] активне, обміняйтеся руками з будь-яким гравцем."
+    },
+    "blue_8": {
+      "title": "Blue 8",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "blue_9": {
+      "title": "Blue 9",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "blue_draw2": {
+      "title": "Взяти дві (+2)",
+      "description": "Змушує наступного гравця [k=uni:draw]взяти[/k] 2 карти з [k=uni:draw_pile]колоди добору[/k] і [k=uni:skip]пропустити[/k] свій [k=uni:turn]хід[/k]."
+    },
+    "blue_reverse": {
+      "title": "Реверс",
+      "description": "[k=uni:reverse]Змінює[/k] напрямок [k=uni:play]гри[/k]. У грі на 2 гравців діє як [k=uni:skip]пропуск[/k]."
+    },
+    "blue_skip": {
+      "title": "Пропуск",
+      "description": "Змушує наступного гравця за [k=uni:turn]чергою[/k] бути [k=uni:skip]пропущеним[/k]."
+    },
+    "green_0": {
+      "title": "Green 0",
+      "description": "Карта з числом 0. Якщо правило [k=uni:seven_zero]7-0[/k] активне, обертає всі руки за [k=uni:turn]чергою[/k]."
+    },
+    "green_1": {
+      "title": "Green 1",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "green_2": {
+      "title": "Green 2",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "green_3": {
+      "title": "Green 3",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "green_4": {
+      "title": "Green 4",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "green_5": {
+      "title": "Green 5",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "green_6": {
+      "title": "Green 6",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "green_7": {
+      "title": "Green 7",
+      "description": "Карта з числом 7. Якщо правило [k=uni:seven_zero]7-0[/k] активне, обміняйтеся руками з будь-яким гравцем."
+    },
+    "green_8": {
+      "title": "Green 8",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "green_9": {
+      "title": "Green 9",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "green_draw2": {
+      "title": "Взяти дві (+2)",
+      "description": "Змушує наступного гравця [k=uni:draw]взяти[/k] 2 карти з [k=uni:draw_pile]колоди добору[/k] і [k=uni:skip]пропустити[/k] свій [k=uni:turn]хід[/k]."
+    },
+    "green_reverse": {
+      "title": "Реверс",
+      "description": "[k=uni:reverse]Змінює[/k] напрямок [k=uni:play]гри[/k]. У грі на 2 гравців діє як [k=uni:skip]пропуск[/k]."
+    },
+    "green_skip": {
+      "title": "Пропуск",
+      "description": "Змушує наступного гравця за [k=uni:turn]чергою[/k] бути [k=uni:skip]пропущеним[/k]."
+    },
+    "red_0": {
+      "title": "Red 0",
+      "description": "Карта з числом 0. Якщо правило [k=uni:seven_zero]7-0[/k] активне, обертає всі руки за [k=uni:turn]чергою[/k]."
+    },
+    "red_1": {
+      "title": "Red 1",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "red_2": {
+      "title": "Red 2",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "red_3": {
+      "title": "Red 3",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "red_4": {
+      "title": "Red 4",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "red_5": {
+      "title": "Red 5",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "red_6": {
+      "title": "Red 6",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "red_7": {
+      "title": "Red 7",
+      "description": "Карта з числом 7. Якщо правило [k=uni:seven_zero]7-0[/k] активне, обміняйтеся руками з будь-яким гравцем."
+    },
+    "red_8": {
+      "title": "Red 8",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "red_9": {
+      "title": "Red 9",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "red_draw2": {
+      "title": "Взяти дві (+2)",
+      "description": "Змушує наступного гравця [k=uni:draw]взяти[/k] 2 карти з [k=uni:draw_pile]колоди добору[/k] і [k=uni:skip]пропустити[/k] свій [k=uni:turn]хід[/k]."
+    },
+    "red_reverse": {
+      "title": "Реверс",
+      "description": "[k=uni:reverse]Змінює[/k] напрямок [k=uni:play]гри[/k]. У грі на 2 гравців діє як [k=uni:skip]пропуск[/k]."
+    },
+    "red_skip": {
+      "title": "Пропуск",
+      "description": "Змушує наступного гравця за [k=uni:turn]чергою[/k] бути [k=uni:skip]пропущеним[/k]."
+    },
+    "wild": {
+      "title": "Дика карта",
+      "description": "[k=uni:wild]Дика[/k] карта, яку можна зіграти на будь-яку карту. Виберіть активний [k=uni:color]колір[/k]."
+    },
+    "wild_draw4": {
+      "title": "Дика карта «візьми чотири» (+4)",
+      "description": "Виберіть активний [k=uni:color]колір[/k]. Наступний гравець мусить [k=uni:draw]взяти[/k] 4 карти й [k=uni:skip]пропустити[/k] свій [k=uni:turn]хід[/k]."
+    },
+    "yellow_0": {
+      "title": "Yellow 0",
+      "description": "Карта з числом 0. Якщо правило [k=uni:seven_zero]7-0[/k] активне, обертає всі руки за [k=uni:turn]чергою[/k]."
+    },
+    "yellow_1": {
+      "title": "Yellow 1",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "yellow_2": {
+      "title": "Yellow 2",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "yellow_3": {
+      "title": "Yellow 3",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "yellow_4": {
+      "title": "Yellow 4",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "yellow_5": {
+      "title": "Yellow 5",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "yellow_6": {
+      "title": "Yellow 6",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "yellow_7": {
+      "title": "Yellow 7",
+      "description": "Карта з числом 7. Якщо правило [k=uni:seven_zero]7-0[/k] активне, обміняйтеся руками з будь-яким гравцем."
+    },
+    "yellow_8": {
+      "title": "Yellow 8",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "yellow_9": {
+      "title": "Yellow 9",
+      "description": "Карта з числом. Зіставляйте за [k=uni:color]кольором[/k] або числом, щоб [k=uni:play]зіграти[/k] на [k=uni:discard_pile]колоду скидання[/k]."
+    },
+    "yellow_draw2": {
+      "title": "Взяти дві (+2)",
+      "description": "Змушує наступного гравця [k=uni:draw]взяти[/k] 2 карти з [k=uni:draw_pile]колоди добору[/k] і [k=uni:skip]пропустити[/k] свій [k=uni:turn]хід[/k]."
+    },
+    "yellow_reverse": {
+      "title": "Реверс",
+      "description": "[k=uni:reverse]Змінює[/k] напрямок [k=uni:play]гри[/k]. У грі на 2 гравців діє як [k=uni:skip]пропуск[/k]."
+    },
+    "yellow_skip": {
+      "title": "Пропуск",
+      "description": "Змушує наступного гравця за [k=uni:turn]чергою[/k] бути [k=uni:skip]пропущеним[/k]."
+    }
+  }
+}

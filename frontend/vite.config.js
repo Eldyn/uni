@@ -1,4 +1,4 @@
-import { defineConfig } from "vite";
+import { defineConfig, searchForWorkspaceRoot } from "vite";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 import { paraglideVitePlugin } from "@inlang/paraglide-js";
 import tailwindcss from "@tailwindcss/vite";
@@ -295,6 +295,10 @@ export default defineConfig(({ mode, command }) => {
 			// affects test resolution, never the production/watch build.
 			conditions: mode === "test" ? ["browser"] : undefined
 		},
+		// Expose the documented `UNI_FX_*` budget vars to the client alongside
+		// Vite's default `VITE_` prefix, so the documented deployment names work
+		// as-is (see `stores/fxBudget.svelte.ts`).
+		envPrefix: ["VITE_", "UNI_FX_"],
 		define: {
 			__APP_VERSION__: JSON.stringify(appVersion),
 			__PUBLIC_ASSET_MANIFEST__: JSON.stringify(publicAssetManifest),
@@ -307,6 +311,17 @@ export default defineConfig(({ mode, command }) => {
 			// Dev-only content (e.g. the freestyle deck entry) is kept out of the
 			// production bundle but stays available in dev and under test.
 			__DEV_CONTENT__: JSON.stringify(isDev || mode === "test")
+		},
+		// INFO: tests read shared golden fixtures from ../tests/fixtures as raw text.
+		server: {
+			fs: {
+				allow: [
+					searchForWorkspaceRoot(process.cwd()),
+					path.resolve("../mods"),
+					path.resolve("../contract"),
+					path.resolve("../tests/fixtures")
+				]
+			}
 		},
 		base: "/",
 		build: {

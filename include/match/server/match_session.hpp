@@ -3,6 +3,8 @@
 #include <match/engine/match_instance.hpp>
 #include <match/modload/artifacts.hpp>
 #include <match/server/ready_barrier.hpp>
+#include <match/server/snapshot_request_limiter.hpp>
+#include <match/view/event_tail.hpp>
 #include <match/view/view_builder.hpp>
 #include <transport/ibroadcaster.hpp>
 
@@ -12,6 +14,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -114,7 +117,7 @@ public:
      * leaves the prompt parked (`false`, no engine call).
      *
      * @param username  Answering player.
-     * @param prompt_id Wire prompt id (the prompt kind, see `prompt_open`).
+     * @param prompt_id Wire prompt id (the prompt kind, see `prompt_opened`).
      * @param value     JSON answer to validate against `response_schema`.
      * @return true when the answer was validated and accepted by the engine.
      */
@@ -192,8 +195,8 @@ public:
      * @brief Register (or rebind) a spectator viewer socket.
      *
      * Spectators are not engine seats: they receive a persistent per-viewer
-     * event stream built with the omniscient spectator view, so a mid-match
-     * joiner keeps receiving `match_event` / `match_state_updated` /
+     * event stream built with the spectator view (`SpectatorViewer`), so a
+     * mid-match joiner keeps receiving `match_event` / `match_state_updated` /
      * `match_over` after their initial snapshot. Additive: seated behaviour
      * is untouched.
      *
@@ -208,6 +211,33 @@ public:
      * @return true when a spectator entry existed and was removed.
      */
     bool UnbindViewer(const std::string& username);
+
+    /**
+     * @brief Set the Streamer/Privacy Mode of the owner of a seat.
+     *
+     * The setting applies to every spectator packet that the session builds
+     * after this call: a spectator that joins later and the next client event
+     * and snapshot of a spectator that watches now.
+     *
+     * @param username Owner of the seat.
+     * @param enabled  True: spectators see card backs for this seat.
+     */
+    void SetSeatPrivacy(const std::string& username, bool enabled);
+
+    /** @brief The spectator viewer with the current private seats. */
+    match::view::Viewer SpectatorViewer() const;
+
+    /**
+     * @brief Turn a seat into a spectator (an eliminated seat).
+     *
+     * The socket and the stream of the seat move to the spectator registry.
+     * The `sequence` of the stream continues without a gap. The seat gets the
+     * spectator projection from the next packet.
+     *
+     * @param username Username of the seat.
+     * @return true when the seat existed and moved.
+     */
+    bool DemoteSeatToSpectator(const std::string& username);
 
     // --- wire output --------------------------------------------------------
 
@@ -235,7 +265,7 @@ public:
      *
      * Each recipient's persistent `EventSink` filters and stamps the events
      * it may see; the cursor advances once over the shared engine log. A
-     * parked op-input is additionally surfaced as the target's `prompt_open`
+     * parked op-input is additionally surfaced as the target's `prompt_opened`
      * (once per distinct prompt; spectators and other players never receive
      * it).
      *
@@ -290,14 +320,40 @@ public:
     /**
      * @brief Send the terminal `match_over` packet once, if finished.
      *
-     * Idempotent: later calls after the first send are no-ops. Called by
+     * Idempotent once delivered: later calls after every recipient accepted
+     * the frame are no-ops. A backpressure drop on any recipient leaves the
+     * sent-latch clear, so the next call (every `BroadcastSnapshot` ends
+     * here) retries the one-shot instead of losing it. Called by
      * `BroadcastSnapshot`, exposed for controllers that finish a match
      * without a snapshot.
      *
      * @param broadcaster Transport sink for `SendJson`.
-     * @return true when the match is over (packet sent at least once).
+     * @return true when the terminal frame has been accepted for all
+     * recipients; false when the match is still running or a drop left
+     * delivery pending.
      */
     bool BroadcastMatchOver(IBroadcaster& broadcaster);
+
+    /**
+     * @brief Answer a `match_snapshot_request` from a seat or a spectator.
+     *
+     * Sends the current snapshot. Its `seq_watermark` is the `sequence` of
+     * the next packet of the recipient, so the client continues from it. A
+     * recipient that asks again inside the rate limit interval gets nothing.
+     *
+     * @param broadcaster Transport sink for `SendJson`.
+     * @param username    Requesting seat or spectator.
+     * @param options     Snapshot inputs the lobby owns.
+     * @return true when a snapshot was sent.
+     */
+    bool HandleSnapshotRequest(IBroadcaster& broadcaster,
+                               const std::string& username,
+                               const match::view::SnapshotOptions& options);
+
+    /** @brief Set the minimum time between two requests of one recipient. */
+    void SetSnapshotRequestIntervalMs(int64_t min_interval_ms) {
+        snapshot_request_limiter_.SetMinIntervalMs(min_interval_ms);
+    }
 
     // --- ready barrier
 
@@ -345,9 +401,17 @@ public:
     const match::engine::MatchInstance& Engine() const { return *engine_; }
     /** @brief The bound view builder. */
     const match::view::ViewBuilder& View() const { return builder_; }
+    /**
+     * @brief The stored logical client events for a late joiner.
+     *
+     * The session records each engine event here one time, when it emits the
+     * event. A warm-up snapshot (`SendSnapshot`, `HandleSnapshotRequest`)
+     * projects the store for the joining viewer as `match_state.tail`.
+     */
+    const match::view::EventTail& Tail() const { return tail_; }
     /** @brief Index into `Engine().Events()` already emitted. */
     std::size_t EventCursor() const { return cursor_; }
-    /** @brief True once a `match_over` packet has been sent. */
+    /** @brief True once `match_over` has been accepted for all recipients. */
     bool MatchOverNotified() const { return over_sent_; }
     /** @brief Recipient socket map as supplied at construction. */
     const SocketMap& Sockets() const { return sockets_; }
@@ -372,7 +436,7 @@ private:
     /** @brief Fill the kind -> `response_schema` table from the mods. */
     void BuildPromptSchemas();
 
-    /** @brief Emit a parked op-input as the target's `prompt_open`. */
+    /** @brief Emit a parked op-input as the target's `prompt_opened`. */
     void EmitPendingPrompt(IBroadcaster& broadcaster);
 
     /**
@@ -393,7 +457,7 @@ private:
                     match::view::EventSink& sink);
 
     /**
-     * @brief Emit the target's `prompt_close` when its prompt is gone.
+     * @brief Emit the target's `prompt_answered` when its prompt is gone.
      *
      * Synthesizes `{prompt_id, outcome}` through the recipient's persistent
      * `EventSink` (so the close consumes a `seq`), sends it as a
@@ -421,12 +485,25 @@ private:
     /** @brief `{ready, total}` from the ready barrier. */
     nlohmann::json ReadyProgressPayload() const;
 
+    /**
+     * @brief The content-derived `defs` table, built once per session.
+     *
+     * `defs` depends only on the engine registries + mods fixed at
+     * construction, so every recipient (and every late joiner via
+     * `EnsureDefs`) shares one built copy instead of rebuilding the table
+     * per recipient. Same bytes as before; wire format unchanged.
+     */
+    const nlohmann::json& CachedDefs() const;
+
     std::unique_ptr<match::engine::MatchInstance> engine_;
     std::vector<match::modload::LoadedMod> mods_;
     match::view::ViewBuilder builder_;
+    match::view::EventTail tail_;
     SocketMap sockets_;
     /** Spectator viewer sockets (no engine seat);. */
     SocketMap viewers_;
+    /** Owners with Streamer/Privacy Mode on, without duplicate. */
+    std::vector<std::string> private_seats_;
     std::unordered_map<std::string, match::view::EventSink> sinks_;
     /** Per-spectator persistent stream (mirrors `sinks_` for viewers). */
     std::unordered_map<std::string, match::view::EventSink> viewer_sinks_;
@@ -436,6 +513,9 @@ private:
     std::unordered_map<std::string, std::string> prompt_outcome_;
     /** Prompt kind -> validated `response_schema` (mods + built-ins). */
     std::unordered_map<std::string, nlohmann::json> prompt_schemas_;
+    /** Rate limit for `match_snapshot_request`. */
+    SnapshotRequestLimiter snapshot_request_limiter_ =
+        SnapshotRequestLimiter::FromEnv();
     /** Load barrier: seats pending the client's ready report. */
     ReadyBarrier ready_barrier_;
     /** Barrier timeout armed by the controller (0 = none) and its start. */
@@ -445,6 +525,8 @@ private:
     bool over_sent_ = false;   /**< `match_over` already broadcast. */
     /** `defs` + `match_start` already emitted for the seated recipients. */
     bool match_start_sent_ = false;
+    /** Built-once `defs` table shared by `EmitMatchStart`/`EnsureDefs`. */
+    mutable std::optional<nlohmann::json> defs_cache_;
 };
 
 /**

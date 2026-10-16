@@ -147,6 +147,12 @@ MatchController::MatchController(IActionRouter& router, IBroadcaster& broadcast,
         return true;
     });
 
+    action_router_.On(ws::ClientAction::kDirectorCommand,
+                      [this](WsContext context, const json& message) {
+        HandleDirectorCommand(context, message);
+        return true;
+    });
+
     action_router_.On(ws::ClientAction::kMatchDrawCard,
                       [this](WsContext context, const json& message) {
         HandleDrawCard(context, message);
@@ -195,6 +201,12 @@ MatchController::MatchController(IActionRouter& router, IBroadcaster& broadcast,
     action_router_.On(ws::ClientAction::kMatchClientReady,
                       [this](WsContext context, const json& message) {
         HandleClientReady(context, message);
+        return true;
+    });
+
+    action_router_.On(ws::ClientAction::kMatchSnapshotRequest,
+                      [this](WsContext context, const json& message) {
+        HandleSnapshotRequest(context, message);
         return true;
     });
 
@@ -298,6 +310,72 @@ void MatchController::HandlePlayCard(WsContext context, const json& message) {
     BroadcastMatchState(active_lobby);
     ScheduleWindowTick(active_lobby);
 }
+
+/**
+ * @brief Handles a host-only Creative control command after authorization.
+ */
+void MatchController::HandleDirectorCommand(WsContext context, const json& message) {
+    Lobby* active_lobby = lobby_store_.GetLobbyById(context.socket_data->lobby_id);
+    if (!active_lobby) {
+        return;
+    }
+
+    std::string request_identifier = ws::GetOr<std::string>(message, "request_id", "");
+
+    LobbyMember* member = active_lobby->FindMember(context.socket_data->username);
+    if (member && member->is_spectator) {
+        broadcaster_.SendError(context.socket, context.op_code,
+                               contract::ErrorCode::kSpectatorCannotAct, request_identifier);
+        return;
+    }
+
+    if (!active_lobby->session) {
+        return;
+    }
+
+    if (context.socket_data->username != active_lobby->host) {
+        Logger::Warn("director command dropped: sender is not host");
+        broadcaster_.SendError(context.socket, context.op_code,
+                               contract::ErrorCode::kNotHost, request_identifier);
+        return;
+    }
+    if (!active_lobby->settings.creative) {
+        Logger::Warn("director command dropped: lobby is not Creative");
+        broadcaster_.SendError(context.socket, context.op_code,
+                               contract::ErrorCode::kInvalidPayload, request_identifier,
+                               "lobby is not Creative");
+        return;
+    }
+    if (active_lobby->settings.ranked) {
+        Logger::Warn("director command dropped: ranked lobbies reject director control");
+        broadcaster_.SendError(context.socket, context.op_code,
+                               contract::ErrorCode::kInvalidPayload, request_identifier,
+                               "ranked lobbies reject director control");
+        return;
+    }
+
+    std::string op = ws::GetOr<std::string>(message, "op", "");
+    if (!match::ops::MakeDefaultRuntime().IsDirectorOp(op)) {
+        Logger::Warn("director command dropped: operation is not whitelisted");
+        broadcaster_.SendError(context.socket, context.op_code,
+                               contract::ErrorCode::kInvalidPayload, request_identifier,
+                               "operation is not whitelisted");
+        return;
+    }
+
+    // INFO: P1 whitelist allows only the declared op names. Full op
+    //       execution through OpRuntime requires a session-level store
+    //       context and lands in a later pass. For now the command is
+    //       authorized, logged and state is re-broadcast to all clients.
+    Logger::Info("[Director] command accepted: ", op);
+    active_lobby->session->EmitEvents(broadcaster_);
+    ClearTurnTimer(active_lobby->id);
+    OnTurnStarted(active_lobby);
+    BroadcastMatchState(active_lobby);
+}
+
+/**
+ * @brief Signals the running match instance engine to allocate a fresh card to the requesting user.
 
 /**
  * @brief Signals the running match instance engine to allocate a fresh card to the requesting user.
@@ -554,12 +632,12 @@ void MatchController::HandleSpectatorView(WsContext context, const json& message
 }
 
 /**
- * @brief Broadcasts each connected recipient their filtered match snapshot.
- * @param current_lobby Target room pointer whose context needs to be synchronized.
+ * @brief Builds the snapshot inputs that the lobby owns (spectator counts).
+ * @param current_lobby Lobby whose members are counted.
+ * @return Snapshot options for `MatchSession`.
  */
-void MatchController::BroadcastMatchState(Lobby* current_lobby) {
-    if (!current_lobby || !current_lobby->session) return;
-
+match::view::SnapshotOptions MatchController::BuildSnapshotOptions(
+    Lobby* current_lobby) {
     // Per-player spectator counts: each viewer sees how many people are
     // watching a given player's POV, not the whole lobby's spectator total. A
     // spectator with no explicit POV choice is attributed to whoever's turn it
@@ -574,8 +652,18 @@ void MatchController::BroadcastMatchState(Lobby* current_lobby) {
             member.viewed_username.empty() ? current_turn : member.viewed_username;
         options.spectator_counts[target]++;
     }
+    return options;
+}
 
-    current_lobby->session->BroadcastSnapshot(broadcaster_, options);
+/**
+ * @brief Broadcasts each connected recipient their filtered match snapshot.
+ * @param current_lobby Target room pointer whose context needs to be synchronized.
+ */
+void MatchController::BroadcastMatchState(Lobby* current_lobby) {
+    if (!current_lobby || !current_lobby->session) return;
+
+    current_lobby->session->BroadcastSnapshot(
+        broadcaster_, BuildSnapshotOptions(current_lobby));
     if (current_lobby->session->Engine().IsMatchOver()) {
         lobby_store_.NotifyMatchOver(current_lobby->id);
     }
@@ -600,6 +688,19 @@ void MatchController::HandleClientReady(WsContext context, const json&) {
     if (active_lobby == nullptr || !active_lobby->session) return;
     active_lobby->session->MarkSeatReady(context.socket_data->username, broadcaster_);
     TryOpenReadyBarrier(active_lobby);
+}
+
+/**
+ * @brief Answers a recipient's `match_snapshot_request` (rate limited).
+ * @param context Context of the calling socket.
+ * @param message JSON payload (unused).
+ */
+void MatchController::HandleSnapshotRequest(WsContext context, const json&) {
+    Lobby* active_lobby = lobby_store_.GetLobbyById(context.socket_data->lobby_id);
+    if (active_lobby == nullptr || !active_lobby->session) return;
+    active_lobby->session->HandleSnapshotRequest(
+        broadcaster_, context.socket_data->username,
+        BuildSnapshotOptions(active_lobby));
 }
 
 /**

@@ -15,10 +15,10 @@
  * `check_win` is the engine's own win evaluator: it dispatches the
  * veto-capable `win_check` hook pair, then (unless a before-hook vetoed)
  * records the engine default winner — the first hand-empty player in seat
- * order — through the `Placements` component and emits a `placement`
+ * order — through the `Placements` component and emits a `placement_set`
  * descriptor. `declare_winner` records an explicit winner with a `normal` or
  * `special` kind (Black Hole), and `add_placement` appends a shed-order
- * finisher. None of them assembles the `match_end` packet.
+ * finisher. None of them assembles the `match_ended` packet.
  */
 
 namespace match::ops::detail {
@@ -111,7 +111,7 @@ std::optional<PlacementRecord> RecordPlacement(ecs::EntityStore& store,
 }
 
 /**
- * @brief Build the `placement {player, place, kind}` payload.
+ * @brief Build the `placement_set {player, place, kind}` payload.
  *
  * `kind` is the engine-readable seam for the Black Hole `special` win: the
  * store `Placements` component only stores an order, so the finish kind travels
@@ -167,7 +167,7 @@ OpResult OpCheckWin(ecs::EntityStore& store, const OpArgs& args,
             const json placement =
                 PlacementJson(*winner, recorded->place, "normal");
             result.value = placement;
-            result.events.push_back(MakeEvent("placement", placement));
+            result.events.push_back(MakeEvent("placement_set", placement));
         }
     }
 
@@ -200,7 +200,7 @@ OpResult OpDeclareWinner(ecs::EntityStore& store, const OpArgs& args,
     const json placement =
         PlacementJson(*player, recorded->place, kind);
     OpResult result = OpResult::Resolved(placement);
-    result.events.push_back(MakeEvent("placement", placement));
+    result.events.push_back(MakeEvent("placement_set", placement));
     return result;
 }
 
@@ -219,7 +219,7 @@ OpResult OpAddPlacement(ecs::EntityStore& store, const OpArgs& args,
 
     const json placement = PlacementJson(*player, recorded->place, "normal");
     OpResult result = OpResult::Resolved(placement);
-    result.events.push_back(MakeEvent("placement", placement));
+    result.events.push_back(MakeEvent("placement_set", placement));
     return result;
 }
 

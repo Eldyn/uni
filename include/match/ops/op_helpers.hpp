@@ -2,6 +2,7 @@
 
 #include <match/ecs/components.hpp>
 #include <match/ecs/entity_store.hpp>
+#include <match/modload/artifacts.hpp>
 #include <match/ops/ops.hpp>
 
 #include <nlohmann/json.hpp>
@@ -53,6 +54,14 @@ namespace match::ops {
 /** @brief Frame key holding the most recent `roll` result object. */
 inline constexpr std::string_view kLastRollFrameKey = "$last_roll";
 
+/**
+ * @brief Frame key holding the most recent `roll_table` outcome object.
+ *
+ * `roll_table` binds `{table,key,value}` here (or
+ * under the op's `into` override); `outcome_is` / `outcome_value` read it back.
+ */
+inline constexpr std::string_view kLastOutcomeFrameKey = "$last_outcome";
+
 /** @brief Frame key holding the match's turns-elapsed counter. */
 inline constexpr std::string_view kTurnsElapsedFrameKey = "$turns_elapsed";
 
@@ -61,10 +70,10 @@ inline constexpr std::string_view kTurnsElapsedFrameKey = "$turns_elapsed";
  *
  * `draw_cards` with `n_from_debt: true` draws this status's
  * magnitude for its target (0 when the target carries no such instance). The
- * status is declared by `mods/vanilla/rules.json`; the draw-stacking rule
+ * status is declared by `mods/uni/rules.json`; the draw-stacking rule
  * accumulates it and its default route clears it.
  */
-inline constexpr std::string_view kDrawDebtStatusId = "vanilla:draw_debt";
+inline constexpr std::string_view kDrawDebtStatusId = "uni:draw_debt";
 
 // --- traversal -------------------------------------------------------------
 
@@ -112,6 +121,9 @@ std::optional<ecs::Entity> FindPile(ecs::EntityStore& store,
  */
 std::vector<ecs::Entity> HandOf(const ecs::EntityStore& store,
                                 ecs::Entity player);
+
+/** @brief Number of cards in `player`'s hand; 0 when not a hand carrier. */
+std::size_t HandSizeOf(const ecs::EntityStore& store, ecs::Entity player);
 
 /**
  * @brief `player`'s live `hand` component, or nullptr (dead/missing).
@@ -200,7 +212,7 @@ bool SetHandOrder(ecs::EntityStore& store, ecs::Entity player,
 /**
  * @brief Build `{ "type": type, "payload": payload }` for `OpResult.events`.
  *
- * No `seq`; the view layer assigns ordering. `effects` stay reserved and empty.
+ * No `sequence`; the view layer assigns ordering. `effects` stay reserved and empty.
  */
 nlohmann::json MakeEvent(std::string_view type,
                          nlohmann::json payload = nlohmann::json::object());
@@ -257,6 +269,49 @@ void BindTurnsElapsed(ResolutionFrame& frame, int64_t turns);
 /** @brief The bound turns-elapsed counter, or nullopt when unbound. */
 std::optional<int64_t> TurnsElapsed(const ResolutionFrame& frame);
 
+// --- `$last_outcome` seam -----------------------------
+
+/**
+ * @brief Immutable full-`namespace:id` -> table map for one match.
+ *
+ * Mirrors `CardTagTable`: per-match, filled once at assembly from the loaded
+ * `TableDef`s and read-only during play, so concurrent matches cannot clobber
+ * each other's outcome content.
+ */
+using TableRegistry =
+    std::map<std::string, modload::TableDef, std::less<>>;
+
+/**
+ * @brief Bind the last `roll_table` outcome into `frame`.
+ *
+ * Stores `{table,key,value}` under `into` (default `$last_outcome`). `table`
+ * and `key` are the full `namespace:id` / `namespace:key` tokens.
+ */
+void BindLastOutcome(ResolutionFrame& frame,
+                     std::string_view table,
+                     std::string_view key,
+                     int64_t value,
+                     std::string_view into = kLastOutcomeFrameKey);
+
+/** @brief The raw last-outcome object under `into`, or nullptr. */
+const nlohmann::json* LastOutcome(const ResolutionFrame& frame,
+                                  std::string_view into = kLastOutcomeFrameKey);
+
+/** @brief The last outcome's full key, or nullopt when unbound/malformed. */
+std::optional<std::string> LastOutcomeKey(
+    const ResolutionFrame& frame,
+    std::string_view into = kLastOutcomeFrameKey);
+
+/** @brief The last outcome's value, or nullopt when unbound/malformed. */
+std::optional<int64_t> LastOutcomeValue(
+    const ResolutionFrame& frame,
+    std::string_view into = kLastOutcomeFrameKey);
+
+/** @brief The last outcome's full table id, or nullopt when unbound. */
+std::optional<std::string> LastOutcomeTable(
+    const ResolutionFrame& frame,
+    std::string_view into = kLastOutcomeFrameKey);
+
 // --- card tag table (`has_card_tag`) ---------------------------------------
 
 /**
@@ -294,5 +349,15 @@ bool CardHasTag(const engine::MatchRegistries* registries,
  * `ConditionRegistry::Register`.
  */
 void RegisterDefaultConditions(resolver::ConditionRegistry& registry);
+
+/**
+ * @brief The process-wide default condition registry (engine 10.2 evaluators).
+ *
+ * Ops that must evaluate a condition against the store but receive no
+ * Resolver registry on `OpContext` (e.g. `draw_cards.filter`, `roll_table`
+ * `where`) use this shared instance. The Resolver's own registry still governs
+ * `branch`/`where`/`veto`. Built once via `RegisterDefaultConditions`.
+ */
+resolver::ConditionRegistry& StoreDefaultConditions();
 
 }  // namespace match::ops

@@ -89,7 +89,7 @@ bool LoadContent(Content& out) {
     out.mods = std::move(load.mods);
     for (const LoadedMod& mod : out.mods) {
         for (const DeckDef& deck : mod.decks) {
-            if (deck.deck_id == "vanilla:classic") out.classic = deck;
+            if (deck.deck_id == "uni:classic") out.classic = deck;
         }
     }
     return !out.classic.deck_id.empty();
@@ -112,7 +112,7 @@ std::unique_ptr<MatchInstance> Assemble(Content& content, int players,
                                         match::WindowConfig config,
                                         match::NowMs clock) {
     DeckDef deck = content.classic;
-    deck.mods = {"vanilla"};
+    deck.mods = {"uni"};
     AssemblyResult result = MatchAssembler::Assemble(
         content.mods, deck, Players(players, cards, seed));
     REQUIRE_MESSAGE(result.ok(), AssemblyMessage(result));
@@ -185,6 +185,40 @@ std::size_t CountSignals(const MatchInstance& engine,
 
 bool HasSignal(const MatchInstance& engine, const std::string& name) {
     return CountSignals(engine, name) > 0;
+}
+
+/** @brief First event of `type`, or nullptr. */
+const json* FindEvent(const MatchInstance& engine, const std::string& type) {
+    for (const json& event : engine.Events()) {
+        if (event.is_object() && event.value("type", "") == type) {
+            return &event;
+        }
+    }
+    return nullptr;
+}
+
+/** @brief First `signal` event carrying `name`, or nullptr. */
+const json* FindSignal(const MatchInstance& engine, const std::string& name) {
+    for (const json& event : engine.Events()) {
+        if (!event.is_object() || event.value("type", "") != "signal") {
+            continue;
+        }
+        const json payload =
+            event.contains("payload") ? event["payload"] : json::object();
+        if (payload.value("name", "") == name) return &event;
+    }
+    return nullptr;
+}
+
+/** @brief The `cause_event` stamped on `event`; nullopt when it carries none. */
+std::optional<int64_t> CauseOf(const json& event) {
+    const auto frame = event.find("causal_frame");
+    if (frame == event.end() || !frame->is_object()) return std::nullopt;
+    const auto cause = frame->find("cause_event");
+    if (cause == frame->end() || !cause->is_number_integer()) {
+        return std::nullopt;
+    }
+    return cause->get<int64_t>();
 }
 
 /** @brief True when `type` carries a payload referencing `card`. */
@@ -517,4 +551,69 @@ TEST_CASE("engine schedule: a scheduled graph force-plays its play_card") {
     const ecs::InZone* zone = engine->Store().Get<ecs::InZone>(*drawn);
     REQUIRE(zone != nullptr);
     CHECK(zone->zone.kind == ecs::ZoneKind::kDiscardPile);
+}
+
+// ---------------------------------------------------------------------------
+// Follow-up 18: a schedule armed while a play chain is open resumes with that
+// play's cause, so the scheduled subgraph's events stay attributed to it.
+// ---------------------------------------------------------------------------
+TEST_CASE("engine schedule: an armed leg resumes with the play cause") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    FakeClock clock;
+    std::unique_ptr<MatchInstance> engine =
+        Assemble(content, 3, 7, 42, FixedWindow(1000), clock.Fn());
+    AttachSystem(*engine, ecs::HookId{"play", ecs::HookPhase::kAfter},
+                 "test:schedule-cause",
+                 ScheduleGraph(json{{"unit", "ms"}, {"value", 1000}},
+                               "scheduled:cause"));
+
+    const ecs::Entity player0 = *engine->FindPlayer("player0");
+    const std::vector<ecs::Entity> cards = LegalNumbered(*engine, 2);
+    REQUIRE(cards.size() == 2);
+    ForceHand(*engine, player0, cards);
+    engine->TakeEvents();
+
+    REQUIRE(engine->PlayCard("player0", cards[0]));
+    const json* played = FindEvent(*engine, "card_played");
+    REQUIRE(played != nullptr);
+    const int64_t played_id = (*played)["event_id"].get<int64_t>();
+    CHECK_FALSE(HasSignal(*engine, "scheduled:cause"));
+
+    clock.now = 1500;
+    engine->Tick();
+    CHECK(CountSignals(*engine, "scheduled:cause") == 1);
+
+    // INFO: the leg was armed inside the play, so the subgraph resumes as part
+    //       of that play's causal chain.
+    const json* signal = FindSignal(*engine, "scheduled:cause");
+    REQUIRE(signal != nullptr);
+    const std::optional<int64_t> cause = CauseOf(*signal);
+    REQUIRE(cause.has_value());
+    CHECK(*cause == played_id);
+}
+
+TEST_CASE("engine schedule: an arm outside a play resumes with no cause") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    FakeClock clock;
+    std::unique_ptr<MatchInstance> engine =
+        Assemble(content, 3, 7, 42, FixedWindow(1000), clock.Fn());
+    // INFO: a draw entry point emits no `card_played`, so the arm carries no
+    //       cause and the resumed subgraph stamps none.
+    AttachSystem(*engine, ecs::HookId{"draw", ecs::HookPhase::kAfter},
+                 "test:schedule-draw",
+                 ScheduleGraph(json{{"unit", "ms"}, {"value", 1000}},
+                               "scheduled:no-cause"));
+
+    REQUIRE(engine->DrawCard("player0"));
+    CHECK_FALSE(HasSignal(*engine, "scheduled:no-cause"));
+
+    clock.now = 1500;
+    engine->Tick();
+    CHECK(CountSignals(*engine, "scheduled:no-cause") == 1);
+
+    const json* signal = FindSignal(*engine, "scheduled:no-cause");
+    REQUIRE(signal != nullptr);
+    CHECK_FALSE(CauseOf(*signal).has_value());
 }

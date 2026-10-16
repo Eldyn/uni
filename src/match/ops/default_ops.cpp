@@ -58,7 +58,8 @@ void RegisterDefaultOps(OpRuntime& runtime) {
         {"prompt", &detail::OpPrompt},
         // randomness.
         {"roll", &detail::OpRoll},
-        // visibility ops.
+        {"roll_table", &detail::OpRollTable},
+        // 10.7 visibility ops.
         {"grant_visibility", &detail::OpGrantVisibility},
         {"revoke_visibility", &detail::OpRevokeVisibility},
         // type and restriction ops.
@@ -72,6 +73,7 @@ void RegisterDefaultOps(OpRuntime& runtime) {
         {"add_placement", &detail::OpAddPlacement},
         // scheduling and meta.
         {"emit_signal", &detail::OpEmitSignal},
+        {"emit_event", &detail::OpEmitEvent},
         {"call_original", &detail::OpCallOriginal},
     };
 

@@ -165,9 +165,9 @@ TEST_CASE("card_pile_ops: draw_cards moves n and fires per-card hooks") {
     Harness h;
     Entity player = AddPlayer(h.store, "p", 0);
     Entity draw = AddPile(h.store, PileKind::kDraw);
-    Entity c1 = MakeCard(h.store, "vanilla:red_1", "red");
-    Entity c2 = MakeCard(h.store, "vanilla:red_2", "red");
-    Entity c3 = MakeCard(h.store, "vanilla:red_3", "red");
+    Entity c1 = MakeCard(h.store, "uni:red_1", "red");
+    Entity c2 = MakeCard(h.store, "uni:red_2", "red");
+    Entity c3 = MakeCard(h.store, "uni:red_3", "red");
     PutInPile(h.store, draw, c1);
     PutInPile(h.store, draw, c2);
     PutInPile(h.store, draw, c3);
@@ -206,9 +206,9 @@ TEST_CASE("card_pile_ops: draw_cards bounds n=0 and n over 1000") {
     Harness h;
     Entity player = AddPlayer(h.store, "p", 0);
     Entity draw = AddPile(h.store, PileKind::kDraw);
-    Entity c1 = MakeCard(h.store, "vanilla:red_1", "red");
-    Entity c2 = MakeCard(h.store, "vanilla:red_2", "red");
-    Entity c3 = MakeCard(h.store, "vanilla:red_3", "red");
+    Entity c1 = MakeCard(h.store, "uni:red_1", "red");
+    Entity c2 = MakeCard(h.store, "uni:red_2", "red");
+    Entity c3 = MakeCard(h.store, "uni:red_3", "red");
     PutInPile(h.store, draw, c1);
     PutInPile(h.store, draw, c2);
     PutInPile(h.store, draw, c3);
@@ -233,7 +233,7 @@ TEST_CASE("card_pile_ops: draw_cards bounds n=0 and n over 1000") {
     CHECK(at_max.events[0]["payload"]["count"] == 3);
 }
 
-/* INFO: apply an accumulated `vanilla:draw_debt` status for n_from_debt. */
+/* INFO: apply an accumulated `uni:draw_debt` status for n_from_debt. */
 void ApplyDebt(EntityStore& store, Entity target, int32_t magnitude) {
     match::status::ApplyRequest request;
     request.status_id = std::string(match::ops::kDrawDebtStatusId);
@@ -247,9 +247,9 @@ TEST_CASE("card_pile_ops: draw_cards n_from_debt draws the debt magnitude") {
     Harness h;
     Entity player = AddPlayer(h.store, "p", 0);
     Entity draw = AddPile(h.store, PileKind::kDraw);
-    Entity c1 = MakeCard(h.store, "vanilla:red_1", "red");
-    Entity c2 = MakeCard(h.store, "vanilla:red_2", "red");
-    Entity c3 = MakeCard(h.store, "vanilla:red_3", "red");
+    Entity c1 = MakeCard(h.store, "uni:red_1", "red");
+    Entity c2 = MakeCard(h.store, "uni:red_2", "red");
+    Entity c3 = MakeCard(h.store, "uni:red_3", "red");
     PutInPile(h.store, draw, c1);
     PutInPile(h.store, draw, c2);
     PutInPile(h.store, draw, c3);
@@ -268,7 +268,7 @@ TEST_CASE("card_pile_ops: draw_cards n_from_debt with no debt is a no-op") {
     Harness h;
     Entity player = AddPlayer(h.store, "p", 0);
     Entity draw = AddPile(h.store, PileKind::kDraw);
-    Entity c1 = MakeCard(h.store, "vanilla:red_1", "red");
+    Entity c1 = MakeCard(h.store, "uni:red_1", "red");
     PutInPile(h.store, draw, c1);
 
     const OpResult result = h.Invoke(
@@ -283,7 +283,7 @@ TEST_CASE("card_pile_ops: draw_cards n_from_debt fail-safe cases") {
     Harness h;
     Entity player = AddPlayer(h.store, "p", 0);
     Entity draw = AddPile(h.store, PileKind::kDraw);
-    Entity c1 = MakeCard(h.store, "vanilla:red_1", "red");
+    Entity c1 = MakeCard(h.store, "uni:red_1", "red");
     PutInPile(h.store, draw, c1);
 
     /* INFO: a negative stored magnitude clamps to zero, never underflows. */
@@ -306,8 +306,8 @@ TEST_CASE("card_pile_ops: draw_cards iterates a set selector in order") {
     Entity a = AddPlayer(h.store, "a", 0);
     Entity b = AddPlayer(h.store, "b", 1);
     Entity draw = AddPile(h.store, PileKind::kDraw);
-    Entity c1 = MakeCard(h.store, "vanilla:red_1", "red");
-    Entity c2 = MakeCard(h.store, "vanilla:red_2", "red");
+    Entity c1 = MakeCard(h.store, "uni:red_1", "red");
+    Entity c2 = MakeCard(h.store, "uni:red_2", "red");
     PutInPile(h.store, draw, c1);
     PutInPile(h.store, draw, c2);
 
@@ -326,8 +326,8 @@ TEST_CASE("card_pile_ops: draw_cards reshuffles discard when draw empties") {
     Entity player = AddPlayer(h.store, "p", 0);
     Entity draw = AddPile(h.store, PileKind::kDraw);
     Entity discard = AddPile(h.store, PileKind::kDiscard);
-    Entity d1 = MakeCard(h.store, "vanilla:red_1", "red");
-    Entity d2 = MakeCard(h.store, "vanilla:red_2", "red");
+    Entity d1 = MakeCard(h.store, "uni:red_1", "red");
+    Entity d2 = MakeCard(h.store, "uni:red_2", "red");
     PutInPile(h.store, discard, d1);
     PutInPile(h.store, discard, d2);
 
@@ -351,8 +351,8 @@ TEST_CASE("card_pile_ops: draw_cards honors a vetoed reshuffle") {
     Entity player = AddPlayer(h.store, "p", 0);
     Entity draw = AddPile(h.store, PileKind::kDraw);
     Entity discard = AddPile(h.store, PileKind::kDiscard);
-    Entity d1 = MakeCard(h.store, "vanilla:red_1", "red");
-    Entity d2 = MakeCard(h.store, "vanilla:red_2", "red");
+    Entity d1 = MakeCard(h.store, "uni:red_1", "red");
+    Entity d2 = MakeCard(h.store, "uni:red_2", "red");
     PutInPile(h.store, discard, d1);
     PutInPile(h.store, discard, d2);
 
@@ -372,9 +372,9 @@ TEST_CASE("card_pile_ops: draw_cards filter selects a matching candidate") {
     Harness h;
     Entity player = AddPlayer(h.store, "p", 0);
     Entity draw = AddPile(h.store, PileKind::kDraw);
-    Entity red_bottom = MakeCard(h.store, "vanilla:red_1", "red");
-    Entity blue = MakeCard(h.store, "vanilla:blue_2", "blue");
-    Entity red_top = MakeCard(h.store, "vanilla:red_3", "red");
+    Entity red_bottom = MakeCard(h.store, "uni:red_1", "red");
+    Entity blue = MakeCard(h.store, "uni:blue_2", "blue");
+    Entity red_top = MakeCard(h.store, "uni:red_3", "red");
     PutInPile(h.store, draw, red_bottom);
     PutInPile(h.store, draw, blue);
     PutInPile(h.store, draw, red_top);
@@ -392,8 +392,8 @@ TEST_CASE("card_pile_ops: draw_cards filter accepts a 10.2 condition") {
     Harness h;
     Entity player = AddPlayer(h.store, "p", 0);
     Entity draw = AddPile(h.store, PileKind::kDraw);
-    Entity blue = MakeCard(h.store, "vanilla:blue_2", "blue");
-    Entity red = MakeCard(h.store, "vanilla:red_5", "red");
+    Entity blue = MakeCard(h.store, "uni:blue_2", "blue");
+    Entity red = MakeCard(h.store, "uni:red_5", "red");
     PutInPile(h.store, draw, blue);
     PutInPile(h.store, draw, red);
 
@@ -410,7 +410,7 @@ TEST_CASE("card_pile_ops: draw_cards rejects an unevaluable filter") {
     Harness h;
     Entity player = AddPlayer(h.store, "p", 0);
     Entity draw = AddPile(h.store, PileKind::kDraw);
-    Entity c1 = MakeCard(h.store, "vanilla:red_1", "red");
+    Entity c1 = MakeCard(h.store, "uni:red_1", "red");
     PutInPile(h.store, draw, c1);
 
     const OpResult result =
@@ -425,7 +425,7 @@ TEST_CASE("card_pile_ops: move_card relocates and fires zone hooks") {
     Harness h;
     Entity a = AddPlayer(h.store, "a", 0);
     Entity discard = AddPile(h.store, PileKind::kDiscard);
-    Entity card = MakeCard(h.store, "vanilla:red_1", "red");
+    Entity card = MakeCard(h.store, "uni:red_1", "red");
     PutInHand(h.store, a, card);
 
     int left_before = 0;
@@ -452,13 +452,22 @@ TEST_CASE("card_pile_ops: move_card relocates and fires zone hooks") {
     CHECK(left_after == 1);
     CHECK(entered_before == 1);
     CHECK(entered_after == 1);
+
+    REQUIRE(result.events.size() == 1);
+    const json& payload = result.events[0]["payload"];
+    CHECK(result.events[0]["type"] == "card_moved");
+    CHECK(payload["from_zone"] == "hand");
+    CHECK(payload["to_zone"] == "discard_pile");
+    CHECK(payload["source"]["index"] == a.index);
+    CHECK_FALSE(payload.contains("target"));
+    CHECK(payload["card"]["index"] == card.index);
 }
 
 TEST_CASE("card_pile_ops: move_card to hand uses the acting player") {
     Harness h;
     Entity a = AddPlayer(h.store, "a", 0);
     Entity discard = AddPile(h.store, PileKind::kDiscard);
-    Entity card = MakeCard(h.store, "vanilla:red_1", "red");
+    Entity card = MakeCard(h.store, "uni:red_1", "red");
     PutInPile(h.store, discard, card);
 
     // INFO: `@self` is a frame selector (bound by the Resolver), not an arg.
@@ -469,6 +478,14 @@ TEST_CASE("card_pile_ops: move_card to hand uses the acting player") {
     CHECK(CardInZone(h.store, card, ZoneKind::kHand));
     CHECK(HandOf(h.store, a) == std::vector<Entity>{card});
     CHECK(PileOf(h.store, discard).empty());
+    REQUIRE(result.events.size() == 1);
+    CHECK(result.events[0]["payload"]["target"]["index"] == a.index);
+    CHECK_FALSE(result.events[0]["payload"].contains("source"));
+
+    // INFO: a reorder inside the same hand changes no zone and emits nothing.
+    const OpResult reorder = h.Invoke(
+        "move_card", json{{"to_zone", "hand"}}, {{"card", {card}}});
+    CHECK(reorder.events.empty());
 }
 
 TEST_CASE("card_pile_ops: transfer_card by random, tag and kind") {
@@ -476,12 +493,12 @@ TEST_CASE("card_pile_ops: transfer_card by random, tag and kind") {
     AddMatch(h.store, 0x5EED1234ULL);
     Entity from = AddPlayer(h.store, "from", 0);
     Entity to = AddPlayer(h.store, "to", 1);
-    Entity red = MakeCard(h.store, "vanilla:red_5", "red");
-    Entity blue = MakeCard(h.store, "vanilla:blue_2", "blue");
+    Entity red = MakeCard(h.store, "uni:red_5", "red");
+    Entity blue = MakeCard(h.store, "uni:blue_2", "blue");
     PutInHand(h.store, from, red);
     PutInHand(h.store, from, blue);
 
-    h.registries.card_tags["vanilla:red_5"] = {"stackable"};
+    h.registries.card_tags["uni:red_5"] = {"stackable"};
 
     const OpResult by_tag = h.Invoke(
         "transfer_card", json{{"selector", "tag:stackable"}},
@@ -497,7 +514,7 @@ TEST_CASE("card_pile_ops: transfer_card by random, tag and kind") {
     CHECK(HandOf(h.store, to) == std::vector<Entity>{red, blue});
     CHECK(HandOf(h.store, from).empty());
 
-    Entity c3 = MakeCard(h.store, "vanilla:green_1", "green");
+    Entity c3 = MakeCard(h.store, "uni:green_1", "green");
     PutInHand(h.store, from, c3);
     const OpResult by_random = h.Invoke(
         "transfer_card", json{{"selector", "random"}},
@@ -509,7 +526,7 @@ TEST_CASE("card_pile_ops: transfer_card by random, tag and kind") {
 
 TEST_CASE("card_pile_ops: transfer_card random draws from the shared stream") {
     const std::vector<std::string> kinds = {
-        "vanilla:red_1", "vanilla:red_2", "vanilla:red_3", "vanilla:red_4"};
+        "uni:red_1", "uni:red_2", "uni:red_3", "uni:red_4"};
     // INFO: seed/counter chosen so counters 1 and 2 draw different indices.
     const uint64_t seed = 0x5EED1234ULL;
 
@@ -544,7 +561,7 @@ TEST_CASE("card_pile_ops: transfer_card chosen opens a choose_card prompt") {
     Harness h;
     Entity from = AddPlayer(h.store, "from", 0);
     Entity to = AddPlayer(h.store, "to", 1);
-    Entity card = MakeCard(h.store, "vanilla:red_5", "red");
+    Entity card = MakeCard(h.store, "uni:red_5", "red");
     PutInHand(h.store, from, card);
     // INFO: The option is the card's frozen `CompactCardV2.bits`.
     const std::optional<match::ecs::CompactCardV2> bits =
@@ -591,9 +608,9 @@ TEST_CASE("card_pile_ops: pass_hands rotates in both directions") {
     Entity a = AddPlayer(h.store, "a", 0);
     Entity b = AddPlayer(h.store, "b", 1);
     Entity c = AddPlayer(h.store, "c", 2);
-    Entity a1 = MakeCard(h.store, "vanilla:red_1", "red");
-    Entity b1 = MakeCard(h.store, "vanilla:red_2", "red");
-    Entity c1 = MakeCard(h.store, "vanilla:red_3", "red");
+    Entity a1 = MakeCard(h.store, "uni:red_1", "red");
+    Entity b1 = MakeCard(h.store, "uni:red_2", "red");
+    Entity c1 = MakeCard(h.store, "uni:red_3", "red");
     PutInHand(h.store, a, a1);
     PutInHand(h.store, b, b1);
     PutInHand(h.store, c, c1);
@@ -614,15 +631,14 @@ TEST_CASE("card_pile_ops: pass_hands rotates in both directions") {
     CHECK(HandOf(h.store, c) == std::vector<Entity>{c1});
 }
 
-// NOTE: patchwork. `hands_passed` is server-authored for now.
 TEST_CASE("card_pile_ops: pass_hands emits hands_passed with pre-move sizes") {
     Harness h;
     Entity a = AddPlayer(h.store, "a", 0);
     Entity b = AddPlayer(h.store, "b", 1);
     Entity c = AddPlayer(h.store, "c", 2);
-    PutInHand(h.store, a, MakeCard(h.store, "vanilla:red_1", "red"));
-    PutInHand(h.store, a, MakeCard(h.store, "vanilla:red_2", "red"));
-    PutInHand(h.store, b, MakeCard(h.store, "vanilla:red_3", "red"));
+    PutInHand(h.store, a, MakeCard(h.store, "uni:red_1", "red"));
+    PutInHand(h.store, a, MakeCard(h.store, "uni:red_2", "red"));
+    PutInHand(h.store, b, MakeCard(h.store, "uni:red_3", "red"));
 
     const OpResult result =
         h.Invoke("pass_hands", json{{"direction", "backward"}});
@@ -630,19 +646,19 @@ TEST_CASE("card_pile_ops: pass_hands emits hands_passed with pre-move sizes") {
     const json& event = result.events[0];
     CHECK(event["type"] == "hands_passed");
     CHECK(event["payload"]["direction"] == "backward");
-    CHECK(event["payload"]["hand_sizes"] == json::array({2, 1, 0}));
-    REQUIRE(event["payload"]["players"].size() == 3);
-    CHECK(event["payload"]["players"][0]["index"] == a.index);
-    CHECK(event["payload"]["players"][2]["index"] == c.index);
+    CHECK(event["payload"]["counts"] == json::array({2, 1, 0}));
+    REQUIRE(event["payload"]["targets"].size() == 3);
+    CHECK(event["payload"]["targets"][0]["index"] == a.index);
+    CHECK(event["payload"]["targets"][2]["index"] == c.index);
 }
 
 TEST_CASE("card_pile_ops: swap_hands exchanges contents") {
     Harness h;
     Entity a = AddPlayer(h.store, "a", 0);
     Entity b = AddPlayer(h.store, "b", 1);
-    Entity a1 = MakeCard(h.store, "vanilla:red_1", "red");
-    Entity a2 = MakeCard(h.store, "vanilla:red_2", "red");
-    Entity b1 = MakeCard(h.store, "vanilla:blue_1", "blue");
+    Entity a1 = MakeCard(h.store, "uni:red_1", "red");
+    Entity a2 = MakeCard(h.store, "uni:red_2", "red");
+    Entity b1 = MakeCard(h.store, "uni:blue_1", "blue");
     PutInHand(h.store, a, a1);
     PutInHand(h.store, a, a2);
     PutInHand(h.store, b, b1);
@@ -653,15 +669,14 @@ TEST_CASE("card_pile_ops: swap_hands exchanges contents") {
     CHECK(HandOf(h.store, a) == std::vector<Entity>{b1});
     CHECK(HandOf(h.store, b) == std::vector<Entity>{a1, a2});
 
-    // NOTE: patchwork. `hands_swapped` is server-authored for now; sizes are
-    //       the pre-swap hands and no card ids ride the event.
+    // INFO: the counts are the pre-swap hands and no card ids ride the event.
     REQUIRE(result.events.size() == 1);
     const json& event = result.events[0];
     CHECK(event["type"] == "hands_swapped");
-    CHECK(event["payload"]["a"]["index"] == a.index);
-    CHECK(event["payload"]["b"]["index"] == b.index);
-    CHECK(event["payload"]["a_size"] == 2);
-    CHECK(event["payload"]["b_size"] == 1);
+    CHECK(event["payload"]["source"]["index"] == a.index);
+    CHECK(event["payload"]["target"]["index"] == b.index);
+    CHECK(event["payload"]["count"] == 2);
+    CHECK(event["payload"]["target_count"] == 1);
     CHECK_FALSE(event["payload"].contains("cards"));
 }
 
@@ -670,13 +685,13 @@ TEST_CASE("card_pile_ops: redistribute_hands deals evenly by seat order") {
     Entity a = AddPlayer(h.store, "a", 0);
     Entity b = AddPlayer(h.store, "b", 1);
     Entity c = AddPlayer(h.store, "c", 2);
-    Entity a1 = MakeCard(h.store, "vanilla:red_1", "red");
-    Entity b1 = MakeCard(h.store, "vanilla:red_2", "red");
-    Entity b2 = MakeCard(h.store, "vanilla:red_3", "red");
-    Entity c1 = MakeCard(h.store, "vanilla:red_4", "red");
-    Entity c2 = MakeCard(h.store, "vanilla:red_5", "red");
-    Entity c3 = MakeCard(h.store, "vanilla:blue_1", "blue");
-    Entity c4 = MakeCard(h.store, "vanilla:blue_2", "blue");
+    Entity a1 = MakeCard(h.store, "uni:red_1", "red");
+    Entity b1 = MakeCard(h.store, "uni:red_2", "red");
+    Entity b2 = MakeCard(h.store, "uni:red_3", "red");
+    Entity c1 = MakeCard(h.store, "uni:red_4", "red");
+    Entity c2 = MakeCard(h.store, "uni:red_5", "red");
+    Entity c3 = MakeCard(h.store, "uni:blue_1", "blue");
+    Entity c4 = MakeCard(h.store, "uni:blue_2", "blue");
     PutInHand(h.store, a, a1);
     PutInHand(h.store, b, b1);
     PutInHand(h.store, b, b2);
@@ -692,6 +707,14 @@ TEST_CASE("card_pile_ops: redistribute_hands deals evenly by seat order") {
     CHECK(HandOf(h.store, a) == std::vector<Entity>{a1, b1, b2});
     CHECK(HandOf(h.store, b) == std::vector<Entity>{c1, c2});
     CHECK(HandOf(h.store, c) == std::vector<Entity>{c3, c4});
+
+    REQUIRE(result.events.size() == 1);
+    const json& event = result.events[0];
+    CHECK(event["type"] == "hands_redistributed");
+    CHECK(event["payload"]["counts"] == json::array({3, 2, 2}));
+    REQUIRE(event["payload"]["targets"].size() == 3);
+    CHECK(event["payload"]["targets"][1]["index"] == b.index);
+    CHECK_FALSE(event["payload"].contains("cards"));
 }
 
 TEST_CASE("card_pile_ops: materialize_card creates a new hand instance") {
@@ -707,12 +730,18 @@ TEST_CASE("card_pile_ops: materialize_card creates a new hand instance") {
     CHECK(CardKindId(h.store, card) == "space:black_hole");
     CHECK(CardInZone(h.store, card, ZoneKind::kHand));
     CHECK(result.value["card"]["index"] == card.index);
+
+    REQUIRE(result.events.size() == 1);
+    CHECK(result.events[0]["type"] == "card_created");
+    CHECK(result.events[0]["payload"]["zone"] == "hand");
+    CHECK(result.events[0]["payload"]["target"]["index"] == player.index);
+    CHECK_FALSE(result.events[0]["payload"].contains("kind"));
 }
 
 TEST_CASE("card_pile_ops: remove_card sends a card to limbo") {
     Harness h;
     Entity player = AddPlayer(h.store, "p", 0);
-    Entity card = MakeCard(h.store, "vanilla:red_1", "red");
+    Entity card = MakeCard(h.store, "uni:red_1", "red");
     PutInHand(h.store, player, card);
 
     const OpResult result =
@@ -720,12 +749,22 @@ TEST_CASE("card_pile_ops: remove_card sends a card to limbo") {
     CHECK(result.status == OpStatus::kResolved);
     CHECK(CardInZone(h.store, card, ZoneKind::kLimbo));
     CHECK(HandOf(h.store, player).empty());
+
+    REQUIRE(result.events.size() == 1);
+    CHECK(result.events[0]["type"] == "card_removed");
+    CHECK(result.events[0]["payload"]["from_zone"] == "hand");
+    CHECK(result.events[0]["payload"]["target"]["index"] == player.index);
+    CHECK(result.events[0]["payload"]["card"]["index"] == card.index);
+
+    const OpResult again =
+        h.Invoke("remove_card", json::object(), {{"card", {card}}});
+    CHECK(again.events.empty());
 }
 
 TEST_CASE("card_pile_ops: replace_card transmutes the kind") {
     Harness h;
     Entity player = AddPlayer(h.store, "p", 0);
-    Entity card = MakeCard(h.store, "vanilla:red_5", "red");
+    Entity card = MakeCard(h.store, "uni:red_5", "red");
     PutInHand(h.store, player, card);
 
     const OpResult result = h.Invoke(
@@ -734,15 +773,26 @@ TEST_CASE("card_pile_ops: replace_card transmutes the kind") {
     CHECK(result.status == OpStatus::kResolved);
     CHECK(CardKindId(h.store, card) == "space:black_hole");
     CHECK(HandOf(h.store, player) == std::vector<Entity>{card});
+
+    REQUIRE(result.events.size() == 1);
+    CHECK(result.events[0]["type"] == "card_replaced");
+    CHECK(result.events[0]["payload"]["zone"] == "hand");
+    CHECK(result.events[0]["payload"]["target"]["index"] == player.index);
+    CHECK_FALSE(result.events[0]["payload"].contains("kind"));
+
+    const OpResult same_kind = h.Invoke(
+        "replace_card", json{{"kind", "space:black_hole"}},
+        {{"card", {card}}});
+    CHECK(same_kind.events.empty());
 }
 
 TEST_CASE("card_pile_ops: peek_pile reveals top-n and emits an event") {
     Harness h;
     Entity viewer = AddPlayer(h.store, "v", 0);
     Entity draw = AddPile(h.store, PileKind::kDraw);
-    Entity d1 = MakeCard(h.store, "vanilla:red_1", "red");
-    Entity d2 = MakeCard(h.store, "vanilla:red_2", "red");
-    Entity d3 = MakeCard(h.store, "vanilla:red_3", "red");
+    Entity d1 = MakeCard(h.store, "uni:red_1", "red");
+    Entity d2 = MakeCard(h.store, "uni:red_2", "red");
+    Entity d3 = MakeCard(h.store, "uni:red_3", "red");
     PutInPile(h.store, draw, d1);
     PutInPile(h.store, draw, d2);
     PutInPile(h.store, draw, d3);
@@ -771,7 +821,7 @@ TEST_CASE("card_pile_ops: fail-safe no-ops never crash") {
     Entity player = AddPlayer(h.store, "p", 0);
     Entity other = AddPlayer(h.store, "q", 1);
     Entity draw = AddPile(h.store, PileKind::kDraw);
-    Entity card = MakeCard(h.store, "vanilla:red_1", "red");
+    Entity card = MakeCard(h.store, "uni:red_1", "red");
     PutInPile(h.store, draw, card);
 
     // INFO: unbound target and missing n.
@@ -817,7 +867,7 @@ TEST_CASE("card_pile_ops: play_card emits a play effect for the hand owner") {
     Harness h;
     Entity player = AddPlayer(h.store, "p", 0);
     Entity other = AddPlayer(h.store, "o", 1);
-    Entity card = MakeCard(h.store, "vanilla:red_5", "red");
+    Entity card = MakeCard(h.store, "uni:red_5", "red");
     PutInHand(h.store, player, card);
 
     // INFO: no explicit player -> the card's hand owner is the actor.
@@ -843,7 +893,7 @@ TEST_CASE("card_pile_ops: play_card emits a play effect for the hand owner") {
 TEST_CASE("card_pile_ops: play_card fail-safe paths emit no effect") {
     Harness h;
     Entity player = AddPlayer(h.store, "p", 0);
-    Entity card = MakeCard(h.store, "vanilla:red_5", "red");
+    Entity card = MakeCard(h.store, "uni:red_5", "red");
     PutInHand(h.store, player, card);
 
     // INFO: unbound card.
@@ -858,7 +908,7 @@ TEST_CASE("card_pile_ops: play_card fail-safe paths emit no effect") {
     // INFO: a card with no in_zone is refused.
     Entity orphan = h.store.Create();
     CardIdentity identity;
-    identity.kind_id = "vanilla:red_5";
+    identity.kind_id = "uni:red_5";
     h.store.Add(orphan, identity);
     CHECK(h.Invoke("play_card", json::object(), {{"card", {orphan}}})
               .effects.empty());
@@ -887,9 +937,9 @@ TEST_CASE("card_pile_ops: draw_until_playable stops at the first playable") {
     Entity draw = AddPile(h.store, PileKind::kDraw);
     AddActiveType(h, "red");
 
-    Entity untouched = MakeCard(h.store, "vanilla:red_4", "red");
-    Entity playable = MakeCard(h.store, "vanilla:red_3", "red");
-    Entity unplayable = MakeCard(h.store, "vanilla:blue_9", "blue");
+    Entity untouched = MakeCard(h.store, "uni:red_4", "red");
+    Entity playable = MakeCard(h.store, "uni:red_3", "red");
+    Entity unplayable = MakeCard(h.store, "uni:blue_9", "blue");
     h.store.Get<FaceSpec>(unplayable)->label = "9";
     // INFO: pile order bottom -> top: untouched, playable, unplayable. The op
     //       draws blue (unplayable), then red (playable) and stops; red_4
@@ -918,8 +968,8 @@ TEST_CASE("card_pile_ops: draw_until_playable exhausts a dry pile") {
     Entity draw = AddPile(h.store, PileKind::kDraw);
     AddActiveType(h, "red");
 
-    Entity a = MakeCard(h.store, "vanilla:blue_1", "blue");
-    Entity b = MakeCard(h.store, "vanilla:green_2", "green");
+    Entity a = MakeCard(h.store, "uni:blue_1", "blue");
+    Entity b = MakeCard(h.store, "uni:green_2", "green");
     PutInPile(h.store, draw, a);
     PutInPile(h.store, draw, b);
 
@@ -940,9 +990,9 @@ TEST_CASE("card_pile_ops: draw_until_playable reshuffles to reach one") {
     Entity discard = AddPile(h.store, PileKind::kDiscard);
     AddActiveType(h, "red");
 
-    Entity unplayable = MakeCard(h.store, "vanilla:blue_1", "blue");
-    Entity playable = MakeCard(h.store, "vanilla:red_2", "red");
-    Entity buried = MakeCard(h.store, "vanilla:blue_3", "blue");
+    Entity unplayable = MakeCard(h.store, "uni:blue_1", "blue");
+    Entity playable = MakeCard(h.store, "uni:red_2", "red");
+    Entity buried = MakeCard(h.store, "uni:blue_3", "blue");
     PutInPile(h.store, draw, unplayable);
     // INFO: the discard top (`buried`) stays the active pile; the playable
     //       card underneath is recycled into the draw pile and reached next.
@@ -968,9 +1018,9 @@ TEST_CASE("card_pile_ops: draw_until_playable honors an explicit from pile") {
     Entity discard = AddPile(h.store, PileKind::kDiscard);
     AddActiveType(h, "red");
 
-    Entity untouched = MakeCard(h.store, "vanilla:red_4", "red");
-    Entity unplayable = MakeCard(h.store, "vanilla:blue_1", "blue");
-    Entity playable = MakeCard(h.store, "vanilla:red_2", "red");
+    Entity untouched = MakeCard(h.store, "uni:red_4", "red");
+    Entity unplayable = MakeCard(h.store, "uni:blue_1", "blue");
+    Entity playable = MakeCard(h.store, "uni:red_2", "red");
     PutInPile(h.store, draw, untouched);
     // INFO: discard top (back) is the unplayable card, so it is drawn first.
     PutInPile(h.store, discard, playable);
@@ -990,7 +1040,7 @@ TEST_CASE("card_pile_ops: draw_until_playable honors an explicit from pile") {
 TEST_CASE("card_pile_ops: draw_until_playable fail-safe targets and from") {
     Harness h;
     Entity draw = AddPile(h.store, PileKind::kDraw);
-    Entity card = MakeCard(h.store, "vanilla:red_1", "red");
+    Entity card = MakeCard(h.store, "uni:red_1", "red");
     PutInPile(h.store, draw, card);
     Entity not_a_player = h.store.Create();
 

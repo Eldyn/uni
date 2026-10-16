@@ -1,0 +1,8 @@
+{
+  "id": "sfx",
+  "license": "CC0-1.0",
+  "author": "eldyn",
+  "slots": {
+    "sound": [{ "tier": "low", "value": "roll" }]
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "uni:format_version": "1.0.0",
+  "uni:binding": {
+    "uni:description": { "uni:identifier": "draw_stacking:stack_log" },
+    "uni:event": "status_applied",
+    "uni:select": "first",
+    "uni:cases": [
+      {
+        "uni:tests": [
+          { "uni:test": "equals", "uni:field": "status_kind", "uni:value": "uni:draw_debt" },
+          { "uni:test": "gte", "uni:field": "magnitude", "uni:value": 8 }
+        ],
+        "uni:present": {
+          "uni:log": {
+            "uni:variants": ["draw_stacking:stack_heavy_1"],
+            "uni:params": {
+              "name": { "uni:actor": true },
+              "victim": { "uni:field": "target" },
+              "total": { "uni:field": "magnitude" }
+            }
+          }
+        }
+      },
+      {
+        "uni:tests": [
+          { "uni:test": "equals", "uni:field": "status_kind", "uni:value": "uni:draw_debt" }
+        ],
+        "uni:present": {
+          "uni:log": {
+            "uni:variants": ["draw_stacking:stack_small_1", "draw_stacking:stack_small_2"],
+            "uni:params": {
+              "name": { "uni:actor": true },
+              "victim": { "uni:field": "target" },
+              "total": { "uni:field": "magnitude" }
+            }
+          }
+        }
+      }
+    ]
+  }
+}

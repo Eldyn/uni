@@ -58,17 +58,17 @@ fs::path ProjectRoot() {
     return {};
 }
 
-std::unique_ptr<MatchInstance> MakeVanillaEngine(match::NowMs clock) {
+std::unique_ptr<MatchInstance> MakeUniEngine(match::NowMs clock) {
     LoadResult load = ScanModsDirectory((ProjectRoot() / "mods").string());
     REQUIRE(load.ok());
     DeckDef classic;
     for (const LoadedMod& mod : load.mods) {
         for (const DeckDef& deck : mod.decks) {
-            if (deck.deck_id == "vanilla:classic") classic = deck;
+            if (deck.deck_id == "uni:classic") classic = deck;
         }
     }
     REQUIRE_FALSE(classic.deck_id.empty());
-    classic.mods = {"vanilla"};
+    classic.mods = {"uni"};
 
     MatchAssemblyOptions options;
     options.starting_cards = 7;
@@ -124,7 +124,7 @@ int64_t PromptDeadline(const MatchInstance& engine) {
 
 TEST_CASE("engine clocks: the turn clock is armed once per turn") {
     FakeClock clock;
-    std::unique_ptr<MatchInstance> engine = MakeVanillaEngine(clock.Fn());
+    std::unique_ptr<MatchInstance> engine = MakeUniEngine(clock.Fn());
 
     engine->SyncClocks(kTimeLimitMs);
     CHECK(engine->CurrentTurnDeadlineMs() == kTimeLimitMs);
@@ -136,7 +136,7 @@ TEST_CASE("engine clocks: the turn clock is armed once per turn") {
 
 TEST_CASE("engine clocks: a prompt pauses the turn and runs its own clock") {
     FakeClock clock;
-    std::unique_ptr<MatchInstance> engine = MakeVanillaEngine(clock.Fn());
+    std::unique_ptr<MatchInstance> engine = MakeUniEngine(clock.Fn());
 
     const ecs::Entity player0 = *engine->FindPlayer("player0");
     const std::optional<ecs::Entity> wild = FindCard(*engine, "white", "jolly");

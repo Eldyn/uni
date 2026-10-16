@@ -4,6 +4,11 @@ import { createRawSnippet } from "svelte";
 import TooltipHarness from "./TooltipHarness.svelte";
 import Tooltip from "$components/common/Tooltip.svelte";
 import { storeTooltipStack } from "$stores/tooltipStack.svelte";
+import { prepareCoreTexts } from "../glossary/coreTextsHarness";
+
+beforeEach(async () => {
+	await prepareCoreTexts("en");
+});
 
 describe("Tooltip static pixel popover", () => {
 	beforeEach(() => {
@@ -123,7 +128,7 @@ describe("Tooltip static pixel popover", () => {
 		expect(screen.getByRole("tooltip")).toBeInTheDocument();
 
 		// Simulate a child item opened in storeTooltipStack (e.g. glossary keyword click)
-		storeTooltipStack.open("vanilla:turn");
+		storeTooltipStack.open("uni:turn");
 		await act(() => vi.runAllTimers());
 
 		// Root tooltip must remain open!
@@ -144,7 +149,7 @@ describe("Tooltip static pixel popover", () => {
 
 		// A glossary keyword inside the tooltip content spawns a child tooltip,
 		// portaled elsewhere in the DOM by TooltipStack.
-		await act(() => storeTooltipStack.open("vanilla:turn"));
+		await act(() => storeTooltipStack.open("uni:turn"));
 
 		// The pointer leaves this tooltip's own DOM to move onto the (separately
 		// portaled) child — its mouseleave fires even though the user never

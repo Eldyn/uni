@@ -127,6 +127,7 @@ find_package(SQLite3 REQUIRED)
 find_package(jwt-cpp REQUIRED)
 find_package(nlohmann_json REQUIRED)
 find_package(CURL REQUIRED)
+find_package(glaze REQUIRED)
 
 # --- Main Executable ---
 file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS "src/*.cpp")
@@ -154,6 +155,7 @@ target_link_libraries(uni_server PRIVATE
     jwt-cpp::jwt-cpp
     nlohmann_json::nlohmann_json
     CURL::libcurl
+    glaze::glaze
 )
 
 # --- Copy the runtime assets next to the executable ---
@@ -223,14 +225,24 @@ if(UNI_BUILD_TESTS)
         src/match/modload/semantic_validator.cpp
         src/match/modload/play_conditions.cpp
         src/match/modload/asset_index.cpp
+        src/match/modload/mod_hash.cpp
+        src/match/modload/texts_limits.cpp
+        src/match/modload/glossary_entries.cpp
         src/match/ecs/entity_store.cpp
         src/match/ecs/component_catalog.cpp
         src/match/ecs/event_bus.cpp
+        src/match/ecs/mod_event_budget.cpp
         src/match/engine/match_assembler.cpp
         src/match/engine/match_instance.cpp
         src/match/engine/play_evaluator.cpp
         src/match/engine/mutation_compiler.cpp
+        src/match/view/event_projector.cpp
         src/match/view/event_sink.cpp
+        src/match/view/event_tail.cpp
+        src/match/view/streak_view.cpp
+        src/match/streak/derived_engine.cpp
+        src/match/streak/matcher.cpp
+        src/match/streak/streak_engine.cpp
         src/match/view/defs_builder.cpp
         src/match/view/view_builder.cpp
         src/match/view/view_util.cpp
@@ -271,9 +283,11 @@ if(UNI_BUILD_TESTS)
         src/services/account_reaper.cpp
         src/common/email_sender.cpp
         src/common/email_queue.cpp
+        src/common/db_worker.cpp
         src/common/email_templates.cpp
         src/common/email_send_log.cpp
         src/common/crypto_hash.cpp
+        src/common/crypto_pool.cpp
         src/services/stats_service.cpp
         src/services/friend_service.cpp
         src/services/chat_service.cpp
@@ -298,10 +312,21 @@ if(UNI_BUILD_TESTS)
         SQLite::SQLite3
         ZLIB::ZLIB
         jwt-cpp::jwt-cpp
+        glaze::glaze
     )
     add_dependencies(uni_tests gen_ws_messages gen_contract_hpp gen_ws_actions_hpp gen_email_copy_hpp)
 
     add_test(NAME unit COMMAND uni_tests)
 endif()
+
+# --- Perf benches (uni_bench) ---
+# Perf-checker-first: establishes M1 baselines in tests/perf/baselines/ before
+# any hot-path change. Links only src/database.cpp so the checker stays fast
+# and dependency-free (ws_parse/snapshot benches are self-contained mirrors of
+# the WebServer::OnSocketMessage / MatchSession::EmitEvents paths).
+add_executable(uni_bench tests/perf/bench_main.cpp tests/perf/bench_db.cpp tests/perf/bench_ws_parse.cpp tests/perf/bench_snapshot.cpp
+  src/database.cpp src/common/db_worker.cpp)
+target_include_directories(uni_bench PRIVATE include src "${CMAKE_BINARY_DIR}/generated" tests/perf)
+target_link_libraries(uni_bench PRIVATE SQLite::SQLite3 nlohmann_json::nlohmann_json glaze::glaze)
 
 message(STATUS "Configuration complete for system: ${CMAKE_SYSTEM_NAME}")

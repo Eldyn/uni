@@ -38,7 +38,7 @@ import type { LogLine } from "$lib/chat/playLog/logEvent";
 
 const logLine = (name = "bob"): LogLine => ({
 	kind: "log",
-	key: "log_skip",
+	key: "uni:log.skip",
 	params: { name },
 	tier: 0
 });
@@ -54,7 +54,7 @@ describe("chatStore.appendLocalLog", () => {
 		chatStore.appendLocalLog(logLine("bob"));
 
 		const [line] = chatStore.linesFor("party");
-		expect(line).toMatchObject({ kind: "log", logKey: "log_skip", logParams: { name: "bob" } });
+		expect(line).toMatchObject({ kind: "log", logKey: "uni:log.skip", logParams: { name: "bob" } });
 		expect(mockEmit).not.toHaveBeenCalled();
 	});
 

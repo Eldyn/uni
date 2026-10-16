@@ -51,6 +51,8 @@ OpResult OpPrompt(ecs::EntityStore&, const OpArgs&, OpContext&);
 
 // --- randomness -------------------------------------------------------
 OpResult OpRoll(ecs::EntityStore&, const OpArgs&, OpContext&);
+/** outcome tables: weighted pick + `$last_outcome`. */
+OpResult OpRollTable(ecs::EntityStore&, const OpArgs&, OpContext&);
 
 // --- visibility ops ---------------------------------------------------
 OpResult OpGrantVisibility(ecs::EntityStore&, const OpArgs&, OpContext&);
@@ -69,6 +71,7 @@ OpResult OpAddPlacement(ecs::EntityStore&, const OpArgs&, OpContext&);
 
 // --- scheduling and meta ---------------------------------------------
 OpResult OpEmitSignal(ecs::EntityStore&, const OpArgs&, OpContext&);
+OpResult OpEmitEvent(ecs::EntityStore&, const OpArgs&, OpContext&);
 /** WARN: `call_original` is a `wrap`-mutation marker, not a normal op body. */
 OpResult OpCallOriginal(ecs::EntityStore&, const OpArgs&, OpContext&);
 

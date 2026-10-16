@@ -169,7 +169,7 @@ bool LoadSessionContent(SessionContent& out) {
     out.mods = std::move(load.mods);
     for (const match::modload::LoadedMod& mod : out.mods) {
         for (const match::modload::DeckDef& deck : mod.decks) {
-            if (deck.deck_id == "vanilla:classic") out.classic = deck;
+            if (deck.deck_id == "uni:classic") out.classic = deck;
         }
     }
     return !out.classic.deck_id.empty();
@@ -185,7 +185,7 @@ const SessionContent& Content() {
 /**
  * @brief Attach a started new-engine session for `players` to `lobby`.
  *
- * Mirrors `LobbyController::HandleStartGame`: the vanilla classic deck plus
+ * Mirrors `LobbyController::HandleStartGame`: the uni classic deck plus
  * any rule mods named by `lobby.settings.active_mods`.
  */
 void AttachSession(Lobby& lobby,
@@ -799,6 +799,14 @@ TEST_CASE("lobby: LobbySettings ranked defaults to true and roundtrips through j
     j["ranked"] = false;
     LobbySettings unranked = j.get<LobbySettings>();
     CHECK(unranked.ranked == false);
+}
+
+TEST_CASE("lobby: creative forces ranked off on sanitize") {
+    LobbySettings settings;
+    settings.creative = true;
+    settings.ranked = true;
+    settings.Sanitize();
+    CHECK_FALSE(settings.ranked);
 }
 
 TEST_CASE("lobby: 120s grace period is respected") {

@@ -10,6 +10,17 @@
  */
 
 /**
+ * @struct FriendLists
+ * @brief All three friend views for one user, fetched by one query (one
+ * `json_object` row with three arrays, parsed on the calling thread).
+ */
+struct FriendLists {
+    std::vector<std::string> friends;
+    std::vector<std::string> incoming;
+    std::vector<std::string> outgoing;
+};
+
+/**
  * @class FriendService
  * @brief Owns the friend-request/accept/remove rules over the `friends` table,
  * independent of the WebSocket wire layer.
@@ -57,6 +68,11 @@ public:
      * @brief Lists the usernames `user` has sent a still-pending request to.
      */
     Result<std::vector<std::string>> GetOutgoingRequests(const std::string& user);
+
+    /**
+     * @brief Returns friends + incoming + outgoing in a single round trip.
+     */
+    Result<FriendLists> GetFriendLists(const std::string& user);
 
 private:
     Database& db_;

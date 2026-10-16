@@ -177,6 +177,17 @@ uint64_t EntityKey(ecs::Entity entity) {
     return (static_cast<uint64_t>(entity.index) << 32) | entity.generation;
 }
 
+/**
+ * @brief Finds the loaded mod a deck id names.
+ */
+const modload::LoadedMod* FindLoadedMod(
+    const std::vector<modload::LoadedMod>& mods, const std::string& id) {
+    for (const modload::LoadedMod& mod : mods) {
+        if (mod.manifest.id == id) return &mod;
+    }
+    return nullptr;
+}
+
 /** @brief True when the card kind declares the (legacy numeric) `numbered`. */
 bool IsNumbered(const modload::CardDef& card) {
     return std::find(card.tags.begin(), card.tags.end(), "numbered")
@@ -477,13 +488,7 @@ AssemblyResult MatchAssembler::Assemble(
             return fail("assembly.duplicate_mod",
                         "mod '" + id + "' listed more than once");
         }
-        const modload::LoadedMod* found = nullptr;
-        for (const modload::LoadedMod& mod : mods) {
-            if (mod.manifest.id == id) {
-                found = &mod;
-                break;
-            }
-        }
+        const modload::LoadedMod* found = FindLoadedMod(mods, id);
         if (found == nullptr) {
             return fail("assembly.unknown_mod", "loaded mod '" + id
                                                     + "' is not available");
@@ -617,7 +622,7 @@ AssemblyResult MatchAssembler::Assemble(
     assembly->registries = registries;
     assembly->card_facts = card_facts;
     // INFO: retain the deck identity + settings so the view layer can build
-    //       `match_start` and `match_end` without the caller re-supplying them
+    //       `match_start` and `match_ended` without the caller re-supplying them
     //       (resolves the former match_instance.cpp TODO).
     assembly->deck.deck_id = deck.deck_id;
     assembly->deck.name = deck.name;
@@ -774,7 +779,60 @@ AssemblyResult MatchAssembler::Assemble(
     //       each other's `has_card_tag` / `draw_penalty` / `tag:` semantics.
     wiring::LoadCardTags(active_cards, assembly->registries.card_tags);
 
-    // --- systems: rules then card behaviors, frozen order
+    // INFO: the outcome-table registry is per-match like `card_tags`.
+    //       Flatten every active mod's tables so `roll_table` resolves them.
+    {
+        std::vector<modload::TableDef> active_tables;
+        for (const modload::LoadedMod* mod : active) {
+            for (const modload::TableDef& table : mod->tables) {
+                active_tables.push_back(table);
+            }
+        }
+        wiring::LoadTables(active_tables, assembly->registries.tables);
+    }
+
+    // INFO: entity/presentation registries are per-match like `tables`.
+    //       Flatten every active mod's defs so the `defs` packet can publish
+    //       them and the client entity runtime can resolve by def id.
+    {
+        std::vector<modload::EntityDef> active_entities;
+        std::vector<modload::PresentationDef> active_presentations;
+        std::vector<modload::EventDef> active_events;
+        std::vector<modload::StreakDef> active_streaks;
+        std::vector<modload::DerivedEventDef> active_derived;
+        std::vector<modload::BindingDef> active_bindings;
+        for (const modload::LoadedMod* mod : active) {
+            for (const modload::EntityDef& entity : mod->entities) {
+                active_entities.push_back(entity);
+            }
+            for (const modload::PresentationDef& presentation :
+                 mod->presentations) {
+                active_presentations.push_back(presentation);
+            }
+            for (const modload::EventDef& event : mod->events) {
+                active_events.push_back(event);
+            }
+            for (const modload::StreakDef& streak : mod->streaks) {
+                active_streaks.push_back(streak);
+            }
+            for (const modload::DerivedEventDef& derived :
+                 mod->derived_events) {
+                active_derived.push_back(derived);
+            }
+            for (const modload::BindingDef& binding : mod->bindings) {
+                active_bindings.push_back(binding);
+            }
+        }
+        wiring::LoadEntities(active_entities, assembly->registries.entities);
+        wiring::LoadPresentations(active_presentations,
+                                  assembly->registries.presentations);
+        wiring::LoadEvents(active_events, assembly->registries.events);
+        wiring::LoadStreaks(active_streaks, assembly->registries.streaks);
+        wiring::LoadDerived(active_derived, assembly->registries.derived);
+        wiring::LoadBindings(active_bindings, assembly->registries.bindings);
+    }
+
+    // --- systems: rules then card behaviors, frozen order -------
     for (const modload::LoadedMod* mod : active) {
         uint32_t registration = 0;
         for (const modload::RuleDef& rule : mod->rules) {
@@ -851,7 +909,7 @@ AssemblyResult MatchAssembler::Assemble(
     }
 
     // INFO: `match_start` fires once assembly is done. Dispatching it
-    //       here is what installs the vanilla restriction entries shipped as
+    //       here is what installs the uni restriction entries shipped as
     //       `after:match_start` data; the engine does not re-dispatch it.
     const json settings = deck.settings;
     ecs::HookPayload before;

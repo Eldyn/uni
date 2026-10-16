@@ -3,6 +3,11 @@ import { render, screen, fireEvent, act } from "@testing-library/svelte";
 import Toggle from "$components/lobby/settings/Toggle.svelte";
 import RulesGrid from "$components/lobby/settings/RulesGrid.svelte";
 import { storeTooltipStack } from "$stores/tooltipStack.svelte";
+import { prepareCoreTexts } from "../glossary/coreTextsHarness";
+
+beforeEach(async () => {
+	await prepareCoreTexts("en");
+});
 
 describe("Lobby settings interactive tooltips and rich text", () => {
 	beforeEach(() => {
@@ -19,7 +24,7 @@ describe("Lobby settings interactive tooltips and rich text", () => {
 		render(Toggle, {
 			props: {
 				label: "Test Toggle",
-				description: "Effect allows player to [k=vanilla:draw]draw[/k] cards.",
+				description: "Effect allows player to [k=uni:draw]draw[/k] cards.",
 				checked: false,
 				oncommit: vi.fn()
 			}
@@ -46,7 +51,7 @@ describe("Lobby settings interactive tooltips and rich text", () => {
 					{
 						id: "seven_zero",
 						label: "7-0 Rule",
-						description: "Swap hands or rotate in [k=vanilla:turn]turn[/k] direction.",
+						description: "Swap hands or rotate in [k=uni:turn]turn[/k] direction.",
 						enabled: true
 					}
 				],
@@ -76,7 +81,7 @@ describe("Lobby settings interactive tooltips and rich text", () => {
 						id: "draw_stacking",
 						label: "Draw Stacking",
 						description:
-							"Stack +2 or +4 cards to pass the accumulated [k=vanilla:draw]draw[/k] penalty.",
+							"Stack +2 or +4 cards to pass the accumulated [k=uni:draw]draw[/k] penalty.",
 						enabled: true
 					}
 				],
@@ -96,7 +101,7 @@ describe("Lobby settings interactive tooltips and rich text", () => {
 		await fireEvent.click(keywordBtn);
 
 		expect(storeTooltipStack.stack).toHaveLength(1);
-		expect(storeTooltipStack.stack[0].keyword).toBe("vanilla:draw");
+		expect(storeTooltipStack.stack[0].keyword).toBe("uni:draw");
 		expect(storeTooltipStack.stack[0].title).toBe("Draw");
 	});
 
@@ -104,7 +109,7 @@ describe("Lobby settings interactive tooltips and rich text", () => {
 		render(Toggle, {
 			props: {
 				label: "Test Toggle",
-				description: "Effect allows player to [k=vanilla:draw]draw[/k] cards.",
+				description: "Effect allows player to [k=uni:draw]draw[/k] cards.",
 				checked: false,
 				oncommit: vi.fn()
 			}
@@ -126,7 +131,7 @@ describe("Lobby settings interactive tooltips and rich text", () => {
 					{
 						id: "seven_zero",
 						label: "7-0 Rule",
-						description: "Swap hands or rotate in [k=vanilla:turn]turn[/k] direction.",
+						description: "Swap hands or rotate in [k=uni:turn]turn[/k] direction.",
 						enabled: true
 					}
 				],

@@ -1,0 +1,8 @@
+{
+  "uni:format_version": "1.0.0",
+  "uni:glossary_entry": {
+    "uni:description": { "uni:identifier": "glossary_duplicate:foo" },
+    "uni:label_key": "glossary_duplicate:a",
+    "uni:description_key": "glossary_duplicate:b"
+  }
+}

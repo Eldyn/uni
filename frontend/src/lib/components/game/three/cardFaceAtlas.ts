@@ -12,6 +12,7 @@ import { CARD_COLOR_MAP } from "$lib/palette";
 import { assetOrigin, isAllowedAssetUrl } from "./assetTrust";
 import type { Card } from "$stores/game.svelte";
 import { assetUrl } from "$lib/utils/assetUrl";
+import type { FaceOverride } from "$components/game/affliction/overrideChannel";
 
 export interface AtlasEntry {
 	page: number;
@@ -29,7 +30,7 @@ export interface CardFaceKey {
 	artVersion?: string;
 }
 
-/** @brief A single composited layer of a vanilla face. */
+/** @brief A single composited layer of a default face. */
 export type FaceLayer = "background" | "value" | "border";
 
 export const ATLAS_PAGE_VERSION = { value: 0 };
@@ -71,7 +72,7 @@ const STANDARD_ART_NAMES = [
 ] as const;
 
 /**
- * @brief True when `name` is one of the pre-baked vanilla art assets.
+ * @brief True when `name` is one of the pre-baked default art assets.
  *
  * Only a `text` face whose label matches a standard asset can be rendered from
  * the existing atlas; modded `image`/`emoji`/`blank` faces have no baked
@@ -82,11 +83,54 @@ export function hasStandardFaceArt(name: string | undefined): name is string {
 }
 
 /**
+ * @brief The default face values a `seeded-random-tile` face source may pick
+ * from. Excludes the non-value layers (`background`/`back`/`border`)
+ * so a random tile is always a legible face.
+ */
+export const STANDARD_TILE_VALUES: readonly string[] = STANDARD_ART_NAMES.filter(
+	(name) => name !== "background" && name !== "back" && name !== "border"
+);
+
+/**
+ * @brief The face key a renderer resolves after an active `face.override`.
+ *
+ * is UV/texture-only: an override's `texture` names the face value to
+ * draw, so the atlas bakes/resolves that face instead of the card's own. The
+ * card back is never overridden (a turned card's face is not the front), and an
+ * override without a `texture` leaves the key untouched (its `uvRect`, if any,
+ * is applied by `entryWithOverride`).
+ */
+export function faceKeyForOverride(
+	base: CardFaceKey,
+	override: FaceOverride | undefined
+): CardFaceKey {
+	if (base.turned || !override?.texture) return base;
+	return { ...base, value: override.texture };
+}
+
+/**
+ * @brief The atlas entry a renderer draws after an active `face.override`.
+ *
+ * An override `uvRect` is a `[u0, v0, w, h]` rect in normalized atlas space
+ * (the same convention as the shader's `uUvRectFront`), applied onto the base
+ * entry's page. Without a `uvRect` the base entry is returned unchanged.
+ */
+export function entryWithOverride(
+	base: AtlasEntry,
+	override: FaceOverride | undefined
+): AtlasEntry {
+	const rect = override?.uvRect;
+	if (!rect) return base;
+	const [u0, v0, w, h] = rect;
+	return { ...base, u0, v0, u1: u0 + w, v1: v0 + h };
+}
+
+/**
  * @brief Maps a card (plus its resolved defs face) onto an atlas face key.
  *
  * A `text` face supplies the color/label pair and the `art_version` that feeds
  * the face hash. Faces with no baked art — and cards with no defs entry at all
- * — fall back to the card's own `type`/`value`, which is exactly how vanilla
+ * — fall back to the card's own `type`/`value`, which is exactly how default
  * cards rendered before the defs table existed.
  */
 export function cardFaceKeyFor(
@@ -385,7 +429,7 @@ function bakeLayerSlot(slot: AllocatedSlot, layer: FaceLayer): boolean {
 }
 
 /**
- * @brief UV rect for one layer of a vanilla face.
+ * @brief UV rect for one layer of a default face.
  *
  * `inset` mod art is drawn between the background and the value/border, which
  * the single composite slot cannot express — so the renderer requests these

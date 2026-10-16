@@ -1,0 +1,19 @@
+{
+  "uni:format_version": "1.0.0",
+  "uni:streak": {
+    "uni:description": { "uni:identifier": "uni:reverse_run" },
+    "uni:type": "run",
+    "uni:matcher": { "uni:event": "direction_changed" },
+    "uni:reset_on": [
+      { "uni:event": "cards_drawn" },
+      { "uni:event": "drawn_card_kept" },
+      { "uni:event": "turn_skipped" },
+      {
+        "uni:event": "card_played",
+        "uni:tests": [
+          { "uni:test": "has_tag", "uni:tag": "uni:reverse", "uni:negate": true }
+        ]
+      }
+    ]
+  }
+}

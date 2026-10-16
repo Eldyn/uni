@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { render, fireEvent } from "@testing-library/svelte";
 import CardPrompt from "$components/game/prompts/CardPrompt.svelte";
 import { storeGame } from "$stores/game.svelte";
-import type { PromptOpenPayload } from "$lib/generated/schemas";
+import type { PromptOpenedPayload } from "$lib/generated/schemas";
 
 type Spy = ReturnType<typeof vi.spyOn>;
 
@@ -21,7 +21,7 @@ describe("CardPrompt", () => {
 	});
 
 	it("renders integer options as buttons and sends the number back", async () => {
-		const prompt: PromptOpenPayload = {
+		const prompt: PromptOpenedPayload = {
 			prompt_id: "choose_card",
 			kind: "choose_card",
 			payload: { options: [65537, 131074], response_schema: { type: "integer" } },

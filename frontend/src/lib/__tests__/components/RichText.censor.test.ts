@@ -1,7 +1,12 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/svelte";
 import RichText from "$components/common/RichText.svelte";
 import { loadCensorData } from "$utils/censor.svelte";
+import { prepareCoreTexts } from "../glossary/coreTextsHarness";
+
+beforeEach(async () => {
+	await prepareCoreTexts("en");
+});
 
 describe("RichText censoring behavior", () => {
 	it("does not censor uni-made content by default (e.g. 'pass' remains 'pass')", () => {
@@ -22,7 +27,7 @@ describe("RichText censoring behavior", () => {
 	it("preserves 'pass' when keywords are allowed in tooltips and descriptions", () => {
 		render(RichText, {
 			props: {
-				text: "You can [k=vanilla:play]pass[/k] your [k=vanilla:turn]turn[/k].",
+				text: "You can [k=uni:play]pass[/k] your [k=uni:turn]turn[/k].",
 				allowKeywords: true
 			}
 		});

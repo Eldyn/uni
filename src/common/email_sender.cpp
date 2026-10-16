@@ -121,14 +121,17 @@ VoidResult DevFileEmailSender::Send(const OutboundEmail& mail) {
     return {};
 }
 
-BrevoEmailSender::BrevoEmailSender(std::string api_key) : api_key_(std::move(api_key)) {}
+BrevoEmailSender::BrevoEmailSender(std::string api_key)
+    : api_key_(std::move(api_key)),
+      sender_name_(Env::Get("EMAIL_FROM_NAME", "")),
+      sender_email_(Env::Get("EMAIL_FROM_ADDRESS", "")) {}
 
 VoidResult BrevoEmailSender::Send(const OutboundEmail& mail) {
 #if UNI_HAS_LIBCURL
   try {
     json payload = {
-        {"sender", {{"name", Env::Get("EMAIL_FROM_NAME", "")},
-                    {"email", Env::Get("EMAIL_FROM_ADDRESS", "")}}},
+        {"sender", {{"name", sender_name_},
+                    {"email", sender_email_}}},
         {"to", json::array({{{"email", mail.to_address}, {"name", mail.to_name}}})},
         {"subject", mail.subject},
         {"htmlContent", mail.html_body},

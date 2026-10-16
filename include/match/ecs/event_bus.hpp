@@ -120,6 +120,15 @@ public:
      */
     bool NoteChainAbort(const std::string& mod_id);
 
+    /**
+     * @brief Disarm `mod_id` for the rest of the match.
+     *
+     * The mod hooks stop running. An empty `mod_id` is ignored.
+     *
+     * @return true when this call newly disarmed `mod_id`.
+     */
+    bool Disarm(const std::string& mod_id);
+
     /** @brief Live re-entry depth for `hook` (0 when not executing). */
     uint32_t CurrentReentryDepth(const HookId& hook) const;
 

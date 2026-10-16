@@ -1,0 +1,9 @@
+{
+  "uni:format_version": "1.0.0",
+  "uni:streak": {
+    "uni:description": { "uni:identifier": "uni:last_wild_color" },
+    "uni:type": "last_value",
+    "uni:matcher": { "uni:event": "active_type_changed" },
+    "uni:value_field": "color"
+  }
+}

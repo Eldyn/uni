@@ -2,6 +2,7 @@
 
 #include <match/engine/match_assembler.hpp>
 #include <match/modload/asset_index.hpp>
+#include <match/modload/glossary_entries.hpp>
 #include <match/view/event_sink.hpp>
 
 #include <nlohmann/json.hpp>
@@ -86,7 +87,111 @@ json FaceJsonWithSlots(const match::modload::FaceSpec& face,
     return out;
 }
 
+/**
+ * @brief One hash-addressed `defs` manifest entry.
+ *
+ * Shape `{id: "namespace:local", def_hash, ...full def}`: the def's verbatim
+ * JSON with its local `id` replaced by the full `namespace:id`. `def_hash` is
+ * the existing stable digest over that canonical JSON (minus the hash itself),
+ * so the client caches by content and reloads only what changed.
+ */
+json ManifestEntry(const nlohmann::json& raw, const std::string& full_id) {
+    json entry = raw.is_object() ? raw : json::object();
+    entry["id"] = full_id;
+    entry.erase("def_hash");
+    entry["def_hash"] = StableDigest(entry.dump());
+    return entry;
+}
+
+/** @brief The `defs` manifest array for a `full-id -> def` registry. */
+template <typename Registry>
+json ManifestArray(const Registry& registry) {
+    json out = json::array();
+    for (const auto& [full_id, def] : registry) {
+        out.push_back(ManifestEntry(def.raw, full_id));
+    }
+    return out;
+}
+
+/**
+ * @brief The `defs` manifest entry of an event definition.
+ *
+ * The client needs the id, the retention, and the field types. The field
+ * audiences are server policy and stay on the server.
+ */
+json EventManifestEntry(const match::modload::EventDef& event) {
+    json fields = json::array();
+    for (const match::modload::EventFieldDef& field : event.fields) {
+        fields.push_back(json{{"name", field.name}, {"type", field.type}});
+    }
+    json entry = json{{"id", event.event_id},
+                      {"retention", event.retention},
+                      {"fields", std::move(fields)},
+                      {"context", event.context}};
+    entry["def_hash"] = StableDigest(entry.dump());
+    return entry;
+}
+
+/**
+ * @brief The `glossary` listing of one mod: the id, the two translation keys,
+ *        and the source (`card` or `explicit`) of each entry. It holds keys
+ *        only, no text and no hidden state; the texts come from the texts
+ *        files.
+ */
+json GlossaryListing(const std::vector<match::modload::LoadedMod>& mods,
+                     const std::string& mod_id) {
+    json listing = json::array();
+    for (const match::modload::LoadedMod& loaded : mods) {
+        if (loaded.manifest.id != mod_id) continue;
+        for (const match::modload::GlossaryEntryView& entry :
+             match::modload::BuildGlossaryEntries(loaded)) {
+            const std::string source(
+                match::modload::GlossarySourceName(entry.source));
+            listing.push_back(json{{"id", entry.id},
+                                   {"label_key", entry.label_key},
+                                   {"description_key", entry.description_key},
+                                   {"source", source}});
+        }
+    }
+    return listing;
+}
+
+/**
+ * @brief The `texts` listing of one mod: the locale, the SHA-256 of the
+ *        bytes, and the size of each texts file. The client fetches only the
+ *        files that it needs and checks each hash before it parses the file.
+ */
+json TextsListing(const std::vector<match::modload::LoadedMod>& mods,
+                  const std::string& mod_id) {
+    json listing = json::array();
+    for (const match::modload::LoadedMod& loaded : mods) {
+        if (loaded.manifest.id != mod_id) continue;
+        for (const match::modload::TextsFileDef& texts : loaded.texts) {
+            listing.push_back(json{{"locale", texts.locale},
+                                   {"hash", texts.hash},
+                                   {"size", texts.size}});
+        }
+    }
+    return listing;
+}
+
 }  // namespace
+
+nlohmann::json DefsBuilder::BuildTextListing(
+    const std::vector<match::modload::LoadedMod>& mods) {
+    json listing = json::array();
+    for (const match::modload::LoadedMod& loaded : mods) {
+        const std::string& mod_id = loaded.manifest.id;
+        json mod_json = json{{"id", mod_id}};
+        json texts = TextsListing(mods, mod_id);
+        json glossary = GlossaryListing(mods, mod_id);
+        if (texts.empty() && glossary.empty()) continue;
+        if (!texts.empty()) mod_json["texts"] = std::move(texts);
+        if (!glossary.empty()) mod_json["glossary"] = std::move(glossary);
+        listing.push_back(std::move(mod_json));
+    }
+    return listing;
+}
 
 nlohmann::json DefsBuilder::Build(
     const match::engine::MatchRegistries& registries,
@@ -113,9 +218,21 @@ nlohmann::json DefsBuilder::Build(
     json mods_json = json::array();
     for (std::size_t i = 0; i < registries.mods.size(); ++i) {
         const match::ecs::ModRef& mod = registries.mods[i];
-        mods_json.push_back(json{{"id", mod.id},
-                                 {"version", mod.version},
-                                 {"index", static_cast<int>(i)}});
+        std::string content_hash;
+        for (const LoadedMod& loaded : mods) {
+            if (loaded.manifest.id == mod.id) {
+                content_hash = loaded.content_hash;
+            }
+        }
+        json mod_json = json{{"id", mod.id},
+                             {"version", mod.version},
+                             {"hash", content_hash},
+                             {"index", static_cast<int>(i)}};
+        json texts = TextsListing(mods, mod.id);
+        if (!texts.empty()) mod_json["texts"] = std::move(texts);
+        json glossary = GlossaryListing(mods, mod.id);
+        if (!glossary.empty()) mod_json["glossary"] = std::move(glossary);
+        mods_json.push_back(std::move(mod_json));
     }
 
     json kinds_json = json::array();
@@ -153,6 +270,23 @@ nlohmann::json DefsBuilder::Build(
     defs["defs_digest"] = std::string();
     defs["mods"] = mods_json;
     defs["kinds"] = kinds_json;
+    // INFO: entities/presentations are client-consumed, so unlike
+    //       tables they are published here, hash-addressed per def.
+    defs["entities"] = ManifestArray(registries.entities);
+    // INFO: a presentation binding (file kind `uni:binding`) shares the
+    //       `presentations` array with the old kind. The old kind has a
+    //       `target`; the client tells them apart by the `uni:binding` key.
+    //       A binding is static: it holds no audience and no event value.
+    json presentations = ManifestArray(registries.presentations);
+    for (const json& binding : ManifestArray(registries.bindings)) {
+        presentations.push_back(binding);
+    }
+    defs["presentations"] = std::move(presentations);
+    json events_json = json::array();
+    for (const auto& [event_id, event] : registries.events) {
+        events_json.push_back(EventManifestEntry(event));
+    }
+    defs["events"] = std::move(events_json);
     defs["defs_digest"] = Digest(defs);
     return defs;
 }
@@ -166,6 +300,17 @@ std::string DefsBuilder::Digest(const nlohmann::json& defs_payload) {
     basis["kinds"] = defs_payload.contains("kinds")
                          ? defs_payload["kinds"]
                          : nlohmann::json::array();
+    // INFO: entities/presentations are client-consumed content, so they
+    //       participate in the stale-cache digest alongside mods/kinds.
+    basis["entities"] = defs_payload.contains("entities")
+                            ? defs_payload["entities"]
+                            : nlohmann::json::array();
+    basis["presentations"] = defs_payload.contains("presentations")
+                                 ? defs_payload["presentations"]
+                                 : nlohmann::json::array();
+    basis["events"] = defs_payload.contains("events")
+                          ? defs_payload["events"]
+                          : nlohmann::json::array();
     return StableDigest(basis.dump());
 }
 

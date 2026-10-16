@@ -320,6 +320,29 @@ TEST_CASE("/auth/me returns email_verified") {
     CHECK(me_res.body["username"] == "meuser");
     CHECK(me_res.body["email"] == "me@example.com");
     CHECK(me_res.body["email_verified"] == false);
+    CHECK(me_res.body["privacy_mode"] == false);
+}
+
+TEST_CASE("/auth/me returns the saved privacy mode") {
+    ScopedTestServer server;
+
+    auto reg_res = SimulateRegister(server.port, "privuser",
+                                    "priv@example.com", "password123");
+    REQUIRE(reg_res.status == 200);
+    std::string token;
+    auto range = reg_res.headers.equal_range("Set-Cookie");
+    for (auto it = range.first; it != range.second; ++it) {
+        if (it->second.starts_with("auth_token=")) {
+            token = it->second.substr(11, it->second.find(';') - 11);
+            break;
+        }
+    }
+    REQUIRE_FALSE(token.empty());
+    REQUIRE(AuthService::SetPrivacyMode("privuser", true).has_value());
+
+    auto me_res = SimulateMe(server.port, token);
+    CHECK(me_res.status == 200);
+    CHECK(me_res.body["privacy_mode"] == true);
 }
 
 TEST_CASE("request-code queues an email for an unverified session") {

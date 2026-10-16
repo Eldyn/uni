@@ -23,7 +23,7 @@
  * - `match_start`: fired when a match begins (funnel/abandonment baseline).
  *   Carries `match_key` plus minimal params (player_count, mod_count,
  *   is_public) since a started match doesn't guarantee completion.
- * - `match_end`: fired only when a match reaches a real winner. Carries
+ * - `match_end` (GA4 name): fired only when a match reaches a real winner. Carries
  *   outcome/timing (duration_seconds, time_to_play_avg_ms, winner_is_bot) and
  *   the match-depth counters (turn_count, human_turn_count, cards_played,
  *   auto_plays, cards_drawn, longest_turn_ms).

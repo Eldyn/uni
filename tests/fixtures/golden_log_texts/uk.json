@@ -1,0 +1,252 @@
+{
+  "log_skip": {
+    "template": "{name} пропускає хід.",
+    "resolved": "Ann пропускає хід.",
+    "fallbackToEnglish": false
+  },
+  "log_skip_again": {
+    "template": "{name} знову пропускає хід.",
+    "resolved": "Ann знову пропускає хід.",
+    "fallbackToEnglish": false
+  },
+  "log_skip_again_2": {
+    "template": "Знову пропуск. {name} колекціонує пропущені ходи.",
+    "resolved": "Знову пропуск. Ann колекціонує пропущені ходи.",
+    "fallbackToEnglish": false
+  },
+  "log_skip_third": {
+    "template": "[c=red]{name}[/c] пропускає хід утретє. Схоже, тут щось особисте.",
+    "resolved": "[c=red]Ann[/c] пропускає хід утретє. Схоже, тут щось особисте.",
+    "fallbackToEnglish": false
+  },
+  "log_skip_streak": {
+    "template": "[c=red]{name}[/c] знову пропускає хід. [fx=shake]Тепер це просто екскурсія.[/fx]",
+    "resolved": "[c=red]Ann[/c] знову пропускає хід. [fx=shake]Тепер це просто екскурсія.[/fx]",
+    "fallbackToEnglish": false
+  },
+  "log_skip_streak_2": {
+    "template": "Знову [c=red]{name}[/c]. [fx=shake]ДАЙТЕ {name} ПОГРАТИ!![/fx]",
+    "resolved": "Знову [c=red]Ann[/c]. [fx=shake]ДАЙТЕ Ann ПОГРАТИ!![/fx]",
+    "fallbackToEnglish": false
+  },
+  "log_reverse": {
+    "template": "Розворот.",
+    "resolved": "Розворот.",
+    "fallbackToEnglish": false
+  },
+  "log_reverse_back": {
+    "template": "І назад.",
+    "resolved": "І назад.",
+    "fallbackToEnglish": false
+  },
+  "log_reverse_back_2": {
+    "template": "І назад. Кружляти на місці теж стратегія.",
+    "resolved": "І назад. Кружляти на місці теж стратегія.",
+    "fallbackToEnglish": false
+  },
+  "log_reverse_again": {
+    "template": "Знову розворот. Чий хід, вже ніхто не знає.",
+    "resolved": "Знову розворот. Чий хід, вже ніхто не знає.",
+    "fallbackToEnglish": false
+  },
+  "log_reverse_spin": {
+    "template": "Ще один розворот. [fx=shake]Карусель, та й годі.[/fx]",
+    "resolved": "Ще один розворот. [fx=shake]Карусель, та й годі.[/fx]",
+    "fallbackToEnglish": false
+  },
+  "log_reverse_spin_2": {
+    "template": "Ще один реверс. [fx=shake]Знову в інший бік.[/fx]",
+    "resolved": "Ще один реверс. [fx=shake]Знову в інший бік.[/fx]",
+    "fallbackToEnglish": false
+  },
+  "log_draw_first_1": {
+    "template": "Першу карту в цьому матчі бере {name}. RIP.",
+    "resolved": "Першу карту в цьому матчі бере Ann. RIP.",
+    "fallbackToEnglish": false
+  },
+  "log_draw_first_2": {
+    "template": "Перша кров на колоді дістається {name}.",
+    "resolved": "Перша кров на колоді дістається Ann.",
+    "fallbackToEnglish": false
+  },
+  "log_draw_generic_1": {
+    "template": "{name} бере карту.",
+    "resolved": "Ann бере карту.",
+    "fallbackToEnglish": false
+  },
+  "log_draw_generic_2": {
+    "template": "{name} бере одну з колоди.",
+    "resolved": "Ann бере одну з колоди.",
+    "fallbackToEnglish": false
+  },
+  "log_draw_generic_3": {
+    "template": "{name} тягне. Колода дає те, що дає.",
+    "resolved": "Ann тягне. Колода дає те, що дає.",
+    "fallbackToEnglish": false
+  },
+  "log_draw_many_1": {
+    "template": "{name} бере карту вже {drawRun}-й раз, боже мій.",
+    "resolved": "Ann бере карту вже 3-й раз, боже мій.",
+    "fallbackToEnglish": false
+  },
+  "log_draw_many_2": {
+    "template": "Знову {name}. Колода вже знає це ім'я.",
+    "resolved": "Знову Ann. Колода вже знає це ім'я.",
+    "fallbackToEnglish": false
+  },
+  "log_draw_big_hand_1": {
+    "template": "У [c=red]{name}[/c] уже {handSize} карт. Дайте перепочити.",
+    "resolved": "У [c=red]Ann[/c] уже 5 карт. Дайте перепочити.",
+    "fallbackToEnglish": false
+  },
+  "log_draw_big_hand_2": {
+    "template": "{handSize} карт, [c=red]{name}[/c]. Залиш щось іншим.",
+    "resolved": "5 карт, [c=red]Ann[/c]. Залиш щось іншим.",
+    "fallbackToEnglish": false
+  },
+  "log_draw_large_1": {
+    "template": "{name} бере {count}. Ой.",
+    "resolved": "Ann бере 2. Ой.",
+    "fallbackToEnglish": false
+  },
+  "log_blocked_1": {
+    "template": "[fx=shake:3,2]{blocker} таки зупинив![/fx]",
+    "resolved": "[fx=shake:3,2]Bob таки зупинив![/fx]",
+    "fallbackToEnglish": false
+  },
+  "log_blocked_2": {
+    "template": "Казав же. [fx=shake:3,2]{blocker} його зупинив.[/fx]",
+    "resolved": "Казав же. [fx=shake:3,2]Bob його зупинив.[/fx]",
+    "fallbackToEnglish": false
+  },
+  "log_play": {
+    "template": "{name} грає [k={kind}][c={color}]{cardName}[/c][/k].",
+    "resolved": "Ann грає [k=uni:red_draw2][c=red]Взяти дві (+2)[/c][/k].",
+    "fallbackToEnglish": false
+  },
+  "log_keep_drawn": {
+    "template": "{name} залишає витягнуту карту.",
+    "resolved": "Ann залишає витягнуту карту.",
+    "fallbackToEnglish": false
+  },
+  "log_reshuffle_1": {
+    "template": "Відбій перетасовано назад. Свіжі карти, той самий біль.",
+    "resolved": "Відбій перетасовано назад. Свіжі карти, той самий біль.",
+    "fallbackToEnglish": false
+  },
+  "log_reshuffle_2": {
+    "template": "Колода скінчилась, тож відбій повертається. Тасуємо.",
+    "resolved": "Колода скінчилась, тож відбій повертається. Тасуємо.",
+    "fallbackToEnglish": false
+  },
+  "log_reshuffle_3": {
+    "template": "Колода порожня, скид повернувся. Ті самі карти, другий шанс.",
+    "resolved": "Колода порожня, скид повернувся. Ті самі карти, другий шанс.",
+    "fallbackToEnglish": false
+  },
+  "log_wild_reaction_1": {
+    "template": "Гаразд, [c={color}]{colorName}[/c].",
+    "resolved": "Гаразд, [c=red]червоний[/c].",
+    "fallbackToEnglish": false
+  },
+  "log_wild_reaction_first_2": {
+    "template": "Беремо [c={color}]{colorName}[/c].",
+    "resolved": "Беремо [c=red]червоний[/c].",
+    "fallbackToEnglish": false
+  },
+  "log_wild_reaction_second_1": {
+    "template": "У {name} були інші плани. Гаразд, [c={color}]{colorName}[/c].",
+    "resolved": "У Ann були інші плани. Гаразд, [c=red]червоний[/c].",
+    "fallbackToEnglish": false
+  },
+  "log_wild_reaction_second_2": {
+    "template": "Після [c={prevColor}]{prevColorName}[/c] {name} переходить на [c={color}]{colorName}[/c].",
+    "resolved": "Після [c=blue]синій[/c] Ann переходить на [c=red]червоний[/c].",
+    "fallbackToEnglish": false
+  },
+  "log_wild_reaction_third_1": {
+    "template": "Ніяк не домовитесь про колір. Тепер [c={color}]{colorName}[/c]! [fx=shake:3,2]Визначтеся.[/fx]",
+    "resolved": "Ніяк не домовитесь про колір. Тепер [c=red]червоний[/c]! [fx=shake:3,2]Визначтеся.[/fx]",
+    "fallbackToEnglish": false
+  },
+  "log_wild_reaction_third_2": {
+    "template": "[c={prevColor}]{prevColorName}[/c], а тепер знову [c={color}]{colorName}[/c]? [fx=shake:3,2]Визначтесь.[/fx]",
+    "resolved": "[c=blue]синій[/c], а тепер знову [c=red]червоний[/c]? [fx=shake:3,2]Визначтесь.[/fx]",
+    "fallbackToEnglish": false
+  },
+  "log_auto_play_1": {
+    "template": "{name} грає [k={kind}]{cardName}[/k] не з власної волі.",
+    "resolved": "Ann грає [k=uni:red_draw2]Взяти дві (+2)[/k] не з власної волі.",
+    "fallbackToEnglish": false
+  },
+  "log_auto_play_2": {
+    "template": "У {name} немає вибору: [k={kind}]{cardName}[/k] лягає на стіл.",
+    "resolved": "У Ann немає вибору: [k=uni:red_draw2]Взяти дві (+2)[/k] лягає на стіл.",
+    "fallbackToEnglish": false
+  },
+  "log_near_win_1": {
+    "template": "У [c=red]{name}[/c] лишилась одна карта. Тримайтесь.",
+    "resolved": "У [c=red]Ann[/c] лишилась одна карта. Тримайтесь.",
+    "fallbackToEnglish": false
+  },
+  "log_near_win_2": {
+    "template": "Одна карта в {name}. Хай хтось це зупинить.",
+    "resolved": "Одна карта в Ann. Хай хтось це зупинить.",
+    "fallbackToEnglish": false
+  },
+  "log_near_win_3": {
+    "template": "{name} за одну карту від перемоги. Усі тихо панікують.",
+    "resolved": "Ann за одну карту від перемоги. Усі тихо панікують.",
+    "fallbackToEnglish": false
+  },
+  "log_win_1": {
+    "template": "{name} виграє раунд!",
+    "resolved": "Ann виграє раунд!",
+    "fallbackToEnglish": false
+  },
+  "log_win_2": {
+    "template": "Це кінець гри. Перемога за {name}.",
+    "resolved": "Це кінець гри. Перемога за Ann.",
+    "fallbackToEnglish": false
+  },
+  "log_finish_1": {
+    "template": "{name} фінішує на місці {place}.",
+    "resolved": "Ann фінішує на місці 1.",
+    "fallbackToEnglish": false
+  },
+  "log_finish_2": {
+    "template": "{name}: готово. Місце {place}.",
+    "resolved": "Ann: готово. Місце 1.",
+    "fallbackToEnglish": false
+  },
+  "log_left_behind_1": {
+    "template": "{name} залишається позаду на місці {place}.",
+    "resolved": "Ann залишається позаду на місці 1.",
+    "fallbackToEnglish": false
+  },
+  "log_left_behind_2": {
+    "template": "{name} не встигає. Місце {place}.",
+    "resolved": "Ann не встигає. Місце 1.",
+    "fallbackToEnglish": false
+  },
+  "log_color_red": {
+    "template": "червоний",
+    "resolved": "червоний",
+    "fallbackToEnglish": false
+  },
+  "log_color_yellow": {
+    "template": "жовтий",
+    "resolved": "жовтий",
+    "fallbackToEnglish": false
+  },
+  "log_color_green": {
+    "template": "зелений",
+    "resolved": "зелений",
+    "fallbackToEnglish": false
+  },
+  "log_color_blue": {
+    "template": "синій",
+    "resolved": "синій",
+    "fallbackToEnglish": false
+  }
+}

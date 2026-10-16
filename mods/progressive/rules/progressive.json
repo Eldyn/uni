@@ -1,7 +1,7 @@
 {
   "id": "progressive",
   "title": "Progressive",
-  "description": "Transcribed from src/match/rules/progressive.cpp. Legacy OnCardDrawn sets CardDrawnEvent::keep_drawing, which drives the draw loop (src/match/match_instance.cpp:699-723) to keep drawing until a playable card appears. Phase-1 equivalent: an after:draw hook branches on the  drawn_card_playable predicate; when the just-drawn card is already playable the loop stops, otherwise the  draw_until_playable op keeps drawing from the draw pile for @self until the freshly drawn card is playable (or the source is exhausted, reshuffling the discard when it can).",
+  "description": "Transcribed from src/match/rules/progressive.cpp. Legacy OnCardDrawn sets CardDrawnEvent::keep_drawing, which drives the draw loop (src/match/match_instance.cpp:699-723) to keep drawing until a playable card appears. Phase-1 equivalent: an after:draw hook branches on the  drawn_card_playable predicate; when the just-drawn card is already playable the loop stops, otherwise the  draw_until_playable op keeps drawing from the draw pile for @self until the freshly drawn card is playable (or the source is exhausted, reshuffling the discard when it can). The loop now ends with an announce node that emits progressive:drawn_until_playable.",
   "hooks": [
     {
       "on": "after:draw",
@@ -35,6 +35,17 @@
           "op": "draw_until_playable",
           "args": {
             "target": "@self"
+          },
+          "next": "announce"
+        },
+        {
+          "id": "announce",
+          "op": "emit_event",
+          "args": {
+            "id": "progressive:drawn_until_playable",
+            "payload": {
+              "target": "@self"
+            }
           }
         }
       ]

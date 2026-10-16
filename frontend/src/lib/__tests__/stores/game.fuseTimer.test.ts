@@ -51,10 +51,10 @@ function handler(action: string): (payload: any) => void {
 }
 
 function frame(seq: number, type: string, payload: unknown = {}) {
-	return { action: "match_event", seq, type, payload };
+	return { action: "match_event", sequence: seq, id: type, payload };
 }
 
-const DEBT_STATUS = { status_kind: "vanilla:draw_debt", magnitude: 2 };
+const DEBT_STATUS = { status_kind: "uni:draw_debt", magnitude: 2 };
 
 function snapshot(fields: Record<string, unknown> = {}, statuses: unknown[] = []) {
 	handler("match_state_updated")({
@@ -78,7 +78,7 @@ const HELD_WINDOW = {
 	hold_ms: 800,
 	duration_ms: 7000,
 	deadline_ms: 7000,
-	responders: ["alice", "carol"],
+	targets: ["alice", "carol"],
 	eligible_filter_digest: "d"
 };
 
@@ -100,7 +100,7 @@ describe("storeGame activeTimer normalisation", () => {
 	});
 
 	it("normalises a window_open REMAINING deadline onto the local clock", () => {
-		handler("match_event")(frame(1, "window_open", HELD_WINDOW));
+		handler("match_event")(frame(1, "window_opened", HELD_WINDOW));
 
 		expect(storeGame.activeTimer).toEqual({
 			source: "window",
@@ -113,10 +113,10 @@ describe("storeGame activeTimer normalisation", () => {
 
 	it("falls back to the remaining deadline and kind for a bare window_open", () => {
 		handler("match_event")(
-			frame(1, "window_open", {
+			frame(1, "window_opened", {
 				window_id: "1",
 				deadline_ms: 5000,
-				responders: ["alice"],
+				targets: ["alice"],
 				eligible_filter_digest: "d"
 			})
 		);
@@ -185,7 +185,7 @@ describe("storeGame activeTimer normalisation", () => {
 
 	it("uses the prompt_open duration_ms, never the packet deadline_ms", () => {
 		handler("match_event")(
-			frame(1, "prompt_open", {
+			frame(1, "prompt_opened", {
 				prompt_id: "p",
 				kind: "choose_color",
 				payload: {},
@@ -206,7 +206,7 @@ describe("storeGame activeTimer normalisation", () => {
 
 	it("ignores a small declared packet deadline_ms on a prompt", () => {
 		handler("match_event")(
-			frame(1, "prompt_open", {
+			frame(1, "prompt_opened", {
 				prompt_id: "p",
 				kind: "choose_color",
 				payload: {},
@@ -243,7 +243,7 @@ describe("storeGame activeTimer normalisation", () => {
 
 	it("draws no prompt line when the prompt carries no clock", () => {
 		handler("match_event")(
-			frame(1, "prompt_open", {
+			frame(1, "prompt_opened", {
 				prompt_id: "p",
 				kind: "choose_color",
 				payload: {},
@@ -286,7 +286,7 @@ describe("storeGame activeTimer normalisation", () => {
 		expect(storeGame.activeTimer?.source).toBe("ready");
 
 		handler("match_event")(
-			frame(2, "prompt_open", {
+			frame(2, "prompt_opened", {
 				prompt_id: "p",
 				kind: "k",
 				payload: {},
@@ -297,10 +297,10 @@ describe("storeGame activeTimer normalisation", () => {
 		);
 		expect(storeGame.activeTimer?.source).toBe("prompt");
 
-		handler("match_event")(frame(3, "window_open", HELD_WINDOW));
+		handler("match_event")(frame(3, "window_opened", HELD_WINDOW));
 		expect(storeGame.activeTimer?.source).toBe("window");
 
-		handler("match_event")(frame(4, "window_close", { outcome: "timeout" }));
+		handler("match_event")(frame(4, "window_closed", { window_id: "7", outcome: "default" }));
 		expect(storeGame.activeTimer?.source).toBe("prompt");
 	});
 
@@ -311,7 +311,7 @@ describe("storeGame activeTimer normalisation", () => {
 	});
 
 	it("clears every timer on reset", () => {
-		handler("match_event")(frame(1, "window_open", HELD_WINDOW));
+		handler("match_event")(frame(1, "window_opened", HELD_WINDOW));
 		snapshot({ turn_deadline_ms: NOW + 12_000, window: null });
 		storeGame.reset();
 
@@ -376,7 +376,7 @@ describe("storeGame observed prompt clock", () => {
 		snapshot({ server_now_ms: 500_000, prompt_wait: PROMPT_WAIT });
 		expect(storeGame.activeTimer).toMatchObject({ source: "prompt", observer: true });
 
-		handler("match_event")(frame(2, "window_open", HELD_WINDOW));
+		handler("match_event")(frame(2, "window_opened", HELD_WINDOW));
 		expect(storeGame.activeTimer?.source).toBe("window");
 	});
 
@@ -415,7 +415,7 @@ describe("storeGame windowActionState", () => {
 	});
 
 	function openHeldWindow(responders: string[]) {
-		handler("match_event")(frame(1, "window_open", { ...HELD_WINDOW, responders }));
+		handler("match_event")(frame(1, "window_opened", { ...HELD_WINDOW, targets: responders }));
 	}
 
 	it("is null with no open window", () => {
@@ -448,12 +448,12 @@ describe("storeGame windowActionState", () => {
 	it("keeps the legacy pass for any responder of a window without hold", () => {
 		snapshot({}, []);
 		handler("match_event")(
-			frame(1, "window_open", {
+			frame(1, "window_opened", {
 				window_id: "2",
 				kinds: ["generic"],
 				duration_ms: 5000,
 				deadline_ms: 5000,
-				responders: ["alice"],
+				targets: ["alice"],
 				eligible_filter_digest: "d"
 			})
 		);
@@ -464,12 +464,12 @@ describe("storeGame windowActionState", () => {
 	it("labels a hold-less window action draw for the debt victim", () => {
 		snapshot({}, [DEBT_STATUS]);
 		handler("match_event")(
-			frame(1, "window_open", {
+			frame(1, "window_opened", {
 				window_id: "3",
 				kinds: ["draw_stacking"],
 				duration_ms: 5000,
 				deadline_ms: 5000,
-				responders: ["alice", "carol"],
+				targets: ["alice", "carol"],
 				eligible_filter_digest: "d"
 			})
 		);
@@ -483,5 +483,60 @@ describe("storeGame windowActionState", () => {
 		openHeldWindow(["alice"]);
 
 		expect(storeGame.windowActionState(NOW + 5000)).toBeNull();
+	});
+});
+
+describe("storeGame canAcceptDrawDebt", () => {
+	beforeEach(() => {
+		vi.useFakeTimers();
+		vi.setSystemTime(NOW);
+		storeAuth.username = "alice";
+		storeLobby.current = null;
+		storeGame.reset();
+	});
+
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
+	function openHoldlessWindow(responders: string[]) {
+		handler("match_event")(
+			frame(1, "window_opened", {
+				window_id: "3",
+				kinds: ["draw_stacking"],
+				duration_ms: 5000,
+				deadline_ms: 5000,
+				targets: responders,
+				eligible_filter_digest: "d"
+			})
+		);
+	}
+
+	it("offers the debt victim responder of a hold-less window an accept", () => {
+		snapshot({}, [DEBT_STATUS]);
+		openHoldlessWindow(["alice", "carol"]);
+
+		expect(storeGame.canAcceptDrawDebt(NOW)).toBe(true);
+	});
+
+	it("withholds from a non-victim responder", () => {
+		snapshot({}, []);
+		openHoldlessWindow(["alice", "carol"]);
+
+		expect(storeGame.canAcceptDrawDebt(NOW)).toBe(false);
+	});
+
+	it("withholds from the victim until the hold elapses", () => {
+		snapshot({}, [DEBT_STATUS]);
+		handler("match_event")(frame(1, "window_opened", { ...HELD_WINDOW, targets: ["alice"] }));
+
+		expect(storeGame.canAcceptDrawDebt(NOW + 799)).toBe(false);
+		expect(storeGame.canAcceptDrawDebt(NOW + 800)).toBe(true);
+	});
+
+	it("is false without an open window", () => {
+		snapshot({}, [DEBT_STATUS]);
+
+		expect(storeGame.canAcceptDrawDebt(NOW)).toBe(false);
 	});
 });

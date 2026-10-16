@@ -2,10 +2,10 @@
 	import { storeGame } from "$stores/game.svelte";
 	import { storeI18n } from "$stores/i18n.svelte";
 	import * as m from "$lib/paraglide/messages.js";
-	import type { PromptOpenPayload } from "$lib/generated/schemas";
+	import type { PromptOpenedPayload } from "$lib/generated/schemas";
 	import { choosePlayerTargets } from "./promptTargets";
 
-	let { prompt }: { prompt: PromptOpenPayload } = $props();
+	let { prompt }: { prompt: PromptOpenedPayload } = $props();
 
 	let targetList = $derived(choosePlayerTargets());
 </script>
@@ -36,7 +36,7 @@
 <style>
 	.target-hint {
 		position: fixed;
-		top: 14%;
+		bottom: 32%;
 		left: 50%;
 		transform: translateX(-50%);
 		z-index: 200;

@@ -4,6 +4,8 @@
 #include <match/ecs/components.hpp>
 #include <match/engine/match_instance.hpp>
 #include <match/engine/play_evaluator.hpp>
+#include <match/view/event_projector.hpp>
+#include <match/view/event_tail.hpp>
 #include <match/modload/artifacts.hpp>
 #include <match/modload/play_conditions.hpp>
 #include <match/modload/restriction.hpp>
@@ -14,6 +16,7 @@
 #include <nlohmann/json.hpp>
 
 #include <cstdint>
+#include <algorithm>
 #include <optional>
 #include <string>
 #include <vector>
@@ -80,8 +83,10 @@ bool DescriptorBody(const json& engine_event, std::string& type,
 /** @brief Types handled by the per-recipient filter (not `all`). */
 bool IsFilteredType(const std::string& type) {
     return type == "play_rejected" || type == "cards_drawn"
+           || type == "drawn_card_kept"
            || type == "status_applied" || type == "status_removed"
-           || type == "prompt_open" || type == "prompt_close"
+           || type == "status_modified"
+           || type == "prompt_opened" || type == "prompt_answered"
            || type == "visibility_granted"
            || type == "visibility_revoked" || type == "signal";
 }
@@ -92,7 +97,7 @@ std::optional<json> ProjectPlayRejected(
     const std::string player =
         ResolvePlayer(match, payload.value("player", json()));
     if (!ViewerIs(viewer, player)) return std::nullopt;
-    return json{{"player", player},
+    return json{{"target", player},
                 {"reason_id", payload.value("reason_id", std::string())}};
 }
 
@@ -102,8 +107,10 @@ std::optional<json> ProjectCardsDrawn(
     const std::string owner =
         ResolvePlayer(match, payload.value("player", json()));
     json out = json::object();
-    out["player"] = owner;
+    out["target"] = owner;
     out["count"] = payload.value("count", 0);
+    out["hand_size_after"] = payload.value("hand_size_after", 0);
+    out["from_debt"] = payload.value("from_debt", false);
     // INFO: the engine descriptor key is `source`; the packet key is
     //       `source_pile`.
     if (payload.contains("source")) {
@@ -112,11 +119,26 @@ std::optional<json> ProjectCardsDrawn(
         out["source_pile"] = payload.value("source_pile", std::string());
     }
     if (payload.contains("held")) out["held"] = payload["held"];
-    // INFO: 14.2 owner-only identities. The current emitters carry no `cards`
-    //       array, so this is count-only until the descriptor supplies one;
-    //       when it does, only the owner ever sees it.
-    if (ViewerIs(viewer, owner) && payload.contains("cards")) {
+    // INFO: owner identities. The engine descriptor carries `cards` as
+    //       entities; this turns them into packed bits and gives them to the
+    //       owner and to the spectators of a seat with privacy mode off. The
+    //       `cards` rule in the audience table filters again as the last
+    //       gate, so a card that is hidden from a viewer never leaves.
+    const bool spectator_sees_owner =
+        viewer.is_spectator && !viewer.SeesCardBacksOf(owner);
+    if ((ViewerIs(viewer, owner) || spectator_sees_owner)
+        && payload.contains("cards")) {
         out["cards"] = NormalizeCards(match, payload["cards"]);
+    }
+    return out;
+}
+
+std::optional<json> ProjectDrawnCardKept(
+    const match::engine::MatchInstance& match, const json& payload) {
+    json out = json::object();
+    out["target"] = ResolvePlayer(match, payload.value("player", json()));
+    if (payload.contains("card")) {
+        out["card"] = CardBitsFor(match, payload["card"]);
     }
     return out;
 }
@@ -138,6 +160,24 @@ std::optional<json> ProjectStatusApplied(
     out["status_kind"] = kind;
     out["magnitude"] = payload.value("magnitude", 0);
     out["duration_unit"] = payload.value("duration_unit", std::string());
+    out["instance_id"] = payload.value("instance", 0);
+    return out;
+}
+
+std::optional<json> ProjectStatusModified(
+    const ViewBuilder& builder, const match::engine::MatchInstance& match,
+    const json& payload, const Viewer& viewer) {
+    const std::string kind = payload.value("status_kind", std::string());
+    const bool hidden =
+        builder.StatusHidden(kind) || payload.value("hidden", false);
+    const std::string target =
+        ResolvePlayer(match, payload.value("target", json()));
+    if (hidden && !ViewerIs(viewer, target)) return std::nullopt;
+    json out = json::object();
+    out["target"] = target;
+    out["status_kind"] = kind;
+    out["magnitude"] = payload.value("magnitude", 0);
+    out["delta"] = payload.value("delta", 0);
     out["instance_id"] = payload.value("instance", 0);
     return out;
 }
@@ -228,14 +268,18 @@ std::optional<json> ProjectFiltered(const ViewBuilder& builder,
         return ProjectPlayRejected(match, body, viewer);
     }
     if (type == "cards_drawn") return ProjectCardsDrawn(match, body, viewer);
+    if (type == "drawn_card_kept") return ProjectDrawnCardKept(match, body);
     if (type == "status_applied") {
         return ProjectStatusApplied(builder, match, body, viewer);
     }
     if (type == "status_removed") {
         return ProjectStatusRemoved(builder, match, body, viewer);
     }
-    if (type == "prompt_open") return ProjectPromptOpen(match, body, viewer);
-    if (type == "prompt_close") return ProjectPromptClose(match, body, viewer);
+    if (type == "status_modified") {
+        return ProjectStatusModified(builder, match, body, viewer);
+    }
+    if (type == "prompt_opened") return ProjectPromptOpen(match, body, viewer);
+    if (type == "prompt_answered") return ProjectPromptClose(match, body, viewer);
     if (type == "visibility_granted" || type == "visibility_revoked") {
         return ProjectVisibility(match, body, viewer);
     }
@@ -373,7 +417,7 @@ bool EvaluatorCanPlay(const match::engine::PlayEvaluator& evaluator,
  * @brief Visible hand entries, or nullopt when only the count is visible.
  *
  * A spectator sees every aspect unless the owner opted into
- * `privacy_from_spectators`; a player sees their own hand in full and any
+ * privacy mode; a player sees their own hand in full and any
  * other hand through `VisibilityGrant` aspects (the hand entity's grants OR
  * each card's own grants, so a `choose_card` reveal survives the snapshot).
  */
@@ -394,7 +438,7 @@ std::optional<json> BuildHand(const match::engine::MatchInstance& match,
             match.Store().Get<ecs::PlayerInfo>(player);
         const std::string owner =
             info == nullptr ? std::string() : info->username;
-        hand_mask = options.PrivacyOn(owner) ? 0u : kAllAspects;
+        hand_mask = viewer.SeesCardBacksOf(owner) ? 0u : kAllAspects;
     } else if (own) {
         hand_mask = kAllAspects;
     } else if (viewer_entity.has_value()) {
@@ -443,7 +487,7 @@ json BuildStatuses(const ViewBuilder& builder,
             builder.StatusHidden(status.status_id) || status.hidden;
         bool visible = !hidden;
         if (hidden && viewer.is_spectator) {
-            visible = !options.PrivacyOn(owner);
+            visible = !viewer.SeesCardBacksOf(owner);
         } else if (hidden && viewer_entity.has_value()) {
             visible = *viewer_entity == player;
         }
@@ -491,12 +535,14 @@ json BuildPlayer(const ViewBuilder& builder,
  * @brief One pile: count always, top for discard, cards when granted.
  *
  * Base visibility: draw pile count only, discard top identity + count.
- * A `VisibilityGrant` on the pile entity (or spectator omniscience) exposes
+ * A `VisibilityGrant` on the pile entity (or a spectator on the discard
+ * pile) exposes
  * the listed cards with the granted aspects.
  */
 json BuildPile(const match::engine::MatchInstance& match, const Viewer& viewer,
                ecs::Entity pile, std::optional<ecs::Entity> viewer_entity,
                bool is_discard) {
+    // INFO: the draw pile has no owner, so a spectator never gets its order.
     const ecs::PileContents* contents =
         match.Store().Get<ecs::PileContents>(pile);
     json out = json::object();
@@ -512,7 +558,7 @@ json BuildPile(const match::engine::MatchInstance& match, const Viewer& viewer,
 
     uint32_t mask = 0u;
     if (viewer.is_spectator) {
-        mask = kAllAspects;
+        mask = is_discard ? kAllAspects : 0u;
     } else if (viewer_entity.has_value()) {
         mask = GrantMask(match, pile, *viewer_entity);
     }
@@ -527,7 +573,8 @@ json BuildPile(const match::engine::MatchInstance& match, const Viewer& viewer,
 }
 
 /** @brief The open response window in its uniform wire shape, or null. */
-json BuildWindow(const match::engine::MatchInstance& match) {
+json BuildWindow(const match::engine::MatchInstance& match,
+                 const Viewer& viewer) {
     if (!match.WindowOpen()) return json(nullptr);
     const json window = match.ExportWindow();
     if (!window.is_object()) return json(nullptr);
@@ -542,7 +589,13 @@ json BuildWindow(const match::engine::MatchInstance& match) {
             if (response.value("pass", false)) {
                 entry["passed"] = true;
             } else if (response.contains("card")) {
-                entry["card"] = CardBitsFor(match, response["card"]);
+                // INFO: a losing offer stays in its owner's hand, so only the
+                //       owner may see which card it was.
+                const bool lost = response.value("outcome", std::string())
+                                  == "lost";
+                if (!lost || ViewerIs(viewer, entry["player"])) {
+                    entry["card"] = CardBitsFor(match, response["card"]);
+                }
             }
             entry["outcome"] = response.value("outcome", std::string());
             responses.push_back(std::move(entry));
@@ -552,7 +605,7 @@ json BuildWindow(const match::engine::MatchInstance& match) {
         json{{"window_id", std::to_string(window.value("id", 0))},
              {"deadline_ms", window.value("deadline_ms", 0)},
              {"duration_ms", window.value("duration_ms", 0)},
-             {"responders", window.value("responders", json::array())},
+             {"targets", window.value("responders", json::array())},
              {"eligible_filter_digest",
               window.value("filter_digest", std::string())},
              {"kind", window.value("kind", std::string("generic"))},
@@ -562,6 +615,84 @@ json BuildWindow(const match::engine::MatchInstance& match) {
         out["hold_ms"] = window["hold_ms"];
     }
     return out;
+}
+
+/**
+ * @brief The draw debt a viewer may see.
+ *
+ * Follows the rule of `status_applied`: a hidden debt counts for the seat
+ * that owns it only. Another seat and a spectator get the visible debt.
+ */
+int64_t VisibleDrawDebt(const ViewBuilder& builder,
+                        const match::engine::MatchInstance& match,
+                        std::optional<ecs::Entity> viewer_entity) {
+    int64_t total = 0;
+    for (ecs::Entity player : match.Registries().players) {
+        for (const ecs::Status& status :
+             match::status::List(match.Store(), player)) {
+            if (status.status_id != match::ops::kDrawDebtStatusId) continue;
+            const bool hidden =
+                builder.StatusHidden(status.status_id) || status.hidden;
+            const bool owner =
+                viewer_entity.has_value() && *viewer_entity == player;
+            if (!hidden || owner) total += status.magnitude;
+        }
+    }
+    return total;
+}
+
+/**
+ * @brief The engine-owned values a late joiner reads instead of rebuilding.
+ *
+ * Every value comes from the engine, and the viewer sees only what the
+ * snapshot already shows it: `hold` carries the card for its owner only, and
+ * the timers and the debt are public table state.
+ *
+ * INFO: `streaks` holds the current value of every `uni` streak, not only the
+ *       requested ones. `near_win` holds the derived event windows, keyed by
+ *       the event id (`near_win_entered`): `{target, open}`. The windows are
+ *       engine-owned state, not streak values, because closing a window
+ *       compares an event with the seat of the window; a matcher cannot.
+ *       `blocked` has no state of its own: it reads the window.
+ */
+json BuildContext(const match::engine::MatchInstance& match,
+                  const json& state, int64_t draw_debt, json hold,
+                  const EventSink& sink) {
+    const int64_t now_ms = match.Timers().Turn().Now();
+    const auto remaining_until = [now_ms](int64_t deadline_ms) {
+        return deadline_ms > now_ms ? deadline_ms - now_ms : int64_t{0};
+    };
+
+    const int64_t turn_deadline_ms = state["turn_deadline_ms"].get<int64_t>();
+    // INFO: an open window suspends the turn clock (deadline 0); the engine
+    //       then holds the time that is left for the turn.
+    // INFO: the saved remainder is negative when the deadline had passed
+    //       before the window opened.
+    const int64_t turn_remaining_ms =
+        turn_deadline_ms > 0
+            ? remaining_until(turn_deadline_ms)
+            : std::max<int64_t>(match.Timers().Turn().RemainingMs(), 0);
+    int64_t window_deadline_ms = 0;
+    if (state["window"].is_object()) {
+        window_deadline_ms = state["window"].value("deadline_ms", int64_t{0});
+    }
+
+    json context = json::object();
+    context["active_color"] = state["active_type"];
+    context["direction"] = state["direction"];
+    context["draw_debt"] = draw_debt;
+    context["hold"] = std::move(hold);
+    context["timers"] =
+        json{{"turn_deadline_ms", turn_deadline_ms},
+             {"turn_remaining_ms", turn_remaining_ms},
+             {"window_deadline_ms", window_deadline_ms},
+             {"window_remaining_ms", remaining_until(window_deadline_ms)}};
+    context["last_event_sequence"] =
+        sink.NextSeq() == 0 ? json(nullptr) : json(sink.NextSeq() - 1);
+    context["streaks"] = match.Streaks().AllValues();
+    const json windows = match.Derived().WindowsContext();
+    if (!windows.is_null()) context["near_win"] = windows;
+    return context;
 }
 
 /** @brief The viewer's own open op-input prompt, if any (target only). */
@@ -644,16 +775,53 @@ std::optional<nlohmann::json> ViewBuilder::Wrap(
     std::string type;
     json payload;
     if (!DescriptorBody(engine_event, type, payload)) return std::nullopt;
-    if (IsFilteredType(type)) {
-        const std::optional<json> filtered =
-            ProjectFiltered(*this, type, payload, viewer);
-        if (!filtered.has_value()) return std::nullopt;
-        return sink.Wrap(type, *filtered);
+    if (type == "mod_event") {
+        return WrapModEvent(engine_event, payload, viewer, sink);
     }
     const std::optional<json> projected =
-        ProjectPublicEvent(type, payload, match_);
+        IsFilteredType(type) ? ProjectFiltered(*this, type, payload, viewer)
+                             : ProjectPublicEvent(type, payload, match_);
     if (!projected.has_value()) return std::nullopt;
-    return sink.Wrap(type, *projected);
+
+    const json frame = engine_event.value("causal_frame", json::object());
+    const std::string actor =
+        frame.contains("actor") && frame["actor"].is_string()
+            ? frame["actor"].get<std::string>()
+            : std::string();
+    const SeatRoles roles = ResolveSeatRoles(match_, type, payload, actor);
+    return sink.WrapEngineEvent(
+        type, ProjectForViewer(match_, type, *projected, roles, viewer),
+        engine_event);
+}
+
+std::optional<nlohmann::json> ViewBuilder::WrapModEvent(
+    const nlohmann::json& engine_event, const nlohmann::json& body,
+    const Viewer& viewer, EventSink& sink) const {
+    const json frame = engine_event.value("causal_frame", json::object());
+    const std::string actor =
+        frame.contains("actor") && frame["actor"].is_string()
+            ? frame["actor"].get<std::string>()
+            : std::string();
+    json envelope = sink.WrapEngineEvent(
+        "mod_event", ProjectModEventForViewer(match_, body, actor, viewer),
+        engine_event);
+    // INFO: the `id` names the mod event, not the engine type.
+    envelope["id"] = body.value("id", std::string());
+    return envelope;
+}
+
+nlohmann::json ViewBuilder::BuildTail(const Viewer& viewer,
+                                      const EventTail& tail) const {
+    EventSink replay_sink;
+    json envelopes = json::array();
+    for (const TailEntry& entry : tail.Entries()) {
+        std::optional<json> wrapped =
+            Wrap(entry.engine_event, viewer, replay_sink);
+        if (!wrapped.has_value()) continue;
+        (*wrapped)["replayed"] = true;
+        envelopes.push_back(std::move(*wrapped));
+    }
+    return envelopes;
 }
 
 std::optional<nlohmann::json> ViewBuilder::BuildPendingPrompt(
@@ -678,14 +846,7 @@ std::optional<nlohmann::json> ViewBuilder::BuildPendingPrompt(
     // INFO: the prompt clock the server enforces, known even though the
     //       packet leaves before the deadline is armed.
     out["duration_ms"] = pending->value("duration_ms", int64_t{0});
-    return sink.Wrap("prompt_open", out);
-}
-
-bool SnapshotOptions::PrivacyOn(const std::string& username) const {
-    for (const std::string& private_user : privacy_from_spectators) {
-        if (private_user == username) return true;
-    }
-    return false;
+    return sink.Wrap("prompt_opened", out);
 }
 
 nlohmann::json ViewBuilder::BuildSnapshot(const Viewer& viewer,
@@ -751,7 +912,10 @@ nlohmann::json ViewBuilder::BuildSnapshot(
         }
     }
     state["pending_draws"] = pending_draws;
+    const int64_t visible_draw_debt =
+        VisibleDrawDebt(*this, match, viewer_entity);
 
+    json hold = nullptr;
     // INFO: a playable voluntary draw parks a play/keep choice. Every viewer
     //       sees whose choice it is; only the owner sees which card was drawn,
     //       matching the hand's owner-only identity rule.
@@ -767,6 +931,8 @@ nlohmann::json ViewBuilder::BuildSnapshot(
                 registries.CardId(pending->card);
             if (id.has_value()) choice["card"] = id->bits;
         }
+        hold = choice;
+        hold["held"] = true;
         state["pending_play_drawn"] = std::move(choice);
     } else {
         state["pending_play_drawn"] = nullptr;
@@ -786,7 +952,9 @@ nlohmann::json ViewBuilder::BuildSnapshot(
         BuildPile(match, viewer, registries.draw_pile, viewer_entity, false);
     state["discard_pile"] =
         BuildPile(match, viewer, registries.discard_pile, viewer_entity, true);
-    state["window"] = BuildWindow(match);
+    state["window"] = BuildWindow(match, viewer);
+    state["context"] = BuildContext(match, state, visible_draw_debt,
+                                       std::move(hold), sink);
     state["prompts"] = BuildPrompts(match, viewer);
     if (json prompt_wait = BuildPromptWait(match); !prompt_wait.is_null()) {
         state["prompt_wait"] = std::move(prompt_wait);
@@ -795,6 +963,9 @@ nlohmann::json ViewBuilder::BuildSnapshot(
     //       `players[]` for the POV-aware eye count.
     state["spectator_count"] = options.spectator_count;
     state["seq_watermark"] = sink.NextSeq();
+    if (options.tail != nullptr) {
+        state["tail"] = BuildTail(viewer, *options.tail);
+    }
 
     return json{{"action", "match_state_updated"},
                 {"match_state", std::move(state)}};

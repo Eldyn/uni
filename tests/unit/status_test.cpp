@@ -51,7 +51,7 @@ TEST_CASE("status: apply creates an instance and mints id 1") {
     EntityStore store;
     Entity target = store.Create();
 
-    ApplyRequest request = Request("vanilla:draw_debt", 2);
+    ApplyRequest request = Request("uni:draw_debt", 2);
     request.duration = Duration(DurationUnit::kTurns, 3);
     const ApplyResult result = match::status::Apply(store, target, request);
 
@@ -61,26 +61,26 @@ TEST_CASE("status: apply creates an instance and mints id 1") {
     CHECK(result.magnitude == 2);
     CHECK(result.duration.unit == DurationUnit::kTurns);
     CHECK(result.duration.value == 3);
-    CHECK(result.status_id == "vanilla:draw_debt");
+    CHECK(result.status_id == "uni:draw_debt");
 
     const std::vector<Status> list = match::status::List(store, target);
     REQUIRE(list.size() == 1);
-    CHECK(list[0].status_id == "vanilla:draw_debt");
+    CHECK(list[0].status_id == "uni:draw_debt");
     CHECK(list[0].instance_id == 1);
-    CHECK(match::status::Has(store, target, "vanilla:draw_debt"));
+    CHECK(match::status::Has(store, target, "uni:draw_debt"));
 }
 
 TEST_CASE("status: replace re-apply resets magnitude and duration") {
     EntityStore store;
     Entity target = store.Create();
 
-    ApplyRequest first = Request("vanilla:draw_debt", 5);
+    ApplyRequest first = Request("uni:draw_debt", 5);
     first.has_stack_policy = true;
     first.stack_policy = StackPolicy::kReplace;
     first.duration = Duration(DurationUnit::kTurns, 3);
     match::status::Apply(store, target, first);
 
-    ApplyRequest second = Request("vanilla:draw_debt", 2);
+    ApplyRequest second = Request("uni:draw_debt", 2);
     second.has_stack_policy = true;
     second.stack_policy = StackPolicy::kReplace;
     second.duration = Duration(DurationUnit::kRounds, 7);
@@ -99,13 +99,13 @@ TEST_CASE("status: accumulate adds magnitudes and keeps the duration") {
     EntityStore store;
     Entity target = store.Create();
 
-    ApplyRequest first = Request("vanilla:draw_debt", 2);
+    ApplyRequest first = Request("uni:draw_debt", 2);
     first.has_stack_policy = true;
     first.stack_policy = StackPolicy::kAccumulate;
     first.duration = Duration(DurationUnit::kTurns, 3);
     match::status::Apply(store, target, first);
 
-    ApplyRequest second = Request("vanilla:draw_debt", 4);
+    ApplyRequest second = Request("uni:draw_debt", 4);
     second.has_stack_policy = true;
     second.stack_policy = StackPolicy::kAccumulate;
     const ApplyResult result = match::status::Apply(store, target, second);
@@ -151,19 +151,19 @@ TEST_CASE("status: cap accumulates up to the ceiling") {
     EntityStore store;
     Entity target = store.Create();
 
-    ApplyRequest first = Request("vanilla:draw_debt", 3);
+    ApplyRequest first = Request("uni:draw_debt", 3);
     first.has_stack_policy = true;
     first.stack_policy = StackPolicy::kCap;
     first.cap = 5;
     match::status::Apply(store, target, first);
 
-    ApplyRequest second = Request("vanilla:draw_debt", 4);
+    ApplyRequest second = Request("uni:draw_debt", 4);
     second.has_stack_policy = true;
     second.stack_policy = StackPolicy::kCap;
     second.cap = 5;
     CHECK(match::status::Apply(store, target, second).magnitude == 5);
 
-    ApplyRequest third = Request("vanilla:draw_debt", 1);
+    ApplyRequest third = Request("uni:draw_debt", 1);
     third.has_stack_policy = true;
     third.stack_policy = StackPolicy::kCap;
     third.cap = 5;
@@ -175,13 +175,13 @@ TEST_CASE("status: distinct kinds coexist in the list") {
     EntityStore store;
     Entity target = store.Create();
 
-    match::status::Apply(store, target, Request("vanilla:draw_debt", 2));
+    match::status::Apply(store, target, Request("uni:draw_debt", 2));
     match::status::Apply(store, target, Request("space:shielded", 4));
 
     const std::vector<Status> list = match::status::List(store, target);
     REQUIRE(list.size() == 2);
     const Status* debt =
-        match::status::Find(store, target, "vanilla:draw_debt");
+        match::status::Find(store, target, "uni:draw_debt");
     REQUIRE(debt != nullptr);
     CHECK(debt->magnitude == 2);
     CHECK(debt->instance_id == 1);
@@ -195,14 +195,14 @@ TEST_CASE("status: omitted policy falls back to the stored policy") {
     EntityStore store;
     Entity target = store.Create();
 
-    ApplyRequest seeded = Request("vanilla:draw_debt", 2);
+    ApplyRequest seeded = Request("uni:draw_debt", 2);
     seeded.has_stack_policy = true;
     seeded.stack_policy = StackPolicy::kAccumulate;
     match::status::Apply(store, target, seeded);
 
     // INFO: has_stack_policy defaults false, so the stored policy applies.
     const ApplyResult result =
-        match::status::Apply(store, target, Request("vanilla:draw_debt", 3));
+        match::status::Apply(store, target, Request("uni:draw_debt", 3));
     CHECK(result.magnitude == 5);
     CHECK(result.stack_policy == StackPolicy::kAccumulate);
 }
@@ -211,14 +211,14 @@ TEST_CASE("status: omitted policy reuses the stored cap ceiling") {
     EntityStore store;
     Entity target = store.Create();
 
-    ApplyRequest seeded = Request("vanilla:draw_debt", 3);
+    ApplyRequest seeded = Request("uni:draw_debt", 3);
     seeded.has_stack_policy = true;
     seeded.stack_policy = StackPolicy::kCap;
     seeded.cap = 5;
     match::status::Apply(store, target, seeded);
 
     const ApplyResult result =
-        match::status::Apply(store, target, Request("vanilla:draw_debt", 4));
+        match::status::Apply(store, target, Request("uni:draw_debt", 4));
     CHECK(result.magnitude == 5);
     CHECK(result.cap == 5);
 }
@@ -233,8 +233,8 @@ TEST_CASE("status: hidden flag is stored and reported") {
     match::status::Apply(store, target, hidden);
     CHECK(match::status::IsHidden(store, target, "space:shielded"));
 
-    match::status::Apply(store, target, Request("vanilla:draw_debt", 1));
-    CHECK_FALSE(match::status::IsHidden(store, target, "vanilla:draw_debt"));
+    match::status::Apply(store, target, Request("uni:draw_debt", 1));
+    CHECK_FALSE(match::status::IsHidden(store, target, "uni:draw_debt"));
     CHECK_FALSE(match::status::IsHidden(store, target, "space:missing"));
 }
 
@@ -298,7 +298,7 @@ TEST_CASE("status: remove by kind removes every matching instance") {
     match::status::Apply(
         store, target,
         Independent("space:shielded", 3, DurationUnit::kTurns, 2));
-    match::status::Apply(store, target, Request("vanilla:draw_debt", 1));
+    match::status::Apply(store, target, Request("uni:draw_debt", 1));
 
     const std::vector<Status> removed =
         match::status::Remove(store, target, "space:shielded");
@@ -359,14 +359,14 @@ TEST_CASE("status: modify adjusts and clamps to the cap ceiling") {
     EntityStore store;
     Entity target = store.Create();
 
-    ApplyRequest seeded = Request("vanilla:draw_debt", 3);
+    ApplyRequest seeded = Request("uni:draw_debt", 3);
     seeded.has_stack_policy = true;
     seeded.stack_policy = StackPolicy::kCap;
     seeded.cap = 5;
     match::status::Apply(store, target, seeded);
 
     const std::optional<ModifyResult> up =
-        match::status::Modify(store, target, "vanilla:draw_debt", 10);
+        match::status::Modify(store, target, "uni:draw_debt", 10);
     REQUIRE(up.has_value());
     REQUIRE(up->adjusted.size() == 1);
     CHECK(up->adjusted[0].magnitude == 5);

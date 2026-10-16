@@ -18,6 +18,7 @@
 #include <transport/itimer_service.hpp>
 #include <transport/presence_registry.hpp>
 #include <websocket_context.hpp>
+#include <nlohmann/json.hpp>
 
 /**
  * @file lobby_controller.hpp
@@ -252,6 +253,9 @@ private:
     /** @brief Returns the cached snapshot, rescanning once it is older than the TTL. */
     std::shared_ptr<const ModsSnapshot> HttpModsSnapshot();
 
+    /** @brief Scans `mods_root_` and runs the ordered validation stages. */
+    match::modload::LoadResult ScanAndValidateMods() const;
+
     /**
      * @brief True when `username` already holds a seat in a lobby other than
      * `except_lobby_id` (0 = any lobby). Clears a stale username->lobby mapping.
@@ -266,6 +270,18 @@ private:
      * @param lobby The lobby to verify.
      */
     void CheckMatchIntegrity(Lobby& lobby);
+
+    /**
+     * @brief Cancels every per-match timer key owned by `lobby_id`.
+     *
+     * Fired one-shots park idle (re-armed by the next Schedule on the same
+     * key), so a torn-down session must cancel `turn_`/`window_`/`ready_`
+     * explicitly or the live libuv handle leaks until process exit. Cancel
+     * on an unregistered key is a no-op, so this is safe on every teardown
+     * path even when a given timer never armed.
+     * @param lobby_id ID of the lobby whose match timers to release.
+     */
+    void CancelMatchTimers(uint32_t lobby_id);
 
     /**
      * @brief Handles the request to create a new lobby.
@@ -460,7 +476,9 @@ private:
     std::unordered_map<std::string, uint32_t> code_to_id_; /**< Secondary index for fast lookup. */
 
     std::atomic<uint32_t> next_id_{1};          /**< Thread-safe counter for the lobby IDs. */
-    /**< Grace period (ms) before eviction (env: RECONNECT_GRACE_MS). */
+    /** Cached `lobby_list` response body (2s TTL collapses browse bursts). */
+    json lobby_list_cache_ = json::array();
+    std::chrono::steady_clock::time_point lobby_list_expires_{};    /**< Grace period (ms) before eviction (env: RECONNECT_GRACE_MS). */
     int reconnect_grace_ms_ = 1'000 * 30;
     /**< Absolute upper bound on LobbySettings::max_players across all lobbies
      * (env: ABSOLUTE_MAX_LOBBY_MEMBERS), clamped to contract::kMaxLobbyMembers. */

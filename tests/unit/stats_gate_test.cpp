@@ -21,26 +21,44 @@ namespace {
 using match::server::DeckKindMultisetsEqual;
 using match::server::ExpandKindMultiset;
 using match::server::StatsGateAllows;
-using match::server::VanillaClassicDeckCards;
+using match::server::UniClassicDeckCards;
 
 using DeckCards = std::vector<std::pair<std::string, int>>;
 
-/** @brief The canonical vanilla classic deck, copied so tests may mutate. */
-DeckCards ClassicDeck() { return VanillaClassicDeckCards(); }
+/** @brief The canonical uni classic deck, copied so tests may mutate. */
+DeckCards ClassicDeck() { return UniClassicDeckCards(); }
 
 }  // namespace
 
 TEST_SUITE("StatsGate") {
 
-TEST_CASE("allows: vanilla mods with the classic deck") {
-    CHECK(StatsGateAllows({"vanilla"}, ClassicDeck()));
+TEST_CASE("allows: uni mod id with the classic deck") {
+    CHECK(StatsGateAllows({"uni"}, ClassicDeck()));
+}
+
+TEST_CASE("allows: uni mod id with a uni-prefixed classic deck") {
+    DeckCards deck = ClassicDeck();
+    for (auto& [kind, count] : deck) {
+        kind = "uni:" + kind.substr(kind.find(':') + 1);
+    }
+    CHECK(StatsGateAllows({"uni"}, deck));
+}
+
+TEST_CASE("rejects: uni with another mod id") {
+    CHECK_FALSE(StatsGateAllows({"uni", "seven_zero"}, ClassicDeck()));
+}
+
+TEST_CASE("rejects: changed uni-prefixed deck kind multiset") {
+    DeckCards deck = ClassicDeck();
+    deck.emplace_back("uni:custom_card", 1);
+    CHECK_FALSE(StatsGateAllows({"uni"}, deck));
 }
 
 TEST_CASE("rejects: extra mod in the set") {
-    CHECK_FALSE(StatsGateAllows({"vanilla", "extra"}, ClassicDeck()));
+    CHECK_FALSE(StatsGateAllows({"uni", "extra"}, ClassicDeck()));
 }
 
-TEST_CASE("rejects: non-vanilla mod set") {
+TEST_CASE("rejects: non-base mod set") {
     CHECK_FALSE(StatsGateAllows({"other"}, ClassicDeck()));
     CHECK_FALSE(StatsGateAllows({}, ClassicDeck()));
 }
@@ -49,30 +67,30 @@ TEST_CASE("rejects: changed deck kind multiset (count)") {
     DeckCards deck = ClassicDeck();
     // One extra copy of a card the classic deck holds exactly once.
     for (auto& [kind, count] : deck) {
-        if (kind == "vanilla:red_0") {
+        if (kind == "uni:red_0") {
             ++count;
             break;
         }
     }
-    CHECK_FALSE(StatsGateAllows({"vanilla"}, deck));
+    CHECK_FALSE(StatsGateAllows({"uni"}, deck));
 }
 
 TEST_CASE("rejects: changed deck kind multiset (extra kind)") {
     DeckCards deck = ClassicDeck();
-    deck.emplace_back("vanilla:custom_card", 1);
-    CHECK_FALSE(StatsGateAllows({"vanilla"}, deck));
+    deck.emplace_back("uni:custom_card", 1);
+    CHECK_FALSE(StatsGateAllows({"uni"}, deck));
 }
 
 TEST_CASE("rejects: changed deck kind multiset (missing kind)") {
     DeckCards deck = ClassicDeck();
     deck.erase(deck.begin());
-    CHECK_FALSE(StatsGateAllows({"vanilla"}, deck));
+    CHECK_FALSE(StatsGateAllows({"uni"}, deck));
 }
 
 TEST_CASE("allows: deck pair order does not matter") {
     DeckCards deck = ClassicDeck();
     std::reverse(deck.begin(), deck.end());
-    CHECK(StatsGateAllows({"vanilla"}, deck));
+    CHECK(StatsGateAllows({"uni"}, deck));
 }
 
 TEST_CASE("ExpandKindMultiset: sorted, one entry per copy") {

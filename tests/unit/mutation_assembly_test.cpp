@@ -22,7 +22,7 @@
  * @brief End-to-end tests: the mutation compiler wired into assembly.
  *
  * Each case builds in-memory `LoadedMod` fixtures (no filesystem content, so
- * `mods/vanilla/` is untouched), assembles through `MatchAssembler`, plays a
+ * `mods/uni/` is untouched), assembles through `MatchAssembler`, plays a
  * card through the real `MatchInstance`, and asserts the observable effect of
  * a `replace` / `wrap` / `veto` mutation. The deferred paths (`filter` and a
  * restriction-target mutation colliding with a behavior kind) assert the

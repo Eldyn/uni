@@ -64,28 +64,28 @@ Result<IssuedCode> IssueCodeForUser(Database& db, const DbRow& row) {
     int now        = NowSeconds();
     int expires_at = now + VerificationService::kExpirySeconds;
 
-    TransactionGuard tx(db);
-    if (!tx.Ok()) return std::unexpected(tx.GetError());
+    auto fut = db.RunInTxn(
+        [user_id, hash, expires_at, now, email = row.Get<std::string>("email"),
+         username = row.Get<std::string>("username"),
+         locale = row.Get<std::string>("locale"), code = *code](Database& d) -> Result<IssuedCode> {
+            auto insert = d.Exec(
+                "INSERT OR REPLACE INTO email_verification_codes "
+                "(user_id, code_hash, expires_at, attempt_count, created_at) "
+                "VALUES (?, ?, ?, 0, ?);",
+                {user_id, hash, expires_at, now});
+            if (!insert) return std::unexpected(insert.error());
 
-    auto insert = db.Exec(
-        "INSERT OR REPLACE INTO email_verification_codes "
-        "(user_id, code_hash, expires_at, attempt_count, created_at) "
-        "VALUES (?, ?, ?, 0, ?);",
-        {user_id, hash, expires_at, now});
-    if (!insert) return std::unexpected(insert.error());
+            Logger::Info("[Verify] code issued user_id=" + std::to_string(user_id));
 
-    auto commit = tx.Commit();
-    if (!commit) return std::unexpected(commit.error());
-
-    Logger::Info("[Verify] code issued user_id=" + std::to_string(user_id));
-
-    return IssuedCode{
-        user_id,
-        row.Get<std::string>("email"),
-        row.Get<std::string>("username"),
-        row.Get<std::string>("locale"),
-        *code,
-    };
+            return IssuedCode{
+                user_id,
+                email,
+                username,
+                locale,
+                code,
+            };
+        });
+    return fut.get();
 }
 }  // namespace
 

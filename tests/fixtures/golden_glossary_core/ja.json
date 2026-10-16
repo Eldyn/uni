@@ -1,0 +1,878 @@
+{
+  "entries": {
+    "uni:draw": {
+      "id": "uni:draw",
+      "title": "ドロー",
+      "description": "[k=uni:draw_pile]山札[/k]からカードを1枚以上手札に引きます。",
+      "tags": [
+        {
+          "label": "アクション",
+          "bg": "var(--glossary-tag-action)",
+          "shadowColor": "var(--glossary-tag-action-shadow)"
+        }
+      ]
+    },
+    "uni:skip": {
+      "id": "uni:skip",
+      "title": "スキップ",
+      "description": "[k=uni:turn]手番[/k]順で次のプレイヤーの手番を失わせます。",
+      "tags": [
+        {
+          "label": "アクション",
+          "bg": "var(--glossary-tag-action)",
+          "shadowColor": "var(--glossary-tag-action-shadow)"
+        }
+      ]
+    },
+    "uni:reverse": {
+      "id": "uni:reverse",
+      "title": "リバース",
+      "description": "プレイの進行方向を逆転します。2人対戦時は[k=uni:skip]スキップ[/k]として扱われます。",
+      "tags": [
+        {
+          "label": "アクション",
+          "bg": "var(--glossary-tag-action)",
+          "shadowColor": "var(--glossary-tag-action-shadow)"
+        }
+      ]
+    },
+    "uni:wild": {
+      "id": "uni:wild",
+      "title": "ワイルド",
+      "description": "どのカードの上にも出せます。出したプレイヤーが次の有効な[k=uni:color]色[/k]を指定します。",
+      "tags": [
+        {
+          "label": "アクション",
+          "bg": "var(--glossary-tag-action)",
+          "shadowColor": "var(--glossary-tag-action-shadow)"
+        }
+      ]
+    },
+    "uni:turn": {
+      "id": "uni:turn",
+      "title": "手番",
+      "description": "プレイヤーが有効なカードを[k=uni:play]出す[/k]か、カードを[k=uni:draw]引く[/k]機会。",
+      "tags": [
+        {
+          "label": "フロー",
+          "bg": "var(--glossary-tag-flow)",
+          "shadowColor": "var(--glossary-tag-flow-shadow)"
+        }
+      ]
+    },
+    "uni:color": {
+      "id": "uni:color",
+      "title": "色",
+      "description": "出せるカードを決定する現在のアクティブな色（赤、青、緑、黄）。"
+    },
+    "uni:draw_pile": {
+      "id": "uni:draw_pile",
+      "title": "山札",
+      "description": "カードを出せない、または出さない場合にプレイヤーがカードを[k=uni:draw]引く[/k]中央のデッキ。",
+      "tags": [
+        {
+          "label": "パイル",
+          "bg": "var(--glossary-tag-pile)",
+          "shadowColor": "var(--glossary-tag-pile-shadow)"
+        }
+      ]
+    },
+    "uni:discard_pile": {
+      "id": "uni:discard_pile",
+      "title": "捨て札",
+      "description": "プレイされたカードが表向きに重ねられる場所。",
+      "tags": [
+        {
+          "label": "パイル",
+          "bg": "var(--glossary-tag-pile)",
+          "shadowColor": "var(--glossary-tag-pile-shadow)"
+        }
+      ]
+    },
+    "uni:play": {
+      "id": "uni:play",
+      "title": "プレイ",
+      "description": "手札から対応するカードを[k=uni:discard_pile]捨て札[/k]に出します。",
+      "tags": [
+        {
+          "label": "アクション",
+          "bg": "var(--glossary-tag-action)",
+          "shadowColor": "var(--glossary-tag-action-shadow)"
+        }
+      ]
+    },
+    "uni:seven_zero": {
+      "id": "uni:seven_zero",
+      "title": "7-0ルール",
+      "description": "7を出すと任意のプレイヤーと手札を交換できます。0を出すと全員の手札が[k=uni:turn]手番[/k]方向に回ります。",
+      "tags": [
+        {
+          "label": "ルール",
+          "bg": "var(--glossary-tag-rule)",
+          "shadowColor": "var(--glossary-tag-rule-shadow)"
+        }
+      ]
+    },
+    "uni:draw_stacking": {
+      "id": "uni:draw_stacking",
+      "title": "ドロースタック",
+      "description": "+2や+4カードを重ねて出し、蓄積された[k=uni:draw]ドロー[/k]ペナルティを次のプレイヤーに送ります。",
+      "tags": [
+        {
+          "label": "ルール",
+          "bg": "var(--glossary-tag-rule)",
+          "shadowColor": "var(--glossary-tag-rule-shadow)"
+        }
+      ]
+    },
+    "uni:force_play": {
+      "id": "uni:force_play",
+      "title": "フォースプレイ",
+      "description": "山札からプレイ可能なカードを引いた場合、即座に出さなければなりません。",
+      "tags": [
+        {
+          "label": "ルール",
+          "bg": "var(--glossary-tag-rule)",
+          "shadowColor": "var(--glossary-tag-rule-shadow)"
+        }
+      ]
+    },
+    "uni:jump_in": {
+      "id": "uni:jump_in",
+      "title": "ジャンプイン",
+      "description": "一番上のカードと完全に同一（同じ色・同じ数字）のカードを持っていれば、手番外でも割り込んで出せます。",
+      "tags": [
+        {
+          "label": "ルール",
+          "bg": "var(--glossary-tag-rule)",
+          "shadowColor": "var(--glossary-tag-rule-shadow)"
+        }
+      ]
+    },
+    "uni:progressive": {
+      "id": "uni:progressive",
+      "title": "プログレッシブ",
+      "description": "一番上のカードと数字が一致するカードを同じ[k=uni:turn]手番[/k]内で連続して出せます。",
+      "tags": [
+        {
+          "label": "ルール",
+          "bg": "var(--glossary-tag-rule)",
+          "shadowColor": "var(--glossary-tag-rule-shadow)"
+        }
+      ]
+    },
+    "uni:race": {
+      "id": "uni:race",
+      "title": "競技",
+      "description": "手札を最初に出し切ったプレイヤーから勝利します。十分な人数が上がると試合が終わり、残りは全員敗北です。",
+      "tags": [
+        {
+          "label": "ルール",
+          "bg": "var(--glossary-tag-rule)",
+          "shadowColor": "var(--glossary-tag-rule-shadow)"
+        }
+      ]
+    },
+    "uni:blue_0": {
+      "id": "uni:blue_0",
+      "title": "0",
+      "description": "数字カード0。[k=uni:seven_zero]7-0[/k]ルールが有効な場合、全員の手札を[k=uni:turn]手番[/k]方向に回転させます。"
+    },
+    "uni:blue_1": {
+      "id": "uni:blue_1",
+      "title": "1",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "uni:blue_2": {
+      "id": "uni:blue_2",
+      "title": "2",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "uni:blue_3": {
+      "id": "uni:blue_3",
+      "title": "3",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "uni:blue_4": {
+      "id": "uni:blue_4",
+      "title": "4",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "uni:blue_5": {
+      "id": "uni:blue_5",
+      "title": "5",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "uni:blue_6": {
+      "id": "uni:blue_6",
+      "title": "6",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "uni:blue_7": {
+      "id": "uni:blue_7",
+      "title": "7",
+      "description": "数字カード7。[k=uni:seven_zero]7-0[/k]ルールが有効な場合、任意のプレイヤーと手札を交換します。"
+    },
+    "uni:blue_8": {
+      "id": "uni:blue_8",
+      "title": "8",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "uni:blue_9": {
+      "id": "uni:blue_9",
+      "title": "9",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "uni:blue_draw2": {
+      "id": "uni:blue_draw2",
+      "title": "ドロー2 (+2)",
+      "description": "次のプレイヤーに[k=uni:draw_pile]山札[/k]からカードを2枚[k=uni:draw]引かせ[/k]、その[k=uni:turn]手番[/k]を[k=uni:skip]スキップ[/k]させます。"
+    },
+    "uni:blue_reverse": {
+      "id": "uni:blue_reverse",
+      "title": "リバース",
+      "description": "[k=uni:play]プレイ[/k]の進行方向を[k=uni:reverse]逆転[/k]します。2人対戦では[k=uni:skip]スキップ[/k]として機能します。"
+    },
+    "uni:blue_skip": {
+      "id": "uni:blue_skip",
+      "title": "スキップ",
+      "description": "[k=uni:turn]手番[/k]順で次のプレイヤーを[k=uni:skip]スキップ[/k]させます。"
+    },
+    "uni:green_0": {
+      "id": "uni:green_0",
+      "title": "0",
+      "description": "数字カード0。[k=uni:seven_zero]7-0[/k]ルールが有効な場合、全員の手札を[k=uni:turn]手番[/k]方向に回転させます。"
+    },
+    "uni:green_1": {
+      "id": "uni:green_1",
+      "title": "1",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "uni:green_2": {
+      "id": "uni:green_2",
+      "title": "2",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "uni:green_3": {
+      "id": "uni:green_3",
+      "title": "3",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "uni:green_4": {
+      "id": "uni:green_4",
+      "title": "4",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "uni:green_5": {
+      "id": "uni:green_5",
+      "title": "5",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "uni:green_6": {
+      "id": "uni:green_6",
+      "title": "6",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "uni:green_7": {
+      "id": "uni:green_7",
+      "title": "7",
+      "description": "数字カード7。[k=uni:seven_zero]7-0[/k]ルールが有効な場合、任意のプレイヤーと手札を交換します。"
+    },
+    "uni:green_8": {
+      "id": "uni:green_8",
+      "title": "8",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "uni:green_9": {
+      "id": "uni:green_9",
+      "title": "9",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "uni:green_draw2": {
+      "id": "uni:green_draw2",
+      "title": "ドロー2 (+2)",
+      "description": "次のプレイヤーに[k=uni:draw_pile]山札[/k]からカードを2枚[k=uni:draw]引かせ[/k]、その[k=uni:turn]手番[/k]を[k=uni:skip]スキップ[/k]させます。"
+    },
+    "uni:green_reverse": {
+      "id": "uni:green_reverse",
+      "title": "リバース",
+      "description": "[k=uni:play]プレイ[/k]の進行方向を[k=uni:reverse]逆転[/k]します。2人対戦では[k=uni:skip]スキップ[/k]として機能します。"
+    },
+    "uni:green_skip": {
+      "id": "uni:green_skip",
+      "title": "スキップ",
+      "description": "[k=uni:turn]手番[/k]順で次のプレイヤーを[k=uni:skip]スキップ[/k]させます。"
+    },
+    "uni:red_0": {
+      "id": "uni:red_0",
+      "title": "0",
+      "description": "数字カード0。[k=uni:seven_zero]7-0[/k]ルールが有効な場合、全員の手札を[k=uni:turn]手番[/k]方向に回転させます。"
+    },
+    "uni:red_1": {
+      "id": "uni:red_1",
+      "title": "1",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "uni:red_2": {
+      "id": "uni:red_2",
+      "title": "2",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "uni:red_3": {
+      "id": "uni:red_3",
+      "title": "3",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "uni:red_4": {
+      "id": "uni:red_4",
+      "title": "4",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "uni:red_5": {
+      "id": "uni:red_5",
+      "title": "5",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "uni:red_6": {
+      "id": "uni:red_6",
+      "title": "6",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "uni:red_7": {
+      "id": "uni:red_7",
+      "title": "7",
+      "description": "数字カード7。[k=uni:seven_zero]7-0[/k]ルールが有効な場合、任意のプレイヤーと手札を交換します。"
+    },
+    "uni:red_8": {
+      "id": "uni:red_8",
+      "title": "8",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "uni:red_9": {
+      "id": "uni:red_9",
+      "title": "9",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "uni:red_draw2": {
+      "id": "uni:red_draw2",
+      "title": "ドロー2 (+2)",
+      "description": "次のプレイヤーに[k=uni:draw_pile]山札[/k]からカードを2枚[k=uni:draw]引かせ[/k]、その[k=uni:turn]手番[/k]を[k=uni:skip]スキップ[/k]させます。"
+    },
+    "uni:red_reverse": {
+      "id": "uni:red_reverse",
+      "title": "リバース",
+      "description": "[k=uni:play]プレイ[/k]の進行方向を[k=uni:reverse]逆転[/k]します。2人対戦では[k=uni:skip]スキップ[/k]として機能します。"
+    },
+    "uni:red_skip": {
+      "id": "uni:red_skip",
+      "title": "スキップ",
+      "description": "[k=uni:turn]手番[/k]順で次のプレイヤーを[k=uni:skip]スキップ[/k]させます。"
+    },
+    "uni:wild_draw4": {
+      "id": "uni:wild_draw4",
+      "title": "ワイルドドロー4 (+4)",
+      "description": "次の[k=uni:color]色[/k]を指定します。次のプレイヤーはカードを4枚[k=uni:draw]引き[/k]、その[k=uni:turn]手番[/k]を[k=uni:skip]スキップ[/k]します。"
+    },
+    "uni:yellow_0": {
+      "id": "uni:yellow_0",
+      "title": "0",
+      "description": "数字カード0。[k=uni:seven_zero]7-0[/k]ルールが有効な場合、全員の手札を[k=uni:turn]手番[/k]方向に回転させます。"
+    },
+    "uni:yellow_1": {
+      "id": "uni:yellow_1",
+      "title": "1",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "uni:yellow_2": {
+      "id": "uni:yellow_2",
+      "title": "2",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "uni:yellow_3": {
+      "id": "uni:yellow_3",
+      "title": "3",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "uni:yellow_4": {
+      "id": "uni:yellow_4",
+      "title": "4",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "uni:yellow_5": {
+      "id": "uni:yellow_5",
+      "title": "5",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "uni:yellow_6": {
+      "id": "uni:yellow_6",
+      "title": "6",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "uni:yellow_7": {
+      "id": "uni:yellow_7",
+      "title": "7",
+      "description": "数字カード7。[k=uni:seven_zero]7-0[/k]ルールが有効な場合、任意のプレイヤーと手札を交換します。"
+    },
+    "uni:yellow_8": {
+      "id": "uni:yellow_8",
+      "title": "8",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "uni:yellow_9": {
+      "id": "uni:yellow_9",
+      "title": "9",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "uni:yellow_draw2": {
+      "id": "uni:yellow_draw2",
+      "title": "ドロー2 (+2)",
+      "description": "次のプレイヤーに[k=uni:draw_pile]山札[/k]からカードを2枚[k=uni:draw]引かせ[/k]、その[k=uni:turn]手番[/k]を[k=uni:skip]スキップ[/k]させます。"
+    },
+    "uni:yellow_reverse": {
+      "id": "uni:yellow_reverse",
+      "title": "リバース",
+      "description": "[k=uni:play]プレイ[/k]の進行方向を[k=uni:reverse]逆転[/k]します。2人対戦では[k=uni:skip]スキップ[/k]として機能します。"
+    },
+    "uni:yellow_skip": {
+      "id": "uni:yellow_skip",
+      "title": "スキップ",
+      "description": "[k=uni:turn]手番[/k]順で次のプレイヤーを[k=uni:skip]スキップ[/k]させます。"
+    }
+  },
+  "cardKinds": {
+    "uni:blue_0": {
+      "title": "0",
+      "description": "数字カード0。[k=uni:seven_zero]7-0[/k]ルールが有効な場合、全員の手札を[k=uni:turn]手番[/k]方向に回転させます。"
+    },
+    "uni:blue_1": {
+      "title": "1",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "uni:blue_2": {
+      "title": "2",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "uni:blue_3": {
+      "title": "3",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "uni:blue_4": {
+      "title": "4",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "uni:blue_5": {
+      "title": "5",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "uni:blue_6": {
+      "title": "6",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "uni:blue_7": {
+      "title": "7",
+      "description": "数字カード7。[k=uni:seven_zero]7-0[/k]ルールが有効な場合、任意のプレイヤーと手札を交換します。"
+    },
+    "uni:blue_8": {
+      "title": "8",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "uni:blue_9": {
+      "title": "9",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "uni:blue_draw2": {
+      "title": "ドロー2 (+2)",
+      "description": "次のプレイヤーに[k=uni:draw_pile]山札[/k]からカードを2枚[k=uni:draw]引かせ[/k]、その[k=uni:turn]手番[/k]を[k=uni:skip]スキップ[/k]させます。"
+    },
+    "uni:blue_reverse": {
+      "title": "リバース",
+      "description": "[k=uni:play]プレイ[/k]の進行方向を[k=uni:reverse]逆転[/k]します。2人対戦では[k=uni:skip]スキップ[/k]として機能します。"
+    },
+    "uni:blue_skip": {
+      "title": "スキップ",
+      "description": "[k=uni:turn]手番[/k]順で次のプレイヤーを[k=uni:skip]スキップ[/k]させます。"
+    },
+    "uni:green_0": {
+      "title": "0",
+      "description": "数字カード0。[k=uni:seven_zero]7-0[/k]ルールが有効な場合、全員の手札を[k=uni:turn]手番[/k]方向に回転させます。"
+    },
+    "uni:green_1": {
+      "title": "1",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "uni:green_2": {
+      "title": "2",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "uni:green_3": {
+      "title": "3",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "uni:green_4": {
+      "title": "4",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "uni:green_5": {
+      "title": "5",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "uni:green_6": {
+      "title": "6",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "uni:green_7": {
+      "title": "7",
+      "description": "数字カード7。[k=uni:seven_zero]7-0[/k]ルールが有効な場合、任意のプレイヤーと手札を交換します。"
+    },
+    "uni:green_8": {
+      "title": "8",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "uni:green_9": {
+      "title": "9",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "uni:green_draw2": {
+      "title": "ドロー2 (+2)",
+      "description": "次のプレイヤーに[k=uni:draw_pile]山札[/k]からカードを2枚[k=uni:draw]引かせ[/k]、その[k=uni:turn]手番[/k]を[k=uni:skip]スキップ[/k]させます。"
+    },
+    "uni:green_reverse": {
+      "title": "リバース",
+      "description": "[k=uni:play]プレイ[/k]の進行方向を[k=uni:reverse]逆転[/k]します。2人対戦では[k=uni:skip]スキップ[/k]として機能します。"
+    },
+    "uni:green_skip": {
+      "title": "スキップ",
+      "description": "[k=uni:turn]手番[/k]順で次のプレイヤーを[k=uni:skip]スキップ[/k]させます。"
+    },
+    "uni:red_0": {
+      "title": "0",
+      "description": "数字カード0。[k=uni:seven_zero]7-0[/k]ルールが有効な場合、全員の手札を[k=uni:turn]手番[/k]方向に回転させます。"
+    },
+    "uni:red_1": {
+      "title": "1",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "uni:red_2": {
+      "title": "2",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "uni:red_3": {
+      "title": "3",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "uni:red_4": {
+      "title": "4",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "uni:red_5": {
+      "title": "5",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "uni:red_6": {
+      "title": "6",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "uni:red_7": {
+      "title": "7",
+      "description": "数字カード7。[k=uni:seven_zero]7-0[/k]ルールが有効な場合、任意のプレイヤーと手札を交換します。"
+    },
+    "uni:red_8": {
+      "title": "8",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "uni:red_9": {
+      "title": "9",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "uni:red_draw2": {
+      "title": "ドロー2 (+2)",
+      "description": "次のプレイヤーに[k=uni:draw_pile]山札[/k]からカードを2枚[k=uni:draw]引かせ[/k]、その[k=uni:turn]手番[/k]を[k=uni:skip]スキップ[/k]させます。"
+    },
+    "uni:red_reverse": {
+      "title": "リバース",
+      "description": "[k=uni:play]プレイ[/k]の進行方向を[k=uni:reverse]逆転[/k]します。2人対戦では[k=uni:skip]スキップ[/k]として機能します。"
+    },
+    "uni:red_skip": {
+      "title": "スキップ",
+      "description": "[k=uni:turn]手番[/k]順で次のプレイヤーを[k=uni:skip]スキップ[/k]させます。"
+    },
+    "uni:wild": {
+      "title": "ワイルド",
+      "description": "どのカードの上にも出せる[k=uni:wild]ワイルド[/k]カード。次の[k=uni:color]色[/k]を指定します。"
+    },
+    "uni:wild_draw4": {
+      "title": "ワイルドドロー4 (+4)",
+      "description": "次の[k=uni:color]色[/k]を指定します。次のプレイヤーはカードを4枚[k=uni:draw]引き[/k]、その[k=uni:turn]手番[/k]を[k=uni:skip]スキップ[/k]します。"
+    },
+    "uni:yellow_0": {
+      "title": "0",
+      "description": "数字カード0。[k=uni:seven_zero]7-0[/k]ルールが有効な場合、全員の手札を[k=uni:turn]手番[/k]方向に回転させます。"
+    },
+    "uni:yellow_1": {
+      "title": "1",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "uni:yellow_2": {
+      "title": "2",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "uni:yellow_3": {
+      "title": "3",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "uni:yellow_4": {
+      "title": "4",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "uni:yellow_5": {
+      "title": "5",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "uni:yellow_6": {
+      "title": "6",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "uni:yellow_7": {
+      "title": "7",
+      "description": "数字カード7。[k=uni:seven_zero]7-0[/k]ルールが有効な場合、任意のプレイヤーと手札を交換します。"
+    },
+    "uni:yellow_8": {
+      "title": "8",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "uni:yellow_9": {
+      "title": "9",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "uni:yellow_draw2": {
+      "title": "ドロー2 (+2)",
+      "description": "次のプレイヤーに[k=uni:draw_pile]山札[/k]からカードを2枚[k=uni:draw]引かせ[/k]、その[k=uni:turn]手番[/k]を[k=uni:skip]スキップ[/k]させます。"
+    },
+    "uni:yellow_reverse": {
+      "title": "リバース",
+      "description": "[k=uni:play]プレイ[/k]の進行方向を[k=uni:reverse]逆転[/k]します。2人対戦では[k=uni:skip]スキップ[/k]として機能します。"
+    },
+    "uni:yellow_skip": {
+      "title": "スキップ",
+      "description": "[k=uni:turn]手番[/k]順で次のプレイヤーを[k=uni:skip]スキップ[/k]させます。"
+    }
+  },
+  "cardInfos": {
+    "blue_0": {
+      "title": "Blue 0",
+      "description": "数字カード0。[k=uni:seven_zero]7-0[/k]ルールが有効な場合、全員の手札を[k=uni:turn]手番[/k]方向に回転させます。"
+    },
+    "blue_1": {
+      "title": "Blue 1",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "blue_2": {
+      "title": "Blue 2",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "blue_3": {
+      "title": "Blue 3",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "blue_4": {
+      "title": "Blue 4",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "blue_5": {
+      "title": "Blue 5",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "blue_6": {
+      "title": "Blue 6",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "blue_7": {
+      "title": "Blue 7",
+      "description": "数字カード7。[k=uni:seven_zero]7-0[/k]ルールが有効な場合、任意のプレイヤーと手札を交換します。"
+    },
+    "blue_8": {
+      "title": "Blue 8",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "blue_9": {
+      "title": "Blue 9",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "blue_draw2": {
+      "title": "ドロー2 (+2)",
+      "description": "次のプレイヤーに[k=uni:draw_pile]山札[/k]からカードを2枚[k=uni:draw]引かせ[/k]、その[k=uni:turn]手番[/k]を[k=uni:skip]スキップ[/k]させます。"
+    },
+    "blue_reverse": {
+      "title": "リバース",
+      "description": "[k=uni:play]プレイ[/k]の進行方向を[k=uni:reverse]逆転[/k]します。2人対戦では[k=uni:skip]スキップ[/k]として機能します。"
+    },
+    "blue_skip": {
+      "title": "スキップ",
+      "description": "[k=uni:turn]手番[/k]順で次のプレイヤーを[k=uni:skip]スキップ[/k]させます。"
+    },
+    "green_0": {
+      "title": "Green 0",
+      "description": "数字カード0。[k=uni:seven_zero]7-0[/k]ルールが有効な場合、全員の手札を[k=uni:turn]手番[/k]方向に回転させます。"
+    },
+    "green_1": {
+      "title": "Green 1",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "green_2": {
+      "title": "Green 2",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "green_3": {
+      "title": "Green 3",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "green_4": {
+      "title": "Green 4",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "green_5": {
+      "title": "Green 5",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "green_6": {
+      "title": "Green 6",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "green_7": {
+      "title": "Green 7",
+      "description": "数字カード7。[k=uni:seven_zero]7-0[/k]ルールが有効な場合、任意のプレイヤーと手札を交換します。"
+    },
+    "green_8": {
+      "title": "Green 8",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "green_9": {
+      "title": "Green 9",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "green_draw2": {
+      "title": "ドロー2 (+2)",
+      "description": "次のプレイヤーに[k=uni:draw_pile]山札[/k]からカードを2枚[k=uni:draw]引かせ[/k]、その[k=uni:turn]手番[/k]を[k=uni:skip]スキップ[/k]させます。"
+    },
+    "green_reverse": {
+      "title": "リバース",
+      "description": "[k=uni:play]プレイ[/k]の進行方向を[k=uni:reverse]逆転[/k]します。2人対戦では[k=uni:skip]スキップ[/k]として機能します。"
+    },
+    "green_skip": {
+      "title": "スキップ",
+      "description": "[k=uni:turn]手番[/k]順で次のプレイヤーを[k=uni:skip]スキップ[/k]させます。"
+    },
+    "red_0": {
+      "title": "Red 0",
+      "description": "数字カード0。[k=uni:seven_zero]7-0[/k]ルールが有効な場合、全員の手札を[k=uni:turn]手番[/k]方向に回転させます。"
+    },
+    "red_1": {
+      "title": "Red 1",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "red_2": {
+      "title": "Red 2",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "red_3": {
+      "title": "Red 3",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "red_4": {
+      "title": "Red 4",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "red_5": {
+      "title": "Red 5",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "red_6": {
+      "title": "Red 6",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "red_7": {
+      "title": "Red 7",
+      "description": "数字カード7。[k=uni:seven_zero]7-0[/k]ルールが有効な場合、任意のプレイヤーと手札を交換します。"
+    },
+    "red_8": {
+      "title": "Red 8",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "red_9": {
+      "title": "Red 9",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "red_draw2": {
+      "title": "ドロー2 (+2)",
+      "description": "次のプレイヤーに[k=uni:draw_pile]山札[/k]からカードを2枚[k=uni:draw]引かせ[/k]、その[k=uni:turn]手番[/k]を[k=uni:skip]スキップ[/k]させます。"
+    },
+    "red_reverse": {
+      "title": "リバース",
+      "description": "[k=uni:play]プレイ[/k]の進行方向を[k=uni:reverse]逆転[/k]します。2人対戦では[k=uni:skip]スキップ[/k]として機能します。"
+    },
+    "red_skip": {
+      "title": "スキップ",
+      "description": "[k=uni:turn]手番[/k]順で次のプレイヤーを[k=uni:skip]スキップ[/k]させます。"
+    },
+    "wild": {
+      "title": "ワイルド",
+      "description": "どのカードの上にも出せる[k=uni:wild]ワイルド[/k]カード。次の[k=uni:color]色[/k]を指定します。"
+    },
+    "wild_draw4": {
+      "title": "ワイルドドロー4 (+4)",
+      "description": "次の[k=uni:color]色[/k]を指定します。次のプレイヤーはカードを4枚[k=uni:draw]引き[/k]、その[k=uni:turn]手番[/k]を[k=uni:skip]スキップ[/k]します。"
+    },
+    "yellow_0": {
+      "title": "Yellow 0",
+      "description": "数字カード0。[k=uni:seven_zero]7-0[/k]ルールが有効な場合、全員の手札を[k=uni:turn]手番[/k]方向に回転させます。"
+    },
+    "yellow_1": {
+      "title": "Yellow 1",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "yellow_2": {
+      "title": "Yellow 2",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "yellow_3": {
+      "title": "Yellow 3",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "yellow_4": {
+      "title": "Yellow 4",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "yellow_5": {
+      "title": "Yellow 5",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "yellow_6": {
+      "title": "Yellow 6",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "yellow_7": {
+      "title": "Yellow 7",
+      "description": "数字カード7。[k=uni:seven_zero]7-0[/k]ルールが有効な場合、任意のプレイヤーと手札を交換します。"
+    },
+    "yellow_8": {
+      "title": "Yellow 8",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "yellow_9": {
+      "title": "Yellow 9",
+      "description": "数字カード。[k=uni:color]色[/k]または数字を合わせて[k=uni:discard_pile]捨て札[/k]に[k=uni:play]出します[/k]。"
+    },
+    "yellow_draw2": {
+      "title": "ドロー2 (+2)",
+      "description": "次のプレイヤーに[k=uni:draw_pile]山札[/k]からカードを2枚[k=uni:draw]引かせ[/k]、その[k=uni:turn]手番[/k]を[k=uni:skip]スキップ[/k]させます。"
+    },
+    "yellow_reverse": {
+      "title": "リバース",
+      "description": "[k=uni:play]プレイ[/k]の進行方向を[k=uni:reverse]逆転[/k]します。2人対戦では[k=uni:skip]スキップ[/k]として機能します。"
+    },
+    "yellow_skip": {
+      "title": "スキップ",
+      "description": "[k=uni:turn]手番[/k]順で次のプレイヤーを[k=uni:skip]スキップ[/k]させます。"
+    }
+  }
+}

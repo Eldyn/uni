@@ -1,0 +1,162 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://playuni.app/contract/schemas/derived.schema.json",
+  "title": "Derived event definition (derived/<name>.json), format version 1",
+  "description": "One derived event. The key names are listed in include/match/modload/derived_definition_keys.hpp; a test compares both. A derived event is a core client event that the engine emits right after a base client event. It carries a cause: the base event. A window definition opens a window for a seat (uni:open_on) and closes it (uni:close_on). A block definition (uni:window_of, uni:block_on) fires when an event concerns the seat of the open window; the engine reads the window as it was before the base event. Only the uni mod defines derived events (loader check derived.id.namespace). A matcher and a seat field may read a payload field with the audience all only (semantic check derived.field.audience).",
+  "type": "object",
+  "required": [
+    "uni:format_version",
+    "uni:derived_event"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "uni:format_version": {
+      "type": "string",
+      "pattern": "^1(\\.[0-9]+){0,2}$",
+      "description": "Version of the file style. This build reads major version 1."
+    },
+    "uni:derived_event": {
+      "type": "object",
+      "required": [
+        "uni:description",
+        "uni:emits"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "uni:description": {
+          "type": "object",
+          "required": [
+            "uni:identifier"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "uni:identifier": {
+              "type": "string",
+              "pattern": "^[a-z0-9_]{1,32}:[a-z0-9_]{1,32}$",
+              "description": "Full derived event id, namespace:name."
+            }
+          }
+        },
+        "uni:emits": {
+          "type": "string",
+          "pattern": "^[a-z0-9_]{1,32}$",
+          "description": "The core client event id that the engine emits."
+        },
+        "uni:open_on": {
+          "type": "array",
+          "description": "Window: a base event that matches one of these opens a window for the seat in its seat field, and the engine emits the event.",
+          "items": {
+            "$ref": "#/$defs/seat_matcher"
+          }
+        },
+        "uni:close_on": {
+          "type": "array",
+          "description": "Window: a base event that matches one of these closes the window when its seat field names the seat of the window.",
+          "items": {
+            "$ref": "#/$defs/seat_matcher"
+          }
+        },
+        "uni:block_on": {
+          "type": "array",
+          "description": "Block: a base event that matches one of these and names the seat of the open window makes the engine emit the event.",
+          "items": {
+            "$ref": "#/$defs/seat_matcher"
+          }
+        },
+        "uni:window_of": {
+          "type": "string",
+          "pattern": "^[a-z0-9_]{1,32}:[a-z0-9_]{1,32}$",
+          "description": "Block: the full id of the window definition."
+        }
+      }
+    }
+  },
+  "$defs": {
+    "matcher": {
+      "type": "object",
+      "required": [
+        "uni:event"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "uni:event": {
+          "type": "string",
+          "pattern": "^([a-z0-9_]{1,32}:)?[a-z0-9_]{1,32}$",
+          "description": "The client event id."
+        },
+        "uni:tests": {
+          "type": "array",
+          "description": "All tests must be true for the event to match.",
+          "items": {
+            "$ref": "#/$defs/test"
+          }
+        }
+      }
+    },
+    "test": {
+      "type": "object",
+      "required": [
+        "uni:test"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "uni:test": {
+          "type": "string",
+          "enum": [
+            "equals",
+            "in",
+            "exists",
+            "has_tag",
+            "relation"
+          ]
+        },
+        "uni:field": {
+          "type": "string"
+        },
+        "uni:state": {
+          "type": "string"
+        },
+        "uni:value": {},
+        "uni:values": {
+          "type": "array"
+        },
+        "uni:tag": {
+          "type": "string"
+        },
+        "uni:relation": {
+          "type": "string"
+        },
+        "uni:negate": {
+          "type": "boolean"
+        }
+      }
+    },
+    "seat_matcher": {
+      "type": "object",
+      "required": [
+        "uni:event",
+        "uni:seat_field"
+      ],
+      "properties": {
+        "uni:event": {
+          "type": "string",
+          "pattern": "^([a-z0-9_]{1,32}:)?[a-z0-9_]{1,32}$",
+          "description": "The client event id."
+        },
+        "uni:tests": {
+          "type": "array",
+          "description": "All tests must be true for the event to match.",
+          "items": {
+            "$ref": "#/$defs/test"
+          }
+        },
+        "uni:seat_field": {
+          "type": "string",
+          "pattern": "^[a-z0-9_]{1,32}$",
+          "description": "The payload field of the matched event that names a seat. It must have the audience all."
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

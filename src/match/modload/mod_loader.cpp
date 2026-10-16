@@ -1,16 +1,29 @@
 #include "match/modload/mod_loader.hpp"
 
 #include "common/env.hpp"
+#include "common/environment.hpp"
 #include "logger.hpp"
+#include "match/modload/base_mod.hpp"
+#include "match/modload/binding_definition_keys.hpp"
+#include "match/modload/derived_definition_keys.hpp"
+#include "match/modload/event_definition_keys.hpp"
+#include "match/modload/glossary_entries.hpp"
+#include "match/modload/streak_definition_keys.hpp"
+#include "match/modload/mod_hash.hpp"
+#include "match/modload/texts_limits.hpp"
+#include "common/crypto_hash.hpp"
 
 #include <common/contract.hpp>
 
 #include <algorithm>
 #include <cctype>
+#include <charconv>
 #include <cstdint>
+#include <cstdlib>
 #include <exception>
 #include <filesystem>
 #include <fstream>
+#include <iterator>
 #include <set>
 #include <unordered_set>
 #include <utility>
@@ -57,13 +70,7 @@ bool DepthGuardCallback(int depth, nlohmann::json::parse_event_t,
  *       never ship. A production build defines UNI_PROD_BUILD, and
  *       UNI_ENV=production also excludes them, so a stray test mod cannot
  *       reach a release even when only one of the two is set. */
-bool DevContentAllowed() {
-#ifdef UNI_PROD_BUILD
-    return false;
-#else
-    return Env::Get("UNI_ENV", "development") != "production";
-#endif
-}
+bool DevContentAllowed() { return !IsProductionEnvironment(); }
 
 /* INFO: loader errors are collected, never thrown, so a bad folder yields a
  *       structured report instead of aborting the whole scan. */
@@ -391,6 +398,22 @@ bool ParseCardEntry(const fs::path& path,
     (void)ParseStringField(entry, "title", out.title);
 
     bool ok = true;
+    for (const auto& [field, target] :
+         {std::pair<std::string_view, std::string*>{
+              glossary_keys::kCardLabelKey, &out.label_key},
+          std::pair<std::string_view, std::string*>{
+              glossary_keys::kCardDescriptionKey, &out.description_key}}) {
+        const auto found = entry.find(std::string(field));
+        if (found == entry.end()) continue;
+        if (!found->is_string()) {
+            AddError(errors, "card.keys", "cards", path.string(),
+                     "card '" + out.id + "' field '" + std::string(field)
+                         + "' must be a text key string");
+            ok = false;
+            continue;
+        }
+        *target = found->get<std::string>();
+    }
     auto face = entry.find("face");
     if (face != entry.end()) {
         if (!ParseFace(*face, out.face, errors, path.string())) ok = false;
@@ -653,6 +676,1243 @@ bool ScanMutationsDirectory(const fs::path& dir,
             continue;
         }
         out.push_back(std::move(mut));
+    }
+    return ok;
+}
+
+/* INFO: one outcome table per file.
+ *       Structural checks only; schema + semantic checks are the semantic validator's job. */
+bool ParseTableEntry(const nlohmann::json& entry,
+                     const std::string& ns,
+                     TableDef& out,
+                     std::vector<LoadError>& errors,
+                     const std::string& path) {
+    if (!entry.is_object()) {
+        AddError(errors, "table.shape", "tables", path,
+                 "table file must be a JSON object");
+        return false;
+    }
+    if (!ParseStringField(entry, "id", out.id) || !IsValidLocalId(out.id)) {
+        return false;
+    }
+    const auto entries = entry.find("entries");
+    if (entries == entry.end() || !entries->is_array()) {
+        AddError(errors, "table.entries", "tables", path,
+                 "table '" + out.id + "' requires an 'entries' array");
+        return false;
+    }
+    out.namespace_id = ns;
+    out.table_id = ns + ":" + out.id;
+    out.raw = entry;
+
+    bool ok = true;
+    for (const auto& raw_entry : *entries) {
+        if (!raw_entry.is_object()) {
+            AddError(errors, "table.entry", "tables", path,
+                     "table '" + out.id + "' has a non-object entry");
+            ok = false;
+            continue;
+        }
+        TableEntry parsed;
+        if (!ParseStringField(raw_entry, "key", parsed.key)
+            || !IsValidLocalId(parsed.key)) {
+            AddError(errors, "table.entry", "tables", path,
+                     "table '" + out.id + "' entry needs a key matching "
+                         "[a-z0-9_]+ (1-32)");
+            ok = false;
+            continue;
+        }
+        const auto weight = raw_entry.find("weight");
+        if (weight == raw_entry.end() || !weight->is_number_integer()) {
+            AddError(errors, "table.entry", "tables", path,
+                     "table '" + out.id + "' entry '" + parsed.key
+                         + "' needs an integer 'weight'");
+            ok = false;
+            continue;
+        }
+        parsed.weight = weight->get<int64_t>();
+        const auto value = raw_entry.find("value");
+        if (value != raw_entry.end() && value->is_number_integer()) {
+            parsed.value = value->get<int64_t>();
+        }
+        const auto roll = raw_entry.find("roll");
+        if (roll != raw_entry.end()) parsed.roll = *roll;
+        const auto where = raw_entry.find("where");
+        if (where != raw_entry.end()) parsed.where = *where;
+        parsed.raw = raw_entry;
+        out.entries.push_back(std::move(parsed));
+    }
+
+    std::sort(out.entries.begin(), out.entries.end(),
+              [](const TableEntry& a, const TableEntry& b) {
+                  return a.key < b.key;
+              });
+    return ok;
+}
+
+bool ScanTablesDirectory(const fs::path& dir,
+                         const std::string& ns,
+                         std::vector<TableDef>& out,
+                         std::vector<LoadError>& errors) {
+    bool ok = true;
+    std::set<std::string> seen;
+    for (const fs::path& file : ListJsonFiles(dir, "tables", errors)) {
+        nlohmann::json entry;
+        if (!ReadJsonFile(file, entry, errors, "tables")) {
+            ok = false;
+            continue;
+        }
+        TableDef table;
+        std::size_t before = errors.size();
+        if (!ParseTableEntry(entry, ns, table, errors, file.string())) {
+            if (errors.size() == before) {
+                AddError(errors, "table.id", "tables", file.string(),
+                         "table entry needs an id matching [a-z0-9_]+ (1-32)");
+            }
+            ok = false;
+            continue;
+        }
+        if (!seen.insert(table.id).second) {
+            AddError(errors, "table.id.duplicate", "tables", file.string(),
+                     "duplicate table id '" + table.id + "'");
+            ok = false;
+            continue;
+        }
+        out.push_back(std::move(table));
+    }
+    return ok;
+}
+
+/* INFO: one entity per file. Structural checks only; the
+ *       component vocabulary and exclusive-family checks are the semantic validator's job. */
+bool ParseEntityEntry(const nlohmann::json& entry,
+                      const std::string& ns,
+                      EntityDef& out,
+                      std::vector<LoadError>& errors,
+                      const std::string& path) {
+    if (!entry.is_object()) {
+        AddError(errors, "entity.shape", "entities", path,
+                 "entity file must be a JSON object");
+        return false;
+    }
+    if (!ParseStringField(entry, "id", out.id) || !IsValidLocalId(out.id)) {
+        return false;
+    }
+    const auto components = entry.find("components");
+    if (components == entry.end() || !components->is_object()) {
+        AddError(errors, "entity.components", "entities", path,
+                 "entity '" + out.id + "' requires a 'components' object");
+        return false;
+    }
+    out.namespace_id = ns;
+    out.entity_id = ns + ":" + out.id;
+    out.raw = entry;
+    /* INFO: nlohmann objects iterate in key order, so components are sorted by
+     *       name (deterministic) without an explicit sort. */
+    for (auto it = components->begin(); it != components->end(); ++it) {
+        ComponentDef component;
+        component.name = it.key();
+        component.params = it.value();
+        out.components.push_back(std::move(component));
+    }
+    return true;
+}
+
+bool ScanEntitiesDirectory(const fs::path& dir,
+                           const std::string& ns,
+                           std::vector<EntityDef>& out,
+                           std::vector<LoadError>& errors) {
+    bool ok = true;
+    std::set<std::string> seen;
+    for (const fs::path& file : ListJsonFiles(dir, "entities", errors)) {
+        nlohmann::json entry;
+        if (!ReadJsonFile(file, entry, errors, "entities")) {
+            ok = false;
+            continue;
+        }
+        EntityDef entity;
+        std::size_t before = errors.size();
+        if (!ParseEntityEntry(entry, ns, entity, errors, file.string())) {
+            if (errors.size() == before) {
+                AddError(errors, "entity.id", "entities", file.string(),
+                         "entity entry needs an id matching [a-z0-9_]+ (1-32)");
+            }
+            ok = false;
+            continue;
+        }
+        if (!seen.insert(entity.id).second) {
+            AddError(errors, "entity.id.duplicate", "entities", file.string(),
+                     "duplicate entity id '" + entity.id + "'");
+            ok = false;
+            continue;
+        }
+        out.push_back(std::move(entity));
+    }
+    return ok;
+}
+
+/* INFO: one presentation per file. Structural checks only;
+ *       modifier kinds, merge modes, target grammar and trigger sources are
+ *       the semantic validator's job. */
+bool ParsePresentationEntry(const nlohmann::json& entry,
+                            const std::string& ns,
+                            PresentationDef& out,
+                            std::vector<LoadError>& errors,
+                            const std::string& path) {
+    if (!entry.is_object()) {
+        AddError(errors, "presentation.shape", "presentations", path,
+                 "presentation file must be a JSON object");
+        return false;
+    }
+    if (!ParseStringField(entry, "id", out.id) || !IsValidLocalId(out.id)) {
+        return false;
+    }
+    if (!ParseStringField(entry, "target", out.target)) {
+        AddError(errors, "presentation.target", "presentations", path,
+                 "presentation '" + out.id + "' requires a string 'target'");
+        return false;
+    }
+    const auto modifiers = entry.find("modifiers");
+    if (modifiers == entry.end() || !modifiers->is_array()) {
+        AddError(errors, "presentation.modifiers", "presentations", path,
+                 "presentation '" + out.id + "' requires a 'modifiers' array");
+        return false;
+    }
+    out.namespace_id = ns;
+    out.presentation_id = ns + ":" + out.id;
+    out.raw = entry;
+
+    const auto priority = entry.find("priority");
+    if (priority != entry.end() && priority->is_number_integer()) {
+        out.priority = priority->get<int64_t>();
+    }
+
+    bool ok = true;
+    for (const auto& raw_modifier : *modifiers) {
+        ModifierDef modifier;
+        if (!raw_modifier.is_object()
+            || !ParseStringField(raw_modifier, "kind", modifier.kind)) {
+            AddError(errors, "presentation.modifier", "presentations", path,
+                     "presentation '" + out.id
+                         + "' modifiers must be objects with a string 'kind'");
+            ok = false;
+            continue;
+        }
+        modifier.params = raw_modifier;
+        out.modifiers.push_back(std::move(modifier));
+    }
+
+    const auto triggers = entry.find("triggers");
+    if (triggers != entry.end()) {
+        if (!triggers->is_array()) {
+            AddError(errors, "presentation.trigger", "presentations", path,
+                     "presentation '" + out.id + "' triggers must be an array");
+            ok = false;
+        } else {
+            for (const auto& raw_trigger : *triggers) {
+                if (!raw_trigger.is_object()) {
+                    AddError(errors, "presentation.trigger", "presentations",
+                             path,
+                             "presentation '" + out.id
+                                 + "' has a non-object trigger");
+                    ok = false;
+                    continue;
+                }
+                TriggerDef trigger;
+                (void)ParseOptionalStringField(raw_trigger, "on", trigger.on);
+                const auto where = raw_trigger.find("where");
+                if (where != raw_trigger.end()) trigger.where = *where;
+                const auto duration = raw_trigger.find("duration");
+                if (duration != raw_trigger.end() && duration->is_number()) {
+                    trigger.duration = duration->get<double>();
+                }
+                out.triggers.push_back(std::move(trigger));
+            }
+        }
+    }
+    return ok;
+}
+
+bool IsBindingFile(const nlohmann::json& entry);
+
+bool ScanPresentationsDirectory(const fs::path& dir,
+                                const std::string& ns,
+                                std::vector<PresentationDef>& out,
+                                std::vector<LoadError>& errors) {
+    bool ok = true;
+    std::set<std::string> seen;
+    for (const fs::path& file : ListJsonFiles(dir, "presentations", errors)) {
+        nlohmann::json entry;
+        if (!ReadJsonFile(file, entry, errors, "presentations")) {
+            ok = false;
+            continue;
+        }
+        if (IsBindingFile(entry)) continue;
+        PresentationDef presentation;
+        std::size_t before = errors.size();
+        if (!ParsePresentationEntry(entry, ns, presentation, errors,
+                                    file.string())) {
+            if (errors.size() == before) {
+                AddError(errors, "presentation.id", "presentations",
+                         file.string(),
+                         "presentation entry needs an id matching [a-z0-9_]+ "
+                         "(1-32)");
+            }
+            ok = false;
+            continue;
+        }
+        if (!seen.insert(presentation.id).second) {
+            AddError(errors, "presentation.id.duplicate", "presentations",
+                     file.string(),
+                     "duplicate presentation id '" + presentation.id + "'");
+            ok = false;
+            continue;
+        }
+        out.push_back(std::move(presentation));
+    }
+    return ok;
+}
+
+/* INFO: `major[.minor[.patch]]`, each part digits only, major supported. */
+bool IsSupportedFormatVersion(const std::string& text) {
+    std::size_t start = 0;
+    int parts = 0;
+    int major = -1;
+    while (start <= text.size()) {
+        const std::size_t dot = text.find('.', start);
+        const std::size_t end = dot == std::string::npos ? text.size() : dot;
+        if (end == start) return false;
+        int value = 0;
+        const auto parsed =
+            std::from_chars(text.data() + start, text.data() + end, value);
+        if (parsed.ec != std::errc() || parsed.ptr != text.data() + end) {
+            return false;
+        }
+        if (parts == 0) major = value;
+        ++parts;
+        if (dot == std::string::npos) break;
+        start = dot + 1;
+    }
+    return parts <= 3 && major == event_keys::kSupportedFormatMajor;
+}
+
+/* INFO: a mod version enters the client cache key `id@version#hash|...`, so
+ *       it may not hold `|` or `#`. */
+bool IsValidModVersion(const std::string& version) {
+    if (version.empty()) return false;
+    return std::all_of(version.begin(), version.end(), [](unsigned char c) {
+        return std::isalnum(c) || c == '.' || c == '+' || c == '-';
+    });
+}
+
+/* INFO: one event definition per file, version 1 style. Structural checks
+ *       and the namespace rule only; the closed word lists (type, audience,
+ *       retention) are the schema's and the semantic validator's job. */
+bool ParseEventEntry(const nlohmann::json& entry,
+                     const std::string& mod_id,
+                     EventDef& out,
+                     std::vector<LoadError>& errors,
+                     const std::string& path) {
+    namespace keys = event_keys;
+    if (!entry.is_object()) {
+        AddError(errors, "event.shape", "events", path,
+                 "event file must be a JSON object");
+        return false;
+    }
+    const auto version = entry.find(std::string(keys::kFormatVersion));
+    if (version == entry.end() || !version->is_string()
+        || !IsSupportedFormatVersion(version->get<std::string>())) {
+        AddError(errors, "event.format_version", "events", path,
+                 "event file needs '" + std::string(keys::kFormatVersion)
+                     + "' with major version "
+                     + std::to_string(keys::kSupportedFormatMajor));
+        return false;
+    }
+    const auto event = entry.find(std::string(keys::kEvent));
+    if (event == entry.end() || !event->is_object()) {
+        AddError(errors, "event.shape", "events", path,
+                 "event file needs a '" + std::string(keys::kEvent)
+                     + "' object");
+        return false;
+    }
+    const auto description = event->find(std::string(keys::kDescription));
+    std::string identifier;
+    if (description == event->end() || !description->is_object()
+        || !ParseStringField(*description, std::string(keys::kIdentifier),
+                             identifier)) {
+        AddError(errors, "event.identifier", "events", path,
+                 "event needs '" + std::string(keys::kDescription) + "."
+                     + std::string(keys::kIdentifier) + "'");
+        return false;
+    }
+    const std::string violation = NamespaceRuleViolation(mod_id, identifier);
+    if (!violation.empty()) {
+        AddError(errors, "event.id.namespace", "events", path, violation);
+        return false;
+    }
+    out.event_id = identifier;
+    out.namespace_id = mod_id;
+    out.id = identifier.substr(mod_id.size() + 1);
+    out.retention = std::string(keys::kDefaultRetention);
+    const auto retention = event->find(std::string(keys::kRetention));
+    if (retention != event->end()) {
+        if (!retention->is_string()) {
+            AddError(errors, "event.retention", "events", path,
+                     "event '" + identifier + "' retention must be a string");
+            return false;
+        }
+        out.retention = retention->get<std::string>();
+    }
+    out.raw = entry;
+
+    const auto payload = event->find(std::string(keys::kPayload));
+    if (payload != event->end() && payload->is_object()) {
+        const auto fields = payload->find(std::string(keys::kFields));
+        if (fields != payload->end() && fields->is_object()) {
+            /* INFO: nlohmann objects iterate in key order, so the fields
+             *       are name-sorted without an explicit sort. */
+            if (fields->size() > keys::kMaxEventFields) {
+                AddError(errors, "event.fields.count", "events", path,
+                         "event '" + identifier + "' declares "
+                             + std::to_string(fields->size())
+                             + " fields; the maximum is "
+                             + std::to_string(keys::kMaxEventFields));
+                return false;
+            }
+            for (auto it = fields->begin(); it != fields->end(); ++it) {
+                EventFieldDef field;
+                field.name = it.key();
+                field.audience = std::string(keys::kDefaultAudience);
+                if (!it.value().is_object()) {
+                    AddError(errors, "event.field.shape", "events", path,
+                             "field '" + field.name + "' must be an object");
+                    return false;
+                }
+                const auto type = it.value().find(std::string(keys::kType));
+                if (type != it.value().end()) {
+                    if (!type->is_string()) {
+                        AddError(errors, "event.field.type", "events", path,
+                                 "field '" + field.name
+                                     + "' type must be a string");
+                        return false;
+                    }
+                    field.type = type->get<std::string>();
+                }
+                const auto audience =
+                    it.value().find(std::string(keys::kAudience));
+                if (audience != it.value().end()) {
+                    if (!audience->is_string()) {
+                        AddError(errors, "event.field.audience", "events",
+                                 path,
+                                 "field '" + field.name
+                                     + "' audience must be a string");
+                        return false;
+                    }
+                    field.audience = audience->get<std::string>();
+                }
+                if ((field.name == keys::kTargetRole
+                     || field.name == keys::kOwnerRole)
+                    && field.type != keys::kSeatType) {
+                    AddError(errors, "event.field.role_type", "events", path,
+                             "field '" + field.name
+                                 + "' names a seat role and must have type '"
+                                 + std::string(keys::kSeatType) + "'");
+                    return false;
+                }
+                out.fields.push_back(std::move(field));
+            }
+        }
+    }
+    const auto context = event->find(std::string(keys::kContext));
+    if (context != event->end() && context->is_array()) {
+        for (const nlohmann::json& name : *context) {
+            if (name.is_string()) {
+                out.context.push_back(name.get<std::string>());
+            }
+        }
+    }
+    return true;
+}
+
+bool ScanEventsDirectory(const fs::path& dir,
+                         const std::string& mod_id,
+                         std::vector<EventDef>& out,
+                         std::vector<LoadError>& errors) {
+    bool ok = true;
+    std::set<std::string> seen;
+    for (const fs::path& file : ListJsonFiles(dir, "events", errors)) {
+        nlohmann::json entry;
+        if (!ReadJsonFile(file, entry, errors, "events")) {
+            ok = false;
+            continue;
+        }
+        EventDef event;
+        if (!ParseEventEntry(entry, mod_id, event, errors, file.string())) {
+            ok = false;
+            continue;
+        }
+        if (!seen.insert(event.event_id).second) {
+            AddError(errors, "event.id.duplicate", "events", file.string(),
+                     "duplicate event id '" + event.event_id + "'");
+            ok = false;
+            continue;
+        }
+        out.push_back(std::move(event));
+    }
+    return ok;
+}
+
+/* INFO: the tests of one matcher or of one binding case, version 1 style.
+ *       Shape only; the closed word lists and the field checks are the
+ *       schema's and the validator's job. */
+bool ParseMatcherTests(const nlohmann::json& tests,
+                       std::vector<StreakTestDef>& out,
+                       std::vector<LoadError>& errors,
+                       const std::string& path, const std::string& check,
+                       const std::string& artifact) {
+    namespace keys = streak_keys;
+    if (!tests.is_array() || tests.size() > keys::kMaxMatcherTests) {
+        AddError(errors, check, artifact, path,
+                 "'" + std::string(keys::kTests) + "' must be an array of at "
+                     "most " + std::to_string(keys::kMaxMatcherTests)
+                     + " tests");
+        return false;
+    }
+    for (const nlohmann::json& item : tests) {
+        StreakTestDef test;
+        if (!item.is_object()
+            || !ParseStringField(item, std::string(keys::kTest), test.test)) {
+            AddError(errors, check, artifact, path,
+                     "a test needs an object with '"
+                         + std::string(keys::kTest) + "'");
+            return false;
+        }
+        (void)ParseStringField(item, std::string(keys::kField), test.field);
+        (void)ParseStringField(item, std::string(keys::kState), test.state);
+        (void)ParseStringField(item, std::string(keys::kTag), test.tag);
+        (void)ParseStringField(item, std::string(keys::kRelation),
+                               test.relation);
+        (void)ParseStringField(item, std::string(binding_keys::kRole),
+                               test.role);
+        (void)ParseStringField(item, std::string(binding_keys::kParamStreak),
+                               test.streak);
+        (void)ParseStringField(item, std::string(binding_keys::kParamKey),
+                               test.key);
+        (void)ParseStringField(item, std::string(binding_keys::kParamKeyField),
+                               test.key_field);
+        const auto value = item.find(std::string(keys::kValue));
+        if (value != item.end()) test.value = *value;
+        const auto values = item.find(std::string(keys::kValues));
+        if (values != item.end() && values->is_array()) test.values = *values;
+        const auto negate = item.find(std::string(keys::kNegate));
+        test.negate =
+            negate != item.end() && negate->is_boolean() && negate->get<bool>();
+        const auto actor = item.find(std::string(binding_keys::kParamActor));
+        test.actor =
+            actor != item.end() && actor->is_boolean() && actor->get<bool>();
+        out.push_back(std::move(test));
+    }
+    return true;
+}
+
+/* INFO: one matcher, version 1 style. */
+bool ParseStreakMatcher(const nlohmann::json& entry, StreakMatcherDef& out,
+                        std::vector<LoadError>& errors,
+                        const std::string& path,
+                        const std::string& check = "streak.matcher",
+                        const std::string& artifact = "streaks") {
+    namespace keys = streak_keys;
+    if (!entry.is_object()
+        || !ParseStringField(entry, std::string(keys::kMatcherEvent),
+                             out.event)) {
+        AddError(errors, check, artifact, path,
+                 "a matcher needs an object with '"
+                     + std::string(keys::kMatcherEvent) + "'");
+        return false;
+    }
+    const auto tests = entry.find(std::string(keys::kTests));
+    if (tests == entry.end()) return true;
+    return ParseMatcherTests(*tests, out.tests, errors, path, check, artifact);
+}
+
+/* INFO: a file of `presentations/` is a binding (new kind) when it has the
+ *       top level key `uni:binding` or `uni:format_version`. Everything else
+ *       is the old presentation kind. */
+bool IsBindingFile(const nlohmann::json& entry) {
+    return entry.is_object()
+           && (entry.contains(std::string(binding_keys::kBinding))
+               || entry.contains(std::string(binding_keys::kFormatVersion)));
+}
+
+bool ParseBindingSounds(const nlohmann::json& present, BindingCaseDef& out,
+                        std::vector<LoadError>& errors,
+                        const std::string& path) {
+    namespace keys = binding_keys;
+    const auto sounds = present.find(std::string(keys::kSounds));
+    if (sounds == present.end()) return true;
+    if (!sounds->is_array() || sounds->size() > keys::kMaxSounds) {
+        AddError(errors, "binding.present", "presentations", path,
+                 "'" + std::string(keys::kSounds) + "' must be an array of at "
+                     "most " + std::to_string(keys::kMaxSounds) + " sounds");
+        return false;
+    }
+    for (const nlohmann::json& item : *sounds) {
+        BindingSoundDef sound;
+        if (!item.is_object()
+            || !ParseStringField(item, std::string(keys::kSound),
+                                 sound.sound)) {
+            AddError(errors, "binding.present", "presentations", path,
+                     "a sound needs an object with '"
+                         + std::string(keys::kSound) + "'");
+            return false;
+        }
+        const auto volume = item.find(std::string(keys::kVolume));
+        if (volume != item.end() && volume->is_number()) {
+            sound.volume = volume->get<double>();
+        }
+        const auto pitch = item.find(std::string(keys::kPitch));
+        if (pitch != item.end() && pitch->is_number()) {
+            sound.pitch = pitch->get<double>();
+        }
+        out.sounds.push_back(std::move(sound));
+    }
+    return true;
+}
+
+bool ParseBindingParam(const nlohmann::json& item, BindingParamDef& out) {
+    namespace keys = binding_keys;
+    if (!item.is_object()) return false;
+    (void)ParseStringField(item, std::string(keys::kParamField), out.field);
+    (void)ParseStringField(item, std::string(keys::kParamStreak), out.streak);
+    (void)ParseStringField(item, std::string(keys::kParamKey), out.key);
+    (void)ParseStringField(item, std::string(keys::kParamKeyField),
+                           out.key_field);
+    const auto value = item.find(std::string(keys::kParamValue));
+    if (value != item.end() && (value->is_string() || value->is_number())) {
+        out.value = *value;
+    }
+    const auto fallback = item.find(std::string(keys::kParamDefault));
+    if (fallback != item.end()
+        && (fallback->is_string() || fallback->is_number())) {
+        out.default_value = *fallback;
+    }
+    const auto part = item.find(std::string(keys::kParamCardPart));
+    if (part != item.end() && part->is_string()) {
+        out.card_part = part->get<std::string>();
+    }
+    const auto actor = item.find(std::string(keys::kParamActor));
+    out.actor = actor != item.end() && actor->is_boolean()
+                && actor->get<bool>();
+    const auto cause = item.find(std::string(keys::kParamCause));
+    out.cause = cause != item.end() && cause->is_boolean()
+                && cause->get<bool>();
+    return true;
+}
+
+bool ParseBindingLog(const nlohmann::json& present, BindingCaseDef& out,
+                     std::vector<LoadError>& errors,
+                     const std::string& path) {
+    namespace keys = binding_keys;
+    const auto log = present.find(std::string(keys::kLog));
+    if (log == present.end()) return true;
+    const auto variants =
+        log->is_object() ? log->find(std::string(keys::kVariants))
+                         : log->end();
+    if (!log->is_object() || variants == log->end() || !variants->is_array()
+        || variants->size() > keys::kMaxVariants) {
+        AddError(errors, "binding.present", "presentations", path,
+                 "'" + std::string(keys::kLog) + "' needs '"
+                     + std::string(keys::kVariants) + "' with at most "
+                     + std::to_string(keys::kMaxVariants) + " keys");
+        return false;
+    }
+    BindingLogDef line;
+    for (const nlohmann::json& key : *variants) {
+        if (!key.is_string()) {
+            AddError(errors, "binding.present", "presentations", path,
+                     "a log variant must be a string key");
+            return false;
+        }
+        line.variants.push_back(key.get<std::string>());
+    }
+    const auto params = log->find(std::string(keys::kParams));
+    if (params != log->end()) {
+        if (!params->is_object() || params->size() > keys::kMaxParams) {
+            AddError(errors, "binding.present", "presentations", path,
+                     "'" + std::string(keys::kParams)
+                         + "' must be an object with at most "
+                         + std::to_string(keys::kMaxParams) + " entries");
+            return false;
+        }
+        for (auto it = params->begin(); it != params->end(); ++it) {
+            BindingParamDef param;
+            if (!ParseBindingParam(it.value(), param)) {
+                AddError(errors, "binding.present", "presentations", path,
+                         "log parameter '" + it.key()
+                             + "' must be an object");
+                return false;
+            }
+            line.params[it.key()] = std::move(param);
+        }
+    }
+    out.log = std::move(line);
+    return true;
+}
+
+bool ParseBindingBeats(const nlohmann::json& present, BindingCaseDef& out,
+                       std::vector<LoadError>& errors,
+                       const std::string& path) {
+    namespace keys = binding_keys;
+    const auto beats = present.find(std::string(keys::kBeats));
+    if (beats == present.end()) return true;
+    if (!beats->is_array() || beats->size() > keys::kMaxBeats) {
+        AddError(errors, "binding.present", "presentations", path,
+                 "'" + std::string(keys::kBeats) + "' must be an array of at "
+                     "most " + std::to_string(keys::kMaxBeats) + " beats");
+        return false;
+    }
+    for (const nlohmann::json& beat : *beats) {
+        if (!beat.is_array() || beat.size() > keys::kMaxStepsPerBeat) {
+            AddError(errors, "binding.present", "presentations", path,
+                     "a beat must be an array of at most "
+                         + std::to_string(keys::kMaxStepsPerBeat) + " steps");
+            return false;
+        }
+        out.beats.push_back(beat);
+    }
+    return true;
+}
+
+bool ParseBindingCase(const nlohmann::json& entry, BindingCaseDef& out,
+                      std::vector<LoadError>& errors,
+                      const std::string& path) {
+    namespace keys = binding_keys;
+    const auto present =
+        entry.is_object() ? entry.find(std::string(keys::kPresent))
+                          : entry.end();
+    if (!entry.is_object() || present == entry.end() || !present->is_object()) {
+        AddError(errors, "binding.present", "presentations", path,
+                 "a case needs a '" + std::string(keys::kPresent)
+                     + "' object");
+        return false;
+    }
+    const auto tests = entry.find(std::string(keys::kTests));
+    if (tests != entry.end()
+        && !ParseMatcherTests(*tests, out.tests, errors, path,
+                              "binding.cases", "presentations")) {
+        return false;
+    }
+    (void)ParseStringField(*present, std::string(keys::kGlossary),
+                           out.glossary);
+    return ParseBindingBeats(*present, out, errors, path)
+           && ParseBindingSounds(*present, out, errors, path)
+           && ParseBindingLog(*present, out, errors, path);
+}
+
+/* INFO: one binding per file, version 1 style. Structural checks and the
+ *       namespace rule only. */
+bool ParseBindingEntry(const nlohmann::json& entry, const std::string& mod_id,
+                       BindingDef& out, std::vector<LoadError>& errors,
+                       const std::string& path) {
+    namespace keys = binding_keys;
+    const auto version = entry.find(std::string(keys::kFormatVersion));
+    if (version == entry.end() || !version->is_string()
+        || !IsSupportedFormatVersion(version->get<std::string>())) {
+        AddError(errors, "binding.format_version", "presentations", path,
+                 "binding file needs '" + std::string(keys::kFormatVersion)
+                     + "' with major version "
+                     + std::to_string(event_keys::kSupportedFormatMajor));
+        return false;
+    }
+    const auto binding = entry.find(std::string(keys::kBinding));
+    if (binding == entry.end() || !binding->is_object()) {
+        AddError(errors, "binding.shape", "presentations", path,
+                 "binding file needs a '" + std::string(keys::kBinding)
+                     + "' object");
+        return false;
+    }
+    const auto description = binding->find(std::string(keys::kDescription));
+    std::string identifier;
+    if (description == binding->end() || !description->is_object()
+        || !ParseStringField(*description, std::string(keys::kIdentifier),
+                             identifier)) {
+        AddError(errors, "binding.identifier", "presentations", path,
+                 "binding needs '" + std::string(keys::kDescription) + "."
+                     + std::string(keys::kIdentifier) + "'");
+        return false;
+    }
+    const std::string violation = NamespaceRuleViolation(mod_id, identifier);
+    if (!violation.empty()) {
+        AddError(errors, "binding.id.namespace", "presentations", path,
+                 violation);
+        return false;
+    }
+    out.binding_id = identifier;
+    out.namespace_id = mod_id;
+    out.id = identifier.substr(mod_id.size() + 1);
+    out.raw = entry;
+    std::string select;
+    if (ParseStringField(*binding, std::string(keys::kSelect), select)) {
+        out.select = select;
+    }
+    if (!ParseStringField(*binding, std::string(keys::kEvent), out.event)) {
+        AddError(errors, "binding.event", "presentations", path,
+                 "binding '" + identifier + "' needs a string '"
+                     + std::string(keys::kEvent) + "'");
+        return false;
+    }
+    const auto cases = binding->find(std::string(keys::kCases));
+    if (cases == binding->end() || !cases->is_array() || cases->empty()
+        || cases->size() > keys::kMaxCases) {
+        AddError(errors, "binding.cases", "presentations", path,
+                 "binding '" + identifier + "' needs '"
+                     + std::string(keys::kCases) + "' with 1 to "
+                     + std::to_string(keys::kMaxCases) + " cases");
+        return false;
+    }
+    for (const nlohmann::json& item : *cases) {
+        BindingCaseDef binding_case;
+        if (!ParseBindingCase(item, binding_case, errors, path)) return false;
+        out.cases.push_back(std::move(binding_case));
+    }
+    return true;
+}
+
+bool ScanBindingsDirectory(const fs::path& dir, const std::string& mod_id,
+                           std::vector<BindingDef>& out,
+                           std::vector<LoadError>& errors) {
+    bool ok = true;
+    std::set<std::string> seen;
+    for (const fs::path& file : ListJsonFiles(dir, "presentations", errors)) {
+        nlohmann::json entry;
+        if (!ReadJsonFile(file, entry, errors, "presentations")) continue;
+        if (!IsBindingFile(entry)) continue;
+        BindingDef binding;
+        if (!ParseBindingEntry(entry, mod_id, binding, errors, file.string())) {
+            ok = false;
+            continue;
+        }
+        if (!seen.insert(binding.binding_id).second) {
+            AddError(errors, "binding.id.duplicate", "presentations",
+                     file.string(),
+                     "duplicate binding id '" + binding.binding_id + "'");
+            ok = false;
+            continue;
+        }
+        out.push_back(std::move(binding));
+    }
+    return ok;
+}
+
+bool PathIsInside(const fs::path& path, const fs::path& root) {
+    const auto [root_end, path_it] =
+        std::mismatch(root.begin(), root.end(), path.begin(), path.end());
+    return root_end == root.end();
+}
+
+/* INFO: reads the `texts/<locale>.json` files. A file that is too large,
+ *       unreadable, or not JSON keeps a `read_error`, and the "texts"
+ *       validation stage reports it. A file over the size limit is not read
+ *       at all. A symlink, and a file whose real path leaves the mod folder,
+ *       is a load error: the server must not read a file outside the mod. */
+bool ScanTextsDirectory(const fs::path& mod_root, std::vector<TextsFileDef>& out,
+                        std::vector<LoadError>& errors) {
+    const fs::path dir = mod_root / "texts";
+    std::error_code ec;
+    if (!fs::is_directory(dir, ec)) return true;
+    const fs::path real_root = fs::weakly_canonical(mod_root, ec);
+    const fs::path real_dir = fs::weakly_canonical(dir, ec);
+    if (ec || fs::is_symlink(dir) || !PathIsInside(real_dir, real_root)) {
+        AddError(errors, "texts.symlink", "texts", dir.string(),
+                 "the texts folder must be a real folder inside the mod");
+        return false;
+    }
+    std::vector<fs::path> files;
+    for (const auto& entry : fs::directory_iterator(dir, ec)) {
+        if (entry.path().extension() != ".json") continue;
+        if (entry.is_symlink()) {
+            AddError(errors, "texts.symlink", "texts", entry.path().string(),
+                     "a texts file must not be a symlink");
+            return false;
+        }
+        if (entry.is_regular_file()) files.push_back(entry.path());
+    }
+    std::sort(files.begin(), files.end());
+    for (const fs::path& file : files) {
+        TextsFileDef texts;
+        texts.locale = file.stem().string();
+        texts.path = file.string();
+        texts.size = fs::file_size(file, ec);
+        if (ec) {
+            texts.read_error = "cannot read the file";
+        } else if (texts.size > texts_limits::kMaxTextsFileBytes) {
+            texts.read_error = "the file is too large to read";
+        } else {
+            std::ifstream input(file, std::ios::binary);
+            const std::string bytes((std::istreambuf_iterator<char>(input)),
+                                    std::istreambuf_iterator<char>());
+            texts.hash = Sha256Hex(bytes);
+            texts.content = nlohmann::json::parse(bytes, nullptr, false);
+            if (texts.content.is_discarded()) {
+                texts.content = nullptr;
+                texts.read_error = "the file is not valid JSON";
+            }
+        }
+        out.push_back(std::move(texts));
+    }
+    return true;
+}
+
+/* INFO: one streak definition per file, version 1 style. Structural checks
+ *       and the namespace rule only. */
+bool ParseStreakEntry(const nlohmann::json& entry, const std::string& mod_id,
+                      StreakDef& out, std::vector<LoadError>& errors,
+                      const std::string& path) {
+    namespace keys = streak_keys;
+    if (!entry.is_object()) {
+        AddError(errors, "streak.shape", "streaks", path,
+                 "streak file must be a JSON object");
+        return false;
+    }
+    const auto version = entry.find(std::string(keys::kFormatVersion));
+    if (version == entry.end() || !version->is_string()
+        || !IsSupportedFormatVersion(version->get<std::string>())) {
+        AddError(errors, "streak.format_version", "streaks", path,
+                 "streak file needs '" + std::string(keys::kFormatVersion)
+                     + "' with major version "
+                     + std::to_string(event_keys::kSupportedFormatMajor));
+        return false;
+    }
+    const auto streak = entry.find(std::string(keys::kStreak));
+    if (streak == entry.end() || !streak->is_object()) {
+        AddError(errors, "streak.shape", "streaks", path,
+                 "streak file needs a '" + std::string(keys::kStreak)
+                     + "' object");
+        return false;
+    }
+    const auto description = streak->find(std::string(keys::kDescription));
+    std::string identifier;
+    if (description == streak->end() || !description->is_object()
+        || !ParseStringField(*description, std::string(keys::kIdentifier),
+                             identifier)) {
+        AddError(errors, "streak.identifier", "streaks", path,
+                 "streak needs '" + std::string(keys::kDescription) + "."
+                     + std::string(keys::kIdentifier) + "'");
+        return false;
+    }
+    const std::string violation = NamespaceRuleViolation(mod_id, identifier);
+    if (!violation.empty()) {
+        AddError(errors, "streak.id.namespace", "streaks", path, violation);
+        return false;
+    }
+    out.streak_id = identifier;
+    out.namespace_id = mod_id;
+    out.id = identifier.substr(mod_id.size() + 1);
+    out.raw = entry;
+    if (!ParseStringField(*streak, std::string(keys::kType), out.type)) {
+        AddError(errors, "streak.type", "streaks", path,
+                 "streak '" + identifier + "' needs a string '"
+                     + std::string(keys::kType) + "'");
+        return false;
+    }
+    const auto matcher = streak->find(std::string(keys::kMatcher));
+    if (matcher == streak->end()
+        || !ParseStreakMatcher(*matcher, out.matcher, errors, path)) {
+        if (matcher == streak->end()) {
+            AddError(errors, "streak.matcher", "streaks", path,
+                     "streak '" + identifier + "' needs a '"
+                         + std::string(keys::kMatcher) + "'");
+        }
+        return false;
+    }
+    (void)ParseStringField(*streak, std::string(keys::kGroupBy), out.group_by);
+    (void)ParseStringField(*streak, std::string(keys::kValueField),
+                           out.value_field);
+    const auto reset_on = streak->find(std::string(keys::kResetOn));
+    if (reset_on != streak->end()) {
+        if (!reset_on->is_array()
+            || reset_on->size() > keys::kMaxResetMatchers) {
+            AddError(errors, "streak.matcher", "streaks", path,
+                     "'" + std::string(keys::kResetOn)
+                         + "' must be an array of at most "
+                         + std::to_string(keys::kMaxResetMatchers)
+                         + " matchers");
+            return false;
+        }
+        for (const nlohmann::json& item : *reset_on) {
+            StreakMatcherDef reset;
+            if (!ParseStreakMatcher(item, reset, errors, path)) return false;
+            out.reset_on.push_back(std::move(reset));
+        }
+    }
+    return true;
+}
+
+bool ScanStreaksDirectory(const fs::path& dir, const std::string& mod_id,
+                          std::vector<StreakDef>& out,
+                          std::vector<LoadError>& errors) {
+    bool ok = true;
+    std::set<std::string> seen;
+    for (const fs::path& file : ListJsonFiles(dir, "streaks", errors)) {
+        nlohmann::json entry;
+        if (!ReadJsonFile(file, entry, errors, "streaks")) {
+            ok = false;
+            continue;
+        }
+        StreakDef streak;
+        if (!ParseStreakEntry(entry, mod_id, streak, errors, file.string())) {
+            ok = false;
+            continue;
+        }
+        if (!seen.insert(streak.streak_id).second) {
+            AddError(errors, "streak.id.duplicate", "streaks", file.string(),
+                     "duplicate streak id '" + streak.streak_id + "'");
+            ok = false;
+            continue;
+        }
+        out.push_back(std::move(streak));
+    }
+    return ok;
+}
+
+/* INFO: one list of seat matchers of a derived event: a matcher plus the
+ *       payload field that names the seat. */
+bool ParseSeatMatchers(const nlohmann::json& parent, std::string_view key,
+                       std::vector<DerivedSeatMatcherDef>& out,
+                       std::vector<LoadError>& errors,
+                       const std::string& path) {
+    const auto list = parent.find(std::string(key));
+    if (list == parent.end()) return true;
+    if (!list->is_array() || list->empty()
+        || list->size() > derived_keys::kMaxSeatMatchers) {
+        AddError(errors, "derived.matcher", "derived", path,
+                 "'" + std::string(key) + "' must be an array of 1 to "
+                     + std::to_string(derived_keys::kMaxSeatMatchers)
+                     + " matchers");
+        return false;
+    }
+    for (const nlohmann::json& item : *list) {
+        DerivedSeatMatcherDef seat_matcher;
+        if (!ParseStreakMatcher(item, seat_matcher.matcher, errors, path,
+                                "derived.matcher", "derived")) {
+            return false;
+        }
+        if (!ParseStringField(item, std::string(derived_keys::kSeatField),
+                              seat_matcher.seat_field)
+            || seat_matcher.seat_field.empty()) {
+            AddError(errors, "derived.matcher", "derived", path,
+                     "a matcher of '" + std::string(key) + "' needs '"
+                         + std::string(derived_keys::kSeatField) + "'");
+            return false;
+        }
+        out.push_back(std::move(seat_matcher));
+    }
+    return true;
+}
+
+/* INFO: one derived event definition per file, version 1 style. Structural
+ *       checks and the namespace rule only. Only the `uni` mod may define
+ *       derived events: they are core events. */
+bool ParseDerivedEntry(const nlohmann::json& entry, const std::string& mod_id,
+                       DerivedEventDef& out, std::vector<LoadError>& errors,
+                       const std::string& path) {
+    namespace keys = derived_keys;
+    if (!entry.is_object()) {
+        AddError(errors, "derived.shape", "derived", path,
+                 "derived event file must be a JSON object");
+        return false;
+    }
+    const auto version =
+        entry.find(std::string(streak_keys::kFormatVersion));
+    if (version == entry.end() || !version->is_string()
+        || !IsSupportedFormatVersion(version->get<std::string>())) {
+        AddError(errors, "derived.format_version", "derived", path,
+                 "derived event file needs '"
+                     + std::string(streak_keys::kFormatVersion)
+                     + "' with major version "
+                     + std::to_string(event_keys::kSupportedFormatMajor));
+        return false;
+    }
+    const auto body = entry.find(std::string(keys::kDerivedEvent));
+    if (body == entry.end() || !body->is_object()) {
+        AddError(errors, "derived.shape", "derived", path,
+                 "derived event file needs a '"
+                     + std::string(keys::kDerivedEvent) + "' object");
+        return false;
+    }
+    const auto description =
+        body->find(std::string(streak_keys::kDescription));
+    std::string identifier;
+    if (description == body->end() || !description->is_object()
+        || !ParseStringField(*description,
+                             std::string(streak_keys::kIdentifier),
+                             identifier)) {
+        AddError(errors, "derived.identifier", "derived", path,
+                 "derived event needs '"
+                     + std::string(streak_keys::kDescription) + "."
+                     + std::string(streak_keys::kIdentifier) + "'");
+        return false;
+    }
+    std::string violation = NamespaceRuleViolation(mod_id, identifier);
+    if (violation.empty() && mod_id != "uni") {
+        violation = "mod '" + mod_id
+                    + "' cannot define a derived event: derived events are "
+                      "core events and only the uni mod defines them";
+    }
+    if (!violation.empty()) {
+        AddError(errors, "derived.id.namespace", "derived", path, violation);
+        return false;
+    }
+    out.derived_id = identifier;
+    out.namespace_id = mod_id;
+    out.id = identifier.substr(mod_id.size() + 1);
+    out.raw = entry;
+    if (!ParseStringField(*body, std::string(keys::kEmits), out.emits)) {
+        AddError(errors, "derived.emits", "derived", path,
+                 "derived event '" + identifier + "' needs a string '"
+                     + std::string(keys::kEmits) + "'");
+        return false;
+    }
+    if (!ParseSeatMatchers(*body, keys::kOpenOn, out.open_on, errors, path)
+        || !ParseSeatMatchers(*body, keys::kCloseOn, out.close_on, errors,
+                              path)
+        || !ParseSeatMatchers(*body, keys::kBlockOn, out.block_on, errors,
+                              path)) {
+        return false;
+    }
+    (void)ParseStringField(*body, std::string(keys::kWindowOf),
+                           out.window_of);
+    const bool is_window = !out.open_on.empty();
+    const bool is_block = !out.block_on.empty() && !out.window_of.empty();
+    const bool stray_window_keys = !out.close_on.empty() && !is_window;
+    const bool stray_block_keys =
+        (!out.block_on.empty() || !out.window_of.empty()) && !is_block;
+    if (is_window == is_block || stray_window_keys || stray_block_keys) {
+        AddError(errors, "derived.kind", "derived", path,
+                 "derived event '" + identifier + "' must set either '"
+                     + std::string(keys::kOpenOn) + "' (a window) or '"
+                     + std::string(keys::kBlockOn) + "' with '"
+                     + std::string(keys::kWindowOf) + "' (a block)");
+        return false;
+    }
+    out.kind = std::string(is_window ? keys::kWindowKind : keys::kBlockKind);
+    return true;
+}
+
+bool ScanDerivedDirectory(const fs::path& dir, const std::string& mod_id,
+                          std::vector<DerivedEventDef>& out,
+                          std::vector<LoadError>& errors) {
+    bool ok = true;
+    std::set<std::string> seen;
+    for (const fs::path& file : ListJsonFiles(dir, "derived", errors)) {
+        nlohmann::json entry;
+        if (!ReadJsonFile(file, entry, errors, "derived")) {
+            ok = false;
+            continue;
+        }
+        DerivedEventDef derived;
+        if (!ParseDerivedEntry(entry, mod_id, derived, errors,
+                               file.string())) {
+            ok = false;
+            continue;
+        }
+        if (!seen.insert(derived.derived_id).second) {
+            AddError(errors, "derived.id.duplicate", "derived", file.string(),
+                     "duplicate derived event id '" + derived.derived_id
+                         + "'");
+            ok = false;
+            continue;
+        }
+        out.push_back(std::move(derived));
+    }
+    return ok;
+}
+
+/* INFO: one explicit glossary entry per file, version 1 style. The entry
+ *       holds translation keys only. Structural checks and the namespace
+ *       rule; the key syntax is a semantic check. */
+bool ParseGlossaryEntry(const nlohmann::json& entry, const std::string& mod_id,
+                        GlossaryEntryDef& out, std::vector<LoadError>& errors,
+                        const std::string& path) {
+    namespace keys = glossary_keys;
+    if (!entry.is_object()) {
+        AddError(errors, "glossary.shape", "glossary", path,
+                 "glossary file must be a JSON object");
+        return false;
+    }
+    const auto version = entry.find(std::string(keys::kFormatVersion));
+    if (version == entry.end() || !version->is_string()
+        || !IsSupportedFormatVersion(version->get<std::string>())) {
+        AddError(errors, "glossary.format_version", "glossary", path,
+                 "glossary file needs '" + std::string(keys::kFormatVersion)
+                     + "' with major version "
+                     + std::to_string(event_keys::kSupportedFormatMajor));
+        return false;
+    }
+    const auto body = entry.find(std::string(keys::kGlossaryEntry));
+    if (body == entry.end() || !body->is_object()) {
+        AddError(errors, "glossary.shape", "glossary", path,
+                 "glossary file needs a '"
+                     + std::string(keys::kGlossaryEntry) + "' object");
+        return false;
+    }
+    const auto description = body->find(std::string(keys::kDescription));
+    std::string identifier;
+    if (description == body->end() || !description->is_object()
+        || !ParseStringField(*description, std::string(keys::kIdentifier),
+                             identifier)) {
+        AddError(errors, "glossary.identifier", "glossary", path,
+                 "glossary entry needs '" + std::string(keys::kDescription)
+                     + "." + std::string(keys::kIdentifier) + "'");
+        return false;
+    }
+    const std::string violation = NamespaceRuleViolation(mod_id, identifier);
+    if (!violation.empty()) {
+        AddError(errors, "glossary.id.namespace", "glossary", path,
+                 violation);
+        return false;
+    }
+    out.path = path;
+    out.entry_id = identifier;
+    out.namespace_id = mod_id;
+    out.raw = entry;
+    if (!ParseStringField(*body, std::string(keys::kLabelKey), out.label_key)
+        || !ParseStringField(*body, std::string(keys::kDescriptionKey),
+                             out.description_key)) {
+        AddError(errors, "glossary.keys", "glossary", path,
+                 "glossary entry '" + identifier + "' needs the string keys '"
+                     + std::string(keys::kLabelKey) + "' and '"
+                     + std::string(keys::kDescriptionKey) + "'");
+        return false;
+    }
+    return true;
+}
+
+bool ScanGlossaryDirectory(const fs::path& dir, const std::string& mod_id,
+                           std::vector<GlossaryEntryDef>& out,
+                           std::vector<LoadError>& errors) {
+    bool ok = true;
+    std::set<std::string> seen;
+    for (const fs::path& file : ListJsonFiles(dir, "glossary", errors)) {
+        nlohmann::json entry;
+        if (!ReadJsonFile(file, entry, errors, "glossary")) {
+            ok = false;
+            continue;
+        }
+        GlossaryEntryDef definition;
+        if (!ParseGlossaryEntry(entry, mod_id, definition, errors,
+                                file.string())) {
+            ok = false;
+            continue;
+        }
+        if (!seen.insert(definition.entry_id).second) {
+            AddError(errors, "glossary.id.duplicate", "glossary", file.string(),
+                     "duplicate glossary entry id '" + definition.entry_id
+                         + "'");
+            ok = false;
+            continue;
+        }
+        out.push_back(std::move(definition));
     }
     return ok;
 }
@@ -1102,7 +2362,8 @@ bool ValidateModContent(const LoadedMod& mod,
     // Unknown top-level entries are ignored with a warning.
     static const std::set<std::string> kKnownEntries = {
         "mod.json", "cards", "rules", "statuses", "mutations", "decks",
-        "assets"};
+        "assets", "tables", "entities", "presentations", "events", "texts",
+        "glossary"};
     std::error_code ec;
     for (const auto& entry : fs::directory_iterator(root, ec)) {
         const std::string name = entry.path().filename().string();
@@ -1170,6 +2431,23 @@ bool IsValidKindId(const std::string& id) {
         && IsValidLocalId(id.substr(colon + 1));
 }
 
+std::string NamespaceRuleViolation(const std::string& mod_id,
+                                   const std::string& full_id) {
+    if (!IsValidKindId(full_id)) {
+        return "id '" + full_id
+               + "' needs the form namespace:name; an id with no namespace "
+                 "could collide with a core event";
+    }
+    const std::string id_namespace = full_id.substr(0, full_id.find(':'));
+    if (id_namespace == mod_id) return std::string();
+    if (IsBaseModId(id_namespace)) {
+        return "mod '" + mod_id + "' defines the uni id '" + full_id
+               + "'; only the uni mod defines uni: ids";
+    }
+    return "mod '" + mod_id + "' defines id '" + full_id
+           + "' outside its own namespace";
+}
+
 bool ParseApiVersion(const nlohmann::json& value, int& out) {
     if (value.is_number_integer()) {
         out = value.get<int>();
@@ -1208,6 +2486,19 @@ bool ParseModFolder(const std::string& folder_path,
         return false;
     }
 
+    if (IsBaseModId(manifest.id) && folder_name != kBaseModId) {
+        AddError(errors, "manifest.id.reserved", "mod", manifest_path.string(),
+                 "manifest id 'uni' is reserved for the folder 'uni'");
+        return false;
+    }
+
+    if (!IsValidModVersion(manifest.version)) {
+        AddError(errors, "manifest.version", "mod", manifest_path.string(),
+                 "manifest version '" + manifest.version
+                     + "' may hold only letters, digits, '.', '+' and '-'");
+        return false;
+    }
+
     int api = 0;
     if (!ParseApiVersion(manifest.raw.at("api"), api)) {
         AddError(errors, "manifest.api", "mod", manifest_path.string(),
@@ -1226,6 +2517,12 @@ bool ParseModFolder(const std::string& folder_path,
     loaded.folder = folder_name;
     loaded.path = folder_path;
     loaded.manifest = std::move(manifest);
+    loaded.content_hash = ComputeModContentHash(folder_path);
+    if (loaded.content_hash.empty()) {
+        AddError(errors, "mod.hash", "mod", manifest_path.string(),
+                 "cannot read every file of the mod to compute its hash");
+        return false;
+    }
 
     /* INFO: Entry sets are directories; a missing directory is an empty
      *       set, so a mod declares only the content it ships. */
@@ -1254,6 +2551,41 @@ bool ParseModFolder(const std::string& folder_path,
                              errors)) {
         ok = false;
     }
+    if (!ScanTablesDirectory(root / "tables", loaded.manifest.id, loaded.tables,
+                             errors)) {
+        ok = false;
+    }
+    if (!ScanEntitiesDirectory(root / "entities", loaded.manifest.id,
+                               loaded.entities, errors)) {
+        ok = false;
+    }
+    if (!ScanEventsDirectory(root / "events", loaded.manifest.id,
+                             loaded.events, errors)) {
+        return false;
+    }
+    if (!ScanStreaksDirectory(root / "streaks", loaded.manifest.id,
+                              loaded.streaks, errors)) {
+        return false;
+    }
+    if (!ScanDerivedDirectory(root / "derived", loaded.manifest.id,
+                              loaded.derived_events, errors)) {
+        return false;
+    }
+    if (!ScanPresentationsDirectory(root / "presentations", loaded.manifest.id,
+                                    loaded.presentations, errors)) {
+        ok = false;
+    }
+    if (!ScanBindingsDirectory(root / "presentations", loaded.manifest.id,
+                               loaded.bindings, errors)) {
+        ok = false;
+    }
+
+    if (!ScanGlossaryDirectory(root / "glossary", loaded.manifest.id,
+                               loaded.glossary, errors)) {
+        ok = false;
+    }
+
+    if (!ScanTextsDirectory(root, loaded.texts, errors)) ok = false;
 
     if (!ok) return false;
     out = std::move(loaded);

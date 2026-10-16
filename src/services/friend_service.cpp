@@ -1,4 +1,22 @@
 #include <services/friend_service.hpp>
+#include <nlohmann/json.hpp>
+
+namespace {
+
+// Parses the single TEXT cell our json_group_array queries return into a
+// string vector. Throws on corrupt input; callers convert that into
+// Error::DatabaseFail.
+std::vector<std::string> ParseJsonStringArray(const DbRow& row) {
+    nlohmann::json arr = nlohmann::json::parse(row.GetOr<std::string>("j", "[]"));
+    std::vector<std::string> out;
+    out.reserve(arr.size());
+    for (const auto& e : arr) {
+        out.push_back(e.get<std::string>());
+    }
+    return out;
+}
+
+}  // namespace
 
 FriendService::FriendService(Database& db) : db_(db) {}
 
@@ -80,50 +98,96 @@ VoidResult FriendService::RemoveFriend(const std::string& user, const std::strin
 }
 
 Result<std::vector<std::string>> FriendService::GetFriends(const std::string& user) {
-    auto rows = db_.Query(
-        "SELECT CASE WHEN user_a = ? THEN user_b ELSE user_a END AS friend_username "
-        "FROM friends WHERE status = 'accepted' AND (user_a = ? OR user_b = ?);",
+    auto row = db_.QueryOne(
+        "SELECT COALESCE(json_group_array(friend_username), '[]') AS j FROM "
+        "(SELECT CASE WHEN user_a = ? THEN user_b ELSE user_a END AS friend_username "
+        "FROM friends WHERE status = 'accepted' AND (user_a = ? OR user_b = ?));",
         {user, user, user});
-    if (!rows) {
-        return std::unexpected(rows.error());
+    if (!row) {
+        return std::unexpected(row.error());
     }
-
-    std::vector<std::string> friends;
-    friends.reserve(rows->size());
-    for (const auto& row : rows.value()) {
-        friends.push_back(row.Get<std::string>("friend_username"));
+    if (!row->has_value()) {
+        return std::vector<std::string>{};
     }
-    return friends;
+    try {
+        return ParseJsonStringArray(row->value());
+    } catch (const std::exception& e) {
+        return std::unexpected(Error::DatabaseFail(e.what()));
+    }
 }
 
 Result<std::vector<std::string>> FriendService::GetIncomingRequests(const std::string& user) {
-    auto rows = db_.Query(
-        "SELECT user_a FROM friends WHERE status = 'pending' AND user_b = ?;",
+    auto row = db_.QueryOne(
+        "SELECT COALESCE(json_group_array(user_a), '[]') AS j FROM "
+        "(SELECT user_a FROM friends WHERE status = 'pending' AND user_b = ?);",
         {user});
-    if (!rows) {
-        return std::unexpected(rows.error());
+    if (!row) {
+        return std::unexpected(row.error());
     }
-
-    std::vector<std::string> requesters;
-    requesters.reserve(rows->size());
-    for (const auto& row : rows.value()) {
-        requesters.push_back(row.Get<std::string>("user_a"));
+    if (!row->has_value()) {
+        return std::vector<std::string>{};
     }
-    return requesters;
+    try {
+        return ParseJsonStringArray(row->value());
+    } catch (const std::exception& e) {
+        return std::unexpected(Error::DatabaseFail(e.what()));
+    }
 }
 
 Result<std::vector<std::string>> FriendService::GetOutgoingRequests(const std::string& user) {
-    auto rows = db_.Query(
-        "SELECT user_b FROM friends WHERE status = 'pending' AND user_a = ?;",
+    auto row = db_.QueryOne(
+        "SELECT COALESCE(json_group_array(user_b), '[]') AS j FROM "
+        "(SELECT user_b FROM friends WHERE status = 'pending' AND user_a = ?);",
         {user});
-    if (!rows) {
-        return std::unexpected(rows.error());
+    if (!row) {
+        return std::unexpected(row.error());
     }
+    if (!row->has_value()) {
+        return std::vector<std::string>{};
+    }
+    try {
+        return ParseJsonStringArray(row->value());
+    } catch (const std::exception& e) {
+        return std::unexpected(Error::DatabaseFail(e.what()));
+    }
+}
 
-    std::vector<std::string> targets;
-    targets.reserve(rows->size());
-    for (const auto& row : rows.value()) {
-        targets.push_back(row.Get<std::string>("user_b"));
+Result<FriendLists> FriendService::GetFriendLists(const std::string& user) {
+    // INFO: One round trip for all three views: a single `json_object` row
+    // with three arrays. Each scalar subquery COALESCEs so an empty view is
+    // `[]`, never null.
+    auto row = db_.QueryOne(
+        "SELECT json_object("
+        "'friends', (SELECT COALESCE(json_group_array(friend_username), '[]') FROM "
+        "(SELECT CASE WHEN user_a = ? THEN user_b ELSE user_a END AS friend_username "
+        "FROM friends WHERE status = 'accepted' AND (user_a = ? OR user_b = ?))),"
+        "'incoming', (SELECT COALESCE(json_group_array(user_a), '[]') FROM "
+        "(SELECT user_a FROM friends WHERE status = 'pending' AND user_b = ?)),"
+        "'outgoing', (SELECT COALESCE(json_group_array(user_b), '[]') FROM "
+        "(SELECT user_b FROM friends WHERE status = 'pending' AND user_a = ?))"
+        ") AS j;",
+        {user, user, user, user, user});
+    if (!row) {
+        return std::unexpected(row.error());
     }
-    return targets;
+    if (!row->has_value()) {
+        return FriendLists{};
+    }
+    try {
+        nlohmann::json obj =
+            nlohmann::json::parse(row->value().GetOr<std::string>("j", "{}"));
+        FriendLists lists;
+        for (const auto& e : obj.at("friends")) {
+            lists.friends.push_back(e.get<std::string>());
+        }
+        for (const auto& e : obj.at("incoming")) {
+            lists.incoming.push_back(e.get<std::string>());
+        }
+        for (const auto& e : obj.at("outgoing")) {
+            lists.outgoing.push_back(e.get<std::string>());
+        }
+        return lists;
+    } catch (const std::exception& e) {
+        return std::unexpected(Error::DatabaseFail(e.what()));
+    }
 }

@@ -1,0 +1,8 @@
+{
+  "uni:format_version": "1.0.0",
+  "uni:glossary_entry": {
+    "uni:description": { "uni:identifier": "glossary_text_in_key:foo" },
+    "uni:label_key": "Hello World",
+    "uni:description_key": "glossary_text_in_key:b"
+  }
+}

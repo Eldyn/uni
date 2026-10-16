@@ -36,28 +36,40 @@ json Cond(const std::string& keyword, json args = json::object()) {
 /** Synthetic content table for the predicates under test. */
 PlayCardLookup Lookup() {
     return [](const std::string& kind, PlayCardFacts& out) {
-        if (kind == "vanilla:red_5") {
+        if (kind == "uni:red_5") {
             out = {"red", "5", {"colored", "red"}};
             return true;
         }
-        if (kind == "vanilla:red_7") {
+        if (kind == "uni:red_7") {
             out = {"red", "7", {"colored", "red", "seven"}};
             return true;
         }
-        if (kind == "vanilla:blue_5") {
+        if (kind == "uni:blue_5") {
             out = {"blue", "5", {"colored", "blue"}};
             return true;
         }
-        if (kind == "vanilla:blue_7") {
+        if (kind == "uni:blue_7") {
             out = {"blue", "7", {"colored", "blue"}};
             return true;
         }
-        if (kind == "vanilla:green_7") {
+        if (kind == "uni:green_7") {
             out = {"green", "7", {"colored", "green"}};
             return true;
         }
-        if (kind == "vanilla:white_wild4") {
-            out = {"white", "jolly_draw4", {"wild", "wild_draw4"}};
+        if (kind == "uni:white_wild4") {
+            out = {"white", "jolly_draw4", {"wild", "wild_draw4", "stackable"}};
+            return true;
+        }
+        if (kind == "uni:red_plus2") {
+            out = {"red", "+2", {"draw_penalty", "stackable"}};
+            return true;
+        }
+        if (kind == "uni:blue_plus2") {
+            out = {"blue", "+2", {"draw_penalty", "stackable"}};
+            return true;
+        }
+        if (kind == "uni:green_5") {
+            out = {"green", "5", {"colored", "green"}};
             return true;
         }
         return false;
@@ -147,8 +159,8 @@ LoadedMod PlayMod(const json& condition) {
 
 TEST_CASE("play_conditions: in_turn and plays_out_of_turn") {
     PlayConditionMatcher matcher(Lookup());
-    const PlayAttempt in = Attempt("vanilla:red_5", true);
-    const PlayAttempt out = Attempt("vanilla:red_5", false);
+    const PlayAttempt in = Attempt("uni:red_5", true);
+    const PlayAttempt out = Attempt("uni:red_5", false);
     CHECK(matcher(Cond("in_turn"), in));
     CHECK_FALSE(matcher(Cond("in_turn"), out));
     CHECK(matcher(Cond("plays_out_of_turn"), out));
@@ -160,87 +172,87 @@ TEST_CASE("play_conditions: in_turn and plays_out_of_turn") {
 TEST_CASE("play_conditions: plays_matches_active") {
     PlayConditionMatcher matcher(Lookup());
     CHECK(matcher(Cond("plays_matches_active"),
-                  Attempt("vanilla:red_5", true, "red")));
+                  Attempt("uni:red_5", true, "red")));
     CHECK_FALSE(matcher(Cond("plays_matches_active"),
-                        Attempt("vanilla:blue_5", true, "red")));
+                        Attempt("uni:blue_5", true, "red")));
     CHECK_FALSE(matcher(Cond("plays_matches_active"),
-                        Attempt("vanilla:red_5", true)));
+                        Attempt("uni:red_5", true)));
     // INFO: wild (white) never matches a colour.
     CHECK_FALSE(matcher(Cond("plays_matches_active"),
-                        Attempt("vanilla:white_wild4", true, "red")));
+                        Attempt("uni:white_wild4", true, "red")));
 }
 
 TEST_CASE("play_conditions: plays_matches_top") {
     PlayConditionMatcher matcher(Lookup());
     CHECK(matcher(Cond("plays_matches_top"),
-                  Attempt("vanilla:red_5", true, "blue", "vanilla:red_5")));
+                  Attempt("uni:red_5", true, "blue", "uni:red_5")));
     // INFO: same value, different colour still matches the top by value.
     CHECK(matcher(Cond("plays_matches_top"),
-                  Attempt("vanilla:blue_5", true, "red", "vanilla:red_5")));
+                  Attempt("uni:blue_5", true, "red", "uni:red_5")));
     CHECK_FALSE(matcher(
         Cond("plays_matches_top"),
-        Attempt("vanilla:green_7", true, "red", "vanilla:red_5")));
+        Attempt("uni:green_7", true, "red", "uni:red_5")));
     CHECK_FALSE(matcher(Cond("plays_matches_top"),
-                        Attempt("vanilla:red_5", true, "red")));
+                        Attempt("uni:red_5", true, "red")));
 }
 
 TEST_CASE("play_conditions: plays_mismatch mirrors StandardRule") {
     PlayConditionMatcher matcher(Lookup());
     // matches active colour -> legal.
     CHECK_FALSE(matcher(Cond("plays_mismatch"),
-                        Attempt("vanilla:red_5", true, "red",
-                                "vanilla:blue_7")));
+                        Attempt("uni:red_5", true, "red",
+                                "uni:blue_7")));
     // matches top value -> legal.
     CHECK_FALSE(matcher(Cond("plays_mismatch"),
-                        Attempt("vanilla:red_5", true, "blue",
-                                "vanilla:red_5")));
+                        Attempt("uni:red_5", true, "blue",
+                                "uni:red_5")));
     // neither -> mismatch.
     CHECK(matcher(Cond("plays_mismatch"),
-                  Attempt("vanilla:blue_5", true, "red",
-                          "vanilla:green_7")));
+                  Attempt("uni:blue_5", true, "red",
+                          "uni:green_7")));
     // wild is always legal.
     CHECK_FALSE(matcher(Cond("plays_mismatch"),
-                        Attempt("vanilla:white_wild4", true, "red",
-                                "vanilla:green_7")));
+                        Attempt("uni:white_wild4", true, "red",
+                                "uni:green_7")));
     // empty discard + non-wild, non-active -> mismatch.
-    CHECK(matcher(Cond("plays_mismatch"), Attempt("vanilla:blue_5", true)));
+    CHECK(matcher(Cond("plays_mismatch"), Attempt("uni:blue_5", true)));
     CHECK_FALSE(matcher(Cond("plays_mismatch"),
-                        Attempt("vanilla:blue_5", true, "blue")));
+                        Attempt("uni:blue_5", true, "blue")));
 }
 
 TEST_CASE("play_conditions: plays_identical_to_top mirrors jump_in") {
     PlayConditionMatcher matcher(Lookup());
     CHECK(matcher(Cond("plays_identical_to_top"),
-                  Attempt("vanilla:red_7", false, "red", "vanilla:red_7")));
+                  Attempt("uni:red_7", false, "red", "uni:red_7")));
     // same value, different colour -> not identical.
     CHECK_FALSE(matcher(Cond("plays_identical_to_top"),
-                        Attempt("vanilla:blue_7", false, "", "vanilla:red_7")));
+                        Attempt("uni:blue_7", false, "", "uni:red_7")));
     // same colour, different value -> not identical.
     CHECK_FALSE(matcher(Cond("plays_identical_to_top"),
-                        Attempt("vanilla:red_5", false, "", "vanilla:red_7")));
+                        Attempt("uni:red_5", false, "", "uni:red_7")));
     // empty discard.
     CHECK_FALSE(matcher(Cond("plays_identical_to_top"),
-                        Attempt("vanilla:red_7", false)));
+                        Attempt("uni:red_7", false)));
 }
 
 TEST_CASE("play_conditions: plays_identical_out_of_turn is the jump-in form") {
     PlayConditionMatcher matcher(Lookup());
     CHECK(matcher(Cond("plays_identical_out_of_turn"),
-                  Attempt("vanilla:red_7", false, "red", "vanilla:red_7")));
+                  Attempt("uni:red_7", false, "red", "uni:red_7")));
     // INFO: an in-turn identical play is ordinary play, not a jump-in.
     CHECK_FALSE(matcher(Cond("plays_identical_out_of_turn"),
-                        Attempt("vanilla:red_7", true, "red", "vanilla:red_7")));
+                        Attempt("uni:red_7", true, "red", "uni:red_7")));
     CHECK_FALSE(matcher(Cond("plays_identical_out_of_turn"),
-                        Attempt("vanilla:red_5", false, "", "vanilla:red_7")));
+                        Attempt("uni:red_5", false, "", "uni:red_7")));
 }
 
 // --- attempted-card identity -----------------------------------------------
 
 TEST_CASE("play_conditions: plays_kind, tag, color and value") {
     PlayConditionMatcher matcher(Lookup());
-    const PlayAttempt red5 = Attempt("vanilla:red_5", true);
+    const PlayAttempt red5 = Attempt("uni:red_5", true);
 
-    CHECK(matcher(Cond("plays_kind", {{"kind", "vanilla:red_5"}}), red5));
+    CHECK(matcher(Cond("plays_kind", {{"kind", "uni:red_5"}}), red5));
     CHECK(matcher(Cond("plays_kind", {{"kind", "red_5"}}), red5));
     CHECK_FALSE(matcher(Cond("plays_kind", {{"kind", "red_7"}}), red5));
     CHECK_FALSE(matcher(Cond("plays_kind", json::object()), red5));
@@ -260,14 +272,56 @@ TEST_CASE("play_conditions: plays_kind, tag, color and value") {
 
 // --- ownership -------------------------------------------------------------
 
+// --- draw_stacking response --------------------------------------------------
+
+TEST_CASE("play_conditions: plays_stack_response accepts mixed +2/+4") {
+    PlayConditionMatcher matcher(Lookup());
+    const json cond = Cond("plays_stack_response", {{"tag", "stackable"}});
+
+    // INFO: draw-stacking stacks +2 and +4 on each other in any combination,
+    //       so the response gate is the tag alone: a +4 answers a +2 top and
+    //       a +2 answers a +4 top. Only a window response counts.
+    PlayAttempt four_on_two =
+        Attempt("uni:white_wild4", false, "red", "uni:red_plus2");
+    four_on_two.responding = true;
+    CHECK(matcher(cond, four_on_two));
+
+    PlayAttempt two_on_four =
+        Attempt("uni:blue_plus2", false, "red", "uni:white_wild4");
+    two_on_four.responding = true;
+    CHECK(matcher(cond, two_on_four));
+
+    PlayAttempt same_value =
+        Attempt("uni:red_plus2", false, "red", "uni:blue_plus2");
+    same_value.responding = true;
+    CHECK(matcher(cond, same_value));
+
+    // Not answering a window: false even with the tag.
+    const PlayAttempt in_turn_play =
+        Attempt("uni:red_plus2", true, "red", "uni:blue_plus2");
+    CHECK_FALSE(matcher(cond, in_turn_play));
+
+    // A response card without the tag: false.
+    PlayAttempt untagged =
+        Attempt("uni:green_5", false, "green", "uni:blue_plus2");
+    untagged.responding = true;
+    CHECK_FALSE(matcher(cond, untagged));
+
+    // A top without the tag (an ordinary card): false.
+    PlayAttempt untagged_top =
+        Attempt("uni:red_plus2", false, "red", "uni:green_5");
+    untagged_top.responding = true;
+    CHECK_FALSE(matcher(cond, untagged_top));
+}
+
 TEST_CASE("play_conditions: owns_card and plays_unowned") {
     PlayConditionMatcher matcher(Lookup());
     const PlayAttempt owns =
-        Attempt("vanilla:red_5", true, "", "",
-                {"vanilla:red_5", "vanilla:blue_5"});
+        Attempt("uni:red_5", true, "", "",
+                {"uni:red_5", "uni:blue_5"});
     const PlayAttempt foreign =
-        Attempt("vanilla:red_5", true, "", "", {"vanilla:blue_5"});
-    const PlayAttempt unknown_hand = Attempt("vanilla:red_5", true);
+        Attempt("uni:red_5", true, "", "", {"uni:blue_5"});
+    const PlayAttempt unknown_hand = Attempt("uni:red_5", true);
     CHECK(matcher(Cond("owns_card"), owns));
     CHECK_FALSE(matcher(Cond("owns_card"), foreign));
     CHECK_FALSE(matcher(Cond("owns_card"), unknown_hand));
@@ -284,31 +338,31 @@ TEST_CASE("play_conditions: plays_bluffing mirrors no_bluffing") {
     const json condition = Cond("plays_bluffing", {{"value", "jolly_draw4"}});
     // +4 while holding a card matching the active colour -> a bluff.
     CHECK(matcher(condition,
-                  Attempt("vanilla:white_wild4", true, "red", "",
-                          {"vanilla:red_5"})));
+                  Attempt("uni:white_wild4", true, "red", "",
+                          {"uni:red_5"})));
     // +4 while holding nothing of the active colour -> legal.
     CHECK_FALSE(matcher(condition,
-                        Attempt("vanilla:white_wild4", true, "red", "",
-                                {"vanilla:blue_5"})));
+                        Attempt("uni:white_wild4", true, "red", "",
+                                {"uni:blue_5"})));
     // not the +4 at all.
     CHECK_FALSE(matcher(condition,
-                        Attempt("vanilla:red_5", true, "red", "",
-                                {"vanilla:red_7"})));
+                        Attempt("uni:red_5", true, "red", "",
+                                {"uni:red_7"})));
     // no active type / no hand -> false.
     CHECK_FALSE(matcher(condition,
-                        Attempt("vanilla:white_wild4", true, "", "",
-                                {"vanilla:red_5"})));
+                        Attempt("uni:white_wild4", true, "", "",
+                                {"uni:red_5"})));
     CHECK_FALSE(matcher(condition,
-                        Attempt("vanilla:white_wild4", true, "red")));
+                        Attempt("uni:white_wild4", true, "red")));
     // missing arg.
     CHECK_FALSE(matcher(Cond("plays_bluffing"),
-                        Attempt("vanilla:white_wild4", true, "red", "",
-                                {"vanilla:red_5"})));
+                        Attempt("uni:white_wild4", true, "red", "",
+                                {"uni:red_5"})));
     // legacy no_bluffing.cpp:10 returns early for out-of-turn attempts, so an
     // otherwise-bluffing +4 is not flagged when it is a jump-in response.
     CHECK_FALSE(matcher(condition,
-                        Attempt("vanilla:white_wild4", false, "red", "",
-                                {"vanilla:red_5"})));
+                        Attempt("uni:white_wild4", false, "red", "",
+                                {"uni:red_5"})));
 }
 
 // --- fail-safe -------------------------------------------------------------
@@ -316,8 +370,8 @@ TEST_CASE("play_conditions: plays_bluffing mirrors no_bluffing") {
 TEST_CASE("play_conditions: fail-safe when unbound or unresolved") {
     const PlayCardLookup lookup = Lookup();
     const PlayAttempt attempt =
-        Attempt("vanilla:red_5", true, "red", "vanilla:red_7",
-                {"vanilla:red_5"});
+        Attempt("uni:red_5", true, "red", "uni:red_7",
+                {"uni:red_5"});
     // INFO: no PlayAttempt bound -> every play predicate is false.
     for (const auto& signature : ConditionCatalog()) {
         if (!signature.play_context) continue;
@@ -326,8 +380,8 @@ TEST_CASE("play_conditions: fail-safe when unbound or unresolved") {
     }
     // Unknown kind -> facts predicates false.
     const PlayAttempt ghost =
-        Attempt("vanilla:ghost", true, "red", "vanilla:red_7",
-                {"vanilla:red_5"});
+        Attempt("uni:ghost", true, "red", "uni:red_7",
+                {"uni:red_5"});
     CHECK_FALSE(EvaluatePlayCondition(Cond("plays_value", {{"value", "5"}}),
                                       &ghost, lookup));
     CHECK_FALSE(EvaluatePlayCondition(Cond("plays_mismatch"), &ghost, lookup));
@@ -353,51 +407,51 @@ TEST_CASE("play_conditions: fail-safe when unbound or unresolved") {
 TEST_CASE("play_conditions: matcher drives the restriction pipeline") {
     PlayConditionMatcher matcher(Lookup());
     const std::vector<RestrictionEntry> entries = {
-        {"vanilla:turn_order", "deny", Cond("plays_out_of_turn")},
-        {"vanilla:match_type_or_value", "deny", Cond("plays_mismatch")},
-        {"vanilla:must_own_card", "deny", Cond("plays_unowned")},
+        {"uni:turn_order", "deny", Cond("plays_out_of_turn")},
+        {"uni:match_type_or_value", "deny", Cond("plays_mismatch")},
+        {"uni:must_own_card", "deny", Cond("plays_unowned")},
     };
     // Legal in-turn play of an owned, colour-matching card.
     CHECK(EvaluatePlayRestrictions(
               entries,
-              Attempt("vanilla:red_5", true, "red", "vanilla:green_7",
-                      {"vanilla:red_5"}),
+              Attempt("uni:red_5", true, "red", "uni:green_7",
+                      {"uni:red_5"}),
               matcher)
               .allowed);
     // Out-of-turn play is denied by turn_order.
     const auto out = EvaluatePlayRestrictions(
         entries,
-        Attempt("vanilla:red_5", false, "red", "vanilla:green_7",
-                {"vanilla:red_5"}),
+        Attempt("uni:red_5", false, "red", "uni:green_7",
+                {"uni:red_5"}),
         matcher);
     CHECK_FALSE(out.allowed);
-    CHECK(out.reason_id == "vanilla:turn_order");
+    CHECK(out.reason_id == "uni:turn_order");
     // A card matching neither colour nor value is denied by type_or_value.
     const auto mismatch = EvaluatePlayRestrictions(
         entries,
-        Attempt("vanilla:blue_5", true, "red", "vanilla:green_7",
-                {"vanilla:blue_5"}),
+        Attempt("uni:blue_5", true, "red", "uni:green_7",
+                {"uni:blue_5"}),
         matcher);
     CHECK_FALSE(mismatch.allowed);
-    CHECK(mismatch.reason_id == "vanilla:match_type_or_value");
+    CHECK(mismatch.reason_id == "uni:match_type_or_value");
     // A card the player does not hold is denied by must_own_card.
     const auto foreign = EvaluatePlayRestrictions(
         entries,
-        Attempt("vanilla:red_5", true, "red", "vanilla:green_7",
-                {"vanilla:blue_5"}),
+        Attempt("uni:red_5", true, "red", "uni:green_7",
+                {"uni:blue_5"}),
         matcher);
     CHECK_FALSE(foreign.allowed);
-    CHECK(foreign.reason_id == "vanilla:must_own_card");
+    CHECK(foreign.reason_id == "uni:must_own_card");
     // jump_in: deny out-of-turn, allow identical-to-top (rescues).
     const std::vector<RestrictionEntry> jump_in = {
-        {"vanilla:turn_order", "deny", Cond("plays_out_of_turn")},
+        {"uni:turn_order", "deny", Cond("plays_out_of_turn")},
         {"jump_in:allow_identical", "allow",
          Cond("plays_identical_out_of_turn")},
     };
     CHECK(EvaluatePlayRestrictions(
               jump_in,
-              Attempt("vanilla:red_7", false, "", "vanilla:red_7",
-                      {"vanilla:red_7"}),
+              Attempt("uni:red_7", false, "", "uni:red_7",
+                      {"uni:red_7"}),
               matcher)
               .allowed);
     // no_bluffing: deny a bluffing +4.
@@ -407,7 +461,7 @@ TEST_CASE("play_conditions: matcher drives the restriction pipeline") {
     };
     const auto bluff = EvaluatePlayRestrictions(
         no_bluff,
-        Attempt("vanilla:white_wild4", true, "red", "", {"vanilla:red_5"}),
+        Attempt("uni:white_wild4", true, "red", "", {"uni:red_5"}),
         matcher);
     CHECK_FALSE(bluff.allowed);
     CHECK(bluff.reason_id == "no_bluffing:no_bluff");
@@ -417,8 +471,8 @@ TEST_CASE("play_conditions: matcher drives the restriction pipeline") {
     both.insert(both.end(), jump_in.begin(), jump_in.end());
     const auto bluff_on_four = EvaluatePlayRestrictions(
         both,
-        Attempt("vanilla:white_wild4", true, "red", "vanilla:white_wild4",
-                {"vanilla:white_wild4", "vanilla:red_5"}),
+        Attempt("uni:white_wild4", true, "red", "uni:white_wild4",
+                {"uni:white_wild4", "uni:red_5"}),
         matcher);
     CHECK_FALSE(bluff_on_four.allowed);
     CHECK(bluff_on_four.reason_id == "no_bluffing:no_bluff");

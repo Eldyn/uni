@@ -283,25 +283,15 @@ void WebServer::RegisterRoutes() {
         HandleGet(res, req);
     });
 
-    // INFO: Per-connection WebSocket action rate limiting (runs before
-    //       dispatch). Keyed by client IP, falling back to username, so an
-    //       authenticated client cannot flood the action router. Returning
-    //       false aborts the dispatch chain.
+    // INFO: Per-connection WebSocket action rate limiting. The actual token
+    //       check runs in OnSocketMessage BEFORE json::parse (zero-alloc
+    //       pre-parse, backend-perf Task 7), so a throttled frame never pays
+    //       for a DOM. This middleware only sweeps idle buckets; it must NOT
+    //       call Allow again or every frame would cost two tokens.
     ws_router_.OnAny([this](WsContext ctx, const json& msg) {
         MaybeEvict();
-        const std::string& key = !ctx.socket_data->ip.empty()
-                                     ? ctx.socket_data->ip
-                                     : ctx.socket_data->username;
-        if (!ws_limiter_.Allow(key)) {
-            Logger::Warn("[WS] rate limited: " + ctx.socket_data->username);
-            // INFO: Standard error envelope (contract: {action:"error",
-            //       reason}), echoing the request_id so the client can tie
-            //       it back to the throttled action.
-            const std::string request_id = ws::GetOr<std::string>(msg, "request_id", "");
-            ws::SendError(ctx.socket, uWS::OpCode::TEXT, contract::ErrorCode::kRateLimited,
-                          request_id);
-            return false;
-        }
+        (void)ctx;
+        (void)msg;
         return true;
     });
 
@@ -523,7 +513,11 @@ void WebServer::HandleHead(AppResponse *res, AppRequest *req) {
                 contentEncoding = precompressed->encoding;
             }
 
-            std::string etag = http::MakeETag(bodyPath);
+            // The validator comes from the startup cache on a hit (no `stat`);
+            // a miss (cache disabled / file added after startup) stats live.
+            const CachedAsset* asset = FindCachedAsset(bodyPath.string());
+            const std::string etag =
+                asset != nullptr ? asset->etag : http::MakeETag(bodyPath);
 
             if (!etag.empty() && if_none_match == etag) {
                 res->writeStatus("304 Not Modified")
@@ -621,8 +615,11 @@ void WebServer::HandleGet(AppResponse *res, AppRequest *req) {
             }
 
             // The two encodings are distinct representations, so they must not
-            // share a validator, MakeETag stats whichever one is actually sent.
-            std::string etag = http::MakeETag(bodyPath);
+            // share a validator. On a startup-cache hit the validator is the
+            // frozen copy (no `stat`); on a miss MakeETag stats live.
+            const CachedAsset* asset = FindCachedAsset(bodyPath.string());
+            const std::string etag =
+                asset != nullptr ? asset->etag : http::MakeETag(bodyPath);
 
             // INFO: Conditional request: the client already holds this exact
             //       version, so skip resending the body. This is what makes
@@ -641,7 +638,16 @@ void WebServer::HandleGet(AppResponse *res, AppRequest *req) {
             //       compressed sidecar is a different representation, so it is
             //       always sent whole. If-Range only honours a matching
             //       validator, otherwise the whole current body is sent.
-            const std::string body = ReadFile(bodyPath.string());
+            //       A cache hit serves a view into the startup bytes (no copy,
+            //       no stringstream); a miss reads the file into `body_owned`.
+            std::string body_owned;
+            std::string_view body;
+            if (asset != nullptr) {
+                body = asset->bytes;
+            } else {
+                body_owned = ReadFile(bodyPath.string());
+                body = body_owned;
+            }
             const bool rangeEligible = contentEncoding.empty() && !range_header.empty() &&
                                        (if_range.empty() || if_range == etag);
             const http::ByteRange range =
@@ -677,8 +683,8 @@ void WebServer::HandleGet(AppResponse *res, AppRequest *req) {
             if (!etag.empty()) {
                 res->writeHeader("ETag", etag);
             }
-            res->end(partial ? std::string_view(body).substr(range.start, range.length)
-                             : std::string_view(body));
+            res->end(partial ? body.substr(range.start, range.length)
+                             : body);
         } else if (http::IsClientRoute(relativePath)) {
             // Not a real file, but shaped like a client-side route (no dot in its
             // final segment) rather than a missing asset — serve the app shell so
@@ -736,6 +742,32 @@ void WebServer::OnSocketClosed(AppWebSocket* socket) {
 
 void WebServer::OnSocketMessage(AppWebSocket *socket, std::string_view message,
                                 uWS::OpCode op_code) {
+    // INFO: Zero-alloc inbound pre-parse (backend-perf Task 7): scan the raw
+    //       frame for the "action"/"request_id" spans without building a JSON
+    //       DOM. The views point into the uWS frame and die with this scope.
+    //       Malformed frames return here, before any json::parse.
+    Inbound in = ParseInbound(message);
+    if (in.action.empty()) {
+        Logger::Warn("[WS] Message missing or invalid 'action' field");
+        return;
+    }
+    const uint32_t action_hash = Fnv1a(in.action);
+
+    // INFO: Per-connection rate limit runs on the spans, BEFORE json::parse,
+    //       so a throttled frame never pays for a DOM. Keyed by client IP,
+    //       falling back to username (same key as the old router wildcard).
+    //       request_id is short (SSO): no heap alloc on this path either.
+    MaybeEvict();
+    PerSocketData* socket_data = socket->getUserData();
+    const std::string& key =
+        !socket_data->ip.empty() ? socket_data->ip : socket_data->username;
+    if (!ws_limiter_.Allow(key)) {
+        Logger::Warn("[WS] rate limited: " + socket_data->username);
+        ws::SendError(socket, op_code, contract::ErrorCode::kRateLimited,
+                      std::string(in.request_id));
+        return;
+    }
+
     // INFO: A malformed frame must never escape this callback: an exception
     //       thrown through uWebSockets' C event loop terminates the whole
     //       process, so a single junk frame from any connected client would
@@ -760,9 +792,9 @@ void WebServer::OnSocketMessage(AppWebSocket *socket, std::string_view message,
                           .op_code = op_code};
 
     try {
-        if (!ws_router_.Dispatch(context, message_json)) {
+        if (!ws_router_.Dispatch(context, message_json, action_hash)) {
             Logger::Warn("No handler found for action: " +
-                         message_json["action"].get<std::string>());
+                         std::string(in.action));
         }
     } catch (const std::exception& e) {
         Logger::Error("[WS] Uncaught exception in OnSocketMessage: ", e.what());
@@ -791,7 +823,14 @@ void WebServer::LoadStaticFileCache() {
 
         std::stringstream buf;
         buf << is.rdbuf();
-        static_file_cache_.emplace(entry.path().string(), buf.str());
+        CachedAsset asset;
+        asset.bytes = buf.str();
+        // INFO: the validator is frozen at load time with the bytes, so a
+        //       cache hit answers conditional requests without a per-hit
+        //       `stat` (backend-perf Task 9). Same size+mtime derivation as
+        //       the live `http::MakeETag` path used on a cache miss.
+        asset.etag = http::MakeETag(entry.path());
+        static_file_cache_.emplace(entry.path().string(), std::move(asset));
     }
 
     Logger::Info("Static file cache: loaded " + std::to_string(static_file_cache_.size()) +
@@ -803,7 +842,7 @@ std::string WebServer::ReadFile(std::string_view path) const {
     //       LoadStaticFileCache(), so a busy server serving the same asset
     //       repeatedly avoids the disk read + stringstream churn per request.
     if (auto it = static_file_cache_.find(std::string(path)); it != static_file_cache_.end()) {
-        return it->second;
+        return it->second.bytes;
     }
 
     // INFO: Fallback for a file that exists on disk but was not present in
@@ -819,6 +858,17 @@ std::string WebServer::ReadFile(std::string_view path) const {
     std::stringstream buf;
     buf << is.rdbuf();
     return buf.str();
+}
+
+const WebServer::CachedAsset* WebServer::FindCachedAsset(
+    std::string_view path) const {
+    if (static_cache_enabled_) {
+        if (auto it = static_file_cache_.find(std::string(path));
+            it != static_file_cache_.end()) {
+            return &it->second;
+        }
+    }
+    return nullptr;
 }
 
 void WebServer::OnConnectionOpen(ConnectionHandler handler) {

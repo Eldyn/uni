@@ -1,6 +1,7 @@
 #pragma once
 
 #include <match/ecs/entity_store.hpp>
+#include <match/ecs/mod_event_budget.hpp>
 
 #include <nlohmann/json.hpp>
 
@@ -174,6 +175,8 @@ struct TurnState {
     bool is_current = false;
     int64_t turn_deadline_ms = 0;  /**< absolute epoch ms; 0 = none. */
     uint32_t extra_turns_pending = 0;
+    /** The seat that set the pending skip; empty = the table did. */
+    std::optional<Entity> skip_actor;
 };
 
 // --- status ----------------------------------------------------------------
@@ -392,6 +395,7 @@ struct BudgetLedger {
     uint64_t chain_steps = 0;
     uint64_t events = 0;
     uint32_t must_apply_depth = 0;
+    ModEventLedger mod_events;  /**< budgets of the mod events. */
 };
 
 /**
@@ -402,6 +406,7 @@ struct MatchMeta {
     std::vector<ModRef> mods;  /**< frozen mod list, priority order. */
     Direction direction = Direction::kForward;
     uint32_t round = 0;
+    uint32_t turn = 0;
     uint64_t rng_seed = 0;
     BudgetLedger budgets;
     /**< Finishers that end a race match; 0 = standard (first one ends it). */

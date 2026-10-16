@@ -1,0 +1,786 @@
+{
+  "cause_chain_budget": {
+    "disarmed": false,
+    "drops": {
+      "test|test:apple_eaten|cause_chain": 10
+    },
+    "streams": {
+      "player0": [
+        {
+          "id": "restriction_added",
+          "sequence": 0
+        },
+        {
+          "id": "restriction_added",
+          "sequence": 1
+        },
+        {
+          "id": "restriction_added",
+          "sequence": 2
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 3
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 4
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 5
+        },
+        {
+          "id": "cards_drawn",
+          "sequence": 6
+        },
+        {
+          "id": "turn_advance",
+          "sequence": 7
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 8
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 9
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 10
+        },
+        {
+          "id": "cards_drawn",
+          "sequence": 11
+        },
+        {
+          "id": "turn_advance",
+          "sequence": 12
+        }
+      ],
+      "player1": [
+        {
+          "id": "restriction_added",
+          "sequence": 0
+        },
+        {
+          "id": "restriction_added",
+          "sequence": 1
+        },
+        {
+          "id": "restriction_added",
+          "sequence": 2
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 3
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 4
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 5
+        },
+        {
+          "id": "cards_drawn",
+          "sequence": 6
+        },
+        {
+          "id": "turn_advance",
+          "sequence": 7
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 8
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 9
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 10
+        },
+        {
+          "id": "cards_drawn",
+          "sequence": 11
+        },
+        {
+          "id": "turn_advance",
+          "sequence": 12
+        }
+      ],
+      "player2": [
+        {
+          "id": "restriction_added",
+          "sequence": 0
+        },
+        {
+          "id": "restriction_added",
+          "sequence": 1
+        },
+        {
+          "id": "restriction_added",
+          "sequence": 2
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 3
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 4
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 5
+        },
+        {
+          "id": "cards_drawn",
+          "sequence": 6
+        },
+        {
+          "id": "turn_advance",
+          "sequence": 7
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 8
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 9
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 10
+        },
+        {
+          "id": "cards_drawn",
+          "sequence": 11
+        },
+        {
+          "id": "turn_advance",
+          "sequence": 12
+        }
+      ],
+      "public_spectator": [
+        {
+          "id": "restriction_added",
+          "sequence": 0
+        },
+        {
+          "id": "restriction_added",
+          "sequence": 1
+        },
+        {
+          "id": "restriction_added",
+          "sequence": 2
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 3
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 4
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 5
+        },
+        {
+          "id": "cards_drawn",
+          "sequence": 6
+        },
+        {
+          "id": "turn_advance",
+          "sequence": 7
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 8
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 9
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 10
+        },
+        {
+          "id": "cards_drawn",
+          "sequence": 11
+        },
+        {
+          "id": "turn_advance",
+          "sequence": 12
+        }
+      ]
+    }
+  },
+  "per_turn_budget": {
+    "disarmed": false,
+    "drops": {
+      "test|test:apple_eaten|per_turn": 8
+    },
+    "streams": {
+      "player0": [
+        {
+          "id": "restriction_added",
+          "sequence": 0
+        },
+        {
+          "id": "restriction_added",
+          "sequence": 1
+        },
+        {
+          "id": "restriction_added",
+          "sequence": 2
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 3
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 4
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 5
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 6
+        },
+        {
+          "id": "cards_drawn",
+          "sequence": 7
+        },
+        {
+          "id": "turn_advance",
+          "sequence": 8
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 9
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 10
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 11
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 12
+        },
+        {
+          "id": "cards_drawn",
+          "sequence": 13
+        },
+        {
+          "id": "turn_advance",
+          "sequence": 14
+        }
+      ],
+      "player1": [
+        {
+          "id": "restriction_added",
+          "sequence": 0
+        },
+        {
+          "id": "restriction_added",
+          "sequence": 1
+        },
+        {
+          "id": "restriction_added",
+          "sequence": 2
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 3
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 4
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 5
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 6
+        },
+        {
+          "id": "cards_drawn",
+          "sequence": 7
+        },
+        {
+          "id": "turn_advance",
+          "sequence": 8
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 9
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 10
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 11
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 12
+        },
+        {
+          "id": "cards_drawn",
+          "sequence": 13
+        },
+        {
+          "id": "turn_advance",
+          "sequence": 14
+        }
+      ],
+      "player2": [
+        {
+          "id": "restriction_added",
+          "sequence": 0
+        },
+        {
+          "id": "restriction_added",
+          "sequence": 1
+        },
+        {
+          "id": "restriction_added",
+          "sequence": 2
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 3
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 4
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 5
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 6
+        },
+        {
+          "id": "cards_drawn",
+          "sequence": 7
+        },
+        {
+          "id": "turn_advance",
+          "sequence": 8
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 9
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 10
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 11
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 12
+        },
+        {
+          "id": "cards_drawn",
+          "sequence": 13
+        },
+        {
+          "id": "turn_advance",
+          "sequence": 14
+        }
+      ],
+      "public_spectator": [
+        {
+          "id": "restriction_added",
+          "sequence": 0
+        },
+        {
+          "id": "restriction_added",
+          "sequence": 1
+        },
+        {
+          "id": "restriction_added",
+          "sequence": 2
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 3
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 4
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 5
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 6
+        },
+        {
+          "id": "cards_drawn",
+          "sequence": 7
+        },
+        {
+          "id": "turn_advance",
+          "sequence": 8
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 9
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 10
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 11
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 12
+        },
+        {
+          "id": "cards_drawn",
+          "sequence": 13
+        },
+        {
+          "id": "turn_advance",
+          "sequence": 14
+        }
+      ]
+    }
+  },
+  "repeat_offender_disarmed": {
+    "disarmed": true,
+    "drops": {
+      "test|test:apple_eaten|per_turn": 7
+    },
+    "streams": {
+      "player0": [
+        {
+          "id": "restriction_added",
+          "sequence": 0
+        },
+        {
+          "id": "restriction_added",
+          "sequence": 1
+        },
+        {
+          "id": "restriction_added",
+          "sequence": 2
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 3
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 4
+        },
+        {
+          "id": "cards_drawn",
+          "sequence": 5
+        },
+        {
+          "id": "turn_advance",
+          "sequence": 6
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 7
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 8
+        },
+        {
+          "id": "cards_drawn",
+          "sequence": 9
+        },
+        {
+          "id": "turn_advance",
+          "sequence": 10
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 11
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 12
+        },
+        {
+          "id": "cards_drawn",
+          "sequence": 13
+        },
+        {
+          "id": "drawn_card_kept",
+          "sequence": 14
+        },
+        {
+          "id": "turn_advance",
+          "sequence": 15
+        },
+        {
+          "id": "cards_drawn",
+          "sequence": 16
+        },
+        {
+          "id": "turn_advance",
+          "sequence": 17
+        }
+      ],
+      "player1": [
+        {
+          "id": "restriction_added",
+          "sequence": 0
+        },
+        {
+          "id": "restriction_added",
+          "sequence": 1
+        },
+        {
+          "id": "restriction_added",
+          "sequence": 2
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 3
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 4
+        },
+        {
+          "id": "cards_drawn",
+          "sequence": 5
+        },
+        {
+          "id": "turn_advance",
+          "sequence": 6
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 7
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 8
+        },
+        {
+          "id": "cards_drawn",
+          "sequence": 9
+        },
+        {
+          "id": "turn_advance",
+          "sequence": 10
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 11
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 12
+        },
+        {
+          "id": "cards_drawn",
+          "sequence": 13
+        },
+        {
+          "id": "drawn_card_kept",
+          "sequence": 14
+        },
+        {
+          "id": "turn_advance",
+          "sequence": 15
+        },
+        {
+          "id": "cards_drawn",
+          "sequence": 16
+        },
+        {
+          "id": "turn_advance",
+          "sequence": 17
+        }
+      ],
+      "player2": [
+        {
+          "id": "restriction_added",
+          "sequence": 0
+        },
+        {
+          "id": "restriction_added",
+          "sequence": 1
+        },
+        {
+          "id": "restriction_added",
+          "sequence": 2
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 3
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 4
+        },
+        {
+          "id": "cards_drawn",
+          "sequence": 5
+        },
+        {
+          "id": "turn_advance",
+          "sequence": 6
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 7
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 8
+        },
+        {
+          "id": "cards_drawn",
+          "sequence": 9
+        },
+        {
+          "id": "turn_advance",
+          "sequence": 10
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 11
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 12
+        },
+        {
+          "id": "cards_drawn",
+          "sequence": 13
+        },
+        {
+          "id": "drawn_card_kept",
+          "sequence": 14
+        },
+        {
+          "id": "turn_advance",
+          "sequence": 15
+        },
+        {
+          "id": "cards_drawn",
+          "sequence": 16
+        },
+        {
+          "id": "turn_advance",
+          "sequence": 17
+        }
+      ],
+      "public_spectator": [
+        {
+          "id": "restriction_added",
+          "sequence": 0
+        },
+        {
+          "id": "restriction_added",
+          "sequence": 1
+        },
+        {
+          "id": "restriction_added",
+          "sequence": 2
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 3
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 4
+        },
+        {
+          "id": "cards_drawn",
+          "sequence": 5
+        },
+        {
+          "id": "turn_advance",
+          "sequence": 6
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 7
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 8
+        },
+        {
+          "id": "cards_drawn",
+          "sequence": 9
+        },
+        {
+          "id": "turn_advance",
+          "sequence": 10
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 11
+        },
+        {
+          "id": "test:apple_eaten",
+          "sequence": 12
+        },
+        {
+          "id": "cards_drawn",
+          "sequence": 13
+        },
+        {
+          "id": "drawn_card_kept",
+          "sequence": 14
+        },
+        {
+          "id": "turn_advance",
+          "sequence": 15
+        },
+        {
+          "id": "cards_drawn",
+          "sequence": 16
+        },
+        {
+          "id": "turn_advance",
+          "sequence": 17
+        }
+      ]
+    }
+  }
+}

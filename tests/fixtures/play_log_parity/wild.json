@@ -1,0 +1,130 @@
+{
+  "uni:format_version": "1.0.0",
+  "uni:binding": {
+    "uni:description": {
+      "uni:identifier": "parity:wild"
+    },
+    "uni:event": "active_type_changed",
+    "uni:select": "first",
+    "uni:cases": [
+      {
+        "uni:tests": [
+          {
+            "uni:test": "caused_by",
+            "uni:value": "card_played",
+            "uni:tag": "uni:wild"
+          },
+          {
+            "uni:test": "equals",
+            "uni:field": "color",
+            "uni:value": "white",
+            "uni:negate": true
+          },
+          {
+            "uni:test": "gte",
+            "uni:streak": "uni:wild_run",
+            "uni:value": 3
+          }
+        ],
+        "uni:present": {
+          "uni:log": {
+            "uni:variants": [
+              "uni:log.wild_reaction_third_1",
+              "uni:log.wild_reaction_third_2"
+            ],
+            "uni:params": {
+              "name": {
+                "uni:actor": true
+              },
+              "color": {
+                "uni:field": "color"
+              },
+              "prevColor": {
+                "uni:streak": "uni:last_wild_color",
+                "uni:key": "previous",
+                "uni:default": ""
+              }
+            }
+          }
+        }
+      },
+      {
+        "uni:tests": [
+          {
+            "uni:test": "caused_by",
+            "uni:value": "card_played",
+            "uni:tag": "uni:wild"
+          },
+          {
+            "uni:test": "equals",
+            "uni:field": "color",
+            "uni:value": "white",
+            "uni:negate": true
+          },
+          {
+            "uni:test": "equals",
+            "uni:streak": "uni:wild_run",
+            "uni:value": 2
+          }
+        ],
+        "uni:present": {
+          "uni:log": {
+            "uni:variants": [
+              "uni:log.wild_reaction_second_1",
+              "uni:log.wild_reaction_second_2"
+            ],
+            "uni:params": {
+              "name": {
+                "uni:actor": true
+              },
+              "color": {
+                "uni:field": "color"
+              },
+              "prevColor": {
+                "uni:streak": "uni:last_wild_color",
+                "uni:key": "previous",
+                "uni:default": ""
+              }
+            }
+          }
+        }
+      },
+      {
+        "uni:tests": [
+          {
+            "uni:test": "caused_by",
+            "uni:value": "card_played",
+            "uni:tag": "uni:wild"
+          },
+          {
+            "uni:test": "equals",
+            "uni:field": "color",
+            "uni:value": "white",
+            "uni:negate": true
+          }
+        ],
+        "uni:present": {
+          "uni:log": {
+            "uni:variants": [
+              "uni:log.wild_reaction_1",
+              "uni:log.wild_reaction_first_2"
+            ],
+            "uni:params": {
+              "name": {
+                "uni:actor": true
+              },
+              "color": {
+                "uni:field": "color"
+              },
+              "prevColor": {
+                "uni:streak": "uni:last_wild_color",
+                "uni:key": "previous",
+                "uni:default": ""
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}

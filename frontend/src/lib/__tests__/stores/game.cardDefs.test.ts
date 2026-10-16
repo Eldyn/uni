@@ -69,17 +69,17 @@ function handler(action: string): (payload: any) => void {
 }
 
 function frame(seq: number, type: string, payload: unknown = {}) {
-	return { action: "match_event", seq, type, payload };
+	return { action: "match_event", sequence: seq, id: type, payload };
 }
 
 function defsPayload(digest: string) {
 	return {
 		defs_digest: digest,
-		mods: [{ id: "vanilla", version: "1.0.0", index: 0 }],
+		mods: [{ id: "uni", version: "1.0.0", index: 0 }],
 		kinds: [
 			{
 				index: 0,
-				string_id: "vanilla:red_5",
+				string_id: "uni:red_5",
 				face: { kind: "text", color: "red", label: "5", art_version: 1 },
 				tags: ["colored", "numbered"]
 			}
@@ -91,7 +91,7 @@ function matchStart(digest: string) {
 	return {
 		defs_digest: digest,
 		mods: [],
-		deck_id: "vanilla:classic",
+		deck_id: "uni:classic",
 		deck_name: "Classic",
 		settings: {}
 	};
@@ -127,32 +127,32 @@ describe("storeGame consumes defs + match_start", () => {
 	it("populates the kind table from a defs frame through the match_event owner", () => {
 		handler("match_event")(frame(1, "defs", defsPayload("d1")));
 
-		expect(storeCardDefs.lookupByStringId("vanilla:red_5")?.face.label).toBe("5");
-		expect(storeCardDefs.lookupByIndex(0, 0)?.string_id).toBe("vanilla:red_5");
+		expect(storeCardDefs.lookupByStringId("uni:red_5")?.face.label).toBe("5");
+		expect(storeCardDefs.lookupByIndex(0, 0)?.string_id).toBe("uni:red_5");
 	});
 
 	it("keeps kind on the snapshot Card and exposes the resolved face", () => {
 		handler("match_event")(frame(1, "defs", defsPayload("d1")));
 		handler("match_event")(frame(2, "match_start", matchStart("d1")));
-		handler("match_state_updated")(snapshotWithKind("vanilla:red_5"));
+		handler("match_state_updated")(snapshotWithKind("uni:red_5"));
 
 		const top = storeGame.state?.top_card;
-		expect(top?.kind).toBe("vanilla:red_5");
+		expect(top?.kind).toBe("uni:red_5");
 		expect(top?.face?.label).toBe("5");
 		expect(top?.face?.color).toBe("red");
 
 		const handCard = storeGame.state?.players[0]?.hand?.[0];
-		expect(handCard?.kind).toBe("vanilla:red_5");
+		expect(handCard?.kind).toBe("uni:red_5");
 		expect(handCard?.face?.label).toBe("5");
 	});
 
-	it("still parses a card whose kind has no defs entry (vanilla fallback)", () => {
+	it("still parses a card whose kind has no defs entry (default fallback)", () => {
 		handler("match_event")(frame(1, "defs", defsPayload("d1")));
 		handler("match_event")(frame(2, "match_start", matchStart("d1")));
-		handler("match_state_updated")(snapshotWithKind("vanilla:mystery"));
+		handler("match_state_updated")(snapshotWithKind("uni:mystery"));
 
 		const top = storeGame.state?.top_card;
-		expect(top?.kind).toBe("vanilla:mystery");
+		expect(top?.kind).toBe("uni:mystery");
 		expect(top?.face).toBeUndefined();
 		expect(top?.type).toBe("red");
 		expect(top?.value).toBe("5");
@@ -160,10 +160,10 @@ describe("storeGame consumes defs + match_start", () => {
 
 	it("clears the defs table on returnToLobby", () => {
 		handler("match_event")(frame(1, "defs", defsPayload("d1")));
-		expect(storeCardDefs.lookupByStringId("vanilla:red_5")).toBeDefined();
+		expect(storeCardDefs.lookupByStringId("uni:red_5")).toBeDefined();
 
 		storeGame.returnToLobby();
-		expect(storeCardDefs.lookupByStringId("vanilla:red_5")).toBeUndefined();
+		expect(storeCardDefs.lookupByStringId("uni:red_5")).toBeUndefined();
 	});
 });
 

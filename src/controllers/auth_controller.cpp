@@ -93,7 +93,8 @@ AuthController::AuthController(HttpRouter& router, EmailQueue& email_queue)
            ->end(json({
                {"username", payload->username},
                {"email", status->email},
-               {"email_verified", status->email_verified}
+               {"email_verified", status->email_verified},
+               {"privacy_mode", AuthService::GetPrivacyMode(payload->username)}
            }).dump());
     });
 }
@@ -241,7 +242,9 @@ void AuthController::HandleLogin(AppResponse* response, AppRequest* req) {
                 ->end(json({
                     {"status", "ok"},
                     {"username", session->username},
-                    {"email_verified", email_verified}
+                    {"email_verified", email_verified},
+                    {"privacy_mode",
+                     AuthService::GetPrivacyMode(session->username)}
                 }).dump());
     });
 }

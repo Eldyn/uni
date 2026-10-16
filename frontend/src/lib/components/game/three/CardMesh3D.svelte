@@ -58,13 +58,16 @@
 		getAtlasPage,
 		getLayerTexture,
 		ATLAS_PAGE_VERSION,
-		cardFaceKeyFor
+		cardFaceKeyFor,
+		faceKeyForOverride,
+		entryWithOverride
 	} from "./cardFaceAtlas";
 	import { resolveFace, type ResolvedFace } from "./faceResolution";
 	import { assetTextures } from "./assetTextures";
 	import AtlasLayerMesh from "./AtlasLayerMesh.svelte";
 	import { CARD_COLOR_MAP } from "$lib/palette";
 	import { storePresentation } from "$stores/presentation.svelte";
+	import { storeAffliction } from "$stores/affliction.svelte";
 	import { isDragged } from "./renderOrder";
 
 	let {
@@ -231,8 +234,15 @@
 		return card.kind ? storeCardDefs.lookupByStringId(card.kind)?.face : undefined;
 	});
 
+	// Active `face.override` for this card, if a presentation installed one
+	//. Reading through the store is reactive, so activating or
+	// expiring the affliction re-resolves the face. UV/texture only — no
+	// material params or shaders.
+	let cardOverride = $derived(storeAffliction.override(String(card.id)));
+	let baseFrontKey = $derived(cardFaceKeyFor({ ...card, face: resolvedFace }, wildColor, false));
+
 	let frontEntry = $derived(
-		getFaceTexture(cardFaceKeyFor({ ...card, face: resolvedFace }, wildColor, false))
+		entryWithOverride(getFaceTexture(faceKeyForOverride(baseFrontKey, cardOverride)), cardOverride)
 	);
 	let backEntry = $derived(getFaceTexture(cardFaceKeyFor(card, wildColor, true)));
 
@@ -252,7 +262,7 @@
 			? assetTextures.getImage(art.hash, art.url)
 			: assetTextures.getGlyph(art.glyph);
 	});
-	let layerKey = $derived(cardFaceKeyFor({ ...card, face: resolvedFace }, wildColor, false));
+	let layerKey = $derived(faceKeyForOverride(baseFrontKey, cardOverride));
 	let valueLayerEntry = $derived.by(() => {
 		void ATLAS_PAGE_VERSION.value;
 		return getLayerTexture("value", layerKey);
@@ -577,6 +587,7 @@
 						     would paint a solid rectangle over the neighbouring card. -->
 						<AtlasLayerMesh
 							entry={backgroundLayerEntry}
+							override={cardOverride}
 							positionZ={BG_Z}
 							{renderOrder}
 							color={backgroundLayerColor}
@@ -601,6 +612,7 @@
 						{#if facePlan.keep.includes("value")}
 							<AtlasLayerMesh
 								entry={valueLayerEntry}
+								override={cardOverride}
 								positionZ={VALUE_Z}
 								{renderOrder}
 								color={layerColor}
@@ -613,6 +625,7 @@
 						{#if facePlan.keep.includes("border")}
 							<AtlasLayerMesh
 								entry={borderLayerEntry}
+								override={cardOverride}
 								positionZ={BORDER_Z}
 								{renderOrder}
 								color={layerColor}

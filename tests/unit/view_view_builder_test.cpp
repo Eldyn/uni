@@ -69,7 +69,7 @@ bool LoadContent(Content& out) {
     out.mods = std::move(load.mods);
     for (const LoadedMod& mod : out.mods) {
         for (const DeckDef& deck : mod.decks) {
-            if (deck.deck_id == "vanilla:classic") out.classic = deck;
+            if (deck.deck_id == "uni:classic") out.classic = deck;
         }
     }
     return !out.classic.deck_id.empty();
@@ -191,7 +191,7 @@ TEST_CASE("view filter: play_rejected is target only") {
     const std::optional<json> target =
         WrapOne(builder, Viewer::Player("player0"), event);
     REQUIRE(target.has_value());
-    CHECK((*target)["payload"]["player"] == "player0");
+    CHECK((*target)["payload"]["target"] == "player0");
     CHECK((*target)["payload"]["reason_id"] == "not_your_turn");
 
     CHECK_FALSE(
@@ -211,6 +211,8 @@ TEST_CASE("view filter: cards_drawn identities are owner only") {
     const ecs::Entity card1 = engine->Registries().cards[1];
     const uint32_t bits0 = engine->Registries().CardId(card0)->bits;
     const uint32_t bits1 = engine->Registries().CardId(card1)->bits;
+    // INFO: a drawn card already sits in the hand of the drawer.
+    ForceHand(*engine, player0, {card0, card1});
 
     const json event = json{
         {"type", "cards_drawn"},
@@ -235,10 +237,21 @@ TEST_CASE("view filter: cards_drawn identities are owner only") {
     CHECK((*other)["payload"]["source_pile"] == "draw_pile");
     CHECK_FALSE((*other)["payload"].contains("cards"));
 
-    const std::optional<json> spectator =
+    // INFO: a spectator follows the privacy setting of the drawing seat.
+    const std::optional<json> open_spectator =
         WrapOne(builder, Viewer::Spectator(), event);
-    REQUIRE(spectator.has_value());
-    CHECK_FALSE((*spectator)["payload"].contains("cards"));
+    REQUIRE(open_spectator.has_value());
+    CHECK((*open_spectator)["payload"]["cards"].size() == 2);
+
+    const std::optional<json> private_spectator =
+        WrapOne(builder, Viewer::Spectator({"player0"}), event);
+    REQUIRE(private_spectator.has_value());
+    CHECK_FALSE((*private_spectator)["payload"].contains("cards"));
+
+    const std::optional<json> other_private_spectator =
+        WrapOne(builder, Viewer::Spectator({"player1"}), event);
+    REQUIRE(other_private_spectator.has_value());
+    CHECK((*other_private_spectator)["payload"]["cards"].size() == 2);
 }
 
 TEST_CASE("view filter: hidden statuses are owner only") {
@@ -289,12 +302,12 @@ TEST_CASE("view filter: hidden statuses are owner only") {
     CHECK_FALSE(
         WrapOne(builder, Viewer::Player("player1"), removed).has_value());
 
-    // INFO: the vanilla draw-debt status is declared public, so its removal
+    // INFO: the uni draw-debt status is declared public, so its removal
     //       is visible to everyone.
     const json public_removed =
         json{{"type", "status_removed"},
              {"payload", json{{"target", EntityRef(player0)},
-                              {"status_kind", "vanilla:draw_debt"},
+                              {"status_kind", "uni:draw_debt"},
                               {"instance", 9}}}};
     CHECK(WrapOne(builder, Viewer::Player("player1"), public_removed)
               .has_value());
@@ -307,7 +320,7 @@ TEST_CASE("view filter: window_open projects kinds and hold_ms") {
     ViewBuilder builder(*engine, content.mods);
 
     const json merged =
-        json{{"type", "window_open"},
+        json{{"type", "window_opened"},
              {"payload", json{{"id", 3},
                               {"duration_ms", 7000},
                               {"hold_ms", 800},
@@ -320,7 +333,7 @@ TEST_CASE("view filter: window_open projects kinds and hold_ms") {
     CHECK(out["hold_ms"] == 800);
     CHECK(out["duration_ms"] == 7000);
 
-    const json bare = json{{"type", "window_open"},
+    const json bare = json{{"type", "window_opened"},
                            {"payload", json{{"id", 4}, {"deadline_ms", 5}}}};
     const json plain =
         (*WrapOne(builder, Viewer::Spectator(), bare))["payload"];
@@ -335,7 +348,7 @@ TEST_CASE("view filter: window packets are uniform and public") {
     ViewBuilder builder(*engine, content.mods);
 
     const json open =
-        json{{"type", "window_open"},
+        json{{"type", "window_opened"},
              {"payload", json{{"id", 7},
                               {"responders",
                                json::array({"player1", "player2"})},
@@ -357,17 +370,17 @@ TEST_CASE("view filter: window packets are uniform and public") {
     CHECK((*p0)["payload"]["deadline_ms"] == 7000);
     CHECK((*p0)["payload"]["kind"] == "jump_in");
     const json bare =
-        json{{"type", "window_open"},
+        json{{"type", "window_opened"},
              {"payload", json{{"id", 8}, {"deadline_ms", 5}}}};
     CHECK((*WrapOne(builder, Viewer::Spectator(), bare))["payload"]["kind"]
           == "generic");
-    CHECK((*p0)["payload"]["responders"].size() == 2);
+    CHECK((*p0)["payload"]["targets"].size() == 2);
     CHECK(WrapOne(builder, Viewer::Spectator(), open).has_value());
 
     const ecs::Entity player0 = *engine->FindPlayer("player0");
     const ecs::Entity card0 = engine->Registries().cards[0];
     const json response =
-        json{{"type", "window_response"},
+        json{{"type", "window_responded"},
              {"payload", json{{"window", 7},
                               {"player", "player0"},
                               {"card", EntityRef(card0)},
@@ -376,12 +389,12 @@ TEST_CASE("view filter: window packets are uniform and public") {
     const std::optional<json> seen_by_other =
         WrapOne(builder, Viewer::Player("player2"), response);
     REQUIRE(seen_by_other.has_value());
-    CHECK((*seen_by_other)["payload"]["player"] == "player0");
+    CHECK((*seen_by_other)["payload"]["target"] == "player0");
     CHECK((*seen_by_other)["payload"]["card"]
           == engine->Registries().CardId(card0)->bits);
 
     const json pass =
-        json{{"type", "window_response"},
+        json{{"type", "window_responded"},
              {"payload", json{{"window", 7},
                               {"player", "player1"},
                               {"pass", true},
@@ -392,7 +405,7 @@ TEST_CASE("view filter: window packets are uniform and public") {
     CHECK((*pass_seen)["payload"]["passed"] == true);
 
     const json close =
-        json{{"type", "window_close"},
+        json{{"type", "window_closed"},
              {"payload", json{{"id", 7},
                               {"outcome", "response"},
                               {"winner", "player0"},
@@ -401,10 +414,10 @@ TEST_CASE("view filter: window packets are uniform and public") {
         WrapOne(builder, Viewer::Player("player3"), close);
     REQUIRE(close_seen.has_value());
     CHECK((*close_seen)["payload"]["outcome"] == "winner");
-    CHECK((*close_seen)["payload"]["winner"] == "player0");
+    CHECK((*close_seen)["payload"]["target"] == "player0");
 
     const json timeout =
-        json{{"type", "window_close"},
+        json{{"type", "window_closed"},
              {"payload", json{{"id", 7},
                               {"outcome", "timeout"},
                               {"winner", nullptr}}}};
@@ -448,7 +461,7 @@ TEST_CASE("view filter: prompt packets are target only") {
 
     const ecs::Entity player0 = *engine->FindPlayer("player0");
     const json open =
-        json{{"type", "prompt_open"},
+        json{{"type", "prompt_opened"},
              {"payload", json{{"prompt_id", "p1"},
                               {"kind", "choose_color"},
                               {"target", EntityRef(player0)},
@@ -467,7 +480,7 @@ TEST_CASE("view filter: prompt packets are target only") {
     CHECK_FALSE(WrapOne(builder, Viewer::Spectator(), open).has_value());
 
     const json close =
-        json{{"type", "prompt_close"},
+        json{{"type", "prompt_answered"},
              {"payload", json{{"prompt_id", "p1"},
                               {"target", EntityRef(player0)},
                               {"outcome", "answered"}}}};
@@ -593,10 +606,10 @@ TEST_CASE("view filter: seq stays gap-free for a filtered viewer") {
     // INFO: play_rejected (target player0) and the hidden status are dropped
     //       for player1; cards_drawn and round_advance remain, gap-free.
     REQUIRE(visible.size() == 2);
-    CHECK(visible[0]["type"] == "cards_drawn");
-    CHECK(visible[1]["type"] == "round_advance");
-    CHECK(visible[0]["seq"] == 0u);
-    CHECK(visible[1]["seq"] == 1u);
+    CHECK(visible[0]["id"] == "cards_drawn");
+    CHECK(visible[1]["id"] == "round_advance");
+    CHECK(visible[0]["sequence"] == 0u);
+    CHECK(visible[1]["sequence"] == 1u);
     CHECK(sink.NextSeq() == 2u);
 }
 
@@ -654,7 +667,7 @@ TEST_CASE("view filter: pending prompt reaches only its target") {
     ViewBuilder builder(*engine, content.mods);
 
     const std::vector<ecs::Entity> wilds =
-        CardsByKind(*engine, "vanilla:wild");
+        CardsByKind(*engine, "uni:wild");
     REQUIRE_FALSE(wilds.empty());
     const ecs::Entity player0 = *engine->FindPlayer("player0");
     ForceHand(*engine, player0, {wilds[0]});
@@ -665,7 +678,7 @@ TEST_CASE("view filter: pending prompt reaches only its target") {
     const std::optional<json> target =
         builder.BuildPendingPrompt(Viewer::Player("player0"), target_sink);
     REQUIRE(target.has_value());
-    CHECK((*target)["type"] == "prompt_open");
+    CHECK((*target)["id"] == "prompt_opened");
     CHECK((*target)["payload"]["kind"] == "choose_color");
     CHECK(target_sink.NextSeq() == 1u);
 
@@ -677,4 +690,145 @@ TEST_CASE("view filter: pending prompt reaches only its target") {
         builder.BuildPendingPrompt(Viewer::Spectator(), other_sink)
             .has_value());
     CHECK(other_sink.NextSeq() == 0u);
+}
+
+namespace {
+
+json PublicRoundEvent(int64_t event_id, const json& cause_event = nullptr) {
+    json frame = json{{"actor", "player0"},
+                      {"cause", "play"},
+                      {"turn", 3},
+                      {"round", 1}};
+    if (!cause_event.is_null()) frame["cause_event"] = cause_event;
+    return json{{"type", "round_advance"},
+                {"event_id", event_id},
+                {"causal_frame", frame},
+                {"payload", json{{"round", 1}}}};
+}
+
+json RejectedPlayEvent(int64_t event_id) {
+    return json{{"type", "play_rejected"},
+                {"event_id", event_id},
+                {"causal_frame", json{{"actor", "player0"},
+                                      {"cause", "play"},
+                                      {"turn", 3},
+                                      {"round", 1}}},
+                {"payload", json{{"player", "player0"},
+                                 {"reason_id", "not_your_turn"}}}};
+}
+
+}  // namespace
+
+TEST_CASE("view envelope: an event carries the contract fields only") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    std::unique_ptr<MatchInstance> engine = MakeEngine(content, 4, 42);
+    ViewBuilder builder(*engine, content.mods);
+    EventSink sink;
+
+    const std::optional<json> wrapped =
+        builder.Wrap(PublicRoundEvent(5), Viewer::Player("player1"), sink);
+
+    REQUIRE(wrapped.has_value());
+    CHECK((*wrapped)["sequence"] == 0u);
+    CHECK((*wrapped)["id"] == "round_advance");
+    CHECK((*wrapped)["actor"] == "player0");
+    CHECK((*wrapped)["turn"] == 3);
+    CHECK((*wrapped)["round"] == 1);
+    CHECK((*wrapped)["payload"]["round"] == 1);
+    CHECK_FALSE(wrapped->contains("cause"));
+    std::vector<std::string> keys;
+    for (auto it = wrapped->begin(); it != wrapped->end(); ++it) {
+        keys.push_back(it.key());
+    }
+    CHECK(keys == std::vector<std::string>{"actor", "id", "payload", "round",
+                                           "sequence", "turn"});
+}
+
+TEST_CASE("view envelope: a table event has no actor") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    std::unique_ptr<MatchInstance> engine = MakeEngine(content, 4, 42);
+    ViewBuilder builder(*engine, content.mods);
+    EventSink sink;
+    json event = PublicRoundEvent(5);
+    event["causal_frame"]["actor"] = nullptr;
+
+    const std::optional<json> wrapped =
+        builder.Wrap(event, Viewer::Player("player1"), sink);
+
+    REQUIRE(wrapped.has_value());
+    CHECK_FALSE(wrapped->contains("actor"));
+}
+
+TEST_CASE("view envelope: cause is rewritten into the seat sequence space") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    std::unique_ptr<MatchInstance> engine = MakeEngine(content, 4, 42);
+    ViewBuilder builder(*engine, content.mods);
+
+    const json log = json::array({RejectedPlayEvent(1), PublicRoundEvent(2),
+                                  PublicRoundEvent(3, 2),
+                                  PublicRoundEvent(4, 1)});
+
+    EventSink sink_player0;
+    std::vector<json> seen_by_player0;
+    for (const json& event : log) {
+        const std::optional<json> wrapped =
+            builder.Wrap(event, Viewer::Player("player0"), sink_player0);
+        if (wrapped.has_value()) seen_by_player0.push_back(*wrapped);
+    }
+    EventSink sink_player1;
+    std::vector<json> seen_by_player1;
+    for (const json& event : log) {
+        const std::optional<json> wrapped =
+            builder.Wrap(event, Viewer::Player("player1"), sink_player1);
+        if (wrapped.has_value()) seen_by_player1.push_back(*wrapped);
+    }
+
+    REQUIRE(seen_by_player0.size() == 4);
+    CHECK(seen_by_player0[2]["sequence"] == 2u);
+    CHECK(seen_by_player0[2]["cause"] == 1u);
+    CHECK(seen_by_player0[3]["sequence"] == 3u);
+    CHECK(seen_by_player0[3]["cause"] == 0u);
+
+    REQUIRE(seen_by_player1.size() == 3);
+    CHECK(seen_by_player1[1]["sequence"] == 1u);
+    CHECK(seen_by_player1[1]["cause"] == 0u);
+    CHECK(seen_by_player1[2]["sequence"] == 2u);
+    CHECK_FALSE(seen_by_player1[2].contains("cause"));
+}
+
+TEST_CASE("view envelope: the same event has a different sequence per seat") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    std::unique_ptr<MatchInstance> engine = MakeEngine(content, 4, 42);
+    ViewBuilder builder(*engine, content.mods);
+    EventSink sink_player0;
+    EventSink sink_player1;
+    const json hidden = RejectedPlayEvent(1);
+    const json shared = PublicRoundEvent(2);
+
+    builder.Wrap(hidden, Viewer::Player("player0"), sink_player0);
+    builder.Wrap(hidden, Viewer::Player("player1"), sink_player1);
+    const std::optional<json> for_player0 =
+        builder.Wrap(shared, Viewer::Player("player0"), sink_player0);
+    const std::optional<json> for_player1 =
+        builder.Wrap(shared, Viewer::Player("player1"), sink_player1);
+
+    REQUIRE(for_player0.has_value());
+    REQUIRE(for_player1.has_value());
+    CHECK((*for_player0)["sequence"] == 1u);
+    CHECK((*for_player1)["sequence"] == 0u);
+}
+
+TEST_CASE("view envelope: a session packet takes the same counter") {
+    EventSink sink;
+    const json first = sink.Wrap("defs", json::object());
+    const json second = sink.Wrap("players_ready", json::object());
+
+    CHECK(first["sequence"] == 0u);
+    CHECK(first["id"] == "defs");
+    CHECK(second["sequence"] == 1u);
+    CHECK_FALSE(second.contains("cause"));
 }

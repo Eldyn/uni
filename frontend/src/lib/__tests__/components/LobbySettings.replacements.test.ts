@@ -90,7 +90,7 @@ describe("LobbySettings deck picker", () => {
 
 	it("lists every catalogue deck plus a freestyle option", async () => {
 		decks.push(
-			{ id: "vanilla:classic", name: "Classic", namespace: "vanilla", mods: [] },
+			{ id: "uni:classic", name: "Classic", namespace: "uni", mods: [] },
 			{ id: "chaos:wild", name: "Wild", namespace: "chaos", mods: ["chaos"] }
 		);
 		render(LobbySettings);
@@ -103,17 +103,17 @@ describe("LobbySettings deck picker", () => {
 	});
 
 	it("commits the selected catalogue deck id", async () => {
-		decks.push({ id: "vanilla:classic", name: "Classic", namespace: "vanilla", mods: [] });
+		decks.push({ id: "uni:classic", name: "Classic", namespace: "uni", mods: [] });
 		render(LobbySettings);
 
 		await fireEvent.click(screen.getByRole("button", { name: /Deck/ }));
 		await fireEvent.click(screen.getByRole("option", { name: /Classic/ }));
 
-		expect(updateSettings).toHaveBeenCalledWith({ deck_id: "vanilla:classic" });
+		expect(updateSettings).toHaveBeenCalledWith({ deck_id: "uni:classic" });
 	});
 
 	it("commits an empty deck_id when freestyle is selected", async () => {
-		decks.push({ id: "vanilla:classic", name: "Classic", namespace: "vanilla", mods: [] });
+		decks.push({ id: "uni:classic", name: "Classic", namespace: "uni", mods: [] });
 		render(LobbySettings);
 
 		await fireEvent.click(screen.getByRole("button", { name: /Deck/ }));

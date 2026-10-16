@@ -1,0 +1,878 @@
+{
+  "entries": {
+    "uni:draw": {
+      "id": "uni:draw",
+      "title": "摸牌",
+      "description": "从[k=uni:draw_pile]摸牌堆[/k]抽取一张或多张牌放入手牌。",
+      "tags": [
+        {
+          "label": "动作",
+          "bg": "var(--glossary-tag-action)",
+          "shadowColor": "var(--glossary-tag-action-shadow)"
+        }
+      ]
+    },
+    "uni:skip": {
+      "id": "uni:skip",
+      "title": "跳过",
+      "description": "使[k=uni:turn]回合[/k]顺序中的下一位玩家跳过其出牌机会。",
+      "tags": [
+        {
+          "label": "动作",
+          "bg": "var(--glossary-tag-action)",
+          "shadowColor": "var(--glossary-tag-action-shadow)"
+        }
+      ]
+    },
+    "uni:reverse": {
+      "id": "uni:reverse",
+      "title": "反转",
+      "description": "反转游戏进行方向。在 2 人对局中效果等同于[k=uni:skip]跳过[/k]。",
+      "tags": [
+        {
+          "label": "动作",
+          "bg": "var(--glossary-tag-action)",
+          "shadowColor": "var(--glossary-tag-action-shadow)"
+        }
+      ]
+    },
+    "uni:wild": {
+      "id": "uni:wild",
+      "title": "变色牌",
+      "description": "可以在任何牌上打出。由出牌玩家指定接下来的有效[k=uni:color]颜色[/k]。",
+      "tags": [
+        {
+          "label": "动作",
+          "bg": "var(--glossary-tag-action)",
+          "shadowColor": "var(--glossary-tag-action-shadow)"
+        }
+      ]
+    },
+    "uni:turn": {
+      "id": "uni:turn",
+      "title": "回合",
+      "description": "玩家[k=uni:play]出[/k]一张符合规则的牌或[k=uni:draw]摸牌[/k]的机会。",
+      "tags": [
+        {
+          "label": "流程",
+          "bg": "var(--glossary-tag-flow)",
+          "shadowColor": "var(--glossary-tag-flow-shadow)"
+        }
+      ]
+    },
+    "uni:color": {
+      "id": "uni:color",
+      "title": "颜色",
+      "description": "决定可以出什么牌的当前有效花色（红、蓝、绿、黄）。"
+    },
+    "uni:draw_pile": {
+      "id": "uni:draw_pile",
+      "title": "摸牌堆",
+      "description": "当玩家无法或选择不出牌时从中[k=uni:draw]摸牌[/k]的中央牌堆。",
+      "tags": [
+        {
+          "label": "牌堆",
+          "bg": "var(--glossary-tag-pile)",
+          "shadowColor": "var(--glossary-tag-pile-shadow)"
+        }
+      ]
+    },
+    "uni:discard_pile": {
+      "id": "uni:discard_pile",
+      "title": "弃牌堆",
+      "description": "放置打出的牌且正面朝上的牌堆。",
+      "tags": [
+        {
+          "label": "牌堆",
+          "bg": "var(--glossary-tag-pile)",
+          "shadowColor": "var(--glossary-tag-pile-shadow)"
+        }
+      ]
+    },
+    "uni:play": {
+      "id": "uni:play",
+      "title": "出牌",
+      "description": "将手牌中相匹配的牌放到[k=uni:discard_pile]弃牌堆[/k]上。",
+      "tags": [
+        {
+          "label": "动作",
+          "bg": "var(--glossary-tag-action)",
+          "shadowColor": "var(--glossary-tag-action-shadow)"
+        }
+      ]
+    },
+    "uni:seven_zero": {
+      "id": "uni:seven_zero",
+      "title": "7-0 规则",
+      "description": "打出 7 允许与任意玩家交换手牌。打出 0 会沿[k=uni:turn]回合[/k]方向轮换所有人的手牌。",
+      "tags": [
+        {
+          "label": "规则",
+          "bg": "var(--glossary-tag-rule)",
+          "shadowColor": "var(--glossary-tag-rule-shadow)"
+        }
+      ]
+    },
+    "uni:draw_stacking": {
+      "id": "uni:draw_stacking",
+      "title": "累加摸牌",
+      "description": "叠加 +2 或 +4 牌，将累积的[k=uni:draw]摸牌[/k]惩罚转给下一位玩家。",
+      "tags": [
+        {
+          "label": "规则",
+          "bg": "var(--glossary-tag-rule)",
+          "shadowColor": "var(--glossary-tag-rule-shadow)"
+        }
+      ]
+    },
+    "uni:force_play": {
+      "id": "uni:force_play",
+      "title": "强制出牌",
+      "description": "从牌堆摸到可出的牌时必须立即打出。",
+      "tags": [
+        {
+          "label": "规则",
+          "bg": "var(--glossary-tag-rule)",
+          "shadowColor": "var(--glossary-tag-rule-shadow)"
+        }
+      ]
+    },
+    "uni:jump_in": {
+      "id": "uni:jump_in",
+      "title": "抢出",
+      "description": "若拥有与顶牌完全相同（同颜色同数值）的牌，可在非自己回合时抢先打出。",
+      "tags": [
+        {
+          "label": "规则",
+          "bg": "var(--glossary-tag-rule)",
+          "shadowColor": "var(--glossary-tag-rule-shadow)"
+        }
+      ]
+    },
+    "uni:progressive": {
+      "id": "uni:progressive",
+      "title": "连击出牌",
+      "description": "与顶牌数值相同的牌可在同一[k=uni:turn]回合[/k]内连续打出。",
+      "tags": [
+        {
+          "label": "规则",
+          "bg": "var(--glossary-tag-rule)",
+          "shadowColor": "var(--glossary-tag-rule-shadow)"
+        }
+      ]
+    },
+    "uni:race": {
+      "id": "uni:race",
+      "title": "竞赛",
+      "description": "最先出完手牌的玩家获胜。出完的人数足够时对局结束，其余玩家全部落败。",
+      "tags": [
+        {
+          "label": "规则",
+          "bg": "var(--glossary-tag-rule)",
+          "shadowColor": "var(--glossary-tag-rule-shadow)"
+        }
+      ]
+    },
+    "uni:blue_0": {
+      "id": "uni:blue_0",
+      "title": "0",
+      "description": "数字牌 0。如果 [k=uni:seven_zero]7-0[/k] 规则生效，沿[k=uni:turn]回合[/k]方向轮转所有人的手牌。"
+    },
+    "uni:blue_1": {
+      "id": "uni:blue_1",
+      "title": "1",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "uni:blue_2": {
+      "id": "uni:blue_2",
+      "title": "2",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "uni:blue_3": {
+      "id": "uni:blue_3",
+      "title": "3",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "uni:blue_4": {
+      "id": "uni:blue_4",
+      "title": "4",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "uni:blue_5": {
+      "id": "uni:blue_5",
+      "title": "5",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "uni:blue_6": {
+      "id": "uni:blue_6",
+      "title": "6",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "uni:blue_7": {
+      "id": "uni:blue_7",
+      "title": "7",
+      "description": "数字牌 7。如果 [k=uni:seven_zero]7-0[/k] 规则生效，可与任意玩家交换手牌。"
+    },
+    "uni:blue_8": {
+      "id": "uni:blue_8",
+      "title": "8",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "uni:blue_9": {
+      "id": "uni:blue_9",
+      "title": "9",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "uni:blue_draw2": {
+      "id": "uni:blue_draw2",
+      "title": "摸两张 (+2)",
+      "description": "强制下一位玩家从[k=uni:draw_pile]摸牌堆[/k][k=uni:draw]摸[/k] 2 张牌并[k=uni:skip]跳过[/k]其[k=uni:turn]回合[/k]。"
+    },
+    "uni:blue_reverse": {
+      "id": "uni:blue_reverse",
+      "title": "反转",
+      "description": "[k=uni:reverse]反转[/k][k=uni:play]出牌[/k]方向。在 2 人对局中效果等同于[k=uni:skip]跳过[/k]。"
+    },
+    "uni:blue_skip": {
+      "id": "uni:blue_skip",
+      "title": "跳过",
+      "description": "使[k=uni:turn]回合[/k]顺序中的下一位玩家被[k=uni:skip]跳过[/k]。"
+    },
+    "uni:green_0": {
+      "id": "uni:green_0",
+      "title": "0",
+      "description": "数字牌 0。如果 [k=uni:seven_zero]7-0[/k] 规则生效，沿[k=uni:turn]回合[/k]方向轮转所有人的手牌。"
+    },
+    "uni:green_1": {
+      "id": "uni:green_1",
+      "title": "1",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "uni:green_2": {
+      "id": "uni:green_2",
+      "title": "2",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "uni:green_3": {
+      "id": "uni:green_3",
+      "title": "3",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "uni:green_4": {
+      "id": "uni:green_4",
+      "title": "4",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "uni:green_5": {
+      "id": "uni:green_5",
+      "title": "5",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "uni:green_6": {
+      "id": "uni:green_6",
+      "title": "6",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "uni:green_7": {
+      "id": "uni:green_7",
+      "title": "7",
+      "description": "数字牌 7。如果 [k=uni:seven_zero]7-0[/k] 规则生效，可与任意玩家交换手牌。"
+    },
+    "uni:green_8": {
+      "id": "uni:green_8",
+      "title": "8",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "uni:green_9": {
+      "id": "uni:green_9",
+      "title": "9",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "uni:green_draw2": {
+      "id": "uni:green_draw2",
+      "title": "摸两张 (+2)",
+      "description": "强制下一位玩家从[k=uni:draw_pile]摸牌堆[/k][k=uni:draw]摸[/k] 2 张牌并[k=uni:skip]跳过[/k]其[k=uni:turn]回合[/k]。"
+    },
+    "uni:green_reverse": {
+      "id": "uni:green_reverse",
+      "title": "反转",
+      "description": "[k=uni:reverse]反转[/k][k=uni:play]出牌[/k]方向。在 2 人对局中效果等同于[k=uni:skip]跳过[/k]。"
+    },
+    "uni:green_skip": {
+      "id": "uni:green_skip",
+      "title": "跳过",
+      "description": "使[k=uni:turn]回合[/k]顺序中的下一位玩家被[k=uni:skip]跳过[/k]。"
+    },
+    "uni:red_0": {
+      "id": "uni:red_0",
+      "title": "0",
+      "description": "数字牌 0。如果 [k=uni:seven_zero]7-0[/k] 规则生效，沿[k=uni:turn]回合[/k]方向轮转所有人的手牌。"
+    },
+    "uni:red_1": {
+      "id": "uni:red_1",
+      "title": "1",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "uni:red_2": {
+      "id": "uni:red_2",
+      "title": "2",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "uni:red_3": {
+      "id": "uni:red_3",
+      "title": "3",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "uni:red_4": {
+      "id": "uni:red_4",
+      "title": "4",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "uni:red_5": {
+      "id": "uni:red_5",
+      "title": "5",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "uni:red_6": {
+      "id": "uni:red_6",
+      "title": "6",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "uni:red_7": {
+      "id": "uni:red_7",
+      "title": "7",
+      "description": "数字牌 7。如果 [k=uni:seven_zero]7-0[/k] 规则生效，可与任意玩家交换手牌。"
+    },
+    "uni:red_8": {
+      "id": "uni:red_8",
+      "title": "8",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "uni:red_9": {
+      "id": "uni:red_9",
+      "title": "9",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "uni:red_draw2": {
+      "id": "uni:red_draw2",
+      "title": "摸两张 (+2)",
+      "description": "强制下一位玩家从[k=uni:draw_pile]摸牌堆[/k][k=uni:draw]摸[/k] 2 张牌并[k=uni:skip]跳过[/k]其[k=uni:turn]回合[/k]。"
+    },
+    "uni:red_reverse": {
+      "id": "uni:red_reverse",
+      "title": "反转",
+      "description": "[k=uni:reverse]反转[/k][k=uni:play]出牌[/k]方向。在 2 人对局中效果等同于[k=uni:skip]跳过[/k]。"
+    },
+    "uni:red_skip": {
+      "id": "uni:red_skip",
+      "title": "跳过",
+      "description": "使[k=uni:turn]回合[/k]顺序中的下一位玩家被[k=uni:skip]跳过[/k]。"
+    },
+    "uni:wild_draw4": {
+      "id": "uni:wild_draw4",
+      "title": "变色摸四张 (+4)",
+      "description": "指定接下来的[k=uni:color]颜色[/k]。下一位玩家必须[k=uni:draw]摸[/k] 4 张牌并[k=uni:skip]跳过[/k]其[k=uni:turn]回合[/k]。"
+    },
+    "uni:yellow_0": {
+      "id": "uni:yellow_0",
+      "title": "0",
+      "description": "数字牌 0。如果 [k=uni:seven_zero]7-0[/k] 规则生效，沿[k=uni:turn]回合[/k]方向轮转所有人的手牌。"
+    },
+    "uni:yellow_1": {
+      "id": "uni:yellow_1",
+      "title": "1",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "uni:yellow_2": {
+      "id": "uni:yellow_2",
+      "title": "2",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "uni:yellow_3": {
+      "id": "uni:yellow_3",
+      "title": "3",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "uni:yellow_4": {
+      "id": "uni:yellow_4",
+      "title": "4",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "uni:yellow_5": {
+      "id": "uni:yellow_5",
+      "title": "5",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "uni:yellow_6": {
+      "id": "uni:yellow_6",
+      "title": "6",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "uni:yellow_7": {
+      "id": "uni:yellow_7",
+      "title": "7",
+      "description": "数字牌 7。如果 [k=uni:seven_zero]7-0[/k] 规则生效，可与任意玩家交换手牌。"
+    },
+    "uni:yellow_8": {
+      "id": "uni:yellow_8",
+      "title": "8",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "uni:yellow_9": {
+      "id": "uni:yellow_9",
+      "title": "9",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "uni:yellow_draw2": {
+      "id": "uni:yellow_draw2",
+      "title": "摸两张 (+2)",
+      "description": "强制下一位玩家从[k=uni:draw_pile]摸牌堆[/k][k=uni:draw]摸[/k] 2 张牌并[k=uni:skip]跳过[/k]其[k=uni:turn]回合[/k]。"
+    },
+    "uni:yellow_reverse": {
+      "id": "uni:yellow_reverse",
+      "title": "反转",
+      "description": "[k=uni:reverse]反转[/k][k=uni:play]出牌[/k]方向。在 2 人对局中效果等同于[k=uni:skip]跳过[/k]。"
+    },
+    "uni:yellow_skip": {
+      "id": "uni:yellow_skip",
+      "title": "跳过",
+      "description": "使[k=uni:turn]回合[/k]顺序中的下一位玩家被[k=uni:skip]跳过[/k]。"
+    }
+  },
+  "cardKinds": {
+    "uni:blue_0": {
+      "title": "0",
+      "description": "数字牌 0。如果 [k=uni:seven_zero]7-0[/k] 规则生效，沿[k=uni:turn]回合[/k]方向轮转所有人的手牌。"
+    },
+    "uni:blue_1": {
+      "title": "1",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "uni:blue_2": {
+      "title": "2",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "uni:blue_3": {
+      "title": "3",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "uni:blue_4": {
+      "title": "4",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "uni:blue_5": {
+      "title": "5",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "uni:blue_6": {
+      "title": "6",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "uni:blue_7": {
+      "title": "7",
+      "description": "数字牌 7。如果 [k=uni:seven_zero]7-0[/k] 规则生效，可与任意玩家交换手牌。"
+    },
+    "uni:blue_8": {
+      "title": "8",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "uni:blue_9": {
+      "title": "9",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "uni:blue_draw2": {
+      "title": "摸两张 (+2)",
+      "description": "强制下一位玩家从[k=uni:draw_pile]摸牌堆[/k][k=uni:draw]摸[/k] 2 张牌并[k=uni:skip]跳过[/k]其[k=uni:turn]回合[/k]。"
+    },
+    "uni:blue_reverse": {
+      "title": "反转",
+      "description": "[k=uni:reverse]反转[/k][k=uni:play]出牌[/k]方向。在 2 人对局中效果等同于[k=uni:skip]跳过[/k]。"
+    },
+    "uni:blue_skip": {
+      "title": "跳过",
+      "description": "使[k=uni:turn]回合[/k]顺序中的下一位玩家被[k=uni:skip]跳过[/k]。"
+    },
+    "uni:green_0": {
+      "title": "0",
+      "description": "数字牌 0。如果 [k=uni:seven_zero]7-0[/k] 规则生效，沿[k=uni:turn]回合[/k]方向轮转所有人的手牌。"
+    },
+    "uni:green_1": {
+      "title": "1",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "uni:green_2": {
+      "title": "2",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "uni:green_3": {
+      "title": "3",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "uni:green_4": {
+      "title": "4",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "uni:green_5": {
+      "title": "5",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "uni:green_6": {
+      "title": "6",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "uni:green_7": {
+      "title": "7",
+      "description": "数字牌 7。如果 [k=uni:seven_zero]7-0[/k] 规则生效，可与任意玩家交换手牌。"
+    },
+    "uni:green_8": {
+      "title": "8",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "uni:green_9": {
+      "title": "9",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "uni:green_draw2": {
+      "title": "摸两张 (+2)",
+      "description": "强制下一位玩家从[k=uni:draw_pile]摸牌堆[/k][k=uni:draw]摸[/k] 2 张牌并[k=uni:skip]跳过[/k]其[k=uni:turn]回合[/k]。"
+    },
+    "uni:green_reverse": {
+      "title": "反转",
+      "description": "[k=uni:reverse]反转[/k][k=uni:play]出牌[/k]方向。在 2 人对局中效果等同于[k=uni:skip]跳过[/k]。"
+    },
+    "uni:green_skip": {
+      "title": "跳过",
+      "description": "使[k=uni:turn]回合[/k]顺序中的下一位玩家被[k=uni:skip]跳过[/k]。"
+    },
+    "uni:red_0": {
+      "title": "0",
+      "description": "数字牌 0。如果 [k=uni:seven_zero]7-0[/k] 规则生效，沿[k=uni:turn]回合[/k]方向轮转所有人的手牌。"
+    },
+    "uni:red_1": {
+      "title": "1",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "uni:red_2": {
+      "title": "2",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "uni:red_3": {
+      "title": "3",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "uni:red_4": {
+      "title": "4",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "uni:red_5": {
+      "title": "5",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "uni:red_6": {
+      "title": "6",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "uni:red_7": {
+      "title": "7",
+      "description": "数字牌 7。如果 [k=uni:seven_zero]7-0[/k] 规则生效，可与任意玩家交换手牌。"
+    },
+    "uni:red_8": {
+      "title": "8",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "uni:red_9": {
+      "title": "9",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "uni:red_draw2": {
+      "title": "摸两张 (+2)",
+      "description": "强制下一位玩家从[k=uni:draw_pile]摸牌堆[/k][k=uni:draw]摸[/k] 2 张牌并[k=uni:skip]跳过[/k]其[k=uni:turn]回合[/k]。"
+    },
+    "uni:red_reverse": {
+      "title": "反转",
+      "description": "[k=uni:reverse]反转[/k][k=uni:play]出牌[/k]方向。在 2 人对局中效果等同于[k=uni:skip]跳过[/k]。"
+    },
+    "uni:red_skip": {
+      "title": "跳过",
+      "description": "使[k=uni:turn]回合[/k]顺序中的下一位玩家被[k=uni:skip]跳过[/k]。"
+    },
+    "uni:wild": {
+      "title": "变色牌",
+      "description": "可以在任何牌上打出的[k=uni:wild]变色[/k]牌。指定接下来的[k=uni:color]颜色[/k]。"
+    },
+    "uni:wild_draw4": {
+      "title": "变色摸四张 (+4)",
+      "description": "指定接下来的[k=uni:color]颜色[/k]。下一位玩家必须[k=uni:draw]摸[/k] 4 张牌并[k=uni:skip]跳过[/k]其[k=uni:turn]回合[/k]。"
+    },
+    "uni:yellow_0": {
+      "title": "0",
+      "description": "数字牌 0。如果 [k=uni:seven_zero]7-0[/k] 规则生效，沿[k=uni:turn]回合[/k]方向轮转所有人的手牌。"
+    },
+    "uni:yellow_1": {
+      "title": "1",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "uni:yellow_2": {
+      "title": "2",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "uni:yellow_3": {
+      "title": "3",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "uni:yellow_4": {
+      "title": "4",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "uni:yellow_5": {
+      "title": "5",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "uni:yellow_6": {
+      "title": "6",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "uni:yellow_7": {
+      "title": "7",
+      "description": "数字牌 7。如果 [k=uni:seven_zero]7-0[/k] 规则生效，可与任意玩家交换手牌。"
+    },
+    "uni:yellow_8": {
+      "title": "8",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "uni:yellow_9": {
+      "title": "9",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "uni:yellow_draw2": {
+      "title": "摸两张 (+2)",
+      "description": "强制下一位玩家从[k=uni:draw_pile]摸牌堆[/k][k=uni:draw]摸[/k] 2 张牌并[k=uni:skip]跳过[/k]其[k=uni:turn]回合[/k]。"
+    },
+    "uni:yellow_reverse": {
+      "title": "反转",
+      "description": "[k=uni:reverse]反转[/k][k=uni:play]出牌[/k]方向。在 2 人对局中效果等同于[k=uni:skip]跳过[/k]。"
+    },
+    "uni:yellow_skip": {
+      "title": "跳过",
+      "description": "使[k=uni:turn]回合[/k]顺序中的下一位玩家被[k=uni:skip]跳过[/k]。"
+    }
+  },
+  "cardInfos": {
+    "blue_0": {
+      "title": "Blue 0",
+      "description": "数字牌 0。如果 [k=uni:seven_zero]7-0[/k] 规则生效，沿[k=uni:turn]回合[/k]方向轮转所有人的手牌。"
+    },
+    "blue_1": {
+      "title": "Blue 1",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "blue_2": {
+      "title": "Blue 2",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "blue_3": {
+      "title": "Blue 3",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "blue_4": {
+      "title": "Blue 4",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "blue_5": {
+      "title": "Blue 5",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "blue_6": {
+      "title": "Blue 6",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "blue_7": {
+      "title": "Blue 7",
+      "description": "数字牌 7。如果 [k=uni:seven_zero]7-0[/k] 规则生效，可与任意玩家交换手牌。"
+    },
+    "blue_8": {
+      "title": "Blue 8",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "blue_9": {
+      "title": "Blue 9",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "blue_draw2": {
+      "title": "摸两张 (+2)",
+      "description": "强制下一位玩家从[k=uni:draw_pile]摸牌堆[/k][k=uni:draw]摸[/k] 2 张牌并[k=uni:skip]跳过[/k]其[k=uni:turn]回合[/k]。"
+    },
+    "blue_reverse": {
+      "title": "反转",
+      "description": "[k=uni:reverse]反转[/k][k=uni:play]出牌[/k]方向。在 2 人对局中效果等同于[k=uni:skip]跳过[/k]。"
+    },
+    "blue_skip": {
+      "title": "跳过",
+      "description": "使[k=uni:turn]回合[/k]顺序中的下一位玩家被[k=uni:skip]跳过[/k]。"
+    },
+    "green_0": {
+      "title": "Green 0",
+      "description": "数字牌 0。如果 [k=uni:seven_zero]7-0[/k] 规则生效，沿[k=uni:turn]回合[/k]方向轮转所有人的手牌。"
+    },
+    "green_1": {
+      "title": "Green 1",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "green_2": {
+      "title": "Green 2",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "green_3": {
+      "title": "Green 3",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "green_4": {
+      "title": "Green 4",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "green_5": {
+      "title": "Green 5",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "green_6": {
+      "title": "Green 6",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "green_7": {
+      "title": "Green 7",
+      "description": "数字牌 7。如果 [k=uni:seven_zero]7-0[/k] 规则生效，可与任意玩家交换手牌。"
+    },
+    "green_8": {
+      "title": "Green 8",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "green_9": {
+      "title": "Green 9",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "green_draw2": {
+      "title": "摸两张 (+2)",
+      "description": "强制下一位玩家从[k=uni:draw_pile]摸牌堆[/k][k=uni:draw]摸[/k] 2 张牌并[k=uni:skip]跳过[/k]其[k=uni:turn]回合[/k]。"
+    },
+    "green_reverse": {
+      "title": "反转",
+      "description": "[k=uni:reverse]反转[/k][k=uni:play]出牌[/k]方向。在 2 人对局中效果等同于[k=uni:skip]跳过[/k]。"
+    },
+    "green_skip": {
+      "title": "跳过",
+      "description": "使[k=uni:turn]回合[/k]顺序中的下一位玩家被[k=uni:skip]跳过[/k]。"
+    },
+    "red_0": {
+      "title": "Red 0",
+      "description": "数字牌 0。如果 [k=uni:seven_zero]7-0[/k] 规则生效，沿[k=uni:turn]回合[/k]方向轮转所有人的手牌。"
+    },
+    "red_1": {
+      "title": "Red 1",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "red_2": {
+      "title": "Red 2",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "red_3": {
+      "title": "Red 3",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "red_4": {
+      "title": "Red 4",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "red_5": {
+      "title": "Red 5",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "red_6": {
+      "title": "Red 6",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "red_7": {
+      "title": "Red 7",
+      "description": "数字牌 7。如果 [k=uni:seven_zero]7-0[/k] 规则生效，可与任意玩家交换手牌。"
+    },
+    "red_8": {
+      "title": "Red 8",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "red_9": {
+      "title": "Red 9",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "red_draw2": {
+      "title": "摸两张 (+2)",
+      "description": "强制下一位玩家从[k=uni:draw_pile]摸牌堆[/k][k=uni:draw]摸[/k] 2 张牌并[k=uni:skip]跳过[/k]其[k=uni:turn]回合[/k]。"
+    },
+    "red_reverse": {
+      "title": "反转",
+      "description": "[k=uni:reverse]反转[/k][k=uni:play]出牌[/k]方向。在 2 人对局中效果等同于[k=uni:skip]跳过[/k]。"
+    },
+    "red_skip": {
+      "title": "跳过",
+      "description": "使[k=uni:turn]回合[/k]顺序中的下一位玩家被[k=uni:skip]跳过[/k]。"
+    },
+    "wild": {
+      "title": "变色牌",
+      "description": "可以在任何牌上打出的[k=uni:wild]变色[/k]牌。指定接下来的[k=uni:color]颜色[/k]。"
+    },
+    "wild_draw4": {
+      "title": "变色摸四张 (+4)",
+      "description": "指定接下来的[k=uni:color]颜色[/k]。下一位玩家必须[k=uni:draw]摸[/k] 4 张牌并[k=uni:skip]跳过[/k]其[k=uni:turn]回合[/k]。"
+    },
+    "yellow_0": {
+      "title": "Yellow 0",
+      "description": "数字牌 0。如果 [k=uni:seven_zero]7-0[/k] 规则生效，沿[k=uni:turn]回合[/k]方向轮转所有人的手牌。"
+    },
+    "yellow_1": {
+      "title": "Yellow 1",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "yellow_2": {
+      "title": "Yellow 2",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "yellow_3": {
+      "title": "Yellow 3",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "yellow_4": {
+      "title": "Yellow 4",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "yellow_5": {
+      "title": "Yellow 5",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "yellow_6": {
+      "title": "Yellow 6",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "yellow_7": {
+      "title": "Yellow 7",
+      "description": "数字牌 7。如果 [k=uni:seven_zero]7-0[/k] 规则生效，可与任意玩家交换手牌。"
+    },
+    "yellow_8": {
+      "title": "Yellow 8",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "yellow_9": {
+      "title": "Yellow 9",
+      "description": "数字牌。按[k=uni:color]颜色[/k]或数字匹配后[k=uni:play]出[/k]到[k=uni:discard_pile]弃牌堆[/k]上。"
+    },
+    "yellow_draw2": {
+      "title": "摸两张 (+2)",
+      "description": "强制下一位玩家从[k=uni:draw_pile]摸牌堆[/k][k=uni:draw]摸[/k] 2 张牌并[k=uni:skip]跳过[/k]其[k=uni:turn]回合[/k]。"
+    },
+    "yellow_reverse": {
+      "title": "反转",
+      "description": "[k=uni:reverse]反转[/k][k=uni:play]出牌[/k]方向。在 2 人对局中效果等同于[k=uni:skip]跳过[/k]。"
+    },
+    "yellow_skip": {
+      "title": "跳过",
+      "description": "使[k=uni:turn]回合[/k]顺序中的下一位玩家被[k=uni:skip]跳过[/k]。"
+    }
+  }
+}

@@ -1,16 +1,83 @@
 #include <services/auth_service.hpp>
-#include <common/base64.hpp>
+#include <common/crypto_pool.hpp>
 #include <common/env.hpp>
 #include <common/contract.hpp>
 #include <common/bot_names.hpp>
-#include <openssl/evp.h>
 #include <openssl/rand.h>
 #include <jwt-cpp/jwt.h>
 #include <jwt-cpp/traits/nlohmann-json/defaults.h>
 #include <logger.hpp>
 #include <algorithm>
+#include <atomic>
 #include <cctype>
 #include <chrono>
+#include <cstdlib>
+#include <mutex>
+#include <stdexcept>
+#include <unordered_map>
+
+namespace {
+
+// INFO: Env-once cache (backend-perf Task 9): `Env::Get` costs a getenv +
+//       a heap allocation per call. Steady-state calls do one getenv and a
+//       compare with no allocation; the entry refreshes only when the live
+//       value actually changes, so secret rotation and tests that setenv
+//       keep working (a frozen `static const` would break rotation and
+//       `auth_service_test.cpp`'s re-sign case). One tiny mutex guards the
+//       map; the hot paths (login/upgrade) never allocate on a hit.
+struct CachedVar {
+    bool have = false;
+    bool set = false;
+    std::string value;
+};
+
+std::mutex& EnvCacheMutex() {
+    static std::mutex mu;
+    return mu;
+}
+
+std::unordered_map<std::string, CachedVar>& EnvCache() {
+    static std::unordered_map<std::string, CachedVar> cache;
+    return cache;
+}
+
+const std::string& CachedEnv(const char* key, const char* fallback) {
+    const char* live = std::getenv(key);  // outside the lock; no allocation
+    const bool live_set = live != nullptr;
+    std::lock_guard<std::mutex> lock(EnvCacheMutex());
+    CachedVar& slot = EnvCache()[key];
+    if (!slot.have || slot.set != live_set ||
+        (live_set && slot.value != live)) {
+        slot.have = true;
+        slot.set = live_set;
+        slot.value = live_set ? live : fallback;
+    }
+    return slot.value;
+}
+
+// INFO: `Env::Require` semantics (throw when unset) over the cached value.
+const std::string& CachedEnvRequire(const char* key) {
+    const char* live = std::getenv(key);
+    if (live == nullptr) {
+        // Match Env::Require's message so callers see the same error.
+        throw std::runtime_error(std::string("[Env] Required variable '") +
+                                 key + "' is not set");
+    }
+    return CachedEnv(key, "");
+}
+
+struct TokenVersionCache {
+    std::mutex mu;
+    std::unordered_map<std::string, int> versions;
+    std::uint64_t hits = 0;
+};
+
+TokenVersionCache& GetTokenVersionCache() {
+    static TokenVersionCache cache;
+    return cache;
+}
+
+}  // namespace
 
 AuthService::AuthService(Database& db)
     : db_(db),
@@ -123,7 +190,7 @@ Result<AuthSession> AuthService::Login(const std::string& email, const std::stri
     }
 
     auto row_result = db_.QueryOne(
-        "SELECT username, pass_hash, salt FROM users WHERE email = ?;",
+        "SELECT username, pass_hash, salt, token_version FROM users WHERE email = ?;",
         {email});
 
     if (!row_result) {
@@ -147,6 +214,7 @@ Result<AuthSession> AuthService::Login(const std::string& email, const std::stri
     std::string  username  = row.Get<std::string>("username");
     std::string  hash_b64  = row.Get<std::string>("pass_hash");
     std::string  salt_b64  = row.Get<std::string>("salt");
+    const int    token_version = row.GetOr<int>("token_version", 0);
 
     // INFO: Reconstruct the "<salt>:<hash>" format that VerifyPassword expects.
     std::string stored = salt_b64 + ":" + hash_b64;
@@ -158,7 +226,9 @@ Result<AuthSession> AuthService::Login(const std::string& email, const std::stri
 
     login_throttle_.Reset(throttle_key);
 
-    auto token = IssueToken(username);
+    // INFO: token_version rode along in the initial SELECT, so sign directly
+    // (saves IssueToken's second DB hop on every login).
+    auto token = IssueTokenWithVersion(username, token_version);
     if (!token) return std::unexpected(token.error());
 
     Logger::Info("[Auth] Login successful: " + username);
@@ -200,9 +270,10 @@ Result<AccountStatus> AuthService::GetAccountStatus(const std::string& username)
 }
 
 bool AuthService::IsFullMember(const std::string& username) {
-    auto row_result = Database::Get().QueryOne(
+    // Runs on the DB worker thread; the loop thread blocks on the future.
+    auto row_result = Database::Get().QueryOneAsync(
         "SELECT email_verified FROM users WHERE username = ?;",
-        {username});
+        {username}).get();
 
     if (!row_result || !row_result->has_value()) {
         return false;
@@ -230,94 +301,16 @@ Result<std::string> AuthService::GenerateGuestName() {
 }
 
 // INFO: PBKDF2 is battle-tested and acceptable for this project scale. The
-//       main knob is kIterations: more iterations = more CPU per guess =
-//       slower brute force.
-
-//       The "pepper" is an application-level secret from the environment.
-//       Unlike a salt (stored in the DB, unique per user, public), a pepper
-//       is *not* stored anywhere, it lives only in memory, loaded from the
-//       env at startup. An attacker who steals the DB but not the server
-//       config cannot run offline dictionary attacks even with the salts in
-//       hand.
+//       hashing itself runs on the CryptoPool (see common/crypto_pool.hpp):
+//       these methods only enqueue and block on the future, so the loop
+//       thread never sits through the ~200k iterations. Request latency is
+//       unchanged; HTTP handlers still see a synchronous call.
 Result<std::string> AuthService::HashPassword(const std::string& password) {
-    // INFO: 1. Generate a cryptographically random salt. RAND_bytes fills the
-    //       buffer with random bytes from OpenSSL's CSPRNG.
-    std::vector<unsigned char> salt(kSaltBytes);
-    if (RAND_bytes(salt.data(), kSaltBytes) != 1) {
-        return std::unexpected(Error::Internal("[Auth] CSPRNG failure: RAND_bytes returned 0"));
-    }
-
-    // INFO: 2. Read the pepper from the environment and append it to the
-    //       password. std::string + std::string = concatenation; no UB here.
-    std::string pepper         = Env::Get("PASSWORD_PEPPER", "");
-    std::string peppered_pass  = password + pepper;
-
-    // INFO: 3. Derive the hash.
-    //          PKCS5_PBKDF2_HMAC(password, passlen,
-    //                            salt, saltlen,
-    //                            iterations,
-    //                            digest,        ← EVP_sha256() here
-    //                            keylen,
-    //                            output_buffer)
-    //          Returns 1 on success, 0 on failure.
-    std::vector<unsigned char> hash(kHashBytes);
-    if (PKCS5_PBKDF2_HMAC(
-            peppered_pass.c_str(),
-            static_cast<int>(peppered_pass.size()),
-            salt.data(),
-            kSaltBytes,
-            kIterations,
-            EVP_sha256(),
-            kHashBytes,
-            hash.data()) != 1) {
-        return std::unexpected(Error::Internal("[Auth] PBKDF2 failed"));
-    }
-
-    // INFO: 4. Encode both salt and hash to base64 and return as
-    //       "<salt>:<hash>". Storing them together makes retrieval a single
-    //       DB read.
-    return Base64::Encode(salt) + ":" + Base64::Encode(hash);
+    return CryptoPool::Get().HashPasswordAsync(password).get();
 }
 
 bool AuthService::VerifyPassword(const std::string& password, const std::string& stored) {
-    auto colon = stored.find(':');
-    if (colon == std::string::npos) return false;
-
-    std::vector<unsigned char> salt;
-    std::vector<unsigned char> ref_hash;
-    try {
-        salt     = Base64::Decode(stored.substr(0, colon));
-        ref_hash = Base64::Decode(stored.substr(colon + 1));
-    } catch (const std::exception&) {
-        return false;  // malformed base64 in the row: never a match
-    }
-    if (salt.size() != static_cast<std::size_t>(kSaltBytes) ||
-        ref_hash.size() != static_cast<std::size_t>(kHashBytes)) {
-        return false;  // truncated/oversized digest would over-read in CRYPTO_memcmp
-    }
-
-    std::string pepper        = Env::Get("PASSWORD_PEPPER", "");
-    std::string peppered_pass = password + pepper;
-
-    std::vector<unsigned char> candidate(kHashBytes);
-    if (PKCS5_PBKDF2_HMAC(
-            peppered_pass.c_str(),
-            static_cast<int>(peppered_pass.size()),
-            salt.data(),
-            static_cast<int>(salt.size()),
-            kIterations,
-            EVP_sha256(),
-            kHashBytes,
-            candidate.data()) != 1) {
-        return false;
-    }
-
-    // INFO: CRYPTO_memcmp performs a constant-time comparison. A regular `==`
-    //       on std::vector short-circuits on the first mismatch, which leaks
-    //       timing information, a timing-side-channel attack can use that to
-    //       infer how many bytes of the hash match. Returns 0 if equal (same
-    //       convention as memcmp).
-    return (CRYPTO_memcmp(candidate.data(), ref_hash.data(), kHashBytes) == 0);
+    return CryptoPool::Get().VerifyPasswordAsync(password, stored).get();
 }
 
 // JWT, issue + verify
@@ -328,26 +321,33 @@ bool AuthService::VerifyPassword(const std::string& password, const std::string&
 //         - issued_at  : current UTC time (for audit / debugging)
 //         - expires_at : now + 24 hours (after which the token is rejected)
 
-//       The secret is fetched via Env::Require every call rather than cached
-//       so that secret rotation (SIGHUP + Env::Load) works without restart.
-//       In a hot path you'd cache it, but token issuance / verification
-//       happen only at login and upgrade, not per-message.
+//       The secret is fetched via a refresh-on-change cache over
+//       Env::Require (see CachedEnvRequire above) so that secret rotation
+//       (SIGHUP + Env::Load) works without restart. In a hot path you'd
+//       freeze it, but token issuance / verification happen only at login
+//       and upgrade, not per-message; the cache still avoids the per-call
+//       getenv + heap allocation on the steady state.
 Result<std::string> AuthService::IssueToken(const std::string& username) {
+    // INFO: Guests have no row; their tokens carry ver=0 and are never revoked.
+    // Runs on the DB worker thread; the loop thread blocks on the future.
+    int version = 0;
+    auto row = Database::Get().QueryOneAsync(
+        "SELECT token_version FROM users WHERE username = ?;", {username}).get();
+    if (!row) return std::unexpected(row.error());
+    if (row->has_value()) version = row->value().Get<int>("token_version");
+    return IssueTokenWithVersion(username, version);
+}
+
+Result<std::string> AuthService::IssueTokenWithVersion(const std::string& username,
+                                                        int version) {
     using namespace std::chrono;
 
     std::string secret;
     try {
-        secret = Env::Require("JWT_SECRET");
+        secret = CachedEnvRequire("JWT_SECRET");
     } catch (const std::exception& e) {
         return std::unexpected(Error::Internal(e.what()));
     }
-
-    // INFO: Guests have no row; their tokens carry ver=0 and are never revoked.
-    int version = 0;
-    auto row = Database::Get().QueryOne(
-        "SELECT token_version FROM users WHERE username = ?;", {username});
-    if (!row) return std::unexpected(row.error());
-    if (row->has_value()) version = row->value().Get<int>("token_version");
 
     auto now    = system_clock::now();
     auto expiry = now + hours(24);
@@ -367,7 +367,7 @@ Result<std::string> AuthService::IssueToken(const std::string& username) {
 Result<JwtPayload> AuthService::VerifyToken(const std::string& token) {
     std::string secret;
     try {
-        secret = Env::Require("JWT_SECRET");
+        secret = CachedEnvRequire("JWT_SECRET");
     } catch (const std::exception& e) {
         return std::unexpected(Error::Internal(e.what()));
     }
@@ -401,10 +401,33 @@ Result<JwtPayload> AuthService::VerifyToken(const std::string& token) {
             }
         }
 
-        auto row = Database::Get().QueryOne(
-            "SELECT token_version FROM users WHERE username = ?;", {decoded.get_subject()});
-        if (!row) return std::unexpected(row.error());
-        if (row->has_value() && row->value().Get<int>("token_version") != claim_version) {
+        int stored_version = -1;
+        bool cache_hit = false;
+        {
+            auto& c = GetTokenVersionCache();
+            std::lock_guard<std::mutex> lock(c.mu);
+            auto it = c.versions.find(decoded.get_subject());
+            if (it != c.versions.end()) {
+                stored_version = it->second;
+                cache_hit = true;
+                c.hits++;
+            }
+        }
+
+        if (!cache_hit) {
+            // Runs on the DB worker thread; the loop thread blocks on the future.
+            auto row = Database::Get().QueryOneAsync(
+                "SELECT token_version FROM users WHERE username = ?;", {decoded.get_subject()}).get();
+            if (!row) return std::unexpected(row.error());
+            if (row->has_value()) {
+                stored_version = row->value().Get<int>("token_version");
+                auto& c = GetTokenVersionCache();
+                std::lock_guard<std::mutex> lock(c.mu);
+                c.versions[decoded.get_subject()] = stored_version;
+            }
+        }
+
+        if (stored_version != -1 && stored_version != claim_version) {
             return std::unexpected(Error::Unauthorised("Session revoked"));
         }
 
@@ -423,6 +446,38 @@ Result<JwtPayload> AuthService::VerifyToken(const std::string& token) {
 VoidResult AuthService::RevokeAllSessions(const std::string& username) {
     auto res = Database::Get().Exec(
         "UPDATE users SET token_version = token_version + 1 WHERE username = ?;", {username});
+    if (!res) return std::unexpected(res.error());
+    auto& c = GetTokenVersionCache();
+    std::lock_guard<std::mutex> lock(c.mu);
+    c.versions.erase(username);
+    return {};
+}
+
+void AuthService::ClearTokenVersionCacheForTests() {
+    auto& c = GetTokenVersionCache();
+    std::lock_guard<std::mutex> lock(c.mu);
+    c.versions.clear();
+    c.hits = 0;
+}
+
+std::uint64_t AuthService::TokenVersionCacheHitsForTests() {
+    auto& c = GetTokenVersionCache();
+    std::lock_guard<std::mutex> lock(c.mu);
+    return c.hits;
+}
+
+bool AuthService::GetPrivacyMode(const std::string& username) {
+    auto row_result = Database::Get().QueryOne(
+        "SELECT privacy_mode FROM users WHERE username = ?;", {username});
+    if (!row_result || !row_result->has_value()) return false;
+    return row_result->value().Get<int>("privacy_mode") == 1;
+}
+
+VoidResult AuthService::SetPrivacyMode(const std::string& username,
+                                       bool enabled) {
+    auto res = Database::Get().Exec(
+        "UPDATE users SET privacy_mode = ? WHERE username = ?;",
+        {enabled ? 1 : 0, username});
     if (!res) return std::unexpected(res.error());
     return {};
 }

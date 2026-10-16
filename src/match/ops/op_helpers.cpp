@@ -1,6 +1,7 @@
 #include <match/ops/op_helpers.hpp>
 
 #include <match/engine/match_assembler.hpp>
+#include <match/resolver.hpp>
 #include <match/rng.hpp>
 
 #include <algorithm>
@@ -174,6 +175,11 @@ std::vector<ecs::Entity> HandOf(const ecs::EntityStore& store,
     return hand == nullptr ? std::vector<ecs::Entity>() : hand->cards;
 }
 
+std::size_t HandSizeOf(const ecs::EntityStore& store, ecs::Entity player) {
+    const ecs::Hand* hand = store.Get<ecs::Hand>(player);
+    return hand == nullptr ? 0 : hand->cards.size();
+}
+
 const ecs::Hand* HandComponent(const ecs::EntityStore& store,
                                ecs::Entity player) {
     return store.Get<ecs::Hand>(player);
@@ -299,6 +305,32 @@ nlohmann::json MakeEvent(std::string_view type, nlohmann::json payload) {
                           {"payload", std::move(payload)}};
 }
 
+void StampCausalFrame(const ecs::EntityStore& store, const CausalFrame& frame,
+                      nlohmann::json& event) {
+    if (!event.is_object() || event.contains("causal_frame")) return;
+    nlohmann::json actor = nullptr;
+    if (frame.actor.has_value()) {
+        const ecs::PlayerInfo* info = store.Get<ecs::PlayerInfo>(*frame.actor);
+        if (info != nullptr) actor = info->username;
+    }
+    uint32_t turn = 0;
+    uint32_t round = 0;
+    for (ecs::Entity match : store.EntitiesWith<ecs::MatchMeta>()) {
+        const ecs::MatchMeta* meta = store.Get<ecs::MatchMeta>(match);
+        turn = meta->turn;
+        round = meta->round;
+        break;
+    }
+    nlohmann::json stamp = nlohmann::json{{"actor", std::move(actor)},
+                                          {"cause", frame.cause},
+                                          {"turn", turn},
+                                          {"round", round}};
+    if (frame.cause_event.has_value()) {
+        stamp["cause_event"] = *frame.cause_event;
+    }
+    event["causal_frame"] = std::move(stamp);
+}
+
 void BindLastRoll(ResolutionFrame& frame, int64_t total,
                   nlohmann::json outcomes) {
     frame.BindPromptValue(std::string(kLastRollFrameKey),
@@ -330,6 +362,49 @@ std::optional<int64_t> TurnsElapsed(const ResolutionFrame& frame) {
     return value->get<int64_t>();
 }
 
+void BindLastOutcome(ResolutionFrame& frame,
+                     std::string_view table,
+                     std::string_view key,
+                     int64_t value,
+                     std::string_view into) {
+    frame.BindPromptValue(std::string(into),
+                          nlohmann::json{{"table", std::string(table)},
+                                         {"key", std::string(key)},
+                                         {"value", value}});
+}
+
+const nlohmann::json* LastOutcome(const ResolutionFrame& frame,
+                                  std::string_view into) {
+    return frame.FindPromptValue(into);
+}
+
+std::optional<std::string> LastOutcomeKey(const ResolutionFrame& frame,
+                                          std::string_view into) {
+    const nlohmann::json* value = LastOutcome(frame, into);
+    if (value == nullptr || !value->is_object()) return std::nullopt;
+    auto it = value->find("key");
+    if (it == value->end() || !it->is_string()) return std::nullopt;
+    return it->get<std::string>();
+}
+
+std::optional<int64_t> LastOutcomeValue(const ResolutionFrame& frame,
+                                        std::string_view into) {
+    const nlohmann::json* value = LastOutcome(frame, into);
+    if (value == nullptr || !value->is_object()) return std::nullopt;
+    auto it = value->find("value");
+    if (it == value->end() || !it->is_number_integer()) return std::nullopt;
+    return it->get<int64_t>();
+}
+
+std::optional<std::string> LastOutcomeTable(const ResolutionFrame& frame,
+                                            std::string_view into) {
+    const nlohmann::json* value = LastOutcome(frame, into);
+    if (value == nullptr || !value->is_object()) return std::nullopt;
+    auto it = value->find("table");
+    if (it == value->end() || !it->is_string()) return std::nullopt;
+    return it->get<std::string>();
+}
+
 bool CardHasTag(const engine::MatchRegistries* registries,
                 std::string_view kind_id, std::string_view tag) {
     // INFO: The table is per-match (`MatchRegistries::card_tags`),
@@ -343,6 +418,22 @@ bool CardHasTag(const engine::MatchRegistries* registries,
         if (declared == tag) return true;
     }
     return false;
+}
+
+}  // namespace match::ops
+
+namespace match::ops {
+
+resolver::ConditionRegistry& StoreDefaultConditions() {
+    // INFO: built once via the same registration point the engine uses
+    //       (`RegisterDefaultConditions`), so ops without a Resolver registry
+    //       evaluate exactly the engine's 10.2 semantics.
+    static resolver::ConditionRegistry registry = [] {
+        resolver::ConditionRegistry created;
+        RegisterDefaultConditions(created);
+        return created;
+    }();
+    return registry;
 }
 
 }  // namespace match::ops

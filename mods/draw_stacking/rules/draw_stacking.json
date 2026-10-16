@@ -1,7 +1,7 @@
 {
   "id": "draw_stacking",
   "title": "Draw Stacking",
-  "description": "Stack +2 and +4 draw cards to pass the penalty to the next player. A draw-penalty (+2/+4) play records its N as vanilla:draw_debt on the next seat and opens a response window for that victim only (`responders` `@next_player`). The victim may answer with the same draw value as the top (+2 on +2, +4 on +4; `plays_stack_response`): the engine carries the accumulated debt on to the seat after the responder, hands the responder the turn and re-opens the window (`reopen`). When the victim does not stack, the default route has them draw the whole debt, clears it and skips their turn. The match_start allow rescues only such a window reply from vanilla:turn_order; it never makes a +2 playable on an unrelated card. The +2/+4 cards' own immediate draw is removed by this mod's mutations, so the penalty lives only as debt.",
+  "description": "Stack +2 and +4 draw cards to pass the penalty to the next player. A draw-penalty (+2/+4) play records its N as uni:draw_debt on the next seat and opens a response window for that victim only (`responders` `@next_player`). The victim may answer with any stackable draw card, a +2 or a +4 in any combination and colour (`plays_stack_response`): the engine carries the accumulated debt on to the seat after the responder, hands the responder the turn and re-opens the window (`reopen`). When the victim does not stack, the default route has them draw the whole debt, clears it and skips their turn. The match_start allow rescues only such a window reply from uni:turn_order; it never makes a +2 playable on an unrelated card. The +2/+4 cards' own immediate draw is removed by this mod's mutations, so the penalty lives only as debt.",
   "hooks": [
     {
       "on": "after:match_start",
@@ -67,7 +67,7 @@
           "op": "remove_status",
           "args": {
             "target": "@next_player",
-            "status_kind": "vanilla:draw_debt"
+            "status_kind": "uni:draw_debt"
           },
           "next": "n2c"
         },

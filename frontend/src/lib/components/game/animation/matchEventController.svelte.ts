@@ -23,10 +23,16 @@ import { storeTurnCue } from "$stores/turnCue.svelte";
 import { storeDirectionRing } from "$stores/directionRing.svelte";
 import { shouldFireTurnCue } from "./turnCue";
 import { storeTurnSkip, SKIP_MARK_DURATION_MS } from "$stores/turnSkip.svelte";
+import { storeDamageFx } from "$stores/damageFx.svelte";
 import { storeMatchIntro } from "$stores/matchIntro.svelte";
 import { chatStore } from "$stores/chat.svelte";
 import { storeAudio } from "$stores/audio.svelte";
-import { createPlayLogEmitter, DRAW_DEBT_STATUS_KIND } from "$lib/chat/playLog/playLogEmitter";
+import { replayTailToLog, type TailEnvelope } from "$lib/chat/playLog/tailReplay";
+import type { MatchEventPayload } from "$lib/generated/schemas";
+import { createBindingRunner } from "$lib/presentation/bindingRunner";
+import { resolveCardBits } from "$lib/presentation/cardBitsResolver";
+import { bindingRegistry, type BindingRegistry } from "$lib/presentation/eventBindings";
+import { clientEventOfBeat } from "$stores/matchEventMap";
 import type { CardBus } from "../card-bus.svelte";
 import { cardMetaFrom, type CardRegistry } from "./cardRegistry.svelte";
 import { anchorWithBoardRotation } from "./cardBoardPose";
@@ -81,8 +87,14 @@ export function createMatchEventBeatController(deps: {
 	/** storeGame.onMatchEventBeat — the store buffers beats and drains them
 	 *  after the next snapshot is applied. */
 	subscribeBeats: (cb: (beat: MatchEventBeat) => void) => () => void;
-	/** storeGame.onDesync — a seq gap makes the play-log streaks untrustworthy. */
+	/** storeGame.onDesync — a seq gap makes the remembered chain of the
+	 *  bindings untrustworthy. */
 	subscribeDesync?: (cb: () => void) => () => void;
+	/** storeGame.onTail — the retained events of a late join. They feed the
+	 *  play log only: no beat, no animation, no sound, no timer. */
+	subscribeTail?: (cb: (tail: MatchEventPayload[]) => void) => () => void;
+	/** The presentation bindings of the match; the shared registry by default. */
+	bindings?: BindingRegistry;
 }): {
 	dispose: () => void;
 	syncState: () => void;
@@ -91,13 +103,24 @@ export function createMatchEventBeatController(deps: {
 	settleBoardAnimations: (playDirection: number) => void;
 	resetTurnMotion: () => void;
 } {
-	const playLog = createPlayLogEmitter((line) => chatStore.appendLocalLog(line));
-	let lastPlayedBy: string | null = null;
 	function resetPlayLog(): void {
-		playLog.reset();
-		lastPlayedBy = null;
-		prevPendingPlayer = null;
-		pendingResolvedByPlay = false;
+		bindingRunner.reset();
+		skipsPresentedByTurn.clear();
+		skipsPresentedByEvent.clear();
+	}
+	// INFO: the turn_skipped event and the turn advance both tell of one skip.
+	//       The first to arrive presents the X mark and plays the sound; the
+	//       second one only settles the ledger.
+	const skipsPresentedByTurn = new Map<string, number>();
+	const skipsPresentedByEvent = new Map<string, number>();
+	function takeSkipCount(ledger: Map<string, number>, seat: string): boolean {
+		const count = ledger.get(seat) ?? 0;
+		if (count === 0) return false;
+		ledger.set(seat, count - 1);
+		return true;
+	}
+	function addSkipCount(ledger: Map<string, number>, seat: string): void {
+		ledger.set(seat, (ledger.get(seat) ?? 0) + 1);
 	}
 	let lastLandingBaseDeg = 0;
 	// A wild landing whose colour choice hasn't arrived yet (active_type still
@@ -142,13 +165,6 @@ export function createMatchEventBeatController(deps: {
 	// once when the snapshot's `pending_play_drawn` clears or the card leaves
 	// the hand, instead of re-seeding it on every snapshot.
 	let heldPlayDrawnId: number | null = null;
-	// The player whose pending play/keep decision the last observed snapshot
-	// carried, and whether a play beat resolved it in this drain. The client
-	// never receives a keep packet (a keep and a turn-timer timeout look
-	// identical), so syncState infers a keep when the hold clears with no
-	// intervening play beat.
-	let prevPendingPlayer: string | null = null;
-	let pendingResolvedByPlay = false;
 	// Opponent username -> synthetic id of the face-down card they hold in
 	// front of their seat while their play/keep decision is pending.
 	const heldOpponentCards = new Map<
@@ -268,10 +284,6 @@ export function createMatchEventBeatController(deps: {
 	function handlePlay(beat: Extract<MatchEventBeat, { kind: "play" }>): void {
 		const state = storeGame.state;
 		if (!state) return;
-		// INFO: a play beat from the player who held a decision resolves it as a
-		//       play, not a keep. Flagged before the top-card guard so a beat the
-		//       board declines to animate still suppresses a false keep line.
-		if (beat.player === prevPendingPlayer) pendingResolvedByPlay = true;
 		const top = state.top_card;
 		if (!top) return;
 		if (String(top.id) !== String(beat.cardId)) return;
@@ -490,21 +502,6 @@ export function createMatchEventBeatController(deps: {
 				deps.bus.removeInFlightPlay(beat.player);
 			}
 		});
-		const playedKind = kindOf(top);
-		const isDrawCard = playedKind.endsWith("_draw2") || playedKind.endsWith("_draw4");
-		const actor = state.players?.find((p) => p.username === beat.player);
-		const nearWin = !isDrawCard && actor?.card_count === 1;
-		lastPlayedBy = beat.player;
-		playLog.notePlay(
-			{
-				player: beat.player,
-				kind: playedKind,
-				color: top.type === "white" ? (knownWildColor ?? "white") : top.type,
-				auto: beat.auto
-			},
-			landed,
-			{ seq: beat.seq, nearWin }
-		);
 	}
 
 	/** Ports the watcher's draw branch (baseBeats.svelte.ts:795-1077). The
@@ -531,12 +528,16 @@ export function createMatchEventBeatController(deps: {
 
 	function handleDraw(beat: Extract<MatchEventBeat, { kind: "draw" }>): void {
 		const state = storeGame.state;
-		if (!state) return;
+		if (!state || beat.count <= 0) return;
 
 		const isLocalDraw = beat.player === resolveLocalUsername(state);
 		if (!isLocalDraw) {
 			handleOpponentDraw(beat, state);
 			return;
+		}
+
+		if (beat.count > 1 || storeGame.isDebtVictim) {
+			storeDamageFx.triggerDamage(beat.count);
 		}
 
 		// INFO: the draw reaction reads only public data (actor, count and the
@@ -545,12 +546,6 @@ export function createMatchEventBeatController(deps: {
 		//       even for the viewed/"local" player, but must still react so the
 		//       variant keys match every other client.
 		const localHand = state.players?.find((p) => p.username === beat.player)?.hand ?? [];
-		const localPostCount =
-			state.players?.find((p) => p.username === beat.player)?.card_count ?? localHand.length;
-		playLog.noteDraw(
-			{ seq: beat.seq, player: beat.player, count: beat.count },
-			{ handSize: localPostCount }
-		);
 
 		// INFO: only the animation seeding needs the drawn identities the
 		//       server withholds from a spectator.
@@ -660,8 +655,6 @@ export function createMatchEventBeatController(deps: {
 			});
 	}
 
-	// NOTE: patchwork. Built-in animation for the server-authored hands_swapped
-	//       / hands_passed events; meant to move to the rule mod later.
 	/** A whole hand moving between two seats: `count` cards leave `from`'s
 	 *  pre-move slots and land in `to`'s post-move slots. */
 	interface HandTransfer {
@@ -929,10 +922,6 @@ export function createMatchEventBeatController(deps: {
 		);
 		heldOpponentCards.set(beat.player, { cardId, parked, hidesArc });
 		playDrawSfx(OPPONENT_ACTION_SFX_GAIN);
-		playLog.noteDraw(
-			{ seq: beat.seq, player: beat.player, count: beat.count },
-			{ handSize: player.card_count }
-		);
 		deps.cardRegistry.clearDecoration(cardId);
 		deps.cardRegistry.seedPose(cardId, {
 			x: px,
@@ -1011,11 +1000,6 @@ export function createMatchEventBeatController(deps: {
 		// the PRE-draw hand layout and pile height the cards visually left from.
 		const preCount = Math.max(0, player.card_count - drawnCount);
 		const preDrawSize = (state.draw_pile_size ?? 0) + drawnCount;
-
-		playLog.noteDraw(
-			{ seq: beat.seq, player: beat.player, count: beat.count },
-			{ handSize: player.card_count }
-		);
 
 		const isTurn = state.current_turn === beat.player;
 		const isValidTarget = isChoosePlayerTarget(beat.player);
@@ -1194,11 +1178,17 @@ export function createMatchEventBeatController(deps: {
 					deps.bus.reshuffleDrawPileSize = null;
 					deps.bus.onReshuffleCardLanding = null;
 				});
-			playLog.noteReshuffle({ seq: beat.seq });
 		} else {
 			deps.bus.reshuffleDrawPileSize = null;
 			deps.bus.onReshuffleCardLanding = null;
 		}
+	}
+
+	/** Flips the ring from the `direction_changed` event. */
+	function handleDirection(beat: Extract<MatchEventBeat, { kind: "direction" }>): void {
+		deferTurnMotion(() => {
+			if (storeDirectionRing.reverseTo(beat.direction)) playBoardSfx("sfx.table.reverse");
+		});
 	}
 
 	/** Presents the skipped-seat X and gates the incoming turn's highlight.
@@ -1207,6 +1197,7 @@ export function createMatchEventBeatController(deps: {
 	 *  highlight until the marks clear (click-to-skip ends it early). A no-op
 	 *  when animations are disabled, so the turn simply moves on. */
 	function handleTurn(beat: Extract<MatchEventBeat, { kind: "turn" }>): void {
+		skipsPresentedByTurn.clear();
 		const cueFires = shouldFireTurnCue({
 			previousTurn: beat.from || null,
 			currentTurn: beat.to,
@@ -1217,20 +1208,58 @@ export function createMatchEventBeatController(deps: {
 			if (cueFires) storeTurnCue.fire();
 			if (storeDirectionRing.reverseTo(beat.direction)) playBoardSfx("sfx.table.reverse");
 		});
-		playLog.noteTurn({
-			skipped: beat.skipped,
-			direction: beat.direction,
-			seq: beat.seq,
-			actor: lastPlayedBy ?? undefined
+		if (beat.skipped.length === 0) {
+			skipsPresentedByEvent.clear();
+			return;
+		}
+		const freshSkips = beat.skipped.filter((seat) => {
+			if (takeSkipCount(skipsPresentedByEvent, seat)) return false;
+			addSkipCount(skipsPresentedByTurn, seat);
+			return true;
 		});
-		if (beat.skipped.length === 0) return;
-		const localSkipped = beat.skipped.includes(storeGame.localPlayer?.username ?? "");
+		skipsPresentedByEvent.clear();
+		if (freshSkips.length === 0) {
+			// The events already presented the marks; only gate the highlight.
+			if (storeTurnSkip.marks.length > 0) storeTurnSkip.presentingTurn = beat.from || null;
+			return;
+		}
+		presentSkips(beat.from, freshSkips);
+	}
+
+	/** Plays the skip sound and stamps the X over the skipped seats. */
+	function presentSkips(from: string, skippedSeats: string[]): void {
+		const localSkipped = skippedSeats.includes(storeGame.localPlayer?.username ?? "");
 		playBoardSfx("sfx.invalid", {
 			gain: localSkipped && !storeGame.isSpectator ? 1 : OPPONENT_ACTION_SFX_GAIN
 		});
 		if (!storeAnimation.enabled) return;
 		const durationMs = SKIP_MARK_DURATION_MS / Math.max(0.1, storeAnimation.speedMultiplier);
-		storeTurnSkip.present(beat.from, beat.skipped, durationMs);
+		const keptMarks = storeTurnSkip.marks.filter((seat) => !skippedSeats.includes(seat));
+		storeTurnSkip.present(from, [...keptMarks, ...skippedSeats], durationMs);
+	}
+
+	/** Presents the X of a skipped seat from the `turn_skipped` event. The
+	 *  `turn_advance` that follows names the same seat and presents nothing
+	 *  more. */
+	function handleSkip(beat: Extract<MatchEventBeat, { kind: "skip" }>): void {
+		if (takeSkipCount(skipsPresentedByTurn, beat.target)) return;
+		addSkipCount(skipsPresentedByEvent, beat.target);
+		presentSkips(storeGame.state?.current_turn ?? "", [beat.target]);
+	}
+
+	/** Starts the wild ripple from the `active_type_changed` event. */
+	function handleActiveColor(beat: Extract<MatchEventBeat, { kind: "active_color" }>): void {
+		if (!beat.color || beat.color === "white") return;
+		if (!pendingWildRipple) return;
+		const { originUv, maxRadius } = pendingWildRipple;
+		pendingWildRipple = null;
+		playBoardSfx("sfx.table.mat-color");
+		storeMatRipple.startMatRipple(
+			CARD_COLOR_MAP[beat.color] ?? MAT_INITIAL_COLOR,
+			"wild",
+			originUv,
+			maxRadius
+		);
 	}
 
 	/** Snaps every board animation to its end state and drops turn motion still
@@ -1252,7 +1281,37 @@ export function createMatchEventBeatController(deps: {
 		lastLanding = Promise.resolve();
 	}
 
+	const playLogBindings = deps.bindings ?? bindingRegistry;
+	/** The seat of the viewer, read when an event arrives or is replayed. */
+	const viewerOf = () => ({
+		seat: storeGame.isSpectator ? null : (storeGame.localPlayer?.username ?? null)
+	});
+
+	const bindingRunner = createBindingRunner({
+		registry: playLogBindings,
+		getViewer: viewerOf,
+		enqueueBeats: (beats) => {
+			void deps.cardRegistry.enqueue(beats, resolveCardTarget);
+		},
+		playSound: (cue) => playBoardSfx(cue.sound, { pitch: cue.pitch, volume: cue.volume }),
+		postLine: (line) => chatStore.appendLocalLog(line),
+		isFastForwarding: () => deps.cardRegistry.isFastForwarding,
+		resolveCard: resolveCardBits
+	});
+
+	/** Presents the beat, then the presentation bindings of its client event:
+	 *  beats, sounds and the play log line the bindings name. A tail event
+	 *  never reaches this: the tail feeds the play log through
+	 *  `replayTailToLog`, which runs the bindings for the replayed history and
+	 *  posts their lines only; the runner skips a replayed event as a second
+	 *  guard. */
 	function handle(beat: MatchEventBeat): void {
+		handleBeat(beat);
+		const event = clientEventOfBeat(beat);
+		if (event !== undefined) bindingRunner.run(event);
+	}
+
+	function handleBeat(beat: MatchEventBeat): void {
 		switch (beat.kind) {
 			case "play":
 				handlePlay(beat);
@@ -1265,6 +1324,20 @@ export function createMatchEventBeatController(deps: {
 				return;
 			case "turn":
 				handleTurn(beat);
+				return;
+			case "direction":
+				handleDirection(beat);
+				return;
+			case "skip":
+				handleSkip(beat);
+				return;
+			// INFO: the log lines of these events come from the presentation
+			//       bindings of the same client event (`handle` runs them), so the
+			//       beat itself presents nothing more.
+			case "active_color":
+				handleActiveColor(beat);
+				return;
+			case "ignored":
 				return;
 			case "hands_swap":
 				handleHandTransfers(
@@ -1282,10 +1355,6 @@ export function createMatchEventBeatController(deps: {
 				);
 				return;
 			case "toast":
-				// Toast state lives in the store; map-and-drop per
-				if (beat.statusKind === DRAW_DEBT_STATUS_KIND) {
-					playLog.noteDebt(beat.target, beat.magnitude);
-				}
 				return;
 		}
 	}
@@ -1404,6 +1473,7 @@ export function createMatchEventBeatController(deps: {
 		}
 
 		deps.bus.setActiveType(state.active_type as CardType);
+		skipsPresentedByEvent.clear();
 
 		lastLocalHandCards = new Map(
 			(state.players?.find((p) => p.username === resolveLocalUsername(state))?.hand ?? []).map(
@@ -1417,24 +1487,14 @@ export function createMatchEventBeatController(deps: {
 		storeGame.applyPendingPlayDrawn(deps.bus, resolveLocalUsername(state) ?? null);
 		syncHeldDrawPose(state);
 
-		// INFO: a hold that clears with no play beat landed was a keep (an
-		//       explicit keep and a turn-timer timeout are indistinguishable
-		//       here). Emitted from the snapshot transition because the server
-		//       sends no keep match_event; the card face never enters the line.
 		const pendingPlayer = state.pendingPlayDrawn?.player ?? null;
-		if (prevPendingPlayer !== null && pendingPlayer === null && !pendingResolvedByPlay) {
-			playLog.noteKeep(prevPendingPlayer, state.seq_watermark ?? 0);
-		}
 		for (const heldPlayer of [...heldOpponentCards.keys()]) {
 			if (pendingPlayer !== heldPlayer) releaseOpponentHeldDraw(heldPlayer, state);
 		}
-		prevPendingPlayer = pendingPlayer;
-		pendingResolvedByPlay = false;
 
 		if (pendingWildRipple && state.active_type && state.active_type !== "white") {
 			const { originUv, maxRadius } = pendingWildRipple;
 			pendingWildRipple = null;
-			playLog.noteWildColor(state.active_type);
 			playBoardSfx("sfx.table.mat-color");
 			storeMatRipple.startMatRipple(
 				CARD_COLOR_MAP[state.active_type] ?? MAT_INITIAL_COLOR,
@@ -1482,21 +1542,27 @@ export function createMatchEventBeatController(deps: {
 			}
 		}
 		prevIsActionPending = isActionPendingNow;
-
-		// INFO: game-end has no beat of its own; the public winner/placements
-		//       fields are diffed inside the emitter, which dedupes repeats.
-		playLog.noteGameEnd(
-			state.winner || null,
-			state.placements ?? [],
-			Math.max(1, state.race_target ?? 0)
-		);
 	}
 
 	const unsubscribeBeats = deps.subscribeBeats(handle);
 	const unsubscribeDesync = deps.subscribeDesync?.(resetPlayLog);
+	const unsubscribeTail = deps.subscribeTail?.((tail) =>
+		// INFO: the tail runs the same bindings as a live event, so a replayed
+		//       history keeps every mod line; only the log lines are posted.
+		replayTailToLog(
+			tail as TailEnvelope[],
+			(bits) => {
+				const card = resolveCardBits(bits);
+				return card && { kind: card.kind, color: card.color ?? "white" };
+			},
+			(line) => chatStore.appendLocalLog(line),
+			{ registry: playLogBindings, getViewer: viewerOf, resolveCard: resolveCardBits }
+		)
+	);
 	const dispose = () => {
 		unsubscribeBeats();
 		unsubscribeDesync?.();
+		unsubscribeTail?.();
 	};
 	return {
 		dispose,
@@ -1509,19 +1575,6 @@ export function createMatchEventBeatController(deps: {
 }
 
 const OPPONENT_ACTION_SFX_GAIN = 0.5;
-
-const VALUE_SLUG: Record<string, string> = {
-	"+2": "draw2",
-	jolly: "wild",
-	jolly_draw4: "wild_draw4"
-};
-
-function kindOf(card: { type: string; value: string; kind?: string }): string {
-	if (card.kind) return card.kind;
-	const slug = VALUE_SLUG[card.value] ?? card.value;
-	const wild = card.type === "white";
-	return wild ? `vanilla:${slug}` : `vanilla:${card.type}_${slug}`;
-}
 
 /** Computes the local hand's card-N slot as a world-space anchor — ported
  *  verbatim from the watcher, including the previous-snapshot fallback for

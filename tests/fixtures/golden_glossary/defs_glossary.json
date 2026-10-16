@@ -1,0 +1,49 @@
+{
+  "defs_digest": "705aa149f7167444",
+  "mods": [
+    {
+      "glossary": [
+        {
+          "description_key": "gloss_mod:apple.description",
+          "id": "gloss_mod:apple",
+          "label_key": "gloss_mod:apple.label",
+          "source": "card"
+        },
+        {
+          "description_key": "gloss_mod:pear.custom_description",
+          "id": "gloss_mod:pear",
+          "label_key": "gloss_mod:pear.custom_label",
+          "source": "explicit"
+        },
+        {
+          "description_key": "gloss_mod:fruit.plum.description",
+          "id": "gloss_mod:plum",
+          "label_key": "gloss_mod:fruit.plum",
+          "source": "card"
+        },
+        {
+          "description_key": "gloss_mod:ripeness.description",
+          "id": "gloss_mod:ripeness",
+          "label_key": "gloss_mod:ripeness.label",
+          "source": "explicit"
+        }
+      ],
+      "hash": "ca195020bd6c8629193065f4056ded91f09c734551697d58849f2e422618e586",
+      "id": "gloss_mod",
+      "index": 0,
+      "texts": [
+        {
+          "hash": "115b516c2380830574479f7bed5b3e2b87b6630d98f66e6cf42f83f170295cd6",
+          "locale": "en",
+          "size": 380
+        },
+        {
+          "hash": "240bd637039b519d92409c3cefe26e53dbb67b9e52e30cbd60f30e026e4c8c81",
+          "locale": "it",
+          "size": 393
+        }
+      ],
+      "version": "1.0.0"
+    }
+  ]
+}

@@ -13,7 +13,6 @@
 	import { CARD_COLOR_MAP } from "$lib/palette";
 	import type { CardValue } from "$stores/game.svelte";
 	import { storeCardDetail } from "$stores/cardDetail.svelte";
-	import { storeI18n } from "$stores/i18n.svelte";
 	import { storeTooltipStack } from "$stores/tooltipStack.svelte";
 
 	const OFFSET = 14;
@@ -76,10 +75,7 @@
 
 	let info = $derived(
 		storeCardDetail.current
-			? getCardInfo(
-					storeCardDetail.current.card as { type: string; value: CardValue },
-					storeI18n.locale
-				)
+			? getCardInfo(storeCardDetail.current.card as { type: string; value: CardValue })
 			: null
 	);
 

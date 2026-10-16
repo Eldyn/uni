@@ -1,0 +1,73 @@
+{
+  "glossary_duplicate": {
+    "errors": [
+      {
+        "check": "glossary.id.duplicate",
+        "message": "duplicate glossary entry id 'glossary_duplicate:foo'",
+        "path": "glossary_duplicate/glossary/b.json"
+      }
+    ],
+    "loaded": false,
+    "warnings": []
+  },
+  "glossary_foreign_id": {
+    "errors": [
+      {
+        "check": "glossary.id.namespace",
+        "message": "mod 'glossary_foreign_id' defines id 'other_mod:foo' outside its own namespace",
+        "path": "glossary_foreign_id/glossary/foo.json"
+      }
+    ],
+    "loaded": false,
+    "warnings": []
+  },
+  "glossary_missing_en_key": {
+    "errors": [
+      {
+        "check": "texts.key.missing",
+        "message": "the key 'glossary_missing_en_key:b' is used by the mod but missing in en.json",
+        "path": "glossary_missing_en_key/texts/en.json"
+      }
+    ],
+    "loaded": false,
+    "warnings": []
+  },
+  "glossary_missing_it_key": {
+    "errors": [],
+    "loaded": true,
+    "warnings": [
+      {
+        "check": "texts.key.missing.locale",
+        "message": "the key 'glossary_missing_it_key:b' is missing in the locale 'it'; the client uses 'en'",
+        "path": "glossary_missing_it_key/texts/it.json"
+      }
+    ]
+  },
+  "glossary_text_in_key": {
+    "errors": [
+      {
+        "check": "glossary.key.syntax",
+        "message": "glossary entry 'glossary_text_in_key:foo' label key is no text key: a key is 'namespace:word' with words of [a-z0-9_] split by dots, at most 96 bytes; an entry holds keys, never texts",
+        "path": "glossary_text_in_key/glossary/foo.json"
+      },
+      {
+        "check": "texts.key.missing",
+        "message": "the key 'glossary_text_in_key:b' is used by the mod but missing in en.json",
+        "path": "glossary_text_in_key/texts/en.json"
+      }
+    ],
+    "loaded": false,
+    "warnings": []
+  },
+  "glossary_uni_id": {
+    "errors": [
+      {
+        "check": "glossary.id.namespace",
+        "message": "mod 'glossary_uni_id' defines the uni id 'uni:foo'; only the uni mod defines uni: ids",
+        "path": "glossary_uni_id/glossary/foo.json"
+      }
+    ],
+    "loaded": false,
+    "warnings": []
+  }
+}

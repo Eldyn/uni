@@ -23,7 +23,7 @@
  * selector, a dead target, a missing/empty `kind`, a non-object `payload` or a
  * `timeout` outside its declared 0..600000 range is a fail-safe `kResolved`
  * no-op, never a crash. No event is emitted here: prompt packet assembly
- * (`prompt_open`, prompt id, deadline) belongs.
+ * (`prompt_opened`, prompt id, deadline) belongs.
  */
 
 namespace match::ops::detail {

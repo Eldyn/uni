@@ -8,6 +8,7 @@
 	import RaceOutcomeBanner from "./popup/RaceOutcomeBanner.svelte";
 	import CardDetailPopover from "./CardDetailPopover.svelte";
 	import PromptRenderer from "./prompts/PromptRenderer.svelte";
+	import FuseLine from "./FuseLine.svelte";
 	import { storeGame } from "$stores/game.svelte";
 	import { createGameLayoutContext } from "./game-layout-context.svelte";
 
@@ -49,6 +50,8 @@
 		<div class="game-board-container">
 			<GameBoard />
 		</div>
+
+		<FuseLine />
 	</div>
 
 	<SpectatorFade />

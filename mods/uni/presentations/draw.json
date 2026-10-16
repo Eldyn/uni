@@ -1,0 +1,228 @@
+{
+  "uni:format_version": "1.0.0",
+  "uni:binding": {
+    "uni:description": {
+      "uni:identifier": "uni:draw_log"
+    },
+    "uni:event": "cards_drawn",
+    "uni:select": "first",
+    "uni:cases": [
+      {
+        "uni:tests": [
+          {
+            "uni:test": "gte",
+            "uni:field": "hand_size_after",
+            "uni:value": 10
+          },
+          { "uni:test": "caused_by", "uni:value": "card_played", "uni:tag": "uni:own_log", "uni:negate": true, "uni:ancestor": true },
+          { "uni:test": "caused_by", "uni:value": "auto_played", "uni:tag": "uni:own_log", "uni:negate": true, "uni:ancestor": true }
+        ],
+        "uni:present": {
+          "uni:log": {
+            "uni:variants": [
+              "uni:log.draw_big_hand_1",
+              "uni:log.draw_big_hand_2"
+            ],
+            "uni:params": {
+              "name": {
+                "uni:field": "target"
+              },
+              "victim": {
+                "uni:field": "target"
+              },
+              "count": {
+                "uni:field": "count"
+              },
+              "amount": {
+                "uni:value": 0
+              },
+              "total": {
+                "uni:value": 0
+              },
+              "handSize": {
+                "uni:field": "hand_size_after"
+              },
+              "drawRun": {
+                "uni:streak": "uni:draw_run",
+                "uni:key_field": "target",
+                "uni:default": 0
+              }
+            }
+          }
+        }
+      },
+      {
+        "uni:tests": [
+          {
+            "uni:test": "gte",
+            "uni:field": "count",
+            "uni:value": 4
+          },
+          { "uni:test": "caused_by", "uni:value": "card_played", "uni:tag": "uni:own_log", "uni:negate": true, "uni:ancestor": true },
+          { "uni:test": "caused_by", "uni:value": "auto_played", "uni:tag": "uni:own_log", "uni:negate": true, "uni:ancestor": true }
+        ],
+        "uni:present": {
+          "uni:log": {
+            "uni:variants": [
+              "uni:log.draw_large_1"
+            ],
+            "uni:params": {
+              "name": {
+                "uni:field": "target"
+              },
+              "victim": {
+                "uni:field": "target"
+              },
+              "count": {
+                "uni:field": "count"
+              },
+              "amount": {
+                "uni:value": 0
+              },
+              "total": {
+                "uni:value": 0
+              },
+              "handSize": {
+                "uni:field": "hand_size_after"
+              },
+              "drawRun": {
+                "uni:streak": "uni:draw_run",
+                "uni:key_field": "target",
+                "uni:default": 0
+              }
+            }
+          }
+        }
+      },
+      {
+        "uni:tests": [
+          {
+            "uni:test": "equals",
+            "uni:streak": "uni:total_draws",
+            "uni:value": 1
+          },
+          { "uni:test": "caused_by", "uni:value": "card_played", "uni:tag": "uni:own_log", "uni:negate": true, "uni:ancestor": true },
+          { "uni:test": "caused_by", "uni:value": "auto_played", "uni:tag": "uni:own_log", "uni:negate": true, "uni:ancestor": true }
+        ],
+        "uni:present": {
+          "uni:log": {
+            "uni:variants": [
+              "uni:log.draw_first_1",
+              "uni:log.draw_first_2"
+            ],
+            "uni:params": {
+              "name": {
+                "uni:field": "target"
+              },
+              "victim": {
+                "uni:field": "target"
+              },
+              "count": {
+                "uni:field": "count"
+              },
+              "amount": {
+                "uni:value": 0
+              },
+              "total": {
+                "uni:value": 0
+              },
+              "handSize": {
+                "uni:field": "hand_size_after"
+              },
+              "drawRun": {
+                "uni:streak": "uni:draw_run",
+                "uni:key_field": "target",
+                "uni:default": 0
+              }
+            }
+          }
+        }
+      },
+      {
+        "uni:tests": [
+          {
+            "uni:streak": "uni:draw_run",
+            "uni:key_field": "target",
+            "uni:test": "gte",
+            "uni:value": 4
+          },
+          { "uni:test": "caused_by", "uni:value": "card_played", "uni:tag": "uni:own_log", "uni:negate": true, "uni:ancestor": true },
+          { "uni:test": "caused_by", "uni:value": "auto_played", "uni:tag": "uni:own_log", "uni:negate": true, "uni:ancestor": true }
+        ],
+        "uni:present": {
+          "uni:log": {
+            "uni:variants": [
+              "uni:log.draw_many_1",
+              "uni:log.draw_many_2"
+            ],
+            "uni:params": {
+              "name": {
+                "uni:field": "target"
+              },
+              "victim": {
+                "uni:field": "target"
+              },
+              "count": {
+                "uni:field": "count"
+              },
+              "amount": {
+                "uni:value": 0
+              },
+              "total": {
+                "uni:value": 0
+              },
+              "handSize": {
+                "uni:field": "hand_size_after"
+              },
+              "drawRun": {
+                "uni:streak": "uni:draw_run",
+                "uni:key_field": "target",
+                "uni:default": 0
+              }
+            }
+          }
+        }
+      },
+      {
+        "uni:tests": [
+          { "uni:test": "caused_by", "uni:value": "card_played", "uni:tag": "uni:own_log", "uni:negate": true, "uni:ancestor": true },
+          { "uni:test": "caused_by", "uni:value": "auto_played", "uni:tag": "uni:own_log", "uni:negate": true, "uni:ancestor": true }
+        ],
+        "uni:present": {
+          "uni:log": {
+            "uni:variants": [
+              "uni:log.draw_generic_1",
+              "uni:log.draw_generic_2",
+              "uni:log.draw_generic_3"
+            ],
+            "uni:params": {
+              "name": {
+                "uni:field": "target"
+              },
+              "victim": {
+                "uni:field": "target"
+              },
+              "count": {
+                "uni:field": "count"
+              },
+              "amount": {
+                "uni:value": 0
+              },
+              "total": {
+                "uni:value": 0
+              },
+              "handSize": {
+                "uni:field": "hand_size_after"
+              },
+              "drawRun": {
+                "uni:streak": "uni:draw_run",
+                "uni:key_field": "target",
+                "uni:default": 0
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}

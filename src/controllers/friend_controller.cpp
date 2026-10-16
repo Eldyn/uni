@@ -115,13 +115,14 @@ void FriendController::SendFriendListTo(const std::string& username,
     AppWebSocket* socket = presence_.GetSocket(username);
     if (socket == nullptr) return;
 
-    auto friends_res = friend_service_.GetFriends(username);
-    auto incoming_res = friend_service_.GetIncomingRequests(username);
-    auto outgoing_res = friend_service_.GetOutgoingRequests(username);
-    if (!friends_res || !incoming_res || !outgoing_res) return;
+    // One round trip: friends + incoming + outgoing arrive as a single
+    // json_object row (see FriendService::GetFriendLists).
+    auto lists_res = friend_service_.GetFriendLists(username);
+    if (!lists_res) return;
+    const FriendLists& lists = *lists_res;
 
     json friends = json::array();
-    for (const auto& friend_username : *friends_res) {
+    for (const auto& friend_username : lists.friends) {
         friends.push_back({
             {"username", friend_username},
             {"online", presence_.IsOnline(friend_username)},
@@ -130,7 +131,7 @@ void FriendController::SendFriendListTo(const std::string& username,
 
     auto resp = ws::MakeResponse(ws::ServerAction::kFriendList, request_id);
     resp["friends"] = friends;
-    resp["incoming_requests"] = *incoming_res;
-    resp["outgoing_requests"] = *outgoing_res;
+    resp["incoming_requests"] = lists.incoming;
+    resp["outgoing_requests"] = lists.outgoing;
     broadcaster_.SendJson(socket, resp);
 }

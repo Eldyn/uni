@@ -8,6 +8,8 @@
 
 import { z } from "zod";
 import { storeToast } from "./toast.svelte";
+import { storeModTexts } from "./modTexts.svelte";
+import { storeModGlossary } from "./modGlossary.svelte";
 import { ClientAction, ws } from "./ws.svelte";
 
 /**
@@ -68,6 +70,9 @@ class StoreCatalog {
 				return;
 			}
 			this.rules = parsed.data;
+			const textListing = { mods: response.get("mods") };
+			storeModTexts.ingestCatalog(textListing);
+			storeModGlossary.ingestCatalog(textListing);
 		} catch (error) {
 			console.error("[catalog] Metadata fetch failed:", error);
 		}

@@ -142,9 +142,9 @@ TEST_CASE("op_helpers: hand, pile and card queries") {
     Entity player = AddPlayer(store, "p", 0);
     Entity other = AddPlayer(store, "q", 1);
     Entity draw = AddPile(store, PileKind::kDraw);
-    Entity card = MakeCard(store, "vanilla:red_5", "red");
+    Entity card = MakeCard(store, "uni:red_5", "red");
     PutInHand(store, player, card);
-    Entity pile_card = MakeCard(store, "vanilla:blue_2", "blue");
+    Entity pile_card = MakeCard(store, "uni:blue_2", "blue");
     PutInPile(store, draw, pile_card);
 
     CHECK(HandOf(store, player).size() == 1);
@@ -162,7 +162,7 @@ TEST_CASE("op_helpers: hand, pile and card queries") {
     CHECK(FindCardZone(store, card)->kind == ZoneKind::kHand);
     CHECK(CardInZone(store, card, ZoneKind::kHand));
     CHECK_FALSE(CardInZone(store, card, ZoneKind::kLimbo));
-    CHECK(CardKindId(store, card) == "vanilla:red_5");
+    CHECK(CardKindId(store, card) == "uni:red_5");
     CHECK(CardKindId(store, other).empty());
 
     CHECK(CardsHeldBy(store, player) == std::vector<Entity>{card});
@@ -177,8 +177,8 @@ TEST_CASE("op_helpers: MoveCardToZone keeps containers consistent") {
     Entity b = AddPlayer(store, "b", 1);
     Entity draw = AddPile(store, PileKind::kDraw);
     Entity discard = AddPile(store, PileKind::kDiscard);
-    Entity c1 = MakeCard(store, "vanilla:red_1", "red");
-    Entity c2 = MakeCard(store, "vanilla:red_2", "red");
+    Entity c1 = MakeCard(store, "uni:red_1", "red");
+    Entity c2 = MakeCard(store, "uni:red_2", "red");
     PutInHand(store, a, c1);
     PutInHand(store, a, c2);
 
@@ -218,7 +218,7 @@ TEST_CASE("op_helpers: MoveCardToZone keeps containers consistent") {
     // INFO: a hand destination without a hand component fails safe and the
     //       card ends in limbo rather than stranded in its old container.
     Entity no_hand = store.Create();
-    Entity c3 = MakeCard(store, "vanilla:green_3", "green");
+    Entity c3 = MakeCard(store, "uni:green_3", "green");
     PutInHand(store, a, c3);
     CHECK_FALSE(MoveCardToZone(store, c3, ZoneRef{ZoneKind::kHand, no_hand}));
     CHECK(CardInZone(store, c3, ZoneKind::kLimbo));
@@ -228,9 +228,9 @@ TEST_CASE("op_helpers: MoveCardToZone keeps containers consistent") {
 TEST_CASE("op_helpers: DrawTop pops the top and empties to nullopt") {
     EntityStore store;
     Entity draw = AddPile(store, PileKind::kDraw);
-    Entity c1 = MakeCard(store, "vanilla:red_1", "red");
-    Entity c2 = MakeCard(store, "vanilla:red_2", "red");
-    Entity c3 = MakeCard(store, "vanilla:red_3", "red");
+    Entity c1 = MakeCard(store, "uni:red_1", "red");
+    Entity c2 = MakeCard(store, "uni:red_2", "red");
+    Entity c3 = MakeCard(store, "uni:red_3", "red");
     PutInPile(store, draw, c1);
     PutInPile(store, draw, c2);
     PutInPile(store, draw, c3);
@@ -255,8 +255,8 @@ TEST_CASE("op_helpers: DrawTop pops the top and empties to nullopt") {
 TEST_CASE("op_helpers: SetHandOrder renumbers the listed cards") {
     EntityStore store;
     Entity player = AddPlayer(store, "p", 0);
-    Entity c1 = MakeCard(store, "vanilla:red_1", "red");
-    Entity c2 = MakeCard(store, "vanilla:red_2", "red");
+    Entity c1 = MakeCard(store, "uni:red_1", "red");
+    Entity c2 = MakeCard(store, "uni:red_2", "red");
     PutInHand(store, player, c1);
     PutInHand(store, player, c2);
 
@@ -274,7 +274,7 @@ TEST_CASE("op_helpers: MakeEvent builds the event descriptor") {
     const json event = MakeEvent("cards_drawn", json{{"n", 2}});
     CHECK(event["type"] == "cards_drawn");
     CHECK(event["payload"]["n"] == 2);
-    CHECK_FALSE(event.contains("seq"));
+    CHECK_FALSE(event.contains("sequence"));
 
     const json bare = MakeEvent("reshuffle");
     CHECK(bare["type"] == "reshuffle");
@@ -303,20 +303,20 @@ TEST_CASE("op_helpers: card tag table is per-match") {
     // INFO: Tags live on the per-match registries, not a process
     //       global, so two matches with different content stay isolated.
     match::engine::MatchRegistries registries;
-    CHECK_FALSE(CardHasTag(&registries, "vanilla:red_5", "stackable"));
+    CHECK_FALSE(CardHasTag(&registries, "uni:red_5", "stackable"));
 
-    registries.card_tags["vanilla:red_5"] = {"stackable", "draw_penalty"};
-    CHECK(CardHasTag(&registries, "vanilla:red_5", "stackable"));
-    CHECK(CardHasTag(&registries, "vanilla:red_5", "draw_penalty"));
-    CHECK_FALSE(CardHasTag(&registries, "vanilla:red_5", "ghost"));
-    CHECK_FALSE(CardHasTag(&registries, "vanilla:blue_2", "stackable"));
+    registries.card_tags["uni:red_5"] = {"stackable", "draw_penalty"};
+    CHECK(CardHasTag(&registries, "uni:red_5", "stackable"));
+    CHECK(CardHasTag(&registries, "uni:red_5", "draw_penalty"));
+    CHECK_FALSE(CardHasTag(&registries, "uni:red_5", "ghost"));
+    CHECK_FALSE(CardHasTag(&registries, "uni:blue_2", "stackable"));
 
     // INFO: a null handle (no assembled match) never reads any table.
-    CHECK_FALSE(CardHasTag(nullptr, "vanilla:red_5", "stackable"));
+    CHECK_FALSE(CardHasTag(nullptr, "uni:red_5", "stackable"));
 
     match::engine::MatchRegistries other;
-    other.card_tags["vanilla:blue_2"] = {"stackable"};
-    CHECK_FALSE(CardHasTag(&other, "vanilla:red_5", "stackable"));
-    CHECK(CardHasTag(&other, "vanilla:blue_2", "stackable"));
-    CHECK(CardHasTag(&registries, "vanilla:red_5", "stackable"));
+    other.card_tags["uni:blue_2"] = {"stackable"};
+    CHECK_FALSE(CardHasTag(&other, "uni:red_5", "stackable"));
+    CHECK(CardHasTag(&other, "uni:blue_2", "stackable"));
+    CHECK(CardHasTag(&registries, "uni:red_5", "stackable"));
 }

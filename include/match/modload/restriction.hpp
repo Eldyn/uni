@@ -12,8 +12,8 @@
  * @file restriction.hpp
  * @brief Play-restriction pipeline.
  *
- * Entries are ordered data components on the match entity. Vanilla ships its
- * entries as data; mods add and remove entries through `add_restriction`
+ * Entries are ordered data components on the match entity. The uni mod ships
+ * its entries as data; mods add and remove entries through `add_restriction`
  * / `remove_restriction`. The evaluation rule is pure and deterministic:
  *
  * - `deny` entries veto; the FIRST matching deny supplies the reason id.
@@ -35,7 +35,7 @@ namespace match::modload {
  * @brief `{id, phase: allow|deny, condition}`.
  */
 struct RestrictionEntry {
-    std::string id;              /**< stable entry id, e.g. `vanilla:turn_order`. */
+    std::string id;              /**< stable entry id, e.g. `uni:turn_order`. */
     std::string phase;           /**< "allow" | "deny". */
     nlohmann::json condition;    /**< condition object; null = always. */
 };

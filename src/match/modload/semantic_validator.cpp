@@ -1,9 +1,20 @@
 #include "match/modload/semantic_validator.hpp"
 
+#include "logger.hpp"
+#include "match/modload/base_mod.hpp"
+#include "match/modload/binding_definition_keys.hpp"
+#include "match/modload/derived_definition_keys.hpp"
+#include "match/modload/event_definition_keys.hpp"
 #include "match/modload/mod_loader.hpp"
+#include "match/modload/streak_definition_keys.hpp"
+#include "match/modload/glossary_entries.hpp"
+#include "match/modload/texts_limits.hpp"
+#include "match/streak/state_values.hpp"
+#include "match/view/event_audience.hpp"
 #include "match/modload/vocabulary.hpp"
 
 #include <algorithm>
+#include <cctype>
 #include <cstdint>
 #include <functional>
 #include <fstream>
@@ -11,6 +22,8 @@
 #include <regex>
 #include <set>
 #include <string>
+#include <tuple>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -488,6 +501,106 @@ std::vector<SchemaViolation> JsonSchemaSubsetValidator::Validate(
 
 namespace {
 
+/* INFO: component -> family table. One entity may declare at most one
+ *       component per family. Engine-owned: it is not read from content. */
+const std::unordered_map<std::string, std::string>& ComponentFamilies() {
+    static const std::unordered_map<std::string, std::string> k{
+        {"visual.model", "visual"},      {"visual.shader", "visual"},
+        {"visual.sprite", "visual"},     {"visual.emoji", "visual"},
+        {"movement.arc", "movement"},    {"movement.linear", "movement"},
+        {"movement.ballistic", "movement"},
+        {"movement.static", "movement"}, {"motion.oscillate", "motion"},
+        {"motion.jitter", "motion"},     {"motion.spin", "motion"},
+        {"motion.spring", "motion"},     {"motion.follow", "motion"},
+        {"emitter.particles", "emitter"}, {"audio.sound", "audio"},
+        {"outcome.resolver", "outcome"}, {"camera.shake", "camera"},
+        {"camera.zoom", "camera"},       {"camera.punch", "camera"},
+        {"screen.effect", "screen"},     {"lifetime.ttl", "lifetime"},
+        {"lifetime.untilDespawn", "lifetime"}};
+    return k;
+}
+
+/* INFO: modifier kind -> merge mode table. Engine-owned, so a
+ *       presentation never carries `mode` in content. */
+const std::unordered_map<std::string, std::string>& ModifierMergeModes() {
+    static const std::unordered_map<std::string, std::string> k{
+        {"face.override", "override"},   {"material.param", "override"},
+        {"screen.effect", "additive"},   {"particles.emitter", "additive"},
+        {"audio.loop", "exclusive"}};
+    return k;
+}
+
+/* INFO: the `match_event` wire types a presentation trigger may key on. The
+ *       six core types mirror `frontend/src/lib/stores/matchEventMap.ts`; the
+ *       seventh, `play_rejected`, is a real server-emitted match event
+ *       (`match_instance.cpp`, asyncapi `x-packet-types`) so the shipped lsd
+ *       sample can install on it. */
+const std::set<std::string>& KnownMatchEventTypes() {
+    static const std::set<std::string> k{
+        "card_played", "auto_played", "cards_drawn", "reshuffle",
+        "turn_advance", "status_applied", "play_rejected"};
+    return k;
+}
+
+const std::set<std::string>& NoWhereFields() {
+    static const std::set<std::string> k;
+    return k;
+}
+
+/* INFO: payload fields a trigger `where` may test, per source. Derived from the
+ *       asyncapi `*Payload` schemas. `status:<id>` sources evaluate against the
+ *       `status_applied` payload. The field sets are authoritative: a phantom
+ *       key (e.g. `reason` instead of `play_rejected`'s `reason_id`) is
+ *       rejected rather than silently never firing. */
+const std::set<std::string>& EventWhereFields(const std::string& type) {
+    static const std::map<std::string, std::set<std::string>> k{
+        {"card_played", {"player", "card", "from_zone_ordinal"}},
+        {"auto_played", {"player", "card", "trigger_summary"}},
+        {"cards_drawn",
+         {"target", "player", "count", "hand_size_after", "from_debt",
+          "source_pile", "cards"}},
+        {"reshuffle", {"draw_size", "discard_size"}},
+        {"turn_advance", {"from", "to", "direction", "deadline_ms"}},
+        {"status_applied",
+         {"target", "status_kind", "magnitude", "duration_unit",
+          "instance_id"}},
+        {"play_rejected", {"player", "reason_id"}}};
+    auto it = k.find(type);
+    return it == k.end() ? NoWhereFields() : it->second;
+}
+
+/* INFO: target grammar `hand|discard|table|card:<id>|seat:<user>|
+ *       entity:<id>`. */
+bool IsValidPresentationTarget(const std::string& target) {
+    if (target == "hand" || target == "discard" || target == "table") {
+        return true;
+    }
+    auto prefixed = [&target](const char* prefix) {
+        const std::string p(prefix);
+        return target.size() > p.size()
+               && target.compare(0, p.size(), p) == 0;
+    };
+    return prefixed("card:") || prefixed("seat:") || prefixed("entity:");
+}
+
+/* INFO: a component that names an asset slot value. `slot` is the
+ *       bundle slot name; `param` is the component param carrying the value. */
+struct AssetRef {
+    const char* slot;
+    const char* param;
+};
+
+const AssetRef* AssetRefForComponent(const std::string& name) {
+    static const std::map<std::string, AssetRef> k{
+        {"audio.sound", {"sound", "clip"}},
+        {"visual.shader", {"shader", "shader"}},
+        {"screen.effect", {"shader", "shader"}},
+        {"visual.sprite", {"sprite", "sprite"}},
+        {"visual.model", {"model", "model"}}};
+    auto it = k.find(name);
+    return it == k.end() ? nullptr : &it->second;
+}
+
 struct Buckets {
     std::vector<LoadError> ids;
     std::vector<LoadError> refs;
@@ -496,6 +609,16 @@ struct Buckets {
     std::vector<LoadError> conflicts;
     std::vector<LoadError> deck;
     std::vector<LoadError> selector;
+    std::vector<LoadError> tables;
+    std::vector<LoadError> entities;
+    std::vector<LoadError> events;
+    std::vector<LoadError> streaks;
+    std::vector<LoadError> derived;
+    std::vector<LoadError> presentations;
+    std::vector<LoadError> texts;
+    std::vector<LoadWarning> warnings;
+    std::vector<LoadError> outcome;
+    std::vector<LoadError> asset;
 };
 
 std::string DeckPath(const DeckDef& deck);
@@ -529,9 +652,19 @@ class Checker {
     void Run() {
         CollectDeclarations();
         CheckIds();
+        CheckTables();
         WalkAllGraphs();
         CheckConflicts();
         CheckDeck();
+        CheckEntities();
+        CheckEvents();
+        CheckStreaks();
+        CheckDerived();
+        CheckPresentations();
+        CheckBindings();
+        CheckTexts();
+        CheckOutcomeResolvers();
+        CheckAssetDependencies();
     }
 
     const Buckets& buckets() const { return buckets_; }
@@ -549,6 +682,10 @@ class Checker {
     }
 
     void CollectDeclarations() {
+        // INFO: `uni:own_log` is a reserved play-log convention tag (a card with it
+        //       writes its own log line); no shipped card carries it, but third-party
+        //       cards may, so bindings may test it.
+        tags_.insert("uni:own_log");
         for (const LoadedMod* mod : mods_) {
             const std::string& ns = mod->manifest.id;
             for (const auto& card : mod->cards) {
@@ -571,6 +708,15 @@ class Checker {
                 CollectGraphDecls(mut.replacement, ns, "mutations");
                 mutations_by_target_[mut.target].push_back(&mut);
             }
+            for (const auto& table : mod->tables) {
+                table_ids_.insert(table.table_id);
+            }
+            for (const auto& event : mod->events) {
+                event_ids_.insert(event.event_id);
+            }
+            for (const auto& streak : mod->streaks) {
+                streak_ids_.insert(streak.streak_id);
+            }
         }
     }
 
@@ -591,6 +737,13 @@ class Checker {
                 const std::string entry_id = id->get<std::string>();
                 /* INFO: syntax is reported by CheckRestrictionEntry. */
                 if (!IsValidKindId(entry_id)) continue;
+                const std::string violation =
+                    NamespaceRuleViolation(ns, entry_id);
+                if (!violation.empty()) {
+                    buckets_.ids.push_back(Err(
+                        "id.namespace", artifact,
+                        ArtifactPathFor(ns, artifact + ".json"), violation));
+                }
                 if (!restriction_ids_.insert(entry_id).second) {
                     buckets_.ids.push_back(Err(
                         "id.duplicate", artifact,
@@ -652,6 +805,1537 @@ class Checker {
                     buckets_.ids.push_back(Err(
                         "id.syntax", "mod", mod->path,
                         "invalid setting id '" + decl.id + "'"));
+                }
+            }
+            for (const auto& table : mod->tables) {
+                if (!IsValidLocalId(table.id)) {
+                    buckets_.ids.push_back(Err(
+                        "id.syntax", "tables", mod->path,
+                        "invalid table id '" + table.id + "'"));
+                }
+            }
+        }
+    }
+
+    /* INFO: outcome-table checks. Run after the reference bucket (S13);
+     *       duplicate table ids are reported by the loader's scan. */
+    void CheckTables() {
+        for (const LoadedMod* mod : mods_) {
+            const std::string& ns = mod->manifest.id;
+            for (const auto& table : mod->tables) {
+                const std::string path =
+                    mod->path + "/tables/" + table.id + ".json";
+                if (table.entries.empty()) {
+                    buckets_.tables.push_back(Err(
+                        "table.entry", "tables", path,
+                        "table '" + table.table_id + "' has no entries"));
+                    continue;
+                }
+                std::set<std::string> keys;
+                for (const auto& entry : table.entries) {
+                    if (!keys.insert(entry.key).second) {
+                        buckets_.tables.push_back(Err(
+                            "table.key.duplicate", "tables", path,
+                            "table '" + table.table_id + "' declares key '"
+                                + entry.key + "' twice"));
+                    }
+                    if (entry.weight < 1 || entry.weight > 1000000) {
+                        buckets_.tables.push_back(Err(
+                            "table.weight", "tables", path,
+                            "table '" + table.table_id + "' entry '"
+                                + entry.key + "' weight must be 1..1000000"));
+                    }
+                    if (entry.value.has_value() && entry.roll.has_value()) {
+                        buckets_.tables.push_back(Err(
+                            "table.value_roll", "tables", path,
+                            "table '" + table.table_id + "' entry '"
+                                + entry.key
+                                + "' declares both 'value' and 'roll'"));
+                    }
+                    if (entry.roll.has_value()) {
+                        CheckNestedRoll(*entry.roll, table, path);
+                    }
+                    if (entry.where.has_value()) {
+                        if (!entry.where->is_object()) {
+                            buckets_.tables.push_back(Err(
+                                "table.condition", "tables", path,
+                                "table '" + table.table_id + "' entry '"
+                                    + entry.key + "' where must be an object"));
+                        } else {
+                            GraphCtx ctx{ns, "tables", path, false, false,
+                                         false, nullptr};
+                            CheckCondition(*entry.where, ctx);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    void CheckNestedRoll(const nlohmann::json& roll,
+                         const TableDef& table,
+                         const std::string& path) {
+        auto bad = [&]() {
+            buckets_.tables.push_back(Err(
+                "table.roll", "tables", path,
+                "table '" + table.table_id + "' has an invalid nested roll"));
+        };
+        if (!roll.is_object()) {
+            bad();
+            return;
+        }
+        auto sides = roll.find("sides");
+        auto count = roll.find("count");
+        if (sides == roll.end() || !sides->is_number_integer()
+            || sides->get<long long>() < 1
+            || sides->get<long long>() > 1000000
+            || count == roll.end() || !count->is_number_integer()
+            || count->get<long long>() < 1
+            || count->get<long long>() > 1000) {
+            bad();
+            return;
+        }
+        auto keep = roll.find("keep");
+        if (keep != roll.end()
+            && (!keep->is_number_integer() || keep->get<long long>() < 1
+                || keep->get<long long>() > count->get<long long>())) {
+            bad();
+        }
+    }
+
+    /* INFO: one component per family per entity; unknown component
+     *       names and empty component sets are errors. */
+    void CheckEntities() {
+        for (const LoadedMod* mod : mods_) {
+            for (const auto& entity : mod->entities) {
+                const std::string path =
+                    mod->path + "/entities/" + entity.id + ".json";
+                if (entity.components.empty()) {
+                    buckets_.entities.push_back(Err(
+                        "entity.components.empty", "entities", path,
+                        "entity '" + entity.entity_id
+                            + "' declares no components"));
+                }
+                std::map<std::string, std::string> family_owner;
+                for (const auto& component : entity.components) {
+                    auto family = ComponentFamilies().find(component.name);
+                    if (family == ComponentFamilies().end()) {
+                        buckets_.entities.push_back(Err(
+                            "entity.component.unknown", "entities", path,
+                            "entity '" + entity.entity_id
+                                + "' declares unknown component '"
+                                + component.name + "'"));
+                        continue;
+                    }
+                    auto inserted =
+                        family_owner.emplace(family->second, component.name);
+                    if (!inserted.second) {
+                        buckets_.entities.push_back(Err(
+                            "entity.component.family", "entities", path,
+                            "entity '" + entity.entity_id + "' declares two '"
+                                + family->second + "' components ('"
+                                + inserted.first->second + "' and '"
+                                + component.name + "')"));
+                    }
+                }
+            }
+        }
+    }
+
+    /* INFO: the namespace rule, unique ids and non-empty field names. The
+     *       closed word lists are the schema's job (check 1). */
+    void CheckEvents() {
+        std::set<std::string> seen;
+        for (const LoadedMod* mod : mods_) {
+            for (const auto& event : mod->events) {
+                const std::string path =
+                    mod->path + "/events/" + event.id + ".json";
+                const std::string violation =
+                    NamespaceRuleViolation(mod->manifest.id, event.event_id);
+                if (!violation.empty()) {
+                    buckets_.events.push_back(
+                        Err("event.id.namespace", "events", path, violation));
+                }
+                if (!seen.insert(event.event_id).second) {
+                    buckets_.events.push_back(Err(
+                        "event.id.duplicate", "events", path,
+                        "duplicate event id '" + event.event_id + "'"));
+                }
+                for (const auto& field : event.fields) {
+                    if ((field.name == event_keys::kTargetRole
+                         || field.name == event_keys::kOwnerRole)
+                        && field.type != event_keys::kSeatType) {
+                        buckets_.events.push_back(Err(
+                            "event.field.role_type", "events", path,
+                            "event '" + event.event_id + "' field '"
+                                + field.name
+                                + "' names a seat role and must be a seat"));
+                    }
+                    if (IsValidLocalId(field.name)) continue;
+                    buckets_.events.push_back(Err(
+                        "event.field.name", "events", path,
+                        "event '" + event.event_id + "' field '" + field.name
+                            + "' must match [a-z0-9_]+ (1-32)"));
+                }
+            }
+        }
+    }
+
+    /* INFO: the result of looking up one payload field of a client event. */
+    enum class FieldLookup { kDeferred, kNoEvent, kNoField, kHidden, kPublic };
+
+    const EventDef* FindModEvent(const std::string& event_id) const {
+        for (const LoadedMod* mod : mods_) {
+            for (const EventDef& event : mod->events) {
+                if (event.event_id == event_id) return &event;
+            }
+        }
+        return nullptr;
+    }
+
+    bool ModInSet(const std::string& mod_id) const {
+        for (const LoadedMod* mod : mods_) {
+            if (mod->manifest.id == mod_id) return true;
+        }
+        return false;
+    }
+
+    /* INFO: an empty `field` asks for the event only. A reference to a mod
+     *       that is not in the set is deferred while one mod is validated
+     *       alone, and unknown once the match set is complete. */
+    FieldLookup LookupEventField(const std::string& event_id,
+                                 const std::string& field) const {
+        const std::size_t colon = event_id.find(':');
+        if (colon == std::string::npos) {
+            if (!match::view::IsStreakFeedable(event_id)) {
+                return FieldLookup::kNoEvent;
+            }
+            if (field.empty()) return FieldLookup::kPublic;
+            const match::view::EventRule* rule =
+                match::view::FindEventRule(event_id);
+            const match::view::FieldRule* declared =
+                rule == nullptr ? nullptr
+                                : match::view::FindFieldRule(*rule, field);
+            if (declared == nullptr) return FieldLookup::kNoField;
+            return declared->audience == match::view::Audience::kAll
+                       ? FieldLookup::kPublic
+                       : FieldLookup::kHidden;
+        }
+        const EventDef* definition = FindModEvent(event_id);
+        if (definition == nullptr) {
+            const bool owner_known = ModInSet(event_id.substr(0, colon));
+            return (owner_known || match_set_) ? FieldLookup::kNoEvent
+                                               : FieldLookup::kDeferred;
+        }
+        if (field.empty()) return FieldLookup::kPublic;
+        for (const EventFieldDef& declared : definition->fields) {
+            if (declared.name != field) continue;
+            return declared.audience == "all" ? FieldLookup::kPublic
+                                              : FieldLookup::kHidden;
+        }
+        return FieldLookup::kNoField;
+    }
+
+    /* INFO: who owns a matcher in a message: a streak or a derived event.
+     *       The two kinds share the matcher checks and report to their own
+     *       stage. */
+    struct MatcherOwner {
+        std::string streak_id;
+        bool derived = false;
+        bool binding = false;
+    };
+
+    static MatcherOwner OwnerOf(const StreakDef& streak) {
+        return MatcherOwner{streak.streak_id, false};
+    }
+
+    std::vector<LoadError>& Bucket(const MatcherOwner& owner) {
+        if (owner.binding) return buckets_.presentations;
+        return owner.derived ? buckets_.derived : buckets_.streaks;
+    }
+
+    static std::string CheckId(const MatcherOwner& owner,
+                               const std::string& name) {
+        if (owner.binding) return "binding." + name;
+        return (owner.derived ? "derived." : "streak.") + name;
+    }
+
+    static const char* StageOf(const MatcherOwner& owner) {
+        if (owner.binding) return "presentations";
+        return owner.derived ? "derived" : "streaks";
+    }
+
+    static std::string Label(const MatcherOwner& owner) {
+        if (owner.binding) return "binding";
+        return owner.derived ? "derived event" : "streak";
+    }
+
+    void CheckStreakField(const std::string& path, const MatcherOwner& streak,
+                          const std::string& event_id,
+                          const std::string& field, const char* role) {
+        switch (LookupEventField(event_id, field)) {
+            case FieldLookup::kNoField:
+                Bucket(streak).push_back(Err(
+                    CheckId(streak, "field.unknown"), StageOf(streak), path,
+                    Label(streak) + " '" + streak.streak_id + "' " + role + " '" + field
+                        + "' is not a payload field of '" + event_id + "'"));
+                break;
+            case FieldLookup::kHidden:
+                Bucket(streak).push_back(Err(
+                    CheckId(streak, "field.audience"), StageOf(streak), path,
+                    Label(streak) + " '" + streak.streak_id + "' " + role + " '" + field
+                        + "' of '" + event_id
+                        + "' does not have the audience 'all'; a streak "
+                          "value is public"));
+                break;
+            default:
+                break;
+        }
+    }
+
+    bool TagExists(const std::string& tag) const {
+        return tags_.count(tag) != 0;
+    }
+
+    void CheckStreakTag(const std::string& path, const MatcherOwner& streak,
+                        const std::string& tag) {
+        const std::size_t colon = tag.find(':');
+        const bool well_formed =
+            colon != std::string::npos && colon > 0
+            && IsValidLocalId(tag.substr(0, colon))
+            && IsValidLocalId(tag.substr(colon + 1));
+        if (!well_formed) {
+            Bucket(streak).push_back(Err(
+                CheckId(streak, "tag.syntax"), StageOf(streak), path,
+                Label(streak) + " '" + streak.streak_id + "' tag '" + tag
+                    + "' must be 'namespace:name'"));
+            return;
+        }
+        const bool owner_known = ModInSet(tag.substr(0, colon));
+        if ((owner_known || match_set_) && !TagExists(tag)) {
+            Bucket(streak).push_back(Err(
+                CheckId(streak, "tag.unknown"), StageOf(streak), path,
+                Label(streak) + " '" + streak.streak_id + "' tag '" + tag
+                    + "' is carried by no card kind"));
+        }
+    }
+
+    void CheckStreakMatcher(const std::string& path, const MatcherOwner& streak,
+                            const StreakMatcherDef& matcher) {
+        const FieldLookup event = LookupEventField(matcher.event, "");
+        if (event == FieldLookup::kNoEvent) {
+            Bucket(streak).push_back(Err(
+                CheckId(streak, "event.unknown"), StageOf(streak), path,
+                Label(streak) + " '" + streak.streak_id + "' matches '" + matcher.event
+                    + "', which is no client event that a streak may read"));
+            return;
+        }
+        for (const StreakTestDef& test : matcher.tests) {
+            namespace keys = streak_keys;
+            const bool known =
+                std::find(keys::kMatcherTests.begin(),
+                          keys::kMatcherTests.end(), test.test)
+                != keys::kMatcherTests.end();
+            if (!known) {
+                Bucket(streak).push_back(Err(
+                    CheckId(streak, "test.unknown"), StageOf(streak), path,
+                    Label(streak) + " '" + streak.streak_id + "' uses the unknown test '"
+                        + test.test + "'"));
+                continue;
+            }
+            if (test.test == keys::kRelationTest) {
+                Bucket(streak).push_back(Err(
+                    CheckId(streak, "test.relation"), StageOf(streak), path,
+                    Label(streak) + " '" + streak.streak_id
+                        + "' uses 'relation'; it depends on the viewer and "
+                          "is for presentations only"));
+                continue;
+            }
+            if (test.test == keys::kHasTag) {
+                CheckStreakField(path, streak, matcher.event,
+                                 std::string(keys::kTagsField), "tag source");
+                CheckStreakTag(path, streak, test.tag);
+                continue;
+            }
+            if (test.field.empty() == test.state.empty()) {
+                Bucket(streak).push_back(Err(
+                    CheckId(streak, "test.shape"), StageOf(streak), path,
+                    Label(streak) + " '" + streak.streak_id + "' test '" + test.test
+                        + "' needs exactly one of a field and a state value"));
+                continue;
+            }
+            if (!test.state.empty()) {
+                if (!match::streak::IsStateValueName(test.state)) {
+                    Bucket(streak).push_back(Err(
+                        CheckId(streak, "state.unknown"), StageOf(streak), path,
+                        Label(streak) + " '" + streak.streak_id
+                            + "' reads the unknown state value '" + test.state
+                            + "'"));
+                }
+                continue;
+            }
+            CheckStreakField(path, streak, matcher.event, test.field,
+                             "test field");
+        }
+    }
+
+    /* INFO: the streak stage: ids, type, matcher, field audiences, and the
+     *       resolution of the `uni:context` names of every event. */
+    void CheckStreaks() {
+        std::set<std::string> seen;
+        for (const LoadedMod* mod : mods_) {
+            for (const StreakDef& streak : mod->streaks) {
+                const std::string path =
+                    mod->path + "/streaks/" + streak.id + ".json";
+                const std::string violation =
+                    NamespaceRuleViolation(mod->manifest.id, streak.streak_id);
+                if (!violation.empty()) {
+                    buckets_.streaks.push_back(Err(
+                        "streak.id.namespace", "streaks", path, violation));
+                }
+                if (!seen.insert(streak.streak_id).second) {
+                    buckets_.streaks.push_back(Err(
+                        "streak.id.duplicate", "streaks", path,
+                        "duplicate streak id '" + streak.streak_id + "'"));
+                }
+                CheckStreakDefinition(path, streak);
+            }
+            for (const EventDef& event : mod->events) {
+                for (const std::string& name : event.context) {
+                    CheckContextName(
+                        mod->path + "/events/" + event.id + ".json", event,
+                        name);
+                }
+            }
+        }
+    }
+
+    /* INFO: the derived stage: ids, the emitted core event, the base events
+     *       and fields that the matchers read, and the window of a block.
+     *       The matcher checks are the streak checks; they report to this
+     *       stage for a derived event. */
+    void CheckDerived() {
+        std::set<std::string> seen;
+        std::set<std::string> emitted;
+        std::map<std::string, const DerivedEventDef*> windows;
+        for (const LoadedMod* mod : mods_) {
+            for (const DerivedEventDef& derived : mod->derived_events) {
+                if (derived.kind == derived_keys::kWindowKind) {
+                    windows[derived.derived_id] = &derived;
+                }
+            }
+        }
+        for (const LoadedMod* mod : mods_) {
+            for (const DerivedEventDef& derived : mod->derived_events) {
+                const std::string path =
+                    mod->path + "/derived/" + derived.id + ".json";
+                if (!seen.insert(derived.derived_id).second) {
+                    buckets_.derived.push_back(Err(
+                        "derived.id.duplicate", "derived", path,
+                        "duplicate derived event id '" + derived.derived_id
+                            + "'"));
+                }
+                if (!match::view::IsDerivedEvent(derived.emits)) {
+                    buckets_.derived.push_back(Err(
+                        "derived.emits.unknown", "derived", path,
+                        "derived event '" + derived.derived_id + "' emits '"
+                            + derived.emits
+                            + "', which is no derived core event"));
+                } else if (!emitted.insert(derived.emits).second) {
+                    buckets_.derived.push_back(Err(
+                        "derived.emits.duplicate", "derived", path,
+                        "derived event '" + derived.derived_id + "' emits '"
+                            + derived.emits
+                            + "', which another definition emits too"));
+                }
+                if (derived.kind == derived_keys::kBlockKind) {
+                    const auto window = windows.find(derived.window_of);
+                    if (window == windows.end()) {
+                        buckets_.derived.push_back(Err(
+                            "derived.window.unknown", "derived", path,
+                            "derived event '" + derived.derived_id
+                                + "' names the window '" + derived.window_of
+                                + "', which no loaded mod defines as a "
+                                  "window"));
+                    }
+                }
+                const MatcherOwner owner{derived.derived_id, true};
+                for (const auto* list :
+                     {&derived.open_on, &derived.close_on,
+                      &derived.block_on}) {
+                    for (const DerivedSeatMatcherDef& seat_matcher : *list) {
+                        CheckStreakMatcher(path, owner, seat_matcher.matcher);
+                        CheckStreakField(path, owner,
+                                         seat_matcher.matcher.event,
+                                         seat_matcher.seat_field,
+                                         "seat field");
+                    }
+                }
+            }
+        }
+    }
+
+    void CheckStreakDefinition(const std::string& path,
+                               const StreakDef& streak) {
+        namespace keys = streak_keys;
+        const bool known_type =
+            std::find(keys::kStreakTypes.begin(), keys::kStreakTypes.end(),
+                      streak.type)
+            != keys::kStreakTypes.end();
+        if (!known_type) {
+            buckets_.streaks.push_back(Err(
+                "streak.type.unknown", "streaks", path,
+                "streak '" + streak.streak_id + "' has the unknown type '"
+                    + streak.type + "'"));
+        }
+        if (streak.type == keys::kLastValue && streak.value_field.empty()) {
+            buckets_.streaks.push_back(Err(
+                "streak.value_field.missing", "streaks", path,
+                "streak '" + streak.streak_id
+                    + "' has the type last_value and needs a value field"));
+        }
+        if (streak.type != keys::kLastValue && !streak.value_field.empty()) {
+            buckets_.streaks.push_back(Err(
+                "streak.value_field.unexpected", "streaks", path,
+                "streak '" + streak.streak_id
+                    + "' sets a value field, but only last_value reads one"));
+        }
+        if (streak.type != keys::kRun && !streak.reset_on.empty()) {
+            buckets_.streaks.push_back(Err(
+                "streak.reset_on.unexpected", "streaks", path,
+                "streak '" + streak.streak_id
+                    + "' sets reset events, but only a run resets"));
+        }
+        CheckStreakMatcher(path, OwnerOf(streak), streak.matcher);
+        if (!streak.group_by.empty()) {
+            CheckStreakField(path, OwnerOf(streak), streak.matcher.event,
+                             streak.group_by, "group field");
+        }
+        if (!streak.value_field.empty()) {
+            CheckStreakField(path, OwnerOf(streak), streak.matcher.event,
+                             streak.value_field, "value field");
+        }
+        for (const StreakMatcherDef& reset : streak.reset_on) {
+            CheckStreakMatcher(path, OwnerOf(streak), reset);
+        }
+    }
+
+    void CheckContextName(const std::string& path, const EventDef& event,
+                          const std::string& name) {
+        if (streak_ids_.count(name) != 0) return;
+        const std::size_t colon = name.find(':');
+        const bool owner_known =
+            colon != std::string::npos && ModInSet(name.substr(0, colon));
+        if (!owner_known && !match_set_) return;
+        buckets_.streaks.push_back(Err(
+            "streak.context.unresolved", "events", path,
+            "event '" + event.event_id + "' asks for the context '" + name
+                + "', which no loaded mod defines as a streak"));
+    }
+
+    /* INFO: the result of looking up one payload field of a bound event, as
+     *       the viewer receives it. */
+    enum class BoundField { kDeferred, kNoEvent, kNoField, kNone, kPartial,
+                            kPublic };
+
+    BoundField LookupBoundField(const std::string& event_id,
+                                const std::string& field) const {
+        using match::view::Audience;
+        if (event_id.find(':') == std::string::npos) {
+            const match::view::EventRule* rule =
+                match::view::FindEventRule(event_id);
+            if (rule == nullptr) return BoundField::kNoEvent;
+            if (field.empty()) return BoundField::kPublic;
+            const match::view::FieldRule* declared =
+                match::view::FindFieldRule(*rule, field);
+            if (declared == nullptr) return BoundField::kNoField;
+            if (declared->audience == Audience::kAll) {
+                return BoundField::kPublic;
+            }
+            return declared->audience == Audience::kNone
+                       ? BoundField::kNone
+                       : BoundField::kPartial;
+        }
+        const EventDef* definition = FindModEvent(event_id);
+        if (definition == nullptr) {
+            const std::string owner = event_id.substr(0, event_id.find(':'));
+            return (ModInSet(owner) || match_set_) ? BoundField::kNoEvent
+                                                   : BoundField::kDeferred;
+        }
+        if (field.empty()) return BoundField::kPublic;
+        for (const EventFieldDef& declared : definition->fields) {
+            if (declared.name != field) continue;
+            if (declared.audience == "all") return BoundField::kPublic;
+            return declared.audience == "none" ? BoundField::kNone
+                                               : BoundField::kPartial;
+        }
+        return BoundField::kNoField;
+    }
+
+    static MatcherOwner OwnerOf(const BindingDef& binding) {
+        return MatcherOwner{binding.binding_id, false, true};
+    }
+
+    /* INFO: the matcher runs on the client, on the event as the server
+     *       projected it. A field that no viewer receives cannot be read. A
+     *       field that some viewers receive can be absent. */
+    void CheckBoundField(const std::string& path, const BindingDef& binding,
+                         const std::string& field, const std::string& role) {
+        CheckBoundFieldOf(path, binding, binding.event, field, role);
+    }
+
+    void CheckBoundFieldOf(const std::string& path, const BindingDef& binding,
+                           const std::string& event_id,
+                           const std::string& field, const std::string& role) {
+        const std::string subject = "binding '" + binding.binding_id + "' "
+                                    + role + " '" + field + "' of '"
+                                    + event_id + "'";
+        switch (LookupBoundField(event_id, field)) {
+            case BoundField::kNoField:
+                buckets_.presentations.push_back(Err(
+                    "binding.field.unknown", "presentations", path,
+                    subject + " is not a payload field"));
+                break;
+            case BoundField::kNone:
+                buckets_.presentations.push_back(Err(
+                    "binding.field.audience", "presentations", path,
+                    subject + " has the audience 'none'; no viewer "
+                              "receives it"));
+                break;
+            case BoundField::kPartial:
+                buckets_.warnings.push_back(LoadWarning{
+                    "binding.field.audience.partial", "presentations", path,
+                    subject + " does not have the audience 'all'; it is "
+                              "absent for some viewers"});
+                break;
+            default:
+                break;
+        }
+    }
+
+    void CheckBindingRelation(const std::string& path,
+                              const BindingDef& binding,
+                              const StreakTestDef& test) {
+        namespace keys = binding_keys;
+        const std::string label = "binding '" + binding.binding_id + "'";
+        const bool role_ok =
+            test.role == keys::kActorRole || test.role == keys::kTargetRole;
+        if (!role_ok) {
+            buckets_.presentations.push_back(Err(
+                "binding.relation.role", "presentations", path,
+                label + " relation needs the role 'actor' or 'target'"));
+        }
+        if (test.relation != keys::kSelf && test.relation != keys::kOther) {
+            buckets_.presentations.push_back(Err(
+                "binding.relation.value", "presentations", path,
+                label + " relation needs the value 'self' or 'other'"));
+        }
+        if (test.role != keys::kTargetRole) return;
+        const BoundField target =
+            LookupBoundField(binding.event, std::string(keys::kTargetRole));
+        if (target == BoundField::kNoField) {
+            buckets_.presentations.push_back(Err(
+                "binding.relation.target", "presentations", path,
+                label + " relation uses the role 'target', but '"
+                    + binding.event + "' has no payload field 'target'"));
+            return;
+        }
+        CheckBoundField(path, binding, std::string(keys::kTargetRole),
+                        "relation role");
+    }
+
+    void CheckBindingTest(const std::string& path, const BindingDef& binding,
+                          const StreakTestDef& test) {
+        namespace keys = streak_keys;
+        namespace bkeys = binding_keys;
+        const std::string label = "binding '" + binding.binding_id + "'";
+        const bool known =
+            std::find(bkeys::kBindingTests.begin(), bkeys::kBindingTests.end(),
+                      test.test) != bkeys::kBindingTests.end();
+        if (!known) {
+            buckets_.presentations.push_back(Err(
+                "binding.test.unknown", "presentations", path,
+                label + " uses the unknown test '" + test.test + "'"));
+            return;
+        }
+        const bool reads_streak = !test.streak.empty() || !test.key.empty()
+                                  || !test.key_field.empty();
+        if (!test.tag.empty() && test.test != keys::kHasTag
+            && test.test != bkeys::kCausedBy) {
+            buckets_.warnings.push_back(LoadWarning{
+                "binding.test.shape", "presentations", path,
+                label + " test '" + test.test
+                    + "' has a tag; only has_tag and caused_by use one; "
+                      "it is ignored"});
+        }
+        if (test.actor) {
+            const bool word_fits = test.test == keys::kExists
+                                   || test.test == keys::kEquals
+                                   || test.test == keys::kIn;
+            if (!word_fits || reads_streak || !test.field.empty()
+                || !test.state.empty()
+                || (test.test == keys::kIn && test.values.empty())) {
+                buckets_.presentations.push_back(Err(
+                    "binding.test.shape", "presentations", path,
+                    label + " test '" + test.test
+                        + "' has a bad actor source: only exists, equals "
+                          "and in can read the actor, with no field, "
+                          "streak, key or state; 'in' needs values"));
+            }
+            return;
+        }
+        if (test.test == bkeys::kCausedBy) {
+            const bool shaped =
+                test.value.is_string() && !test.value.get<std::string>().empty()
+                && LookupBoundField(test.value.get<std::string>(), "")
+                       != BoundField::kNoEvent;
+            if (!shaped || reads_streak || !test.field.empty()
+                || !test.state.empty()) {
+                buckets_.presentations.push_back(Err(
+                    "binding.test.shape", "presentations", path,
+                    label + " test 'caused_by' needs the id of a known "
+                            "event as its value, and no field, streak, "
+                            "key or state"));
+            }
+            return;
+        }
+        if (test.test == keys::kRelationTest || test.test == keys::kHasTag) {
+            if (reads_streak) {
+                buckets_.presentations.push_back(Err(
+                    "binding.test.shape", "presentations", path,
+                    label + " test '" + test.test
+                        + "' cannot read a streak or use key and "
+                          "key_field"));
+                return;
+            }
+        }
+        if (test.test == keys::kRelationTest) {
+            CheckBindingRelation(path, binding, test);
+            return;
+        }
+        if (test.test == keys::kHasTag) {
+            CheckBoundField(path, binding, std::string(keys::kTagsField),
+                            "tag source");
+            CheckStreakTag(path, OwnerOf(binding), test.tag);
+            return;
+        }
+        const bool numeric = test.test == bkeys::kGt || test.test == bkeys::kGte
+                             || test.test == bkeys::kLt
+                             || test.test == bkeys::kLte;
+        const bool from_streak = !test.streak.empty();
+        if ((numeric && !test.value.is_number())
+            || (from_streak && (!test.field.empty() || !IsLogKey(test.streak)))
+            || (!test.key.empty() && !test.key_field.empty())
+            || (!from_streak && (!test.key.empty() || !test.key_field.empty()))) {
+            buckets_.presentations.push_back(Err(
+                "binding.test.shape", "presentations", path,
+                label + " test '" + test.test
+                    + "' has a bad source: numeric words need a number "
+                      "value; a streak test has no payload field; key and "
+                      "key_field are for streak tests and exclusive"));
+            return;
+        }
+        if (test.test == keys::kIn && test.values.empty()) {
+            buckets_.presentations.push_back(Err(
+                "binding.test.shape", "presentations", path,
+                label + " test 'in' needs a non-empty list of values"));
+            return;
+        }
+        if (!test.key_field.empty()) {
+            CheckBoundField(path, binding, test.key_field,
+                            "streak key field");
+        }
+        if (from_streak) return;
+        if (test.field.empty() || !test.state.empty()) {
+            buckets_.presentations.push_back(Err(
+                "binding.test.shape", "presentations", path,
+                label + " test '" + test.test
+                    + "' needs a payload field; state values are for "
+                      "streaks"));
+            return;
+        }
+        CheckBoundField(path, binding, test.field, "test field");
+    }
+
+    /* INFO: the array of `key` inside `object`; nullptr when the object has
+     *       no such array. */
+    static const nlohmann::json* ArrayOf(const nlohmann::json& object,
+                                         const std::string& key) {
+        if (!object.is_object()) return nullptr;
+        const auto it = object.find(key);
+        if (it == object.end() || !it->is_array()) return nullptr;
+        return &*it;
+    }
+
+    /* INFO: `uni:ancestor` and `uni:depth` shape the `caused_by` test, and the
+     *       loader keeps them in the raw file object only, so this reads them
+     *       from there. The schema pins the type and the range; the check
+     *       repeats it for a file that reaches the validator and warns on a
+     *       marker of any other test, which the shared test shape of the
+     *       schema cannot say. */
+    void CheckBindingCauseMarkers(const std::string& path,
+                                  const BindingDef& binding) {
+        namespace skeys = streak_keys;
+        namespace bkeys = binding_keys;
+        const auto file = binding.raw.find(std::string(bkeys::kBinding));
+        if (file == binding.raw.end() || !file->is_object()) return;
+        const nlohmann::json* cases = ArrayOf(*file, std::string(bkeys::kCases));
+        if (cases == nullptr) return;
+        const std::string label = "binding '" + binding.binding_id + "'";
+        for (const nlohmann::json& entry : *cases) {
+            const nlohmann::json* tests =
+                ArrayOf(entry, std::string(skeys::kTests));
+            if (tests == nullptr) continue;
+            for (const nlohmann::json& test : *tests) {
+                if (!test.is_object()) continue;
+                const auto word = test.find(std::string(skeys::kTest));
+                const bool ancestor_test =
+                    word != test.end() && word->is_string()
+                    && word->get<std::string>() == bkeys::kCausedBy;
+                for (const std::string_view key :
+                     {bkeys::kAncestor, bkeys::kDepth}) {
+                    const auto marker = test.find(std::string(key));
+                    if (marker == test.end()) continue;
+                    if (ancestor_test) {
+                        CheckCauseMarker(path, label, key, *marker);
+                        continue;
+                    }
+                    buckets_.warnings.push_back(LoadWarning{
+                        "binding.test.shape", "presentations", path,
+                        label + " test has '" + std::string(key)
+                            + "'; only caused_by uses one; it is ignored"});
+                }
+            }
+        }
+    }
+
+    /* INFO: the shape of one marker of a `caused_by` test: a boolean for
+     *       `uni:ancestor`, an integer hop count for `uni:depth`. */
+    void CheckCauseMarker(const std::string& path, const std::string& label,
+                          const std::string_view key,
+                          const nlohmann::json& value) {
+        namespace bkeys = binding_keys;
+        const bool depth = key == bkeys::kDepth;
+        const bool shaped =
+            depth
+                ? value.is_number_integer() && value.get<std::int64_t>() >= 1
+                      && value.get<std::int64_t>()
+                             <= static_cast<std::int64_t>(bkeys::kMaxCauseDepth)
+                : value.is_boolean();
+        if (shaped) return;
+        buckets_.presentations.push_back(Err(
+            "binding.test.shape", "presentations", path,
+            label + " test 'caused_by' needs '" + std::string(key) + "' as "
+                + (depth ? "an integer from 1 to "
+                               + std::to_string(bkeys::kMaxCauseDepth)
+                         : "a boolean")));
+    }
+
+    void CheckBindingBeats(const std::string& path, const BindingDef& binding,
+                           const BindingCaseDef& binding_case) {
+        namespace keys = binding_keys;
+        const std::string label = "binding '" + binding.binding_id + "'";
+        for (const nlohmann::json& beat : binding_case.beats) {
+            if (!beat.is_array() || beat.empty()) {
+                buckets_.presentations.push_back(Err(
+                    "binding.beat.shape", "presentations", path,
+                    label + " has a beat that is not a non-empty list of "
+                            "steps"));
+                continue;
+            }
+            for (const nlohmann::json& step : beat) {
+                const bool shaped =
+                    step.is_object() && step.contains("op")
+                    && step["op"].is_string() && step.contains("target")
+                    && step["target"].is_string();
+                if (!shaped) {
+                    buckets_.presentations.push_back(Err(
+                        "binding.beat.shape", "presentations", path,
+                        label + " has a step without a string 'op' and "
+                                "'target'"));
+                    continue;
+                }
+                const std::string op = step["op"].get<std::string>();
+                if (std::find(keys::kBeatOps.begin(), keys::kBeatOps.end(),
+                              op) == keys::kBeatOps.end()) {
+                    buckets_.presentations.push_back(Err(
+                        "binding.beat.op", "presentations", path,
+                        label + " uses the unknown beat op '" + op + "'"));
+                }
+                const std::string target = step["target"].get<std::string>();
+                if (target.rfind(keys::kPayloadTargetPrefix, 0) == 0) {
+                    CheckBoundField(
+                        path, binding,
+                        target.substr(keys::kPayloadTargetPrefix.size()),
+                        "step target");
+                }
+            }
+        }
+    }
+
+    /* INFO: the sound values of the `sound` slots that the mod ships. */
+    static std::set<std::string> SoundValuesOf(const LoadedMod& mod) {
+        std::set<std::string> values;
+        for (const auto& bundle : mod.assets) {
+            for (const auto& slot : bundle.slots) {
+                if (slot.name != "sound") continue;
+                for (const auto& variant : slot.variants) {
+                    if (variant.value.has_value()) {
+                        values.insert(*variant.value);
+                    }
+                    if (!variant.file.has_value()) continue;
+                    const std::string& file = *variant.file;
+                    values.insert(file);
+                    const auto slash = file.find_last_of('/');
+                    const std::string base = slash == std::string::npos
+                                                 ? file
+                                                 : file.substr(slash + 1);
+                    values.insert(base);
+                    const auto dot = base.find_last_of('.');
+                    if (dot != std::string::npos) {
+                        values.insert(base.substr(0, dot));
+                    }
+                }
+            }
+        }
+        return values;
+    }
+
+    void CheckBindingSounds(const std::string& path, const LoadedMod& mod,
+                            const BindingDef& binding,
+                            const BindingCaseDef& binding_case) {
+        namespace keys = binding_keys;
+        const std::set<std::string> own_sounds = SoundValuesOf(mod);
+        for (const BindingSoundDef& sound : binding_case.sounds) {
+            const bool core =
+                std::find(keys::kCoreSoundIds.begin(),
+                          keys::kCoreSoundIds.end(), sound.sound)
+                != keys::kCoreSoundIds.end();
+            if (core || own_sounds.count(sound.sound) != 0) continue;
+            buckets_.presentations.push_back(Err(
+                "binding.sound.unknown", "presentations", path,
+                "binding '" + binding.binding_id + "' uses the sound '"
+                    + sound.sound
+                    + "', which is no core sound and no sound value of an "
+                      "asset bundle of this mod"));
+        }
+    }
+
+    static bool IsLogKey(const std::string& key) {
+        if (key.empty() || key.size() > 64) return false;
+        return std::all_of(key.begin(), key.end(), [](unsigned char c) {
+            return std::isalnum(c) != 0 || c == '_' || c == '.' || c == ':'
+                   || c == '-';
+        });
+    }
+
+    static bool IsGlossaryKey(const std::string& key) {
+        const std::size_t colon = key.find(':');
+        if (colon == std::string::npos) return IsValidLocalId(key);
+        return IsValidLocalId(key.substr(0, colon))
+               && IsValidLocalId(key.substr(colon + 1));
+    }
+
+    void CheckBindingLog(const std::string& path, const BindingDef& binding,
+                         const BindingLogDef& log,
+                         const std::vector<StreakTestDef>& tests) {
+        const auto cause_test = std::find_if(
+            tests.begin(), tests.end(), [](const StreakTestDef& test) {
+                return test.test == binding_keys::kCausedBy
+                       && !test.negate;
+            });
+        const std::string label = "binding '" + binding.binding_id + "'";
+        std::set<std::string> seen;
+        bool keys_ok = !log.variants.empty()
+                       && log.variants.size() <= binding_keys::kMaxVariants;
+        for (const std::string& key : log.variants) {
+            keys_ok = keys_ok && IsLogKey(key) && seen.insert(key).second;
+        }
+        if (!keys_ok) {
+            buckets_.presentations.push_back(Err(
+                "binding.log.key", "presentations", path,
+                label + " log line needs 1 to "
+                    + std::to_string(binding_keys::kMaxVariants)
+                    + " distinct text keys of [A-Za-z0-9_.:-] (1-64)"));
+        }
+        for (const auto& [name, param] : log.params) {
+            const int sources = (param.field.empty() ? 0 : 1)
+                                + (param.value.has_value() ? 1 : 0)
+                                + (param.actor ? 1 : 0)
+                                + (param.streak.empty() ? 0 : 1);
+            const bool key_misused =
+                (param.streak.empty()
+                 && (!param.key.empty() || !param.key_field.empty()))
+                || (!param.key.empty() && !param.key_field.empty());
+            if (key_misused) {
+                buckets_.presentations.push_back(Err(
+                    "binding.log.param", "presentations", path,
+                    label + " param '" + name
+                        + "': key and key_field need a streak source and "
+                          "are exclusive"));
+                continue;
+            }
+            if (param.default_value.has_value()
+                && !param.default_value->is_string()
+                && !param.default_value->is_number()) {
+                buckets_.presentations.push_back(Err(
+                    "binding.log.param", "presentations", path,
+                    label + " log parameter '" + name
+                        + "': default must be a string or a number"));
+                continue;
+            }
+            if (!param.card_part.empty()
+                && (param.field.empty() || sources != 1
+                    || (param.card_part != binding_keys::kCardPartKind
+                        && param.card_part != binding_keys::kCardPartColor))) {
+                buckets_.presentations.push_back(Err(
+                    "binding.log.param", "presentations", path,
+                    label + " log parameter '" + name
+                        + "': card_part needs a field source and must be "
+                          "'kind' or 'color'"));
+                continue;
+            }
+            if (param.cause
+                && (param.field.empty() || sources != 1)) {
+                buckets_.presentations.push_back(Err(
+                    "binding.log.param", "presentations", path,
+                    label + " log parameter '" + name
+                        + "': cause needs a field source"));
+                continue;
+            }
+            if (param.cause && cause_test == tests.end()) {
+                buckets_.presentations.push_back(Err(
+                    "binding.log.param", "presentations", path,
+                    label + " log parameter '" + name
+                        + "': a cause param needs a caused_by test that is "
+                          "not negated"));
+                continue;
+            }
+            if (sources != 1) {
+                buckets_.presentations.push_back(Err(
+                    "binding.log.param", "presentations", path,
+                    label + " log parameter '" + name
+                        + "' needs exactly one source: a field, a value, "
+                          "the actor, or a streak"));
+                continue;
+            }
+            if (!param.streak.empty() && !IsLogKey(param.streak)) {
+                buckets_.presentations.push_back(Err(
+                    "binding.log.param", "presentations", path,
+                    label + " log parameter '" + name
+                        + "' has a streak id outside [A-Za-z0-9_.:-] "
+                          "(1-64)"));
+                continue;
+            }
+            if (!param.key_field.empty()) {
+                CheckBoundField(path, binding, param.key_field,
+                                "streak key field");
+            }
+            if (param.cause) {
+                /* INFO: a bad caused_by value has its own shape error. */
+                if (!cause_test->value.is_string()) continue;
+                CheckBoundFieldOf(path, binding,
+                                  cause_test->value.get<std::string>(),
+                                  param.field, "log parameter cause field");
+            } else if (!param.field.empty()) {
+                CheckBoundField(path, binding, param.field,
+                                "log parameter field");
+            }
+        }
+    }
+
+    void CheckBindingCase(const std::string& path, const LoadedMod& mod,
+                          const BindingDef& binding,
+                          const BindingCaseDef& binding_case) {
+        for (const StreakTestDef& test : binding_case.tests) {
+            CheckBindingTest(path, binding, test);
+        }
+        CheckBindingBeats(path, binding, binding_case);
+        CheckBindingSounds(path, mod, binding, binding_case);
+        if (binding_case.log.has_value()) {
+            CheckBindingLog(path, binding, *binding_case.log,
+                            binding_case.tests);
+        }
+        if (!binding_case.glossary.empty()
+            && !IsGlossaryKey(binding_case.glossary)) {
+            buckets_.presentations.push_back(Err(
+                "binding.glossary.key", "presentations", path,
+                "binding '" + binding.binding_id + "' glossary key '"
+                    + binding_case.glossary + "' must be 'namespace:name'"));
+        }
+        if (binding_case.beats.empty() && binding_case.sounds.empty()
+            && !binding_case.log.has_value()
+            && binding_case.glossary.empty()) {
+            buckets_.presentations.push_back(Err(
+                "binding.empty", "presentations", path,
+                "binding '" + binding.binding_id
+                    + "' has a case that presents nothing"));
+        }
+    }
+
+    /* INFO: the keys a mod uses by its own files, in its own namespace.
+     *       A key without the namespace of the mod belongs to the core
+     *       catalog of the interface; it is not checked here.
+     *       The keys of the glossary entries join the used keys. */
+    static std::set<std::string> UsedTextKeys(const LoadedMod& mod) {
+        const std::string prefix = mod.manifest.id + ":";
+        std::set<std::string> used;
+        for (const BindingDef& binding : mod.bindings) {
+            for (const BindingCaseDef& binding_case : binding.cases) {
+                if (!binding_case.log.has_value()) continue;
+                for (const std::string& key : binding_case.log->variants) {
+                    if (key.rfind(prefix, 0) == 0) used.insert(key);
+                }
+            }
+        }
+        for (const std::string& key : UsedGlossaryKeys(mod)) {
+            if (IsValidTextKey(key) && key.rfind(prefix, 0) == 0) {
+                used.insert(key);
+            }
+        }
+        return used;
+    }
+
+    void CheckTextsFile(const LoadedMod& mod, const TextsFileDef& file) {
+        const std::string label = "texts file '" + file.locale + "'";
+        if (!IsValidLocaleTag(file.locale)) {
+            const bool reserved = file.locale == kPseudoLocale;
+            buckets_.texts.push_back(Err(
+                "texts.locale", "texts", file.path,
+                label
+                    + (reserved
+                           ? " is the run-time locale; the client makes it "
+                             "from 'en', so a mod does not ship it"
+                           : " is no locale tag (a language of 2 or 3 "
+                             "lowercase letters, then subtags)")));
+        }
+        if (file.size > texts_limits::kMaxTextsFileBytes) {
+            buckets_.texts.push_back(Err(
+                "texts.size", "texts", file.path,
+                label + " is " + std::to_string(file.size)
+                    + " bytes; the limit is "
+                    + std::to_string(texts_limits::kMaxTextsFileBytes)));
+            return;
+        }
+        if (!file.read_error.empty() || !file.content.is_object()) {
+            buckets_.texts.push_back(Err(
+                "texts.json", "texts", file.path,
+                label + ": "
+                    + (file.read_error.empty()
+                           ? std::string("the top level must be an object")
+                           : file.read_error)));
+            return;
+        }
+        if (file.content.size() > texts_limits::kMaxTextKeys) {
+            buckets_.texts.push_back(Err(
+                "texts.keys", "texts", file.path,
+                label + " has " + std::to_string(file.content.size())
+                    + " keys; the limit is "
+                    + std::to_string(texts_limits::kMaxTextKeys)));
+            return;
+        }
+        const std::string prefix = mod.manifest.id + ":";
+        for (auto it = file.content.begin(); it != file.content.end(); ++it) {
+            const std::string& key = it.key();
+            if (key.size() <= prefix.size() || key.rfind(prefix, 0) != 0) {
+                buckets_.texts.push_back(Err(
+                    "texts.key.namespace", "texts", file.path,
+                    label + " key '" + key + "' is outside the namespace '"
+                        + prefix + "' of the mod; only the mod '"
+                        + std::string(kBaseModId) + "' defines '"
+                        + std::string(kBaseModId) + ":' keys"));
+            }
+            if (!it.value().is_string()) {
+                buckets_.texts.push_back(Err(
+                    "texts.value", "texts", file.path,
+                    label + " key '" + key + "' must have a string value"));
+            } else if (it.value().get_ref<const std::string&>().size()
+                       > texts_limits::kMaxTextValueBytes) {
+                buckets_.texts.push_back(Err(
+                    "texts.value", "texts", file.path,
+                    label + " key '" + key + "' is longer than "
+                        + std::to_string(texts_limits::kMaxTextValueBytes)
+                        + " bytes"));
+            }
+        }
+    }
+
+    void CheckTexts() {
+        for (const LoadedMod* mod : mods_) {
+            for (const TextsFileDef& file : mod->texts) {
+                CheckTextsFile(*mod, file);
+            }
+            CheckGlossaryKeys(*mod);
+            CheckUsedTextKeys(*mod);
+        }
+    }
+
+    void CheckGlossaryKey(const LoadedMod& mod, const std::string& path,
+                          const std::string& owner, const std::string& field,
+                          const std::string& key) {
+        if (!IsValidTextKey(key)) {
+            buckets_.texts.push_back(Err(
+                "glossary.key.syntax", "glossary", path,
+                owner + " " + field + " is no text key: a key is "
+                    "'namespace:word' with words of [a-z0-9_] split by dots, "
+                    "at most "
+                    + std::to_string(glossary_keys::kMaxKeyBytes)
+                    + " bytes; an entry holds keys, never texts"));
+            return;
+        }
+        const std::string prefix = mod.manifest.id + ":";
+        if (key.rfind(prefix, 0) != 0) {
+            buckets_.texts.push_back(Err(
+                "glossary.key.namespace", "glossary", path,
+                owner + " " + field + " '" + key
+                    + "' is outside the namespace '" + prefix
+                    + "' of the mod"));
+        }
+    }
+
+    /* INFO: an explicit entry and a card with declared keys must hold text
+     *       keys of the own namespace. A card that an explicit entry replaces
+     *       is not checked: its keys are not used. A derived key that is
+     *       missing in `en` only warns. */
+    void CheckGlossaryKeys(const LoadedMod& mod) {
+        std::set<std::string> replaced;
+        for (const GlossaryEntryDef& entry : mod.glossary) {
+            replaced.insert(entry.entry_id);
+            const std::string owner = "glossary entry '" + entry.entry_id + "'";
+            CheckGlossaryKey(mod, entry.path, owner, "label key",
+                             entry.label_key);
+            CheckGlossaryKey(mod, entry.path, owner, "description key",
+                             entry.description_key);
+        }
+        const TextsFileDef* english = nullptr;
+        for (const TextsFileDef& file : mod.texts) {
+            if (file.locale == "en") english = &file;
+        }
+        for (const CardDef& card : mod.cards) {
+            if (replaced.count(card.kind_id) != 0) continue;
+            const std::string path = mod.path + "/cards/" + card.id + ".json";
+            const std::string owner = "card '" + card.kind_id + "'";
+            for (const auto& [declared, field, suffix] :
+                 {std::tuple<const std::string&, const char*,
+                             std::string_view>{
+                      card.label_key, "label key",
+                      glossary_keys::kLabelSuffix},
+                  std::tuple<const std::string&, const char*,
+                             std::string_view>{
+                      card.description_key, "description key",
+                      glossary_keys::kDescriptionSuffix}}) {
+                if (!declared.empty()) {
+                    CheckGlossaryKey(mod, path, owner, field, declared);
+                    continue;
+                }
+                const std::string derived = card.kind_id + std::string(suffix);
+                if (english != nullptr && english->content.is_object()
+                    && !english->content.contains(derived)) {
+                    buckets_.warnings.push_back(LoadWarning{
+                        "glossary.auto.key.missing", "glossary", english->path,
+                        "the derived " + std::string(field) + " '" + derived
+                            + "' of " + owner + " is missing in en.json"});
+                }
+            }
+        }
+    }
+
+    /* INFO: a used key missing in `en` rejects the mod. A key missing in
+     *       another locale only warns. */
+    void CheckUsedTextKeys(const LoadedMod& mod) {
+        const std::set<std::string> used = UsedTextKeys(mod);
+        if (used.empty()) return;
+        const auto has_key = [](const TextsFileDef& file,
+                                const std::string& key) {
+            return file.content.is_object() && file.content.contains(key);
+        };
+        const TextsFileDef* english = nullptr;
+        for (const TextsFileDef& file : mod.texts) {
+            if (file.locale == "en") english = &file;
+        }
+        const std::string english_path = mod.path + "/texts/en.json";
+        for (const std::string& key : used) {
+            if (english == nullptr || !has_key(*english, key)) {
+                buckets_.texts.push_back(Err(
+                    "texts.key.missing", "texts", english_path,
+                    "the key '" + key
+                        + "' is used by the mod but missing in en.json"));
+            }
+        }
+        for (const TextsFileDef& file : mod.texts) {
+            if (file.locale == "en" || !file.content.is_object()) continue;
+            for (const std::string& key : used) {
+                if (has_key(file, key)) continue;
+                buckets_.warnings.push_back(LoadWarning{
+                    "texts.key.missing.locale", "texts", file.path,
+                    "the key '" + key + "' is missing in the locale '"
+                        + file.locale + "'; the client uses 'en'"});
+            }
+        }
+    }
+
+    /* INFO: false when the event cannot be checked further. A mod binds to
+     *       its own events and to core events and `uni:` events. */
+    bool CheckBindingEvent(const std::string& path, const LoadedMod& mod,
+                           const BindingDef& binding) {
+        const std::size_t colon = binding.event.find(':');
+        if (colon != std::string::npos) {
+            const std::string owner = binding.event.substr(0, colon);
+            if (owner != mod.manifest.id && !IsBaseModId(owner)) {
+                buckets_.presentations.push_back(Err(
+                    "binding.event.foreign", "presentations", path,
+                    "binding '" + binding.binding_id + "' binds to '"
+                        + binding.event
+                        + "', an event of another mod; a mod binds to its "
+                          "own events and to core events"));
+                return false;
+            }
+        }
+        const BoundField event = LookupBoundField(binding.event, "");
+        if (event == BoundField::kNoEvent) {
+            buckets_.presentations.push_back(Err(
+                "binding.event.unknown", "presentations", path,
+                "binding '" + binding.binding_id + "' binds to '"
+                    + binding.event + "', which is no known client event"));
+            return false;
+        }
+        return event != BoundField::kDeferred;
+    }
+
+    /* INFO: the binding stage: ids, the event, the matcher with the audience
+     *       rules, and the outputs. */
+    void CheckBindings() {
+        std::set<std::string> seen;
+        for (const LoadedMod* mod : mods_) {
+            for (const BindingDef& binding : mod->bindings) {
+                const std::string path = mod->path + "/presentations/"
+                                         + binding.id + ".json";
+                const std::string violation = NamespaceRuleViolation(
+                    mod->manifest.id, binding.binding_id);
+                if (!violation.empty()) {
+                    buckets_.presentations.push_back(Err(
+                        "binding.id.namespace", "presentations", path,
+                        violation));
+                }
+                if (!seen.insert(binding.binding_id).second) {
+                    buckets_.presentations.push_back(Err(
+                        "binding.id.duplicate", "presentations", path,
+                        "duplicate binding id '" + binding.binding_id + "'"));
+                }
+                if (binding.select != binding_keys::kSelectAll
+                    && binding.select != binding_keys::kSelectFirst) {
+                    buckets_.presentations.push_back(Err(
+                        "binding.select", "presentations", path,
+                        "binding '" + binding.binding_id + "' has '"
+                            + std::string(binding_keys::kSelect)
+                            + "' that is not 'all' or 'first'"));
+                }
+                CheckBindingCauseMarkers(path, binding);
+                if (!CheckBindingEvent(path, *mod, binding)) continue;
+                for (const BindingCaseDef& binding_case : binding.cases) {
+                    CheckBindingCase(path, *mod, binding, binding_case);
+                }
+            }
+        }
+    }
+
+    /* INFO: modifier kinds, forbidden `mode`, target grammar and
+     *       trigger source/where validation. */
+    void CheckPresentations() {
+        for (const LoadedMod* mod : mods_) {
+            const std::string& ns = mod->manifest.id;
+            for (const auto& presentation : mod->presentations) {
+                const std::string path = mod->path + "/presentations/"
+                                         + presentation.id + ".json";
+                if (!IsValidPresentationTarget(presentation.target)) {
+                    buckets_.presentations.push_back(Err(
+                        "presentation.target", "presentations", path,
+                        "presentation '" + presentation.presentation_id
+                            + "' has invalid target '" + presentation.target
+                            + "'"));
+                }
+                if (presentation.modifiers.empty()) {
+                    buckets_.presentations.push_back(Err(
+                        "presentation.modifiers.empty", "presentations", path,
+                        "presentation '" + presentation.presentation_id
+                            + "' declares no modifiers"));
+                }
+                for (const auto& modifier : presentation.modifiers) {
+                    if (ModifierMergeModes().count(modifier.kind) == 0) {
+                        buckets_.presentations.push_back(Err(
+                            "presentation.kind.unknown", "presentations", path,
+                            "presentation '" + presentation.presentation_id
+                                + "' declares unknown modifier kind '"
+                                + modifier.kind + "'"));
+                    }
+                    if (modifier.params.is_object()
+                        && modifier.params.contains("mode")) {
+                        buckets_.presentations.push_back(Err(
+                            "presentation.mode.forbidden", "presentations",
+                            path,
+                            "presentation '" + presentation.presentation_id
+                                + "' modifier '" + modifier.kind
+                                + "' carries a forbidden 'mode' field"));
+                    }
+                }
+                for (const auto& trigger : presentation.triggers) {
+                    CheckPresentationTrigger(trigger, presentation, ns, path);
+                }
+            }
+        }
+    }
+
+    void CheckPresentationTrigger(const TriggerDef& trigger,
+                                  const PresentationDef& presentation,
+                                  const std::string& ns,
+                                  const std::string& path) {
+        const std::set<std::string>* fields = nullptr;
+        if (!trigger.on.has_value() || *trigger.on == "always") {
+            fields = &NoWhereFields();
+        } else if (trigger.on->rfind("status:", 0) == 0) {
+            const std::string status = trigger.on->substr(7);
+            if (status.empty()) {
+                buckets_.presentations.push_back(Err(
+                    "presentation.trigger.source", "presentations", path,
+                    "presentation '" + presentation.presentation_id
+                        + "' has an empty status trigger source"));
+            } else {
+                const std::string full = NormalizeRef(status, ns);
+                if (!status_ids_.count(full)
+                    && (match_set_ || RefNamespace(full) == ns)) {
+                    buckets_.presentations.push_back(Err(
+                        "presentation.trigger.source", "presentations", path,
+                        "presentation '" + presentation.presentation_id
+                            + "' trigger source '" + *trigger.on
+                            + "' does not resolve to a known status"));
+                }
+            }
+            fields = &EventWhereFields("status_applied");
+        } else {
+            std::string event = *trigger.on;
+            if (event.rfind("match:", 0) == 0) event = event.substr(6);
+            if (KnownMatchEventTypes().count(event) == 0) {
+                buckets_.presentations.push_back(Err(
+                    "presentation.trigger.source", "presentations", path,
+                    "presentation '" + presentation.presentation_id
+                        + "' declares unknown trigger source '" + *trigger.on
+                        + "'"));
+                return;
+            }
+            fields = &EventWhereFields(event);
+        }
+
+        if (!trigger.where.is_object() || trigger.where.empty()) return;
+        for (auto it = trigger.where.begin(); it != trigger.where.end(); ++it) {
+            if (fields->count(it.key()) == 0) {
+                buckets_.presentations.push_back(Err(
+                    "presentation.trigger.where", "presentations", path,
+                    "presentation '" + presentation.presentation_id
+                        + "' trigger where field '" + it.key()
+                        + "' is not on the source payload"));
+            }
+        }
+    }
+
+    /* INFO: every key a table can emit must have an entity
+     *       `outcome.resolver` entry (exact `ns:key`) or a `*` catch-all
+     *       anywhere in the match set. */
+    void CheckOutcomeResolvers() {
+        std::set<std::string> resolvable;
+        bool has_star = false;
+        for (const LoadedMod* mod : mods_) {
+            const std::string& ns = mod->manifest.id;
+            for (const auto& entity : mod->entities) {
+                for (const auto& component : entity.components) {
+                    if (component.name != "outcome.resolver"
+                        || !component.params.is_object()) {
+                        continue;
+                    }
+                    for (auto it = component.params.begin();
+                         it != component.params.end(); ++it) {
+                        if (it.key() == "*") {
+                            has_star = true;
+                        } else {
+                            resolvable.insert(NormalizeRef(it.key(), ns));
+                        }
+                    }
+                }
+            }
+        }
+        if (has_star) return;
+
+        for (const LoadedMod* mod : mods_) {
+            const std::string& ns = mod->manifest.id;
+            for (const auto& table : mod->tables) {
+                const std::string path =
+                    mod->path + "/tables/" + table.id + ".json";
+                for (const auto& entry : table.entries) {
+                    const std::string key = ns + ":" + entry.key;
+                    if (resolvable.count(key)) continue;
+                    buckets_.outcome.push_back(Err(
+                        "outcome.resolver.missing", "entities", path,
+                        "outcome key '" + key + "' emitted by table '"
+                            + table.table_id
+                            + "' has no entity resolver and no '*' catch-all"));
+                }
+            }
+        }
+    }
+
+    /* INFO: entity component references into asset slots must
+     *       resolve in an asset bundle the mod ships. */
+    void CheckAssetDependencies() {
+        for (const LoadedMod* mod : mods_) {
+            std::map<std::string, std::set<std::string>> slots;
+            for (const auto& bundle : mod->assets) {
+                for (const auto& slot : bundle.slots) {
+                    auto& values = slots[slot.name];
+                    for (const auto& variant : slot.variants) {
+                        if (variant.value.has_value()) {
+                            values.insert(*variant.value);
+                        }
+                        if (!variant.file.has_value()) continue;
+                        const std::string& file = *variant.file;
+                        values.insert(file);
+                        const auto slash = file.find_last_of('/');
+                        const std::string base =
+                            slash == std::string::npos
+                                ? file
+                                : file.substr(slash + 1);
+                        values.insert(base);
+                        const auto dot = base.find_last_of('.');
+                        if (dot != std::string::npos) {
+                            values.insert(base.substr(0, dot));
+                        }
+                    }
+                }
+            }
+
+            for (const auto& entity : mod->entities) {
+                const std::string path =
+                    mod->path + "/entities/" + entity.id + ".json";
+                for (const auto& component : entity.components) {
+                    const AssetRef* ref =
+                        AssetRefForComponent(component.name);
+                    if (ref == nullptr || !component.params.is_object()) {
+                        continue;
+                    }
+                    auto value = component.params.find(ref->param);
+                    if (value == component.params.end()
+                        || !value->is_string()) {
+                        continue;
+                    }
+                    const std::string token = value->get<std::string>();
+                    auto slot = slots.find(ref->slot);
+                    if (slot == slots.end()
+                        || slot->second.count(token) == 0) {
+                        buckets_.asset.push_back(Err(
+                            "asset.dep.missing", "entities", path,
+                            "entity '" + entity.entity_id + "' component '"
+                                + component.name + "' references "
+                                + ref->slot + " '" + token
+                                + "' which no asset bundle declares"));
+                    }
                 }
             }
         }
@@ -1425,6 +3109,43 @@ class Checker {
                     CheckRestrictionRef(value.get<std::string>(), ctx.ns, ctx);
                 }
                 break;
+            case ArgType::kTableRef:
+                if (!value.is_string()) {
+                    buckets_.ops.push_back(Err(
+                        "op.type", ctx.artifact, ctx.path,
+                        where + " must be a table ref"));
+                } else {
+                    CheckTableRef(value.get<std::string>(), ctx.ns, ctx);
+                }
+                break;
+            case ArgType::kEventRef:
+                if (!value.is_string()) {
+                    buckets_.ops.push_back(Err(
+                        "op.type", ctx.artifact, ctx.path,
+                        where + " must be an event id"));
+                } else {
+                    CheckEventRef(value.get<std::string>(), ctx);
+                }
+                break;
+            case ArgType::kBindingName: {
+                // INFO: `^\$?[a-z0-9_]+$`; the leading `$` is
+                //       optional (a bare name is still a frame key, never a
+                //       node id, because node ids are consumed by routing).
+                if (!value.is_string()) {
+                    buckets_.ops.push_back(Err(
+                        "op.type", ctx.artifact, ctx.path,
+                        where + " must be a binding key"));
+                    break;
+                }
+                std::string token = value.get<std::string>();
+                if (!token.empty() && token[0] == '$') token.erase(0, 1);
+                if (token.empty() || !IsValidLocalId(token)) {
+                    buckets_.ops.push_back(Err(
+                        "op.type", ctx.artifact, ctx.path,
+                        where + " must be a `$name` binding key"));
+                }
+                break;
+            }
             case ArgType::kNodeRef:
                 if (!value.is_string()) {
                     buckets_.ops.push_back(Err("op.type", ctx.artifact,
@@ -1787,6 +3508,32 @@ class Checker {
                                         + "'"));
     }
 
+    void CheckTableRef(const std::string& raw,
+                       const std::string& ns,
+                       const GraphCtx& ctx) {
+        CheckReference(raw, ns, table_ids_, "ref.table", "table", ctx);
+    }
+
+    /* INFO: a mod emits only events of its own namespace, so a rule cannot
+     *       forge a `uni:` event. The id must be defined in the active set. */
+    void CheckEventRef(const std::string& raw, const GraphCtx& ctx) {
+        if (!IsValidKindId(raw)) {
+            buckets_.refs.push_back(Err("ref.event", ctx.artifact, ctx.path,
+                                        "malformed event ref '" + raw + "'"));
+            return;
+        }
+        if (RefNamespace(raw) != ctx.ns) {
+            buckets_.refs.push_back(Err(
+                "ref.event.namespace", ctx.artifact, ctx.path,
+                "mod '" + ctx.ns + "' cannot emit event '" + raw
+                    + "' of another namespace"));
+            return;
+        }
+        if (event_ids_.count(raw)) return;
+        buckets_.refs.push_back(Err("ref.event", ctx.artifact, ctx.path,
+                                    "unresolved event ref '" + raw + "'"));
+    }
+
     void CheckConflicts() {
         for (const auto& [target, list] : mutations_by_target_) {
             const MutationDef* repl = nullptr;
@@ -1984,6 +3731,9 @@ class Checker {
     std::set<std::string> status_ids_;
     std::set<std::string> tags_;
     std::set<std::string> restriction_ids_;
+    std::set<std::string> table_ids_;
+    std::set<std::string> event_ids_;
+    std::set<std::string> streak_ids_;
     std::vector<std::pair<std::string, std::string>> removed_restrictions_;
     std::map<std::string, std::vector<const MutationDef*>> mutations_by_target_;
 };
@@ -2104,6 +3854,86 @@ std::vector<LoadError> SchemaErrors(
                 compiled, mutations, "mutations", base + "/mutations.json");
             errors.insert(errors.end(), local.begin(), local.end());
         }
+        if (!mod->tables.empty()) {
+            /* INFO: tables are one definition per file; validate
+             *       each entry against the single-table schema and point the
+             *       error at that entry's file. */
+            const auto& compiled = validator.Schema(schema_files::kTables);
+            for (const auto& table : mod->tables) {
+                std::vector<LoadError> local = ValidateAgainstSchema(
+                    compiled, table.raw, "tables",
+                    base + "/tables/" + table.id + ".json");
+                errors.insert(errors.end(), local.begin(), local.end());
+            }
+        }
+        if (!mod->entities.empty()) {
+            /* INFO: entities are one definition per file; validate
+             *       each entry against the single-entity schema and point the
+             *       error at that entry's file. */
+            const auto& compiled = validator.Schema(schema_files::kEntities);
+            for (const auto& entity : mod->entities) {
+                std::vector<LoadError> local = ValidateAgainstSchema(
+                    compiled, entity.raw, "entities",
+                    base + "/entities/" + entity.id + ".json");
+                errors.insert(errors.end(), local.begin(), local.end());
+            }
+        }
+        if (!mod->events.empty()) {
+            const auto& compiled = validator.Schema(schema_files::kEvents);
+            for (const auto& event : mod->events) {
+                std::vector<LoadError> local = ValidateAgainstSchema(
+                    compiled, event.raw, "events",
+                    base + "/events/" + event.id + ".json");
+                errors.insert(errors.end(), local.begin(), local.end());
+            }
+        }
+        if (!mod->streaks.empty()) {
+            const auto& compiled = validator.Schema(schema_files::kStreaks);
+            for (const auto& streak : mod->streaks) {
+                std::vector<LoadError> local = ValidateAgainstSchema(
+                    compiled, streak.raw, "streaks",
+                    base + "/streaks/" + streak.id + ".json");
+                errors.insert(errors.end(), local.begin(), local.end());
+            }
+        }
+        if (!mod->derived_events.empty()) {
+            const auto& compiled = validator.Schema(schema_files::kDerived);
+            for (const auto& derived : mod->derived_events) {
+                std::vector<LoadError> local = ValidateAgainstSchema(
+                    compiled, derived.raw, "derived",
+                    base + "/derived/" + derived.id + ".json");
+                errors.insert(errors.end(), local.begin(), local.end());
+            }
+        }
+        if (!mod->glossary.empty()) {
+            const auto& compiled = validator.Schema(schema_files::kGlossary);
+            for (const auto& entry : mod->glossary) {
+                std::vector<LoadError> local = ValidateAgainstSchema(
+                    compiled, entry.raw, "glossary", entry.path);
+                errors.insert(errors.end(), local.begin(), local.end());
+            }
+        }
+        if (!mod->bindings.empty()) {
+            const auto& compiled = validator.Schema(schema_files::kBindings);
+            for (const auto& binding : mod->bindings) {
+                std::vector<LoadError> local = ValidateAgainstSchema(
+                    compiled, binding.raw, "presentations",
+                    base + "/presentations/" + binding.id + ".json");
+                errors.insert(errors.end(), local.begin(), local.end());
+            }
+        }
+        if (!mod->presentations.empty()) {
+            /* INFO: presentations are one definition per file;
+             *       semantic checks (kind/target/trigger) report the rest. */
+            const auto& compiled =
+                validator.Schema(schema_files::kPresentations);
+            for (const auto& presentation : mod->presentations) {
+                std::vector<LoadError> local = ValidateAgainstSchema(
+                    compiled, presentation.raw, "presentations",
+                    base + "/presentations/" + presentation.id + ".json");
+                errors.insert(errors.end(), local.begin(), local.end());
+            }
+        }
     }
     for (const DeckDef* deck : decks) {
         const auto& compiled = validator.Schema(schema_files::kDeck);
@@ -2112,6 +3942,56 @@ std::vector<LoadError> SchemaErrors(
         errors.insert(errors.end(), local.begin(), local.end());
     }
     return errors;
+}
+
+}  // namespace
+
+namespace {
+
+/* INFO: runs the stages of `kValidationStageOrder` in order. Inside a stage
+ *       the errors of the base mod come first. */
+std::vector<LoadError> FirstFailingStage(
+    const Buckets& buckets, const std::vector<const LoadedMod*>& mods) {
+    std::string base_prefix;
+    for (const LoadedMod* mod : mods) {
+        if (IsBaseModId(mod->manifest.id)) base_prefix = mod->path + "/";
+    }
+    const auto base_first = [&](std::vector<LoadError> errors) {
+        std::stable_partition(
+            errors.begin(), errors.end(), [&](const LoadError& error) {
+                return !base_prefix.empty()
+                       && error.path.rfind(base_prefix, 0) == 0;
+            });
+        return errors;
+    };
+    const std::vector<const std::vector<LoadError>*> old_style_kinds = {
+        &buckets.ids,       &buckets.refs,      &buckets.tables,
+        &buckets.ops,       &buckets.graph,     &buckets.conflicts,
+        &buckets.deck,      &buckets.selector,  &buckets.entities,
+        &buckets.outcome,   &buckets.asset};
+    for (const std::string_view stage : kValidationStageOrder) {
+        std::vector<LoadError> found;
+        if (stage == "uni") {
+            for (const auto* list : old_style_kinds) {
+                if (!list->empty()) {
+                    found = *list;
+                    break;
+                }
+            }
+        } else if (stage == "events") {
+            found = buckets.events;
+        } else if (stage == "streaks") {
+            found = buckets.streaks;
+        } else if (stage == "derived") {
+            found = buckets.derived;
+        } else if (stage == "presentations") {
+            found = buckets.presentations;
+        } else if (stage == "texts") {
+            found = buckets.texts;
+        }
+        if (!found.empty()) return base_first(std::move(found));
+    }
+    return {};
 }
 
 }  // namespace
@@ -2125,15 +4005,15 @@ std::vector<LoadError> SemanticValidator::ValidateMod(
 
     Checker checker(mods, /*match_set=*/false, nullptr);
     checker.Run();
-    const Buckets& buckets = checker.buckets();
-    const std::vector<const std::vector<LoadError>*> order = {
-        &buckets.ids,       &buckets.refs,    &buckets.ops,
-        &buckets.graph,     &buckets.conflicts, &buckets.deck,
-        &buckets.selector};
-    for (const auto* list : order) {
-        if (!list->empty()) return *list;
-    }
-    return {};
+    return FirstFailingStage(checker.buckets(), mods);
+}
+
+std::vector<LoadWarning> SemanticValidator::WarningsOf(
+    const LoadedMod& mod) const {
+    std::vector<const LoadedMod*> mods = {&mod};
+    Checker checker(mods, /*match_set=*/false, nullptr);
+    checker.Run();
+    return checker.buckets().warnings;
 }
 
 std::vector<LoadError> SemanticValidator::ValidateMatchSet(
@@ -2149,15 +4029,47 @@ std::vector<LoadError> SemanticValidator::ValidateMatchSet(
 
     Checker checker(mod_ptrs, /*match_set=*/true, &deck);
     checker.Run();
-    const Buckets& buckets = checker.buckets();
-    const std::vector<const std::vector<LoadError>*> order = {
-        &buckets.ids,       &buckets.refs,    &buckets.ops,
-        &buckets.graph,     &buckets.conflicts, &buckets.deck,
-        &buckets.selector};
-    for (const auto* list : order) {
-        if (!list->empty()) return *list;
+    return FirstFailingStage(checker.buckets(), mod_ptrs);
+}
+
+void ValidateLoadedMods(LoadResult& result,
+                        const SemanticValidator& validator) {
+    const SemanticValidator::CompiledSchema& mod_schema =
+        validator.Schema(schema_files::kMod);
+    if (mod_schema.missing) {
+        Logger::Error("[Mods] schema directory unreadable; the validation ",
+                      "stages are skipped: ", mod_schema.error);
+        return;
     }
-    return {};
+    std::vector<LoadedMod> kept;
+    for (LoadedMod& mod : result.mods) {
+        std::vector<LoadError> errors = validator.ValidateMod(mod);
+        std::vector<LoadWarning> warnings = validator.WarningsOf(mod);
+        for (ModReport& report : result.reports) {
+            if (report.mod_id != mod.manifest.id) continue;
+            report.warnings.insert(report.warnings.end(), warnings.begin(),
+                                   warnings.end());
+        }
+        result.warnings.insert(result.warnings.end(), warnings.begin(),
+                               warnings.end());
+        if (errors.empty()) {
+            kept.push_back(std::move(mod));
+            continue;
+        }
+        for (ModReport& report : result.reports) {
+            if (report.mod_id == mod.manifest.id) {
+                report.ok = false;
+                report.errors.insert(report.errors.end(), errors.begin(),
+                                     errors.end());
+            }
+        }
+        for (const LoadError& error : errors) {
+            Logger::Error("[Mods] rejected '", mod.manifest.id, "': ",
+                          error.check, " ", error.message);
+            result.errors.push_back(error);
+        }
+    }
+    result.mods = std::move(kept);
 }
 
 }  // namespace match::modload

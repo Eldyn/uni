@@ -23,8 +23,8 @@ namespace match {
  * The op layer's `op_helpers.hpp` — there is no second RNG implementation.
  *
  * Seed initialisation: `ResolveSeed` prefers the `UNI_SEED`
- * environment override, otherwise a random 64-bit source; `InitializeRngSeed`
- * writes it to a match's `rng_state` (and mirrors it into `match_meta`).
+ * environment override (never in production), otherwise a random 64-bit
+ * source; `InitializeRngSeed` writes it to a match's `rng_state` (and mirrors it into `match_meta`).
  *
  * Roll logging: `LogRoll` is the integration point for the `$last_roll` frame
  * key the op layer's `rolled` condition already reads; it delegates to the op
@@ -59,6 +59,8 @@ public:
 
     /**
      * @brief `UNI_SEED` override when set and parseable as an unsigned 64-bit.
+     *
+     * Always `nullopt` in a production process (see `IsProductionEnvironment`).
      */
     static std::optional<uint64_t> SeedFromEnv();
 

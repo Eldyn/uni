@@ -1,0 +1,4642 @@
+{
+ "bot0": [
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "id",
+    "payload",
+    "sequence"
+   ],
+   "id": "defs",
+   "payload_digest": "c2e6e46f012723d3",
+   "payload_keys": [
+    "defs_digest",
+    "entities",
+    "events",
+    "kinds",
+    "mods",
+    "presentations"
+   ],
+   "sequence": 0
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "id",
+    "payload",
+    "sequence"
+   ],
+   "id": "match_start",
+   "payload_digest": "b47df38117f69ddf",
+   "payload_keys": [
+    "deck_id",
+    "deck_name",
+    "defs_digest",
+    "mods",
+    "settings"
+   ],
+   "sequence": 1
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "restriction_added",
+   "payload_digest": "a6aca2476b20ba6e",
+   "payload_keys": [
+    "phase",
+    "restriction_id"
+   ],
+   "sequence": 2
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "restriction_added",
+   "payload_digest": "e8f99bdc456826b4",
+   "payload_keys": [
+    "phase",
+    "restriction_id"
+   ],
+   "sequence": 3
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "restriction_added",
+   "payload_digest": "01adecb7e98e0709",
+   "payload_keys": [
+    "phase",
+    "restriction_id"
+   ],
+   "sequence": 4
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "card_played",
+   "payload_digest": "c1e19f378e558d4b",
+   "payload_keys": [
+    "card",
+    "from_zone_ordinal",
+    "player",
+    "tags"
+   ],
+   "sequence": 5
+  },
+  {
+   "cause": 5,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_advance",
+   "payload_digest": "5feba5245a47cecc",
+   "payload_keys": [
+    "deadline_ms",
+    "direction",
+    "from",
+    "skipped",
+    "to"
+   ],
+   "sequence": 6
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "card_played",
+   "payload_digest": "d17b59a8717d5cb2",
+   "payload_keys": [
+    "card",
+    "from_zone_ordinal",
+    "player",
+    "tags"
+   ],
+   "sequence": 7
+  },
+  {
+   "cause": 7,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_advance",
+   "payload_digest": "86821ecb79823688",
+   "payload_keys": [
+    "deadline_ms",
+    "direction",
+    "from",
+    "skipped",
+    "to"
+   ],
+   "sequence": 8
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "card_played",
+   "payload_digest": "7241eebaedbfeb60",
+   "payload_keys": [
+    "card",
+    "from_zone_ordinal",
+    "player",
+    "tags"
+   ],
+   "sequence": 9
+  },
+  {
+   "cause": 9,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_advance",
+   "payload_digest": "103b046472221000",
+   "payload_keys": [
+    "deadline_ms",
+    "direction",
+    "from",
+    "skipped",
+    "to"
+   ],
+   "sequence": 10
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "card_played",
+   "payload_digest": "a1eb2e101a57be97",
+   "payload_keys": [
+    "card",
+    "from_zone_ordinal",
+    "player",
+    "tags"
+   ],
+   "sequence": 11
+  },
+  {
+   "cause": 11,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_advance",
+   "payload_digest": "8278930bea957fb8",
+   "payload_keys": [
+    "deadline_ms",
+    "direction",
+    "from",
+    "skipped",
+    "to"
+   ],
+   "sequence": 12
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "round_advance",
+   "payload_digest": "04f6dabea72957dc",
+   "payload_keys": [
+    "round"
+   ],
+   "sequence": 13
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "card_played",
+   "payload_digest": "3cf203eba2070fe3",
+   "payload_keys": [
+    "card",
+    "from_zone_ordinal",
+    "player",
+    "tags"
+   ],
+   "sequence": 14
+  },
+  {
+   "cause": 14,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_advance",
+   "payload_digest": "5feba5245a47cecc",
+   "payload_keys": [
+    "deadline_ms",
+    "direction",
+    "from",
+    "skipped",
+    "to"
+   ],
+   "sequence": 15
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "card_played",
+   "payload_digest": "a1acc9380225cde9",
+   "payload_keys": [
+    "card",
+    "from_zone_ordinal",
+    "player",
+    "tags"
+   ],
+   "sequence": 16
+  },
+  {
+   "cause": 16,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_advance",
+   "payload_digest": "86821ecb79823688",
+   "payload_keys": [
+    "deadline_ms",
+    "direction",
+    "from",
+    "skipped",
+    "to"
+   ],
+   "sequence": 17
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "card_played",
+   "payload_digest": "86e3bfc816d3a4bb",
+   "payload_keys": [
+    "card",
+    "from_zone_ordinal",
+    "player",
+    "tags"
+   ],
+   "sequence": 18
+  },
+  {
+   "cause": 18,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_advance",
+   "payload_digest": "103b046472221000",
+   "payload_keys": [
+    "deadline_ms",
+    "direction",
+    "from",
+    "skipped",
+    "to"
+   ],
+   "sequence": 19
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "card_played",
+   "payload_digest": "3221c70069c4a117",
+   "payload_keys": [
+    "card",
+    "from_zone_ordinal",
+    "player",
+    "tags"
+   ],
+   "sequence": 20
+  },
+  {
+   "cause": 20,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_advance",
+   "payload_digest": "8278930bea957fb8",
+   "payload_keys": [
+    "deadline_ms",
+    "direction",
+    "from",
+    "skipped",
+    "to"
+   ],
+   "sequence": 21
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "round_advance",
+   "payload_digest": "04ecdabea7210357",
+   "payload_keys": [
+    "round"
+   ],
+   "sequence": 22
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "card_played",
+   "payload_digest": "48aec8543d42c33d",
+   "payload_keys": [
+    "card",
+    "from_zone_ordinal",
+    "player",
+    "tags"
+   ],
+   "sequence": 23
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "id",
+    "payload",
+    "sequence"
+   ],
+   "id": "prompt_opened",
+   "payload_digest": "525a07b792ab2144",
+   "payload_keys": [
+    "deadline_ms",
+    "duration_ms",
+    "kind",
+    "payload",
+    "prompt_id",
+    "response_schema"
+   ],
+   "sequence": 24
+  },
+  {
+   "cause": 23,
+   "envelope_keys": [
+    "action",
+    "cause",
+    "context",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "active_type_changed",
+   "payload_digest": "a2b7b5fbe9d1b938",
+   "payload_keys": [
+    "color",
+    "previous_color"
+   ],
+   "sequence": 25
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_advance",
+   "payload_digest": "5feba5245a47cecc",
+   "payload_keys": [
+    "deadline_ms",
+    "direction",
+    "from",
+    "skipped",
+    "to"
+   ],
+   "sequence": 26
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "id",
+    "payload",
+    "sequence"
+   ],
+   "id": "prompt_answered",
+   "payload_digest": "32f6941c37bfad99",
+   "payload_keys": [
+    "outcome",
+    "prompt_id"
+   ],
+   "sequence": 27
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "card_played",
+   "payload_digest": "3ab6469bacde574f",
+   "payload_keys": [
+    "card",
+    "from_zone_ordinal",
+    "player",
+    "tags"
+   ],
+   "sequence": 28
+  },
+  {
+   "cause": 28,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_advance",
+   "payload_digest": "86821ecb79823688",
+   "payload_keys": [
+    "deadline_ms",
+    "direction",
+    "from",
+    "skipped",
+    "to"
+   ],
+   "sequence": 29
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "card_played",
+   "payload_digest": "eb6d2135b9e8b026",
+   "payload_keys": [
+    "card",
+    "from_zone_ordinal",
+    "player",
+    "tags"
+   ],
+   "sequence": 30
+  },
+  {
+   "cause": 30,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_advance",
+   "payload_digest": "103b046472221000",
+   "payload_keys": [
+    "deadline_ms",
+    "direction",
+    "from",
+    "skipped",
+    "to"
+   ],
+   "sequence": 31
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "card_played",
+   "payload_digest": "e9cf183de8fadb85",
+   "payload_keys": [
+    "card",
+    "from_zone_ordinal",
+    "player",
+    "tags"
+   ],
+   "sequence": 32
+  },
+  {
+   "cause": 32,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "context",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_skipped",
+   "payload_digest": "58146ebe41cf6b35",
+   "payload_keys": [
+    "target"
+   ],
+   "sequence": 33
+  },
+  {
+   "cause": 32,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_advance",
+   "payload_digest": "57df8b475442bb02",
+   "payload_keys": [
+    "deadline_ms",
+    "direction",
+    "from",
+    "skipped",
+    "to"
+   ],
+   "sequence": 34
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "round_advance",
+   "payload_digest": "04efdebea7233ffa",
+   "payload_keys": [
+    "round"
+   ],
+   "sequence": 35
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "card_played",
+   "payload_digest": "551fdfa5f617feab",
+   "payload_keys": [
+    "card",
+    "from_zone_ordinal",
+    "player",
+    "tags"
+   ],
+   "sequence": 36
+  },
+  {
+   "cause": 36,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_advance",
+   "payload_digest": "86821ecb79823688",
+   "payload_keys": [
+    "deadline_ms",
+    "direction",
+    "from",
+    "skipped",
+    "to"
+   ],
+   "sequence": 37
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "card_played",
+   "payload_digest": "edb4a45f3c2a96cf",
+   "payload_keys": [
+    "card",
+    "from_zone_ordinal",
+    "player",
+    "tags"
+   ],
+   "sequence": 38
+  },
+  {
+   "cause": 38,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "context",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_skipped",
+   "payload_digest": "72e9e5be513f6228",
+   "payload_keys": [
+    "target"
+   ],
+   "sequence": 39
+  },
+  {
+   "cause": 38,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_advance",
+   "payload_digest": "0424fadc1ce55d07",
+   "payload_keys": [
+    "deadline_ms",
+    "direction",
+    "from",
+    "skipped",
+    "to"
+   ],
+   "sequence": 40
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "card_played",
+   "payload_digest": "a725c06c59c9ca9b",
+   "payload_keys": [
+    "card",
+    "from_zone_ordinal",
+    "player",
+    "tags"
+   ],
+   "sequence": 41
+  },
+  {
+   "cause": 41,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "context",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "cards_drawn",
+   "payload_digest": "d1164d38572cc39b",
+   "payload_keys": [
+    "count",
+    "from_debt",
+    "hand_size_after",
+    "source_pile",
+    "target"
+   ],
+   "sequence": 42
+  },
+  {
+   "cause": 41,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "context",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_skipped",
+   "payload_digest": "618997be476444ee",
+   "payload_keys": [
+    "target"
+   ],
+   "sequence": 43
+  },
+  {
+   "cause": 41,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_advance",
+   "payload_digest": "7a5739a70e0513d9",
+   "payload_keys": [
+    "deadline_ms",
+    "direction",
+    "from",
+    "skipped",
+    "to"
+   ],
+   "sequence": 44
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "card_played",
+   "payload_digest": "4e3b7f00ee524fb9",
+   "payload_keys": [
+    "card",
+    "from_zone_ordinal",
+    "player",
+    "tags"
+   ],
+   "sequence": 45
+  },
+  {
+   "cause": 45,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_advance",
+   "payload_digest": "103b046472221000",
+   "payload_keys": [
+    "deadline_ms",
+    "direction",
+    "from",
+    "skipped",
+    "to"
+   ],
+   "sequence": 46
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "round_advance",
+   "payload_digest": "0500debea731b32d",
+   "payload_keys": [
+    "round"
+   ],
+   "sequence": 47
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "card_played",
+   "payload_digest": "cca94c4313f709d1",
+   "payload_keys": [
+    "card",
+    "from_zone_ordinal",
+    "player",
+    "tags"
+   ],
+   "sequence": 48
+  },
+  {
+   "cause": 48,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_advance",
+   "payload_digest": "8278930bea957fb8",
+   "payload_keys": [
+    "deadline_ms",
+    "direction",
+    "from",
+    "skipped",
+    "to"
+   ],
+   "sequence": 49
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "card_played",
+   "payload_digest": "e65ebdb687b1fd28",
+   "payload_keys": [
+    "card",
+    "from_zone_ordinal",
+    "player",
+    "tags"
+   ],
+   "sequence": 50
+  },
+  {
+   "cause": 50,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_advance",
+   "payload_digest": "5feba5245a47cecc",
+   "payload_keys": [
+    "deadline_ms",
+    "direction",
+    "from",
+    "skipped",
+    "to"
+   ],
+   "sequence": 51
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "card_played",
+   "payload_digest": "0dd53661ccf5d681",
+   "payload_keys": [
+    "card",
+    "from_zone_ordinal",
+    "player",
+    "tags"
+   ],
+   "sequence": 52
+  },
+  {
+   "cause": 52,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_advance",
+   "payload_digest": "86821ecb79823688",
+   "payload_keys": [
+    "deadline_ms",
+    "direction",
+    "from",
+    "skipped",
+    "to"
+   ],
+   "sequence": 53
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "context",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "cards_drawn",
+   "payload_digest": "bd9a8a01a90b5b20",
+   "payload_keys": [
+    "count",
+    "from_debt",
+    "hand_size_after",
+    "held",
+    "source_pile",
+    "target"
+   ],
+   "sequence": 54
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_advance",
+   "payload_digest": "103b046472221000",
+   "payload_keys": [
+    "deadline_ms",
+    "direction",
+    "from",
+    "skipped",
+    "to"
+   ],
+   "sequence": 55
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "round_advance",
+   "payload_digest": "0504dabea7359538",
+   "payload_keys": [
+    "round"
+   ],
+   "sequence": 56
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "context",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "cards_drawn",
+   "payload_digest": "2e8cb070c888e063",
+   "payload_keys": [
+    "count",
+    "from_debt",
+    "hand_size_after",
+    "held",
+    "source_pile",
+    "target"
+   ],
+   "sequence": 57
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "card_played",
+   "payload_digest": "7d89da177a0d4637",
+   "payload_keys": [
+    "card",
+    "from_zone_ordinal",
+    "player",
+    "tags"
+   ],
+   "sequence": 58
+  },
+  {
+   "cause": 58,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_advance",
+   "payload_digest": "8278930bea957fb8",
+   "payload_keys": [
+    "deadline_ms",
+    "direction",
+    "from",
+    "skipped",
+    "to"
+   ],
+   "sequence": 59
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "card_played",
+   "payload_digest": "e835e76fbf68f7ab",
+   "payload_keys": [
+    "card",
+    "from_zone_ordinal",
+    "player",
+    "tags"
+   ],
+   "sequence": 60
+  },
+  {
+   "cause": 60,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "near_win_entered",
+   "payload_digest": "58146ebe41cf6b35",
+   "payload_keys": [
+    "target"
+   ],
+   "sequence": 61
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "id",
+    "payload",
+    "sequence"
+   ],
+   "id": "prompt_opened",
+   "payload_digest": "525a07b792ab2144",
+   "payload_keys": [
+    "deadline_ms",
+    "duration_ms",
+    "kind",
+    "payload",
+    "prompt_id",
+    "response_schema"
+   ],
+   "sequence": 62
+  },
+  {
+   "cause": 60,
+   "envelope_keys": [
+    "action",
+    "cause",
+    "context",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "active_type_changed",
+   "payload_digest": "a2b7b5fbe9d1b938",
+   "payload_keys": [
+    "color",
+    "previous_color"
+   ],
+   "sequence": 63
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_advance",
+   "payload_digest": "5feba5245a47cecc",
+   "payload_keys": [
+    "deadline_ms",
+    "direction",
+    "from",
+    "skipped",
+    "to"
+   ],
+   "sequence": 64
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "id",
+    "payload",
+    "sequence"
+   ],
+   "id": "prompt_answered",
+   "payload_digest": "32f6941c37bfad99",
+   "payload_keys": [
+    "outcome",
+    "prompt_id"
+   ],
+   "sequence": 65
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "card_played",
+   "payload_digest": "8c771493598725d1",
+   "payload_keys": [
+    "card",
+    "from_zone_ordinal",
+    "player",
+    "tags"
+   ],
+   "sequence": 66
+  },
+  {
+   "cause": 66,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_advance",
+   "payload_digest": "86821ecb79823688",
+   "payload_keys": [
+    "deadline_ms",
+    "direction",
+    "from",
+    "skipped",
+    "to"
+   ],
+   "sequence": 67
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "card_played",
+   "payload_digest": "9309d2bf32247160",
+   "payload_keys": [
+    "card",
+    "from_zone_ordinal",
+    "player",
+    "tags"
+   ],
+   "sequence": 68
+  },
+  {
+   "cause": 68,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_advance",
+   "payload_digest": "103b046472221000",
+   "payload_keys": [
+    "deadline_ms",
+    "direction",
+    "from",
+    "skipped",
+    "to"
+   ],
+   "sequence": 69
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "round_advance",
+   "payload_digest": "04f9dabea72b8db3",
+   "payload_keys": [
+    "round"
+   ],
+   "sequence": 70
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "card_played",
+   "payload_digest": "9ab85eb3b09d8152",
+   "payload_keys": [
+    "card",
+    "from_zone_ordinal",
+    "player",
+    "tags"
+   ],
+   "sequence": 71
+  },
+  {
+   "cause": 71,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_advance",
+   "payload_digest": "8278930bea957fb8",
+   "payload_keys": [
+    "deadline_ms",
+    "direction",
+    "from",
+    "skipped",
+    "to"
+   ],
+   "sequence": 72
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "card_played",
+   "payload_digest": "4e78989c89906513",
+   "payload_keys": [
+    "card",
+    "from_zone_ordinal",
+    "player",
+    "tags"
+   ],
+   "sequence": 73
+  },
+  {
+   "cause": 73,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "placement_set",
+   "payload_digest": "b83bd1591a6adc84",
+   "payload_keys": [
+    "finished",
+    "is_elimination",
+    "place",
+    "target"
+   ],
+   "sequence": 74
+  },
+  {
+   "cause": 73,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "match_ended",
+   "payload_digest": "59923f02e6537467",
+   "payload_keys": [
+    "final_digest",
+    "target",
+    "targets"
+   ],
+   "sequence": 75
+  }
+ ],
+ "bot1": [
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "id",
+    "payload",
+    "sequence"
+   ],
+   "id": "defs",
+   "payload_digest": "c2e6e46f012723d3",
+   "payload_keys": [
+    "defs_digest",
+    "entities",
+    "events",
+    "kinds",
+    "mods",
+    "presentations"
+   ],
+   "sequence": 0
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "id",
+    "payload",
+    "sequence"
+   ],
+   "id": "match_start",
+   "payload_digest": "b47df38117f69ddf",
+   "payload_keys": [
+    "deck_id",
+    "deck_name",
+    "defs_digest",
+    "mods",
+    "settings"
+   ],
+   "sequence": 1
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "restriction_added",
+   "payload_digest": "a6aca2476b20ba6e",
+   "payload_keys": [
+    "phase",
+    "restriction_id"
+   ],
+   "sequence": 2
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "restriction_added",
+   "payload_digest": "e8f99bdc456826b4",
+   "payload_keys": [
+    "phase",
+    "restriction_id"
+   ],
+   "sequence": 3
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "restriction_added",
+   "payload_digest": "01adecb7e98e0709",
+   "payload_keys": [
+    "phase",
+    "restriction_id"
+   ],
+   "sequence": 4
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "card_played",
+   "payload_digest": "c1e19f378e558d4b",
+   "payload_keys": [
+    "card",
+    "from_zone_ordinal",
+    "player",
+    "tags"
+   ],
+   "sequence": 5
+  },
+  {
+   "cause": 5,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_advance",
+   "payload_digest": "5feba5245a47cecc",
+   "payload_keys": [
+    "deadline_ms",
+    "direction",
+    "from",
+    "skipped",
+    "to"
+   ],
+   "sequence": 6
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "card_played",
+   "payload_digest": "d17b59a8717d5cb2",
+   "payload_keys": [
+    "card",
+    "from_zone_ordinal",
+    "player",
+    "tags"
+   ],
+   "sequence": 7
+  },
+  {
+   "cause": 7,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_advance",
+   "payload_digest": "86821ecb79823688",
+   "payload_keys": [
+    "deadline_ms",
+    "direction",
+    "from",
+    "skipped",
+    "to"
+   ],
+   "sequence": 8
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "card_played",
+   "payload_digest": "7241eebaedbfeb60",
+   "payload_keys": [
+    "card",
+    "from_zone_ordinal",
+    "player",
+    "tags"
+   ],
+   "sequence": 9
+  },
+  {
+   "cause": 9,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_advance",
+   "payload_digest": "103b046472221000",
+   "payload_keys": [
+    "deadline_ms",
+    "direction",
+    "from",
+    "skipped",
+    "to"
+   ],
+   "sequence": 10
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "card_played",
+   "payload_digest": "a1eb2e101a57be97",
+   "payload_keys": [
+    "card",
+    "from_zone_ordinal",
+    "player",
+    "tags"
+   ],
+   "sequence": 11
+  },
+  {
+   "cause": 11,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_advance",
+   "payload_digest": "8278930bea957fb8",
+   "payload_keys": [
+    "deadline_ms",
+    "direction",
+    "from",
+    "skipped",
+    "to"
+   ],
+   "sequence": 12
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "round_advance",
+   "payload_digest": "04f6dabea72957dc",
+   "payload_keys": [
+    "round"
+   ],
+   "sequence": 13
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "card_played",
+   "payload_digest": "3cf203eba2070fe3",
+   "payload_keys": [
+    "card",
+    "from_zone_ordinal",
+    "player",
+    "tags"
+   ],
+   "sequence": 14
+  },
+  {
+   "cause": 14,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_advance",
+   "payload_digest": "5feba5245a47cecc",
+   "payload_keys": [
+    "deadline_ms",
+    "direction",
+    "from",
+    "skipped",
+    "to"
+   ],
+   "sequence": 15
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "card_played",
+   "payload_digest": "a1acc9380225cde9",
+   "payload_keys": [
+    "card",
+    "from_zone_ordinal",
+    "player",
+    "tags"
+   ],
+   "sequence": 16
+  },
+  {
+   "cause": 16,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_advance",
+   "payload_digest": "86821ecb79823688",
+   "payload_keys": [
+    "deadline_ms",
+    "direction",
+    "from",
+    "skipped",
+    "to"
+   ],
+   "sequence": 17
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "card_played",
+   "payload_digest": "86e3bfc816d3a4bb",
+   "payload_keys": [
+    "card",
+    "from_zone_ordinal",
+    "player",
+    "tags"
+   ],
+   "sequence": 18
+  },
+  {
+   "cause": 18,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_advance",
+   "payload_digest": "103b046472221000",
+   "payload_keys": [
+    "deadline_ms",
+    "direction",
+    "from",
+    "skipped",
+    "to"
+   ],
+   "sequence": 19
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "card_played",
+   "payload_digest": "3221c70069c4a117",
+   "payload_keys": [
+    "card",
+    "from_zone_ordinal",
+    "player",
+    "tags"
+   ],
+   "sequence": 20
+  },
+  {
+   "cause": 20,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_advance",
+   "payload_digest": "8278930bea957fb8",
+   "payload_keys": [
+    "deadline_ms",
+    "direction",
+    "from",
+    "skipped",
+    "to"
+   ],
+   "sequence": 21
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "round_advance",
+   "payload_digest": "04ecdabea7210357",
+   "payload_keys": [
+    "round"
+   ],
+   "sequence": 22
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "card_played",
+   "payload_digest": "48aec8543d42c33d",
+   "payload_keys": [
+    "card",
+    "from_zone_ordinal",
+    "player",
+    "tags"
+   ],
+   "sequence": 23
+  },
+  {
+   "cause": 23,
+   "envelope_keys": [
+    "action",
+    "cause",
+    "context",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "active_type_changed",
+   "payload_digest": "a2b7b5fbe9d1b938",
+   "payload_keys": [
+    "color",
+    "previous_color"
+   ],
+   "sequence": 24
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_advance",
+   "payload_digest": "5feba5245a47cecc",
+   "payload_keys": [
+    "deadline_ms",
+    "direction",
+    "from",
+    "skipped",
+    "to"
+   ],
+   "sequence": 25
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "card_played",
+   "payload_digest": "3ab6469bacde574f",
+   "payload_keys": [
+    "card",
+    "from_zone_ordinal",
+    "player",
+    "tags"
+   ],
+   "sequence": 26
+  },
+  {
+   "cause": 26,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_advance",
+   "payload_digest": "86821ecb79823688",
+   "payload_keys": [
+    "deadline_ms",
+    "direction",
+    "from",
+    "skipped",
+    "to"
+   ],
+   "sequence": 27
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "card_played",
+   "payload_digest": "eb6d2135b9e8b026",
+   "payload_keys": [
+    "card",
+    "from_zone_ordinal",
+    "player",
+    "tags"
+   ],
+   "sequence": 28
+  },
+  {
+   "cause": 28,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_advance",
+   "payload_digest": "103b046472221000",
+   "payload_keys": [
+    "deadline_ms",
+    "direction",
+    "from",
+    "skipped",
+    "to"
+   ],
+   "sequence": 29
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "card_played",
+   "payload_digest": "e9cf183de8fadb85",
+   "payload_keys": [
+    "card",
+    "from_zone_ordinal",
+    "player",
+    "tags"
+   ],
+   "sequence": 30
+  },
+  {
+   "cause": 30,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "context",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_skipped",
+   "payload_digest": "58146ebe41cf6b35",
+   "payload_keys": [
+    "target"
+   ],
+   "sequence": 31
+  },
+  {
+   "cause": 30,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_advance",
+   "payload_digest": "57df8b475442bb02",
+   "payload_keys": [
+    "deadline_ms",
+    "direction",
+    "from",
+    "skipped",
+    "to"
+   ],
+   "sequence": 32
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "round_advance",
+   "payload_digest": "04efdebea7233ffa",
+   "payload_keys": [
+    "round"
+   ],
+   "sequence": 33
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "card_played",
+   "payload_digest": "551fdfa5f617feab",
+   "payload_keys": [
+    "card",
+    "from_zone_ordinal",
+    "player",
+    "tags"
+   ],
+   "sequence": 34
+  },
+  {
+   "cause": 34,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_advance",
+   "payload_digest": "86821ecb79823688",
+   "payload_keys": [
+    "deadline_ms",
+    "direction",
+    "from",
+    "skipped",
+    "to"
+   ],
+   "sequence": 35
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "card_played",
+   "payload_digest": "edb4a45f3c2a96cf",
+   "payload_keys": [
+    "card",
+    "from_zone_ordinal",
+    "player",
+    "tags"
+   ],
+   "sequence": 36
+  },
+  {
+   "cause": 36,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "context",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_skipped",
+   "payload_digest": "72e9e5be513f6228",
+   "payload_keys": [
+    "target"
+   ],
+   "sequence": 37
+  },
+  {
+   "cause": 36,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_advance",
+   "payload_digest": "0424fadc1ce55d07",
+   "payload_keys": [
+    "deadline_ms",
+    "direction",
+    "from",
+    "skipped",
+    "to"
+   ],
+   "sequence": 38
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "card_played",
+   "payload_digest": "a725c06c59c9ca9b",
+   "payload_keys": [
+    "card",
+    "from_zone_ordinal",
+    "player",
+    "tags"
+   ],
+   "sequence": 39
+  },
+  {
+   "cause": 39,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "context",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "cards_drawn",
+   "payload_digest": "2a932f1c31a47d60",
+   "payload_keys": [
+    "cards",
+    "count",
+    "from_debt",
+    "hand_size_after",
+    "source_pile",
+    "target"
+   ],
+   "sequence": 40
+  },
+  {
+   "cause": 39,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "context",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_skipped",
+   "payload_digest": "618997be476444ee",
+   "payload_keys": [
+    "target"
+   ],
+   "sequence": 41
+  },
+  {
+   "cause": 39,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_advance",
+   "payload_digest": "7a5739a70e0513d9",
+   "payload_keys": [
+    "deadline_ms",
+    "direction",
+    "from",
+    "skipped",
+    "to"
+   ],
+   "sequence": 42
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "card_played",
+   "payload_digest": "4e3b7f00ee524fb9",
+   "payload_keys": [
+    "card",
+    "from_zone_ordinal",
+    "player",
+    "tags"
+   ],
+   "sequence": 43
+  },
+  {
+   "cause": 43,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_advance",
+   "payload_digest": "103b046472221000",
+   "payload_keys": [
+    "deadline_ms",
+    "direction",
+    "from",
+    "skipped",
+    "to"
+   ],
+   "sequence": 44
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "round_advance",
+   "payload_digest": "0500debea731b32d",
+   "payload_keys": [
+    "round"
+   ],
+   "sequence": 45
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "card_played",
+   "payload_digest": "cca94c4313f709d1",
+   "payload_keys": [
+    "card",
+    "from_zone_ordinal",
+    "player",
+    "tags"
+   ],
+   "sequence": 46
+  },
+  {
+   "cause": 46,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_advance",
+   "payload_digest": "8278930bea957fb8",
+   "payload_keys": [
+    "deadline_ms",
+    "direction",
+    "from",
+    "skipped",
+    "to"
+   ],
+   "sequence": 47
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "card_played",
+   "payload_digest": "e65ebdb687b1fd28",
+   "payload_keys": [
+    "card",
+    "from_zone_ordinal",
+    "player",
+    "tags"
+   ],
+   "sequence": 48
+  },
+  {
+   "cause": 48,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_advance",
+   "payload_digest": "5feba5245a47cecc",
+   "payload_keys": [
+    "deadline_ms",
+    "direction",
+    "from",
+    "skipped",
+    "to"
+   ],
+   "sequence": 49
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "card_played",
+   "payload_digest": "0dd53661ccf5d681",
+   "payload_keys": [
+    "card",
+    "from_zone_ordinal",
+    "player",
+    "tags"
+   ],
+   "sequence": 50
+  },
+  {
+   "cause": 50,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_advance",
+   "payload_digest": "86821ecb79823688",
+   "payload_keys": [
+    "deadline_ms",
+    "direction",
+    "from",
+    "skipped",
+    "to"
+   ],
+   "sequence": 51
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "context",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "cards_drawn",
+   "payload_digest": "bd9a8a01a90b5b20",
+   "payload_keys": [
+    "count",
+    "from_debt",
+    "hand_size_after",
+    "held",
+    "source_pile",
+    "target"
+   ],
+   "sequence": 52
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_advance",
+   "payload_digest": "103b046472221000",
+   "payload_keys": [
+    "deadline_ms",
+    "direction",
+    "from",
+    "skipped",
+    "to"
+   ],
+   "sequence": 53
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "round_advance",
+   "payload_digest": "0504dabea7359538",
+   "payload_keys": [
+    "round"
+   ],
+   "sequence": 54
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "context",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "cards_drawn",
+   "payload_digest": "2e8cb070c888e063",
+   "payload_keys": [
+    "count",
+    "from_debt",
+    "hand_size_after",
+    "held",
+    "source_pile",
+    "target"
+   ],
+   "sequence": 55
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "card_played",
+   "payload_digest": "7d89da177a0d4637",
+   "payload_keys": [
+    "card",
+    "from_zone_ordinal",
+    "player",
+    "tags"
+   ],
+   "sequence": 56
+  },
+  {
+   "cause": 56,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_advance",
+   "payload_digest": "8278930bea957fb8",
+   "payload_keys": [
+    "deadline_ms",
+    "direction",
+    "from",
+    "skipped",
+    "to"
+   ],
+   "sequence": 57
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "card_played",
+   "payload_digest": "e835e76fbf68f7ab",
+   "payload_keys": [
+    "card",
+    "from_zone_ordinal",
+    "player",
+    "tags"
+   ],
+   "sequence": 58
+  },
+  {
+   "cause": 58,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "near_win_entered",
+   "payload_digest": "58146ebe41cf6b35",
+   "payload_keys": [
+    "target"
+   ],
+   "sequence": 59
+  },
+  {
+   "cause": 58,
+   "envelope_keys": [
+    "action",
+    "cause",
+    "context",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "active_type_changed",
+   "payload_digest": "a2b7b5fbe9d1b938",
+   "payload_keys": [
+    "color",
+    "previous_color"
+   ],
+   "sequence": 60
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_advance",
+   "payload_digest": "5feba5245a47cecc",
+   "payload_keys": [
+    "deadline_ms",
+    "direction",
+    "from",
+    "skipped",
+    "to"
+   ],
+   "sequence": 61
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "card_played",
+   "payload_digest": "8c771493598725d1",
+   "payload_keys": [
+    "card",
+    "from_zone_ordinal",
+    "player",
+    "tags"
+   ],
+   "sequence": 62
+  },
+  {
+   "cause": 62,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_advance",
+   "payload_digest": "86821ecb79823688",
+   "payload_keys": [
+    "deadline_ms",
+    "direction",
+    "from",
+    "skipped",
+    "to"
+   ],
+   "sequence": 63
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "card_played",
+   "payload_digest": "9309d2bf32247160",
+   "payload_keys": [
+    "card",
+    "from_zone_ordinal",
+    "player",
+    "tags"
+   ],
+   "sequence": 64
+  },
+  {
+   "cause": 64,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_advance",
+   "payload_digest": "103b046472221000",
+   "payload_keys": [
+    "deadline_ms",
+    "direction",
+    "from",
+    "skipped",
+    "to"
+   ],
+   "sequence": 65
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "round_advance",
+   "payload_digest": "04f9dabea72b8db3",
+   "payload_keys": [
+    "round"
+   ],
+   "sequence": 66
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "card_played",
+   "payload_digest": "9ab85eb3b09d8152",
+   "payload_keys": [
+    "card",
+    "from_zone_ordinal",
+    "player",
+    "tags"
+   ],
+   "sequence": 67
+  },
+  {
+   "cause": 67,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_advance",
+   "payload_digest": "8278930bea957fb8",
+   "payload_keys": [
+    "deadline_ms",
+    "direction",
+    "from",
+    "skipped",
+    "to"
+   ],
+   "sequence": 68
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "card_played",
+   "payload_digest": "4e78989c89906513",
+   "payload_keys": [
+    "card",
+    "from_zone_ordinal",
+    "player",
+    "tags"
+   ],
+   "sequence": 69
+  },
+  {
+   "cause": 69,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "placement_set",
+   "payload_digest": "b83bd1591a6adc84",
+   "payload_keys": [
+    "finished",
+    "is_elimination",
+    "place",
+    "target"
+   ],
+   "sequence": 70
+  },
+  {
+   "cause": 69,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "match_ended",
+   "payload_digest": "59923f02e6537467",
+   "payload_keys": [
+    "final_digest",
+    "target",
+    "targets"
+   ],
+   "sequence": 71
+  }
+ ],
+ "spectator": [
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "id",
+    "payload",
+    "sequence"
+   ],
+   "id": "defs",
+   "payload_digest": "c2e6e46f012723d3",
+   "payload_keys": [
+    "defs_digest",
+    "entities",
+    "events",
+    "kinds",
+    "mods",
+    "presentations"
+   ],
+   "sequence": 0
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "restriction_added",
+   "payload_digest": "a6aca2476b20ba6e",
+   "payload_keys": [
+    "phase",
+    "restriction_id"
+   ],
+   "sequence": 1
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "restriction_added",
+   "payload_digest": "e8f99bdc456826b4",
+   "payload_keys": [
+    "phase",
+    "restriction_id"
+   ],
+   "sequence": 2
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "restriction_added",
+   "payload_digest": "01adecb7e98e0709",
+   "payload_keys": [
+    "phase",
+    "restriction_id"
+   ],
+   "sequence": 3
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "card_played",
+   "payload_digest": "c1e19f378e558d4b",
+   "payload_keys": [
+    "card",
+    "from_zone_ordinal",
+    "player",
+    "tags"
+   ],
+   "sequence": 4
+  },
+  {
+   "cause": 4,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_advance",
+   "payload_digest": "5feba5245a47cecc",
+   "payload_keys": [
+    "deadline_ms",
+    "direction",
+    "from",
+    "skipped",
+    "to"
+   ],
+   "sequence": 5
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "card_played",
+   "payload_digest": "d17b59a8717d5cb2",
+   "payload_keys": [
+    "card",
+    "from_zone_ordinal",
+    "player",
+    "tags"
+   ],
+   "sequence": 6
+  },
+  {
+   "cause": 6,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_advance",
+   "payload_digest": "86821ecb79823688",
+   "payload_keys": [
+    "deadline_ms",
+    "direction",
+    "from",
+    "skipped",
+    "to"
+   ],
+   "sequence": 7
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "card_played",
+   "payload_digest": "7241eebaedbfeb60",
+   "payload_keys": [
+    "card",
+    "from_zone_ordinal",
+    "player",
+    "tags"
+   ],
+   "sequence": 8
+  },
+  {
+   "cause": 8,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_advance",
+   "payload_digest": "103b046472221000",
+   "payload_keys": [
+    "deadline_ms",
+    "direction",
+    "from",
+    "skipped",
+    "to"
+   ],
+   "sequence": 9
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "card_played",
+   "payload_digest": "a1eb2e101a57be97",
+   "payload_keys": [
+    "card",
+    "from_zone_ordinal",
+    "player",
+    "tags"
+   ],
+   "sequence": 10
+  },
+  {
+   "cause": 10,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_advance",
+   "payload_digest": "8278930bea957fb8",
+   "payload_keys": [
+    "deadline_ms",
+    "direction",
+    "from",
+    "skipped",
+    "to"
+   ],
+   "sequence": 11
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "round_advance",
+   "payload_digest": "04f6dabea72957dc",
+   "payload_keys": [
+    "round"
+   ],
+   "sequence": 12
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "card_played",
+   "payload_digest": "3cf203eba2070fe3",
+   "payload_keys": [
+    "card",
+    "from_zone_ordinal",
+    "player",
+    "tags"
+   ],
+   "sequence": 13
+  },
+  {
+   "cause": 13,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_advance",
+   "payload_digest": "5feba5245a47cecc",
+   "payload_keys": [
+    "deadline_ms",
+    "direction",
+    "from",
+    "skipped",
+    "to"
+   ],
+   "sequence": 14
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "card_played",
+   "payload_digest": "a1acc9380225cde9",
+   "payload_keys": [
+    "card",
+    "from_zone_ordinal",
+    "player",
+    "tags"
+   ],
+   "sequence": 15
+  },
+  {
+   "cause": 15,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_advance",
+   "payload_digest": "86821ecb79823688",
+   "payload_keys": [
+    "deadline_ms",
+    "direction",
+    "from",
+    "skipped",
+    "to"
+   ],
+   "sequence": 16
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "card_played",
+   "payload_digest": "86e3bfc816d3a4bb",
+   "payload_keys": [
+    "card",
+    "from_zone_ordinal",
+    "player",
+    "tags"
+   ],
+   "sequence": 17
+  },
+  {
+   "cause": 17,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_advance",
+   "payload_digest": "103b046472221000",
+   "payload_keys": [
+    "deadline_ms",
+    "direction",
+    "from",
+    "skipped",
+    "to"
+   ],
+   "sequence": 18
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "card_played",
+   "payload_digest": "3221c70069c4a117",
+   "payload_keys": [
+    "card",
+    "from_zone_ordinal",
+    "player",
+    "tags"
+   ],
+   "sequence": 19
+  },
+  {
+   "cause": 19,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_advance",
+   "payload_digest": "8278930bea957fb8",
+   "payload_keys": [
+    "deadline_ms",
+    "direction",
+    "from",
+    "skipped",
+    "to"
+   ],
+   "sequence": 20
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "round_advance",
+   "payload_digest": "04ecdabea7210357",
+   "payload_keys": [
+    "round"
+   ],
+   "sequence": 21
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "card_played",
+   "payload_digest": "48aec8543d42c33d",
+   "payload_keys": [
+    "card",
+    "from_zone_ordinal",
+    "player",
+    "tags"
+   ],
+   "sequence": 22
+  },
+  {
+   "cause": 22,
+   "envelope_keys": [
+    "action",
+    "cause",
+    "context",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "active_type_changed",
+   "payload_digest": "a2b7b5fbe9d1b938",
+   "payload_keys": [
+    "color",
+    "previous_color"
+   ],
+   "sequence": 23
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_advance",
+   "payload_digest": "5feba5245a47cecc",
+   "payload_keys": [
+    "deadline_ms",
+    "direction",
+    "from",
+    "skipped",
+    "to"
+   ],
+   "sequence": 24
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "card_played",
+   "payload_digest": "3ab6469bacde574f",
+   "payload_keys": [
+    "card",
+    "from_zone_ordinal",
+    "player",
+    "tags"
+   ],
+   "sequence": 25
+  },
+  {
+   "cause": 25,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_advance",
+   "payload_digest": "86821ecb79823688",
+   "payload_keys": [
+    "deadline_ms",
+    "direction",
+    "from",
+    "skipped",
+    "to"
+   ],
+   "sequence": 26
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "card_played",
+   "payload_digest": "eb6d2135b9e8b026",
+   "payload_keys": [
+    "card",
+    "from_zone_ordinal",
+    "player",
+    "tags"
+   ],
+   "sequence": 27
+  },
+  {
+   "cause": 27,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_advance",
+   "payload_digest": "103b046472221000",
+   "payload_keys": [
+    "deadline_ms",
+    "direction",
+    "from",
+    "skipped",
+    "to"
+   ],
+   "sequence": 28
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "card_played",
+   "payload_digest": "e9cf183de8fadb85",
+   "payload_keys": [
+    "card",
+    "from_zone_ordinal",
+    "player",
+    "tags"
+   ],
+   "sequence": 29
+  },
+  {
+   "cause": 29,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "context",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_skipped",
+   "payload_digest": "58146ebe41cf6b35",
+   "payload_keys": [
+    "target"
+   ],
+   "sequence": 30
+  },
+  {
+   "cause": 29,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_advance",
+   "payload_digest": "57df8b475442bb02",
+   "payload_keys": [
+    "deadline_ms",
+    "direction",
+    "from",
+    "skipped",
+    "to"
+   ],
+   "sequence": 31
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "round_advance",
+   "payload_digest": "04efdebea7233ffa",
+   "payload_keys": [
+    "round"
+   ],
+   "sequence": 32
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "card_played",
+   "payload_digest": "551fdfa5f617feab",
+   "payload_keys": [
+    "card",
+    "from_zone_ordinal",
+    "player",
+    "tags"
+   ],
+   "sequence": 33
+  },
+  {
+   "cause": 33,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_advance",
+   "payload_digest": "86821ecb79823688",
+   "payload_keys": [
+    "deadline_ms",
+    "direction",
+    "from",
+    "skipped",
+    "to"
+   ],
+   "sequence": 34
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "card_played",
+   "payload_digest": "edb4a45f3c2a96cf",
+   "payload_keys": [
+    "card",
+    "from_zone_ordinal",
+    "player",
+    "tags"
+   ],
+   "sequence": 35
+  },
+  {
+   "cause": 35,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "context",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_skipped",
+   "payload_digest": "72e9e5be513f6228",
+   "payload_keys": [
+    "target"
+   ],
+   "sequence": 36
+  },
+  {
+   "cause": 35,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_advance",
+   "payload_digest": "0424fadc1ce55d07",
+   "payload_keys": [
+    "deadline_ms",
+    "direction",
+    "from",
+    "skipped",
+    "to"
+   ],
+   "sequence": 37
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "card_played",
+   "payload_digest": "a725c06c59c9ca9b",
+   "payload_keys": [
+    "card",
+    "from_zone_ordinal",
+    "player",
+    "tags"
+   ],
+   "sequence": 38
+  },
+  {
+   "cause": 38,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "context",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "cards_drawn",
+   "payload_digest": "d1164d38572cc39b",
+   "payload_keys": [
+    "count",
+    "from_debt",
+    "hand_size_after",
+    "source_pile",
+    "target"
+   ],
+   "sequence": 39
+  },
+  {
+   "cause": 38,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "context",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_skipped",
+   "payload_digest": "618997be476444ee",
+   "payload_keys": [
+    "target"
+   ],
+   "sequence": 40
+  },
+  {
+   "cause": 38,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_advance",
+   "payload_digest": "7a5739a70e0513d9",
+   "payload_keys": [
+    "deadline_ms",
+    "direction",
+    "from",
+    "skipped",
+    "to"
+   ],
+   "sequence": 41
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "card_played",
+   "payload_digest": "4e3b7f00ee524fb9",
+   "payload_keys": [
+    "card",
+    "from_zone_ordinal",
+    "player",
+    "tags"
+   ],
+   "sequence": 42
+  },
+  {
+   "cause": 42,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_advance",
+   "payload_digest": "103b046472221000",
+   "payload_keys": [
+    "deadline_ms",
+    "direction",
+    "from",
+    "skipped",
+    "to"
+   ],
+   "sequence": 43
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "round_advance",
+   "payload_digest": "0500debea731b32d",
+   "payload_keys": [
+    "round"
+   ],
+   "sequence": 44
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "card_played",
+   "payload_digest": "cca94c4313f709d1",
+   "payload_keys": [
+    "card",
+    "from_zone_ordinal",
+    "player",
+    "tags"
+   ],
+   "sequence": 45
+  },
+  {
+   "cause": 45,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_advance",
+   "payload_digest": "8278930bea957fb8",
+   "payload_keys": [
+    "deadline_ms",
+    "direction",
+    "from",
+    "skipped",
+    "to"
+   ],
+   "sequence": 46
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "card_played",
+   "payload_digest": "e65ebdb687b1fd28",
+   "payload_keys": [
+    "card",
+    "from_zone_ordinal",
+    "player",
+    "tags"
+   ],
+   "sequence": 47
+  },
+  {
+   "cause": 47,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_advance",
+   "payload_digest": "5feba5245a47cecc",
+   "payload_keys": [
+    "deadline_ms",
+    "direction",
+    "from",
+    "skipped",
+    "to"
+   ],
+   "sequence": 48
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "card_played",
+   "payload_digest": "0dd53661ccf5d681",
+   "payload_keys": [
+    "card",
+    "from_zone_ordinal",
+    "player",
+    "tags"
+   ],
+   "sequence": 49
+  },
+  {
+   "cause": 49,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_advance",
+   "payload_digest": "86821ecb79823688",
+   "payload_keys": [
+    "deadline_ms",
+    "direction",
+    "from",
+    "skipped",
+    "to"
+   ],
+   "sequence": 50
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "context",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "cards_drawn",
+   "payload_digest": "e016599fb0f164a7",
+   "payload_keys": [
+    "cards",
+    "count",
+    "from_debt",
+    "hand_size_after",
+    "held",
+    "source_pile",
+    "target"
+   ],
+   "sequence": 51
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_advance",
+   "payload_digest": "103b046472221000",
+   "payload_keys": [
+    "deadline_ms",
+    "direction",
+    "from",
+    "skipped",
+    "to"
+   ],
+   "sequence": 52
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "round_advance",
+   "payload_digest": "0504dabea7359538",
+   "payload_keys": [
+    "round"
+   ],
+   "sequence": 53
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "context",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "cards_drawn",
+   "payload_digest": "dc6c3242605e4cf3",
+   "payload_keys": [
+    "cards",
+    "count",
+    "from_debt",
+    "hand_size_after",
+    "held",
+    "source_pile",
+    "target"
+   ],
+   "sequence": 54
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "card_played",
+   "payload_digest": "7d89da177a0d4637",
+   "payload_keys": [
+    "card",
+    "from_zone_ordinal",
+    "player",
+    "tags"
+   ],
+   "sequence": 55
+  },
+  {
+   "cause": 55,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_advance",
+   "payload_digest": "8278930bea957fb8",
+   "payload_keys": [
+    "deadline_ms",
+    "direction",
+    "from",
+    "skipped",
+    "to"
+   ],
+   "sequence": 56
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "card_played",
+   "payload_digest": "e835e76fbf68f7ab",
+   "payload_keys": [
+    "card",
+    "from_zone_ordinal",
+    "player",
+    "tags"
+   ],
+   "sequence": 57
+  },
+  {
+   "cause": 57,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "near_win_entered",
+   "payload_digest": "58146ebe41cf6b35",
+   "payload_keys": [
+    "target"
+   ],
+   "sequence": 58
+  },
+  {
+   "cause": 57,
+   "envelope_keys": [
+    "action",
+    "cause",
+    "context",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "active_type_changed",
+   "payload_digest": "a2b7b5fbe9d1b938",
+   "payload_keys": [
+    "color",
+    "previous_color"
+   ],
+   "sequence": 59
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_advance",
+   "payload_digest": "5feba5245a47cecc",
+   "payload_keys": [
+    "deadline_ms",
+    "direction",
+    "from",
+    "skipped",
+    "to"
+   ],
+   "sequence": 60
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "card_played",
+   "payload_digest": "8c771493598725d1",
+   "payload_keys": [
+    "card",
+    "from_zone_ordinal",
+    "player",
+    "tags"
+   ],
+   "sequence": 61
+  },
+  {
+   "cause": 61,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_advance",
+   "payload_digest": "86821ecb79823688",
+   "payload_keys": [
+    "deadline_ms",
+    "direction",
+    "from",
+    "skipped",
+    "to"
+   ],
+   "sequence": 62
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "card_played",
+   "payload_digest": "9309d2bf32247160",
+   "payload_keys": [
+    "card",
+    "from_zone_ordinal",
+    "player",
+    "tags"
+   ],
+   "sequence": 63
+  },
+  {
+   "cause": 63,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_advance",
+   "payload_digest": "103b046472221000",
+   "payload_keys": [
+    "deadline_ms",
+    "direction",
+    "from",
+    "skipped",
+    "to"
+   ],
+   "sequence": 64
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "round_advance",
+   "payload_digest": "04f9dabea72b8db3",
+   "payload_keys": [
+    "round"
+   ],
+   "sequence": 65
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "card_played",
+   "payload_digest": "9ab85eb3b09d8152",
+   "payload_keys": [
+    "card",
+    "from_zone_ordinal",
+    "player",
+    "tags"
+   ],
+   "sequence": 66
+  },
+  {
+   "cause": 66,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "turn_advance",
+   "payload_digest": "8278930bea957fb8",
+   "payload_keys": [
+    "deadline_ms",
+    "direction",
+    "from",
+    "skipped",
+    "to"
+   ],
+   "sequence": 67
+  },
+  {
+   "cause": null,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "card_played",
+   "payload_digest": "4e78989c89906513",
+   "payload_keys": [
+    "card",
+    "from_zone_ordinal",
+    "player",
+    "tags"
+   ],
+   "sequence": 68
+  },
+  {
+   "cause": 68,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "placement_set",
+   "payload_digest": "b83bd1591a6adc84",
+   "payload_keys": [
+    "finished",
+    "is_elimination",
+    "place",
+    "target"
+   ],
+   "sequence": 69
+  },
+  {
+   "cause": 68,
+   "envelope_keys": [
+    "action",
+    "actor",
+    "cause",
+    "id",
+    "payload",
+    "round",
+    "sequence",
+    "turn"
+   ],
+   "id": "match_ended",
+   "payload_digest": "59923f02e6537467",
+   "payload_keys": [
+    "final_digest",
+    "target",
+    "targets"
+   ],
+   "sequence": 70
+  }
+ ]
+}

@@ -69,7 +69,7 @@ bool LoadContent(Content& out) {
     out.mods = std::move(load.mods);
     for (const LoadedMod& mod : out.mods) {
         for (const DeckDef& deck : mod.decks) {
-            if (deck.deck_id == "vanilla:classic") out.classic = deck;
+            if (deck.deck_id == "uni:classic") out.classic = deck;
         }
     }
     return !out.classic.deck_id.empty();
@@ -167,6 +167,60 @@ LoadedMod SignalMod() {
 
 }  // namespace
 
+TEST_CASE("view event sink: a real auto-played wild carries its kind tags") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    std::unique_ptr<MatchInstance> engine = MakeEngine(content, 4, 42);
+
+    // INFO: `uni:wild` declares the `uni:wild` tag, so the wire packet of an
+    //       auto-played wild lets the client's `auto_play` binding skip it.
+    const std::vector<ecs::Entity> wilds =
+        CardsByKind(*engine, "uni:wild");
+    REQUIRE(wilds.size() >= 2);
+    const std::vector<ecs::Entity> numbered = LegalNumbered(*engine, 1);
+    REQUIRE(numbered.size() == 1);
+
+    const ecs::Entity player0 = *engine->FindPlayer("player0");
+    ForceHand(*engine, player0, {numbered[0], wilds[1]});
+
+    ecs::AutoTrigger trigger;
+    trigger.condition = json(true);
+    trigger.graph = json{{"nodes", json::array()}};
+    trigger.must_apply = true;
+    REQUIRE(engine->Store().Add(wilds[1], std::move(trigger)) != nullptr);
+
+    REQUIRE(engine->PlayCard("player0", numbered[0]));
+
+    std::optional<json> auto_played_event;
+    for (const json& event : engine->Events()) {
+        if (!event.is_object() || !event.contains("payload")) continue;
+        const json& payload = event["payload"];
+        if (!payload.is_object() || !payload.contains("player")) continue;
+        if (!payload["player"].is_object()) continue;
+        if (event.value("type", std::string()) == "auto_played") {
+            auto_played_event = event;
+        }
+    }
+    REQUIRE(auto_played_event.has_value());
+
+    match::view::EventSink sink;
+    std::optional<json> auto_played;
+    CHECK_NOTHROW(auto_played = sink.WrapPublic(*auto_played_event, *engine));
+    REQUIRE(auto_played.has_value());
+    CHECK((*auto_played)["payload"]["player"] == "player0");
+    REQUIRE((*auto_played)["payload"].contains("tags"));
+
+    // INFO: the packet carries the tags of the played kind, `uni:wild` among
+    //       them, so the client's `auto_play` binding can skip a wild.
+    const auto& card_tags = engine->Registries().card_tags;
+    const auto declared = card_tags.find("uni:wild");
+    REQUIRE(declared != card_tags.end());
+    const std::vector<std::string> expected = declared->second;
+    REQUIRE(std::find(expected.begin(), expected.end(), "uni:wild")
+            != expected.end());
+    CHECK((*auto_played)["payload"]["tags"] == json(expected));
+}
+
 TEST_CASE("view event sink: seq is monotonic and never reused") {
     match::view::EventSink sink;
 
@@ -174,18 +228,18 @@ TEST_CASE("view event sink: seq is monotonic and never reused") {
     const json second = sink.Wrap("b", json::object());
     const json third = sink.Wrap("c", json::object());
 
-    CHECK(first["seq"] == 0u);
-    CHECK(second["seq"] == 1u);
-    CHECK(third["seq"] == 2u);
-    CHECK(first["type"] == "a");
+    CHECK(first["sequence"] == 0u);
+    CHECK(second["sequence"] == 1u);
+    CHECK(third["sequence"] == 2u);
+    CHECK(first["id"] == "a");
     CHECK(second["payload"].is_object());
     CHECK(sink.NextSeq() == 3u);
 
     // INFO: a filtered-out event is simply never wrapped; the next emitted
     //       packet keeps the unbroken sequence (drop but never renumber).
     sink.Reset();
-    CHECK(sink.Wrap("a", json::object())["seq"] == 0u);
-    CHECK(sink.Wrap("b", json::object())["seq"] == 1u);
+    CHECK(sink.Wrap("a", json::object())["sequence"] == 0u);
+    CHECK(sink.Wrap("b", json::object())["sequence"] == 1u);
     CHECK(sink.NextSeq() == 2u);
 }
 
@@ -240,13 +294,13 @@ TEST_CASE("view event sink: public projections match the 14.2 shapes") {
     CHECK((*round)["round"] == 2);
 
     const std::optional<json> placement = match::view::ProjectPublicEvent(
-        "placement", json{{"player", "player0"}, {"place", 1}}, *engine);
+        "placement_set", json{{"player", "player0"}, {"place", 1}}, *engine);
     REQUIRE(placement.has_value());
-    CHECK((*placement)["player"] == "player0");
+    CHECK((*placement)["target"] == "player0");
     CHECK((*placement)["place"] == 1);
 
     const std::optional<json> roll = match::view::ProjectPublicEvent(
-        "roll_result",
+        "outcome_rolled",
         json{{"spec", json{{"sides", 6}}}, {"outcomes", json::array({3, 5})},
              {"counter", 7}},
         *engine);
@@ -254,7 +308,7 @@ TEST_CASE("view event sink: public projections match the 14.2 shapes") {
     CHECK((*roll)["spec"].get<std::string>().find("sides")
           != std::string::npos);
     CHECK((*roll)["outcomes"].size() == 2);
-    CHECK((*roll)["roll_counter"] == 7);
+    CHECK((*roll)["roll_ordinal"] == 0);
 
     // INFO: `signal` is NOT an `all`-visibility row: its audience is
     //       declared per mod manifest and resolved by `ViewBuilder` per
@@ -271,7 +325,6 @@ TEST_CASE("view event sink: public projections match the 14.2 shapes") {
                     .has_value());
 }
 
-// NOTE: patchwork. Covers the server-authored hand-movement events.
 TEST_CASE("view event sink: hand movement events carry public data only") {
     Content content;
     REQUIRE(LoadContent(content));
@@ -284,59 +337,64 @@ TEST_CASE("view event sink: hand movement events carry public data only") {
 
     const std::optional<json> swapped = match::view::ProjectPublicEvent(
         "hands_swapped",
-        json{{"a", EntityRef(player0)}, {"b", EntityRef(player1)},
-             {"a_size", 5}, {"b_size", 2}},
+        json{{"source", EntityRef(player0)}, {"target", EntityRef(player1)},
+             {"count", 5}, {"target_count", 2}},
         *engine);
     REQUIRE(swapped.has_value());
-    CHECK((*swapped)["a"] == "player0");
-    CHECK((*swapped)["b"] == "player1");
-    CHECK((*swapped)["a_size"] == 5);
-    CHECK((*swapped)["b_size"] == 2);
+    CHECK((*swapped)["source"] == "player0");
+    CHECK((*swapped)["target"] == "player1");
+    CHECK((*swapped)["count"] == 5);
+    CHECK((*swapped)["target_count"] == 2);
     CHECK((*swapped).size() == 4);
 
+    const json seats = json::array(
+        {EntityRef(player0), EntityRef(player1), EntityRef(player2)});
     const std::optional<json> passed = match::view::ProjectPublicEvent(
         "hands_passed",
-        json{{"direction", "forward"},
-             {"players", json::array({EntityRef(player0), EntityRef(player1),
-                                      EntityRef(player2)})},
-             {"hand_sizes", json::array({7, 3, 4})}},
+        json{{"direction", "forward"}, {"targets", seats},
+             {"counts", json::array({7, 3, 4})}},
         *engine);
     REQUIRE(passed.has_value());
     CHECK((*passed)["direction"] == "forward");
-    REQUIRE((*passed)["players"].size() == 3);
-    CHECK((*passed)["players"][0] == "player0");
-    CHECK((*passed)["players"][2] == "player2");
-    CHECK((*passed)["hand_sizes"] == json::array({7, 3, 4}));
+    REQUIRE((*passed)["targets"].size() == 3);
+    CHECK((*passed)["targets"][0] == "player0");
+    CHECK((*passed)["targets"][2] == "player2");
+    CHECK((*passed)["counts"] == json::array({7, 3, 4}));
     CHECK((*passed).size() == 3);
+
+    const std::optional<json> redistributed =
+        match::view::ProjectPublicEvent(
+            "hands_redistributed",
+            json{{"targets", seats}, {"counts", json::array({3, 2, 2})}},
+            *engine);
+    REQUIRE(redistributed.has_value());
+    CHECK((*redistributed)["targets"][1] == "player1");
+    CHECK((*redistributed)["counts"] == json::array({3, 2, 2}));
+    CHECK((*redistributed).size() == 2);
 }
 
-TEST_CASE("view event sink: flat abort descriptors wrap correctly") {
+TEST_CASE("view event sink: flat abort descriptors are server-only") {
     Content content;
     REQUIRE(LoadContent(content));
     std::unique_ptr<MatchInstance> engine = MakeEngine(content, 4, 42);
 
     match::view::EventSink sink;
-    const std::optional<json> aborted = sink.WrapPublic(
-        json{{"type", "chain_aborted"}, {"mod", "m"}, {"node", "n"}},
-        *engine);
-    REQUIRE(aborted.has_value());
-    CHECK((*aborted)["seq"] == 0u);
-    CHECK((*aborted)["payload"]["mod"] == "m");
-    CHECK((*aborted)["payload"]["node"] == "n");
-    REQUIRE((*aborted)["payload"]["reason"].is_string());
-
-    const std::optional<json> disarmed = sink.WrapPublic(
-        json{{"type", "mod_disarmed"}, {"mod", "m"}}, *engine);
-    REQUIRE(disarmed.has_value());
-    CHECK((*disarmed)["seq"] == 1u);
-    CHECK((*disarmed)["payload"]["mod_id"] == "m");
+    // INFO: the diagnostic events have audience none (event contract, open
+    //       item 6): no packet leaves the server and no sequence is used.
+    const json aborted =
+        json{{"type", "chain_aborted"}, {"mod", "m"}, {"node", "n"}};
+    CHECK_FALSE(sink.WrapPublic(aborted, *engine).has_value());
+    CHECK_FALSE(sink.WrapPublic(json{{"type", "mod_disarmed"}, {"mod", "m"}},
+                                *engine)
+                    .has_value());
+    CHECK(sink.NextSeq() == 0u);
 
     // INFO: an event that is not a public packet is dropped and does not
     //       consume a seq, so the stream stays gap-free.
     CHECK_FALSE(
         sink.WrapPublic(json{{"type", "card_left_zone"}}, *engine)
             .has_value());
-    CHECK(sink.NextSeq() == 2u);
+    CHECK(sink.NextSeq() == 0u);
 }
 
 TEST_CASE("view event sink: a played card and turn wrap gap-free") {
@@ -345,7 +403,7 @@ TEST_CASE("view event sink: a played card and turn wrap gap-free") {
     std::unique_ptr<MatchInstance> engine = MakeEngine(content, 4, 42);
 
     const std::vector<ecs::Entity> wilds =
-        CardsByKind(*engine, "vanilla:wild");
+        CardsByKind(*engine, "uni:wild");
     REQUIRE(wilds.size() >= 2);
     const ecs::Entity player0 = *engine->FindPlayer("player0");
     ForceHand(*engine, player0, {wilds[0], wilds[1]});
@@ -363,17 +421,18 @@ TEST_CASE("view event sink: a played card and turn wrap gap-free") {
 
     REQUIRE_FALSE(envelopes.empty());
     for (std::size_t i = 0; i < envelopes.size(); ++i) {
-        CHECK(envelopes[i]["seq"] == static_cast<int>(i));
+        CHECK(envelopes[i]["sequence"] == static_cast<int>(i));
     }
     bool saw_played = false;
     bool saw_turn = false;
     for (const json& envelope : envelopes) {
-        if (envelope["type"] == "card_played") {
+        if (envelope["id"] == "card_played") {
             saw_played = true;
             CHECK(envelope["payload"]["player"] == "player0");
             CHECK(envelope["payload"]["card"].is_number_unsigned());
+            CHECK(envelope["payload"]["tags"].is_array());
         }
-        if (envelope["type"] == "turn_advance") {
+        if (envelope["id"] == "turn_advance") {
             saw_turn = true;
             CHECK(envelope["payload"]["to"] == "player1");
         }
@@ -388,7 +447,7 @@ TEST_CASE("view event sink: match_end carries winner and placements") {
     std::unique_ptr<MatchInstance> engine = MakeEngine(content, 4, 42);
 
     const std::vector<ecs::Entity> wilds =
-        CardsByKind(*engine, "vanilla:wild");
+        CardsByKind(*engine, "uni:wild");
     REQUIRE_FALSE(wilds.empty());
     const ecs::Entity player0 = *engine->FindPlayer("player0");
     ForceHand(*engine, player0, {wilds[0]});
@@ -398,12 +457,11 @@ TEST_CASE("view event sink: match_end carries winner and placements") {
     REQUIRE(engine->IsMatchOver());
 
     const std::optional<json> end = match::view::ProjectPublicEvent(
-        "match_end", json::object(), *engine);
+        "match_ended", json::object(), *engine);
     REQUIRE(end.has_value());
-    CHECK((*end)["winner"] == "player0");
-    REQUIRE((*end)["placements"].size() == 1);
-    CHECK((*end)["placements"][0]["player"] == "player0");
-    CHECK((*end)["placements"][0]["place"] == 1);
+    CHECK((*end)["target"] == "player0");
+    REQUIRE((*end)["targets"].size() == 1);
+    CHECK((*end)["targets"][0] == "player0");
     CHECK((*end)["final_digest"].get<std::string>().size() == 16);
 }
 

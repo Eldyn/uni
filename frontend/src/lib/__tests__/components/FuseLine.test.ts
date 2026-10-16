@@ -54,7 +54,7 @@ function handler(action: string): (payload: any) => void {
 }
 
 function frame(seq: number, type: string, payload: unknown = {}) {
-	return { action: "match_event", seq, type, payload };
+	return { action: "match_event", sequence: seq, id: type, payload };
 }
 
 function snapshot(fields: Record<string, unknown> = {}, statuses: unknown[] = []) {
@@ -72,7 +72,7 @@ function snapshot(fields: Record<string, unknown> = {}, statuses: unknown[] = []
 	});
 }
 
-const DEBT = [{ status_kind: "vanilla:draw_debt", magnitude: 2 }];
+const DEBT = [{ status_kind: "uni:draw_debt", magnitude: 2 }];
 
 const HELD_WINDOW = {
 	window_id: "7",
@@ -81,7 +81,7 @@ const HELD_WINDOW = {
 	hold_ms: 800,
 	duration_ms: 7000,
 	deadline_ms: 7000,
-	responders: ["alice", "carol"],
+	targets: ["alice", "carol"],
 	eligible_filter_digest: "d"
 };
 
@@ -124,7 +124,7 @@ describe("FuseLine", () => {
 	});
 
 	it("drains the window fill from the payload duration", () => {
-		handler("match_event")(frame(1, "window_open", HELD_WINDOW));
+		handler("match_event")(frame(1, "window_opened", HELD_WINDOW));
 		const { container } = render(FuseLine);
 
 		expect(container.querySelector('[data-source="window"]')).not.toBeNull();
@@ -145,7 +145,7 @@ describe("FuseLine", () => {
 	});
 
 	it("marks the hold at holdMs of the duration", () => {
-		handler("match_event")(frame(1, "window_open", HELD_WINDOW));
+		handler("match_event")(frame(1, "window_opened", HELD_WINDOW));
 		const { container } = render(FuseLine);
 
 		const tick = container.querySelector<HTMLElement>('[data-testid="fuse-hold-tick"]')!;
@@ -158,10 +158,10 @@ describe("FuseLine", () => {
 
 	it("draws no hold marker for a window without a hold", () => {
 		handler("match_event")(
-			frame(1, "window_open", {
+			frame(1, "window_opened", {
 				window_id: "1",
 				deadline_ms: 5000,
-				responders: ["bob"],
+				targets: ["bob"],
 				eligible_filter_digest: "d"
 			})
 		);
@@ -181,7 +181,7 @@ describe("FuseLine", () => {
 
 	it("draws the prompt clock", () => {
 		handler("match_event")(
-			frame(1, "prompt_open", {
+			frame(1, "prompt_opened", {
 				prompt_id: "p",
 				kind: "choose_color",
 				payload: {},
@@ -206,7 +206,7 @@ describe("FuseLine", () => {
 
 	it("shows the window, not the turn, while both exist", () => {
 		snapshot({ turn_deadline_ms: NOW + 10_000 });
-		handler("match_event")(frame(1, "window_open", HELD_WINDOW));
+		handler("match_event")(frame(1, "window_opened", HELD_WINDOW));
 		const { container } = render(FuseLine);
 
 		expect(container.querySelector('[data-source="window"]')).not.toBeNull();
@@ -216,7 +216,7 @@ describe("FuseLine", () => {
 	describe("draw action", () => {
 		it("is disabled before the hold and enabled after, for the debt victim", async () => {
 			snapshot({}, DEBT);
-			handler("match_event")(frame(1, "window_open", HELD_WINDOW));
+			handler("match_event")(frame(1, "window_opened", HELD_WINDOW));
 			const { container } = render(FuseLine);
 
 			const draw = container.querySelector<HTMLButtonElement>('[data-testid="fuse-action"]')!;
@@ -234,7 +234,7 @@ describe("FuseLine", () => {
 
 		it("is absent for a non-victim responder", () => {
 			snapshot({}, []);
-			handler("match_event")(frame(1, "window_open", HELD_WINDOW));
+			handler("match_event")(frame(1, "window_opened", HELD_WINDOW));
 			const { container } = render(FuseLine);
 
 			expect(container.querySelector('[data-testid="fuse-action"]')).toBeNull();
@@ -243,10 +243,10 @@ describe("FuseLine", () => {
 		it("keeps the legacy Pass for a responder of a window without hold", async () => {
 			snapshot({}, []);
 			handler("match_event")(
-				frame(1, "window_open", {
+				frame(1, "window_opened", {
 					window_id: "2",
 					deadline_ms: 5000,
-					responders: ["alice"],
+					targets: ["alice"],
 					eligible_filter_digest: "d"
 				})
 			);
@@ -262,7 +262,7 @@ describe("FuseLine", () => {
 
 	describe("debug label", () => {
 		it("shows the joined kinds only when debug is on", () => {
-			handler("match_event")(frame(1, "window_open", HELD_WINDOW));
+			handler("match_event")(frame(1, "window_opened", HELD_WINDOW));
 			const { container } = render(FuseLine);
 
 			expect(container.querySelector('[data-testid="fuse-debug"]')).toBeNull();
@@ -286,7 +286,7 @@ describe("FuseLine", () => {
 	describe("reduced motion", () => {
 		it("steps the fill instead of animating it", () => {
 			storeWebglCapability.reducedMotion = true;
-			handler("match_event")(frame(1, "window_open", HELD_WINDOW));
+			handler("match_event")(frame(1, "window_opened", HELD_WINDOW));
 			const { container } = render(FuseLine);
 
 			expect(container.querySelector('[data-motion="reduced"]')).not.toBeNull();
@@ -299,7 +299,7 @@ describe("FuseLine", () => {
 
 	describe("accessibility", () => {
 		it("carries a visually hidden role=status label naming the timer", () => {
-			handler("match_event")(frame(1, "window_open", HELD_WINDOW));
+			handler("match_event")(frame(1, "window_opened", HELD_WINDOW));
 			const { container } = render(FuseLine);
 
 			const status = container.querySelector('[role="status"]')!;
@@ -325,7 +325,7 @@ describe("FuseLine", () => {
 
 		it("keeps the own-choice label for the prompt owner", () => {
 			handler("match_event")(
-				frame(1, "prompt_open", {
+				frame(1, "prompt_opened", {
 					prompt_id: "p",
 					kind: "k",
 					payload: {},
@@ -346,6 +346,20 @@ describe("FuseLine", () => {
 			const { container } = render(FuseLine);
 
 			expect(container.querySelector('[role="status"]')?.textContent?.trim()).toBe("Turn timer");
+		});
+	});
+
+	describe("urgency and visibility", () => {
+		it("marks the track not visible when plenty of time remains, and visible when urgent", () => {
+			handler("match_event")(frame(1, "window_opened", HELD_WINDOW));
+			const { container } = render(FuseLine);
+
+			const track = container.querySelector<HTMLElement>('[data-testid="fuse-track"]')!;
+			expect(track.getAttribute("data-visible")).toBe("false");
+
+			// Advance until <= 25% remaining (HELD_WINDOW is 7000ms, 25% is 1750ms -> 5250ms elapsed)
+			advance(5250);
+			expect(track.getAttribute("data-visible")).toBe("true");
 		});
 	});
 });

@@ -1110,7 +1110,7 @@ ConditionMatcher MatchNone() {
 
 TEST_CASE("restriction: deny then allow rescues") {
     std::vector<RestrictionEntry> entries = {
-        {"vanilla:turn_order", "deny", json{{"always", json::object()}}},
+        {"uni:turn_order", "deny", json{{"always", json::object()}}},
         {"mod:jump_in", "allow", json{{"always", json::object()}}},
     };
     PlayAttempt attempt;
@@ -1121,18 +1121,18 @@ TEST_CASE("restriction: deny then allow rescues") {
 
 TEST_CASE("restriction: first matching deny supplies the reason") {
     std::vector<RestrictionEntry> entries = {
-        {"vanilla:turn_order", "deny", json{{"always", json::object()}}},
-        {"vanilla:match_type", "deny", json{{"always", json::object()}}},
+        {"uni:turn_order", "deny", json{{"always", json::object()}}},
+        {"uni:match_type", "deny", json{{"always", json::object()}}},
     };
     PlayAttempt attempt;
     auto decision = EvaluatePlayRestrictions(entries, attempt, MatchAll());
     CHECK_FALSE(decision.allowed);
-    CHECK(decision.reason_id == "vanilla:turn_order");
+    CHECK(decision.reason_id == "uni:turn_order");
 }
 
 TEST_CASE("restriction: no matching entries allows") {
     std::vector<RestrictionEntry> entries = {
-        {"vanilla:turn_order", "deny", json{{"always", json::object()}}},
+        {"uni:turn_order", "deny", json{{"always", json::object()}}},
     };
     PlayAttempt attempt;
     auto decision = EvaluatePlayRestrictions(entries, attempt, MatchNone());
@@ -1141,12 +1141,12 @@ TEST_CASE("restriction: no matching entries allows") {
 
 TEST_CASE("restriction: null condition matches unconditionally") {
     std::vector<RestrictionEntry> entries = {
-        {"vanilla:must_own_card", "deny", json()},
+        {"uni:must_own_card", "deny", json()},
     };
     PlayAttempt attempt;
     auto decision = EvaluatePlayRestrictions(entries, attempt, MatchNone());
     CHECK_FALSE(decision.allowed);
-    CHECK(decision.reason_id == "vanilla:must_own_card");
+    CHECK(decision.reason_id == "uni:must_own_card");
 }
 
 TEST_CASE("restriction: parse entry validates shape") {
@@ -1169,10 +1169,10 @@ TEST_CASE("restriction: parse entry validates shape") {
 // --- the validator review fixes
 // ------------------------------------------------------
 
-TEST_CASE("validator: no engine-embedded restriction ids (undeclared vanilla)") {
+TEST_CASE("validator: no engine-embedded restriction ids (undeclared uni)") {
     LoadedMod mod = ValidMod();
     mod.cards[0].behaviors[0].graph = MakeGraph(
-        {Op("n1", "remove_restriction", {{"entry_id", "vanilla:turn_order"}})});
+        {Op("n1", "remove_restriction", {{"entry_id", "uni:turn_order"}})});
     mod.cards[0].raw["behavior"] = json{
         {"on_play", mod.cards[0].behaviors[0].graph.raw}};
     std::vector<LoadedMod> mods = {mod};
@@ -1186,7 +1186,7 @@ TEST_CASE("validator: no engine-embedded restriction ids (undeclared vanilla)") 
 TEST_CASE("validator: mutation target cannot be an engine-embedded restriction") {
     LoadedMod mod = ValidMod();
     mod.mutations.push_back(MakeMutation(
-        "alpha", "m1", "vanilla:turn_order", "replace",
+        "alpha", "m1", "uni:turn_order", "replace",
         {Op("n1", "advance_turn", json::object())}));
     std::vector<LoadedMod> mods = {mod};
     DeckDef deck = MakeDeck("alpha", "d", {"alpha"}, {{"alpha:c1", 1}},

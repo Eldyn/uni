@@ -58,6 +58,7 @@
 		isValidTarget = false,
 		isArmed = false,
 		isViewable = false,
+		isDebtTarget = false,
 		color,
 		onSelect,
 		cardScale = 0.55,
@@ -80,6 +81,8 @@
 		/** Spectator mode: clicking this seat switches the viewed POV to the
 		 *  player, so the click must fire even though no card asks for a target. */
 		isViewable?: boolean;
+		/** True when this seat is targeted by draw debt. */
+		isDebtTarget?: boolean;
 		color: string;
 		onSelect?: (pointerType: string) => void;
 		/** Ring-card size; Scene3D shrinks it as the landscape table fills. */
@@ -175,11 +178,11 @@
 	// name only actually matters when it's that player's turn, when you're
 	// choosing them as a target, or when you deliberately point at them.
 	let hovered = $state(false);
-	let showLabel = $derived(isTurn || isValidTarget || hovered || isArmed);
+	let showLabel = $derived(isTurn || isValidTarget || isDebtTarget || hovered || isArmed);
 	// Darkening every OTHER seat is a material colour multiply, so it survives
 	// the world-space scaling untouched (the old CSS box-shadow glow did not).
-	let dimmed = $derived(!isTurn && !isValidTarget);
-	let isActive = $derived(isTurn || isValidTarget);
+	let dimmed = $derived(!isTurn && !isValidTarget && !isDebtTarget);
+	let isActive = $derived(isTurn || isValidTarget || isDebtTarget);
 	let displayName = $derived(formatSeatName(player.username));
 
 	let avatarTexture = $state<Texture | null>(null);
@@ -208,11 +211,14 @@
 	let avatarSpriteSize = $derived(avatarWorld * AVATAR_FRAME_RATIO);
 	let avatarScale = $derived(avatarSpriteSize * pulseScale);
 	let labelWorldSize = $derived(labelCanvasSize * worldPerPx);
+	const DANGER_HIGHLIGHT = new Color("#ff4a3a");
 	let tintColor = $derived(
 		(isBot
 			? WHITE.clone().multiplyScalar(dimmed ? DIM_FACTOR : 1)
 			: new Color(color).multiplyScalar(dimmed ? DIM_FACTOR : 1)
-		).lerp(TARGET_HIGHLIGHT, highlightMix)
+		)
+			.lerp(TARGET_HIGHLIGHT, highlightMix)
+			.lerp(DANGER_HIGHLIGHT, isDebtTarget ? 0.5 : 0)
 	);
 
 	// Skip mark: this seat is losing its turn, so stamp an X over the avatar.
@@ -274,7 +280,9 @@
 		// Targetable seats pulse 1→1.05 once per 1.5s, the mesh equivalent of
 		// the old CSS @keyframes pulseTarget.
 		pulsePhase = (pulsePhase + delta) % 1.5;
-		pulseScale = isValidTarget ? 1 + 0.025 * (1 - Math.cos((pulsePhase / 1.5) * 2 * Math.PI)) : 1;
+		pulseScale = isValidTarget || isDebtTarget
+			? 1 + (isDebtTarget ? 0.04 : 0.025) * (1 - Math.cos((pulsePhase / 1.5) * 2 * Math.PI))
+			: 1;
 
 		if (targetHighlightActive) {
 			highlightPhase = (highlightPhase + delta) % TARGET_HIGHLIGHT_PERIOD_S;
@@ -497,7 +505,11 @@
 	// The ring cards pulse the same white rim as the avatar, so the whole seat
 	// reads as the one about to be picked.
 	$effect(() => {
-		const highlight = targetHighlightActive ? { color: "#ffffff", pulse: true } : undefined;
+		const highlight = targetHighlightActive
+			? { color: "#ffffff", pulse: true }
+			: isDebtTarget
+				? { color: "#ff4a3a", pulse: true }
+				: undefined;
 		for (const key of registeredKeys) {
 			cardRegistry?.setDecoration(key, { highlight });
 		}

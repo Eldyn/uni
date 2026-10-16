@@ -142,6 +142,7 @@ bool NeedsAttemptedFacts(const std::string& keyword) {
         || keyword == "plays_matches_top" || keyword == "plays_mismatch"
         || keyword == "plays_identical_to_top" || keyword == "plays_bluffing"
         || keyword == "plays_stack_response"
+        || keyword == "plays_reverse_response"
         || keyword == "plays_identical_out_of_turn";
 }
 
@@ -214,15 +215,22 @@ bool EvaluatePlayCondition(const nlohmann::json& condition,
         return attempted.color == top.color && attempted.value == top.value;
     }
     if (keyword == "plays_stack_response") {
-        // draw_stacking.cpp: only while answering a window, and only the
-        // same draw value as the tagged top (+2 on +2, +4 on +4).
+        // draw_stacking.cpp: only while answering a window, and only a card
+        // tagged as stackable over a tagged top: the values may differ, so
+        // a +2 answers a +4 and a +4 answers a +2.
         if (!attempt->responding) return false;
         const std::optional<std::string> tag = ArgString(args, "tag");
         if (!tag.has_value() || !HasTag(attempted.tags, *tag)) return false;
         PlayCardFacts top;
         if (!ResolveTop(*attempt, lookup, top)) return false;
-        return HasTag(top.tags, *tag) && !attempted.value.empty()
-            && attempted.value == top.value;
+        return HasTag(top.tags, *tag);
+    }
+    if (keyword == "plays_reverse_response") {
+        if (!attempt->responding) return false;
+        if (!HasTag(attempted.tags, "reverse") && !HasTag(attempted.tags, "uni:reverse")) {
+            return false;
+        }
+        return AttemptedMatchesActive(*attempt, attempted);
     }
     if (keyword == "plays_mismatch") {
         // standard.cpp:13-36: invalid iff not wild, not active-type match and

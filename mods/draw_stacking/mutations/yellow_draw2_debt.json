@@ -1,6 +1,6 @@
 {
   "id": "yellow_draw2_debt",
-  "target": "vanilla:yellow_draw2",
+  "target": "uni:yellow_draw2",
   "mode": "replace",
   "replacement": {
     "nodes": [

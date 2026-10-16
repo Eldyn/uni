@@ -5,12 +5,15 @@
 #include <match/ecs/compact_card.hpp>
 #include <match/modload/mod_loader.hpp>
 #include <match/ops/op_helpers.hpp>
+#include <match/view/event_sink.hpp>
+#include <match/view/view_builder.hpp>
 
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
 #include <filesystem>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -18,7 +21,7 @@
  * @file engine_core_test.cpp
  * @brief `match::engine::MatchInstance` acceptance tests.
  *
- * Assembles real matches from the shipped `mods/` tree and the vanilla classic
+ * Assembles real matches from the shipped `mods/` tree and the uni classic
  * deck, then scripts draw / legal play / illegal play / turn advance / win
  * through the public engine surface and asserts the resulting state and event
  * stream.
@@ -65,7 +68,7 @@ bool LoadContent(Content& out) {
     out.mods = std::move(load.mods);
     for (const LoadedMod& mod : out.mods) {
         for (const DeckDef& deck : mod.decks) {
-            if (deck.deck_id == "vanilla:classic") out.classic = deck;
+            if (deck.deck_id == "uni:classic") out.classic = deck;
         }
     }
     return !out.classic.deck_id.empty();
@@ -197,7 +200,7 @@ TEST_CASE("engine core: legal play discards and advances the turn") {
     std::unique_ptr<MatchInstance> engine = MakeEngine(content, 4, 7, 42);
 
     const std::vector<ecs::Entity> wilds =
-        CardsByKind(*engine, "vanilla:wild");
+        CardsByKind(*engine, "uni:wild");
     REQUIRE(wilds.size() >= 2);
     const ecs::Entity player0 = *engine->FindPlayer("player0");
     ForceHand(*engine, player0, {wilds[0], wilds[1]});
@@ -205,7 +208,7 @@ TEST_CASE("engine core: legal play discards and advances the turn") {
     const std::size_t discard_before =
         PileSize(*engine, ecs::PileKind::kDiscard);
     REQUIRE(engine->PlayCard("player0", wilds[0]));
-    // INFO: vanilla:wild's on_play behavior opens a choose_color prompt
+    // INFO: uni:wild's on_play behavior opens a choose_color prompt
     // the engine pauses until the actor submits a colour.
     REQUIRE(engine->PendingInput().has_value());
     REQUIRE(engine->SubmitInput("player0", "red"));
@@ -219,7 +222,7 @@ TEST_CASE("engine core: legal play discards and advances the turn") {
     CHECK(state["active_type"] == "red");
     REQUIRE(state["last_play"].is_object());
     CHECK(state["last_play"]["player"] == "player0");
-    CHECK(state["last_play"]["card"] == "vanilla:wild");
+    CHECK(state["last_play"]["card"] == "uni:wild");
 
     REQUIRE(FindEvent(*engine, "card_played") != nullptr);
     REQUIRE(FindEvent(*engine, "card_left_zone") != nullptr);
@@ -251,7 +254,7 @@ TEST_CASE("engine core: out-of-turn play is rejected with a reason") {
     const nlohmann::json* rejected = FindEvent(*engine, "play_rejected");
     REQUIRE(rejected != nullptr);
     CHECK((*rejected)["payload"]["player"] == "player1");
-    CHECK((*rejected)["payload"]["reason_id"] == "vanilla:turn_order");
+    CHECK((*rejected)["payload"]["reason_id"] == "uni:turn_order");
 }
 
 TEST_CASE("engine core: unowned card is rejected by must_own_card") {
@@ -260,7 +263,7 @@ TEST_CASE("engine core: unowned card is rejected by must_own_card") {
     std::unique_ptr<MatchInstance> engine = MakeEngine(content, 4, 7, 42);
 
     const std::vector<ecs::Entity> wilds =
-        CardsByKind(*engine, "vanilla:wild");
+        CardsByKind(*engine, "uni:wild");
     REQUIRE_FALSE(wilds.empty());
     const ecs::Entity player0 = *engine->FindPlayer("player0");
 
@@ -271,7 +274,7 @@ TEST_CASE("engine core: unowned card is rejected by must_own_card") {
     CHECK_FALSE(engine->PlayCard("player0", wilds[0]));
     const nlohmann::json* rejected = FindEvent(*engine, "play_rejected");
     REQUIRE(rejected != nullptr);
-    CHECK((*rejected)["payload"]["reason_id"] == "vanilla:must_own_card");
+    CHECK((*rejected)["payload"]["reason_id"] == "uni:must_own_card");
     CHECK_FALSE(engine->IsMatchOver());
 }
 
@@ -322,7 +325,7 @@ TEST_CASE("engine core: emptying the hand wins and records placement") {
     std::unique_ptr<MatchInstance> engine = MakeEngine(content, 4, 7, 42);
 
     const std::vector<ecs::Entity> wilds =
-        CardsByKind(*engine, "vanilla:wild");
+        CardsByKind(*engine, "uni:wild");
     REQUIRE_FALSE(wilds.empty());
     const ecs::Entity player0 = *engine->FindPlayer("player0");
     ForceHand(*engine, player0, {wilds[0]});
@@ -338,7 +341,7 @@ TEST_CASE("engine core: emptying the hand wins and records placement") {
     CHECK(state["winner"] == "player0");
     CHECK(state["placements"].size() == 1);
 
-    const nlohmann::json* placement = FindEvent(*engine, "placement");
+    const nlohmann::json* placement = FindEvent(*engine, "placement_set");
     REQUIRE(placement != nullptr);
     CHECK((*placement)["payload"]["player"] == "player0");
     CHECK((*placement)["payload"]["place"] == 1);
@@ -354,7 +357,7 @@ TEST_CASE("engine core: tick advances the round on a full seat cycle") {
     std::unique_ptr<MatchInstance> engine = MakeEngine(content, 2, 7, 42);
 
     const std::vector<ecs::Entity> wilds =
-        CardsByKind(*engine, "vanilla:wild");
+        CardsByKind(*engine, "uni:wild");
     REQUIRE(wilds.size() >= 4);
     const ecs::Entity player0 = *engine->FindPlayer("player0");
     const ecs::Entity player1 = *engine->FindPlayer("player1");
@@ -376,4 +379,36 @@ TEST_CASE("engine core: tick advances the round on a full seat cycle") {
     const nlohmann::json* round = FindEvent(*engine, "round_advance");
     REQUIRE(round != nullptr);
     CHECK((*round)["payload"]["round"] == 1);
+}
+
+TEST_CASE("engine core: a wild color change keeps the cause of the play") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    std::unique_ptr<MatchInstance> engine = MakeEngine(content, 4, 7, 42);
+
+    const std::vector<ecs::Entity> wilds = CardsByKind(*engine, "uni:wild");
+    REQUIRE_FALSE(wilds.empty());
+    ForceHand(*engine, *engine->FindPlayer("player0"), {wilds[0]});
+    REQUIRE(engine->PlayCard("player0", wilds[0]));
+    REQUIRE(engine->PendingInput().has_value());
+    REQUIRE(engine->SubmitInput("player0", "blue"));
+
+    match::view::ViewBuilder builder(*engine, content.mods);
+    match::view::EventSink sink;
+    const match::view::Viewer viewer = match::view::Viewer::Player("player1");
+    std::optional<uint32_t> played_sequence;
+    std::optional<nlohmann::json> color_change;
+    for (const nlohmann::json& event : engine->Events()) {
+        const std::optional<nlohmann::json> wrapped =
+            builder.Wrap(event, viewer, sink);
+        if (!wrapped.has_value()) continue;
+        if ((*wrapped)["id"] == "card_played") {
+            played_sequence = (*wrapped)["sequence"].get<uint32_t>();
+        }
+        if ((*wrapped)["id"] == "active_type_changed") color_change = wrapped;
+    }
+    REQUIRE(played_sequence.has_value());
+    REQUIRE(color_change.has_value());
+    REQUIRE(color_change->contains("cause"));
+    CHECK((*color_change)["cause"] == *played_sequence);
 }

@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://playuni.app/contract/schemas/tables.schema.json",
+  "title": "Outcome table (tables/<id>.json)",
+  "description": "One weighted outcome table. A table is mod content: the server ingests, validates and rolls it; a mod never computes an outcome. Entry keys are auto-namespaced namespace:key on the wire. `value` and `roll` are mutually exclusive; a nested `roll` reuses the roll spec {sides,count,keep?} and its total becomes the outcome value. `where` is a 10.2 condition evaluated against the live store.",
+  "type": "object",
+  "required": ["id", "entries"],
+  "additionalProperties": true,
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9_]{1,32}$",
+      "description": "Local table id; full id is namespace:id."
+    },
+    "title": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "entries": {
+      "type": "array",
+      "description": "Weighted outcome entries. Non-empty is enforced semantically.",
+      "items": {
+        "$ref": "#/$defs/entry"
+      }
+    }
+  },
+  "$defs": {
+    "localToken": {
+      "type": "string",
+      "pattern": "^[a-z0-9_]{1,32}$"
+    },
+    "rollSpec": {
+      "type": "object",
+      "required": ["sides", "count"],
+      "additionalProperties": true,
+      "properties": {
+        "sides": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000000
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000
+        },
+        "keep": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000
+        }
+      }
+    },
+    "entry": {
+      "type": "object",
+      "required": ["key", "weight"],
+      "additionalProperties": true,
+      "properties": {
+        "key": {
+          "$ref": "#/$defs/localToken",
+          "description": "Local outcome key; auto-namespaced namespace:key."
+        },
+        "weight": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000000
+        },
+        "value": {
+          "type": "integer",
+          "description": "Outcome value when no nested roll is present."
+        },
+        "roll": {
+          "$ref": "#/$defs/rollSpec",
+          "description": "Optional nested roll; its total becomes the value."
+        },
+        "where": {
+          "type": "object",
+          "description": "Optional 10.2 condition; ineligible entries are excluded."
+        }
+      }
+    }
+  }
+}

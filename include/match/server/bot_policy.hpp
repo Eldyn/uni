@@ -50,7 +50,7 @@ class MatchSession;
  */
 struct BotHandCard {
     uint32_t bits = 0;      /**< Packed wire card id. */
-    std::string kind;       /**< Frozen kind id, e.g. `vanilla:red_5`. */
+    std::string kind;       /**< Frozen kind id, e.g. `uni:red_5`. */
     std::string color;      /**< Face colour, `white` for wild. */
     std::string value;      /**< Face label, e.g. `7` / `draw2`. */
     bool can_play = false;  /**< Engine playability (own turn only). */

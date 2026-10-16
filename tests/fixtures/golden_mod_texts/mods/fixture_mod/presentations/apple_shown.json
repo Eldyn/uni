@@ -1,0 +1,34 @@
+{
+  "uni:format_version": "1.0.0",
+  "uni:binding": {
+    "uni:description": { "uni:identifier": "fixture_mod:apple_shown" },
+    "uni:event": "fixture_mod:apple_eaten",
+    "uni:cases": [
+      {
+        "uni:tests": [
+          { "uni:test": "relation", "uni:role": "actor", "uni:relation": "self" }
+        ],
+        "uni:present": {
+          "uni:log": {
+            "uni:variants": ["fixture_mod:apple_you"],
+            "uni:params": { "count": { "uni:field": "count" } }
+          }
+        }
+      },
+      {
+        "uni:tests": [
+          { "uni:test": "relation", "uni:role": "actor", "uni:relation": "other" }
+        ],
+        "uni:present": {
+          "uni:log": {
+            "uni:variants": ["fixture_mod:apple_other"],
+            "uni:params": {
+              "name": { "uni:actor": true },
+              "count": { "uni:field": "count" }
+            }
+          }
+        }
+      }
+    ]
+  }
+}

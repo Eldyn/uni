@@ -1,5 +1,6 @@
 #pragma once
 #include <chrono>
+#include <cstdint>
 #include <string>
 #include <result.hpp>
 #include <database.hpp>
@@ -115,6 +116,14 @@ public:
     static Result<std::string> IssueToken(const std::string& username);
 
     /**
+     * @brief Signs a JWT with an already-known token version (no DB hop).
+     * Login fetches `token_version` in its initial user lookup, so it signs
+     * directly instead of paying IssueToken's second SELECT.
+     */
+    static Result<std::string> IssueTokenWithVersion(const std::string& username,
+                                                      int version);
+
+    /**
      * @brief Verifies a JWT token and extracts its payload. Called by
      * `WebServer` at the beginning of every WebSocket upgrade attempt.
      * @param token The raw JWT string.
@@ -145,13 +154,24 @@ public:
      */
     static VoidResult RevokeAllSessions(const std::string& username);
 
+    /**
+     * @brief Reads the Streamer/Privacy Mode of an account.
+     * @return true when the account has the mode on; false when it is off, or
+     * for a guest, who has no row.
+     */
+    static bool GetPrivacyMode(const std::string& username);
+
+    /**
+     * @brief Saves the Streamer/Privacy Mode of an account. A no-op for
+     * guests, who have no row.
+     */
+    static VoidResult SetPrivacyMode(const std::string& username, bool enabled);
+
+    static void ClearTokenVersionCacheForTests();
+    static std::uint64_t TokenVersionCacheHitsForTests();
+
 private:
     Database& db_;
     LoginThrottle login_throttle_;
     LoginThrottle::Clock::time_point last_evict_;
-
-    // PBKDF2 parameters (increasing kIterations raises the cost of brute-force attempts)
-    static constexpr int kSaltBytes  = 16;
-    static constexpr int kHashBytes  = 32;
-    static constexpr int kIterations = 200'000;
 };

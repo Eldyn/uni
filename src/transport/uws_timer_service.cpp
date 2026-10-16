@@ -26,9 +26,38 @@ UwsTimerService::~UwsTimerService() {
     }
 }
 
+void UwsTimerService::FireTimer(TimerData* d) {
+    if (d->repeat) {
+        RunGuarded(d->key, d->callback);
+        return;
+    }
+    // INFO: one-shot: park the handle idle BEFORE the callback so the next
+    //       Schedule() for this key re-arms it with no us_create/us_close.
+    //       A Cancel() from inside the callback still closes + erases, so
+    //       `d` must not be touched after RunGuarded (it may be freed).
+    std::function<void()> cb = std::move(d->callback);
+    std::string key = d->key;
+    d->armed = false;
+    if (cb) RunGuarded(key, cb);
+}
+
 void UwsTimerService::Schedule(const std::string& key, int ms, bool repeat,
                                 std::function<void()> cb) {
-    CancelLocked(key);
+    // INFO: re-arm path (backend-perf Task 9): the turn timer is scheduled
+    //       once per move on a stable per-lobby key, so reuse the live
+    //       handle via us_timer_set (which restarts the countdown) instead
+    //       of paying us_close + us_create per move.
+    if (auto it = timers_.find(key); it != timers_.end()) {
+        TimerData* data = it->second.get();
+        data->callback = std::move(cb);
+        data->repeat = repeat;
+        data->armed = true;
+        us_timer_set(data->timer, [](us_timer_t* t) {
+            auto* d = *reinterpret_cast<TimerData**>(us_timer_ext(t));
+            FireTimer(d);
+        }, ms, repeat ? ms : 0);
+        return;
+    }
 
     auto* loop  = reinterpret_cast<us_loop_t*>(uWS::Loop::get());
     auto* timer = us_create_timer(loop, 0, sizeof(TimerData*));
@@ -37,25 +66,7 @@ void UwsTimerService::Schedule(const std::string& key, int ms, bool repeat,
 
     us_timer_set(timer, [](us_timer_t* t) {
         auto* d = *reinterpret_cast<TimerData**>(us_timer_ext(t));
-
-        if (d->repeat) {
-            RunGuarded(d->key, d->callback);
-            return;
-        }
-
-        // INFO: One-shot: erase from map before the callback so a Cancel()
-        //       called from within the callback is a no-op. Ownership is
-        //       moved out first so TimerData outlives the erase and stays
-        //       valid until the callback returns.
-        std::unique_ptr<TimerData> owned;
-        auto it = d->service->timers_.find(d->key);
-        if (it != d->service->timers_.end()) {
-            owned = std::move(it->second);
-            d->service->timers_.erase(it);
-        }
-        auto cb = std::move(d->callback);
-        us_timer_close(t);
-        if (cb) RunGuarded(owned ? owned->key : std::string(), cb);
+        FireTimer(d);
     }, ms, repeat ? ms : 0);
 
     timers_[key] = std::move(data);

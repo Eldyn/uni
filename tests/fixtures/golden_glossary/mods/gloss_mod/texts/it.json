@@ -1,0 +1,10 @@
+{
+  "gloss_mod:apple.label": "Mela",
+  "gloss_mod:apple.description": "Un frutto rosso.",
+  "gloss_mod:pear.custom_label": "Pera",
+  "gloss_mod:pear.custom_description": "Un frutto verde.",
+  "gloss_mod:fruit.plum": "Prugna",
+  "gloss_mod:fruit.plum.description": "Un frutto viola.",
+  "gloss_mod:ripeness.label": "Maturita",
+  "gloss_mod:ripeness.description": "Quanto e pronto un frutto."
+}

@@ -334,12 +334,14 @@ OpResult OpModifyStatus(ecs::EntityStore& store, const OpArgs& args,
     }
     const ecs::Status& first = modified->adjusted.front();
 
-    return OpResult::Resolved(
-        json{{"target", EntityJson(*target)},
-             {"status_kind", first.status_id},
-             {"magnitude", first.magnitude},
-             {"delta", delta},
-             {"instance", first.instance_id}});
+    const json payload = {{"target", EntityJson(*target)},
+                          {"status_kind", first.status_id},
+                          {"magnitude", first.magnitude},
+                          {"delta", delta},
+                          {"instance", first.instance_id}};
+    OpResult result = OpResult::Resolved(payload);
+    result.events.push_back(MakeEvent("status_modified", payload));
+    return result;
 }
 
 }  // namespace match::ops::detail

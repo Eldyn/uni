@@ -7,6 +7,8 @@
 #include <match/engine/play_evaluator.hpp>
 #include <match/ops/ops.hpp>
 #include <match/resolver.hpp>
+#include <match/streak/derived_engine.hpp>
+#include <match/streak/streak_engine.hpp>
 #include <match/scheduler.hpp>
 #include <match/timers.hpp>
 
@@ -15,6 +17,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <map>
 #include <optional>
 #include <string>
 #include <vector>
@@ -35,7 +38,7 @@
  *   correct phase and payload keys (`turn_start`/`turn_end`, `round_start`/
  *   `round_end`, `play`, `draw_attempt`/`draw`, `shuffle`/`pile_empty`,
  *   `hand_empty`, `win_check`, `card_entered_zone`/`card_left_zone`,
- *   `match_end`, plus the op-bridged `status_*`, `roll`, `visibility_*` and
+ *   `match_ended`, plus the op-bridged `status_*`, `roll`, `visibility_*` and
  *   `effect_applied` observation hooks). Before-veto on a veto-capable hook
  *   cancels the engine default (play, draw skip/undo, `turn_end` extra turn,
  *   `pile_empty` reshuffle block, `hand_empty`/`win_check` win block or
@@ -58,12 +61,12 @@
  * `before:play` pipeline and `PassWindow` records a pass; the first collected
  * response wins (arrival order). Early close fires once every responder has
  * replied, timeout routes the default. The winning route resumes through
- * `Resolver::ResumeWindow`, emitting `window_open` / `window_response` /
- * `window_close`.
+ * `Resolver::ResumeWindow`, emitting `window_opened` / `window_responded` /
+ * `window_closed`.
  *
  * Draw stacking, built on top of the
  * window flow. `draw_cards` gains an optional `n_from_debt` arg that draws a
- * target's accumulated `vanilla:draw_debt` status magnitude; a window node may
+ * target's accumulated `uni:draw_debt` status magnitude; a window node may
  * declare `reopen: true` so a winning response appends its own draw penalty to
  * the debt and re-opens the window on the same budget ledger; and a window that
  * arrives while an op input is parked is deferred rather than dropped, then
@@ -254,6 +257,8 @@ public:
     bool WindowHoldElapsed() const;
     /** @brief True when a held group has a winner and its hold is over. */
     bool WindowWinnerReady() const;
+    /** @brief The recorded window winner, or null when none responded. */
+    std::optional<ecs::Entity> WindowWinnerActor() const;
 
     /**
      * @brief True when `RespondWindow(player, card)` would accept the card.
@@ -426,6 +431,10 @@ public:
     const ecs::EntityStore& Store() const { return assembly_->store; }
     /** @brief Frozen per-match registries. */
     const MatchRegistries& Registries() const { return assembly_->registries; }
+    /** @brief The streak values of this match. */
+    const match::streak::StreakEngine& Streaks() const { return streaks_; }
+    /** @brief The derived event windows of this match. */
+    const match::streak::DerivedEngine& Derived() const { return derived_; }
 
 private:
     /** @brief One accepted play's provenance, for the state JSON. */
@@ -451,6 +460,8 @@ private:
         ecs::Entity actor{};                /**< play actor to settle. */
         int64_t deadline_ms = 0;            /**< absolute epoch ms; 0 = unarmed. */
         int64_t duration_ms = 0;            /**< armed clock length. */
+        /** The play event that started the chain, kept across the answer. */
+        std::optional<int64_t> cause_event;
     };
 
     /**
@@ -475,6 +486,8 @@ private:
         uint64_t next_arrival = 0;   /**< server arrival counter. */
         bool settle_play = false;  /**< settle the interrupted play on close. */
         ecs::Entity actor{};       /**< play actor to settle. */
+        /** The play event that started the chain, kept across the window. */
+        std::optional<int64_t> cause_event;
         /** Members merged into this group's window, in mod load order. */
         std::vector<WindowPause> followers;
         /** Member (0 = this pause) owning the winning response. */
@@ -498,8 +511,47 @@ private:
         ecs::Entity card{};    /**< card to play through the normal pipeline. */
     };
 
+    /**
+     * @brief Run the one streak pass and the one derived pass for a stamped
+     *        base event and attach the requested `context` to its descriptor.
+     *
+     * @return The derived events that follow the base event.
+     */
+    std::vector<match::streak::Derivation> ObserveStreaks(
+        nlohmann::json& event);
+
+    /**
+     * @brief Append the derived events of a base event to the log.
+     *
+     * Each derived event takes the frame of its base event with the base
+     * `event_id` as `cause_event`. It is marked `derived` and never goes
+     * through `ObserveStreaks`, so it cannot feed a streak.
+     */
+    void PushDerivedEvents(
+        int64_t base_event_id, const nlohmann::json& base_frame,
+        const std::vector<match::streak::Derivation>& derivations);
+
     /** @brief Append an event descriptor to the log. */
     void Emit(std::string_view type, nlohmann::json payload);
+
+    /** @brief Stamp `event` with the current causal frame and queue it. */
+    void PushEvent(nlohmann::json event);
+
+    /**
+     * @brief Check a stamped `mod_event` against the mod event budgets.
+     *
+     * Sets its `cause_event` to the previous mod event of the entry point.
+     * The chain length of a mod event is 1 plus the chain length of the mod
+     * event that its `cause_event` names (1 when that event is not a mod
+     * event). A drop is recorded in the ledger; the mod is disarmed when the
+     * ledger reports a repeat offender.
+     *
+     * @return the chain length, or empty when the event must be dropped.
+     */
+    std::optional<uint32_t> AdmitModEvent(nlohmann::json& event);
+
+    /** @brief Disarm a repeat offender and emit `mod_disarmed` once. */
+    void DisarmOffender(const std::string& mod_id);
 
     /** @brief The live current-turn player, or nullopt. */
     std::optional<ecs::Entity> CurrentPlayer() const;
@@ -523,6 +575,13 @@ private:
      * and counts a seat change toward the round boundary.
      */
     void AdvanceTurn();
+
+    /**
+     * @brief Emit `drawn_card_kept` for a play/keep choice that ends in a keep.
+     *
+     * Called by `KeepDrawn` and by the turn clock that drops the choice.
+     */
+    void EmitDrawnCardKept(const PendingPlayDrawn& pending);
 
     /**
      * @brief Move the discard (except its top) back onto the draw pile and
@@ -564,7 +623,7 @@ private:
      */
     bool EndRaceIfTargetReached();
 
-    /** @brief Dispatch and emit the closing `match_end`. */
+    /** @brief Dispatch and emit the closing `match_ended`. */
     void EmitMatchEnd();
 
     /** @brief `hand_empty` / `win_check` settle after a play. */
@@ -584,9 +643,9 @@ private:
      *
      * Ensures a `WindowState`, fills responders / routes / filter, arms the
      * The timer layer window timer (suspending the turn clock), emits
-     * `window_open` and parks the pause in `pending_window_`. When
+     * `window_opened` and parks the pause in `pending_window_`. When
      * `fresh_situation` is true and the last play was a `draw_penalty` card,
-     * the engine records that card's N as `vanilla:draw_debt` on the current
+     * the engine records that card's N as `uni:draw_debt` on the current
      * target; a re-open passes false so the response, not the situation, is
      * counted.
      *
@@ -643,23 +702,23 @@ private:
     std::string WinningRoute(const resolver::WindowRequest& request,
                              ecs::Entity card) const;
 
-    /** @brief Sets the match's active type to the played card's colour. */
-    void AdoptPlayedColor(ecs::Entity card, const std::string& kind_id);
-
     /**
      * @brief Commit the winning response card: move to discard + zone events.
      *
      * when `stacks_penalty` (the window stacks draw penalties) its
-     * own N is appended to the accumulated `vanilla:draw_debt`, which moves
+     * own N is appended to the accumulated `uni:draw_debt`, which moves
      * onto the seat after the responder. The window's `on_response` route
      * remains the resolution continuation; re-opening the window is
      * `CloseWindowRoute`'s.
      */
     void CommitWinningPlay(ecs::Entity player, ecs::Entity card,
-                           bool stacks_penalty);
+                           bool stacks_penalty, bool deflects_penalty = false);
+
+    /** @brief Sets the match's active type to the played card's colour. */
+    void AdoptPlayedColor(ecs::Entity card, const std::string& kind_id);
 
     /**
-     * @brief Remove every seat's `vanilla:draw_debt`, emitting removals.
+     * @brief Remove every seat's `uni:draw_debt`, emitting removals.
      *
      * @param keep Seat whose debt is left alone (may be empty).
      * @return the summed magnitude removed.
@@ -675,6 +734,17 @@ private:
      */
     bool WindowStacksPenalty(const resolver::WindowRequest& request,
                              ecs::Entity card) const;
+
+    /**
+     * @brief True when `card` is a reverse response deflecting draw debt.
+     */
+    bool WindowDeflectsPenalty(const resolver::WindowRequest& request,
+                              ecs::Entity card) const;
+
+    bool GroupDeflectsPenalty(const WindowPause& group, ecs::Entity card) const;
+
+    std::optional<std::size_t> DeflectingMember(const WindowPause& group,
+                                                ecs::Entity card) const;
 
     /** @brief The draw penalty N encoded by a card's face label, else 0. */
     int32_t DrawPenaltyMagnitude(ecs::Entity card) const;
@@ -692,7 +762,13 @@ private:
     void RecordDrawPenalty(ecs::Entity card, ecs::Entity player);
 
     /**
-     * @brief Close the open window group, emit one `window_close` and resume.
+     * @brief Deflect accumulated draw debt back to the attacker.
+     */
+    void RecordDeflectedDrawDebt(ecs::Entity card, ecs::Entity player,
+                                 std::optional<ecs::Entity> attacker = std::nullopt);
+
+    /**
+     * @brief Close the open window group, emit one `window_closed` and resume.
      *
      * With a winning response only the owning member's `on_response` route
      * runs; otherwise every member runs its `default_route` in member order.
@@ -704,7 +780,7 @@ private:
      */
     void CloseWindowRoute(const std::string& outcome);
 
-    /** @brief True when `player` carries a positive `vanilla:draw_debt`. */
+    /** @brief True when `player` carries a positive `uni:draw_debt`. */
     bool HoldsDrawDebt(ecs::Entity player) const;
 
     /**
@@ -886,6 +962,17 @@ private:
 
     std::unique_ptr<MatchAssembly> assembly_;
     std::vector<nlohmann::json> events_;
+    /** @brief Actor and cause of the entry point now running. */
+    ops::CausalFrame causal_frame_;
+    /** Next `event_id`; grows for the whole match, `TakeEvents` keeps it. */
+    int64_t next_event_id_ = 0;
+    /** Chain length of each mod event that the engine kept, by event id. */
+    std::map<int64_t, uint32_t> mod_event_chain_lengths_;
+
+    /** @brief The values of the streaks of this match. */
+    match::streak::StreakEngine streaks_;
+    /** @brief The windows and blocks of the derived events. */
+    match::streak::DerivedEngine derived_;
     std::optional<LastPlay> last_play_;
     std::optional<ecs::Entity> winner_;
     uint64_t turns_elapsed_ = 0;  /**< distinct-seat advances this round. */

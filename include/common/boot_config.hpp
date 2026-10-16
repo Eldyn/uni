@@ -1,5 +1,6 @@
 #pragma once
 #include <common/env.hpp>
+#include <common/environment.hpp>
 #include <stdexcept>
 #include <string>
 
@@ -19,7 +20,10 @@ inline void ValidateBootConfigOrThrow() {
     if (mode == "live" && Env::Get("EMAIL_KEY", "").empty()) {
         throw std::runtime_error("[Config] EMAIL_MODE=live requires EMAIL_KEY");
     }
-    if (Env::Get("UNI_ENV", "development") == "production" && mode != "live") {
+    if (IsProductionEnvironment() && mode != "live") {
         throw std::runtime_error("[Config] Production requires EMAIL_MODE=live");
+    }
+    if (IsProductionEnvironment() && !Env::Get("UNI_SEED", "").empty()) {
+        throw std::runtime_error("[Config] Production must not set UNI_SEED");
     }
 }

@@ -71,10 +71,10 @@ TEST_CASE("content_wiring: binds turns_elapsed for the caller") {
 
 TEST_CASE("content_wiring: loads card tags into the per-match table") {
     CardDef red;
-    red.kind_id = "vanilla:red_5";
+    red.kind_id = "uni:red_5";
     red.tags = {"stackable", "red"};
     CardDef blue;
-    blue.kind_id = "vanilla:blue_2";
+    blue.kind_id = "uni:blue_2";
     blue.tags = {"cold"};
     CardDef unnamed;  // INFO: empty kind id is ignored.
     unnamed.tags = {"ignored"};
@@ -82,24 +82,24 @@ TEST_CASE("content_wiring: loads card tags into the per-match table") {
     MatchRegistries registries;
     match::wiring::LoadCardTags({red, blue, unnamed}, registries.card_tags);
 
-    CHECK(CardHasTag(&registries, "vanilla:red_5", "stackable"));
-    CHECK(CardHasTag(&registries, "vanilla:red_5", "red"));
-    CHECK(CardHasTag(&registries, "vanilla:blue_2", "cold"));
-    CHECK_FALSE(CardHasTag(&registries, "vanilla:red_5", "cold"));
+    CHECK(CardHasTag(&registries, "uni:red_5", "stackable"));
+    CHECK(CardHasTag(&registries, "uni:red_5", "red"));
+    CHECK(CardHasTag(&registries, "uni:blue_2", "cold"));
+    CHECK_FALSE(CardHasTag(&registries, "uni:red_5", "cold"));
     CHECK_FALSE(CardHasTag(&registries, "", "ignored"));
     CHECK(registries.card_tags.size() == 2);
 
     // INFO: a later load replaces the previous table entirely.
     match::wiring::LoadCardTags({blue}, registries.card_tags);
-    CHECK_FALSE(CardHasTag(&registries, "vanilla:red_5", "stackable"));
-    CHECK(CardHasTag(&registries, "vanilla:blue_2", "cold"));
+    CHECK_FALSE(CardHasTag(&registries, "uni:red_5", "stackable"));
+    CHECK(CardHasTag(&registries, "uni:blue_2", "cold"));
     CHECK(registries.card_tags.size() == 1);
 }
 
 TEST_CASE("content_wiring: WireContent installs conditions and tags") {
     Harness harness;
     CardDef card;
-    card.kind_id = "vanilla:red_7";
+    card.kind_id = "uni:red_7";
     card.tags = {"stackable"};
 
     MatchRegistries registries;
@@ -107,5 +107,5 @@ TEST_CASE("content_wiring: WireContent installs conditions and tags") {
                                registries.card_tags);
 
     CHECK(harness.conditions.Has("turns_elapsed"));
-    CHECK(CardHasTag(&registries, "vanilla:red_7", "stackable"));
+    CHECK(CardHasTag(&registries, "uni:red_7", "stackable"));
 }

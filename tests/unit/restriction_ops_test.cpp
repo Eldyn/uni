@@ -80,11 +80,12 @@ TEST_CASE("restriction_ops: add_restriction appends allow and deny entries") {
         json{{"entry_def", EntryDef("mod:jump_in", "allow")}});
     const OpResult deny =
         h.Invoke("add_restriction",
-                 json{{"entry_def", EntryDef("vanilla:turn_order", "deny")}});
+                 json{{"entry_def", EntryDef("uni:turn_order", "deny")}});
 
     CHECK(allow.status == OpStatus::kResolved);
     CHECK(deny.status == OpStatus::kResolved);
-    CHECK(allow.events.empty());
+    REQUIRE(allow.events.size() == 1);
+    CHECK(allow.events[0]["type"] == "restriction_added");
     CHECK(allow.value["id"] == "mod:jump_in");
     CHECK(allow.value["phase"] == "allow");
 
@@ -94,7 +95,7 @@ TEST_CASE("restriction_ops: add_restriction appends allow and deny entries") {
     CHECK(pipeline->entries[0].id == "mod:jump_in");
     CHECK(pipeline->entries[0].phase == RestrictionPhase::kAllow);
     CHECK(pipeline->entries[0].condition == json{{"always", true}});
-    CHECK(pipeline->entries[1].id == "vanilla:turn_order");
+    CHECK(pipeline->entries[1].id == "uni:turn_order");
     CHECK(pipeline->entries[1].phase == RestrictionPhase::kDeny);
     (void)match;
 }
@@ -104,13 +105,14 @@ TEST_CASE("restriction_ops: add_restriction rejects a duplicate id") {
     Entity match = AddMatch(h.store);
 
     h.Invoke("add_restriction",
-             json{{"entry_def", EntryDef("vanilla:turn_order", "deny")}});
+             json{{"entry_def", EntryDef("uni:turn_order", "deny")}});
     const OpResult dup = h.Invoke(
         "add_restriction",
-        json{{"entry_def", EntryDef("vanilla:turn_order", "allow")}});
+        json{{"entry_def", EntryDef("uni:turn_order", "allow")}});
 
     CHECK(dup.status == OpStatus::kError);
     CHECK(dup.error.find("duplicate") != std::string::npos);
+    CHECK(dup.events.empty());
     const PlayRestriction* pipeline = GetPipeline(h.store, match);
     REQUIRE(pipeline != nullptr);
     REQUIRE(pipeline->entries.size() == 1);
@@ -125,7 +127,7 @@ TEST_CASE("restriction_ops: malformed or missing entry_def is a no-op") {
         json(5),
         json{{"phase", "deny"}},
         json{{"id", "no_colon", "phase", "deny"}},
-        json{{"id", "vanilla:x", "phase", "maybe"}},
+        json{{"id", "uni:x", "phase", "maybe"}},
     };
     for (const json& bad : malformed) {
         const OpResult result =
@@ -157,7 +159,8 @@ TEST_CASE("restriction_ops: remove_restriction drops every matching id") {
         "remove_restriction", json{{"entry_id", "mod:a"}});
 
     CHECK(result.status == OpStatus::kResolved);
-    CHECK(result.events.empty());
+    REQUIRE(result.events.size() == 1);
+    CHECK(result.events[0]["type"] == "restriction_removed");
     CHECK(result.value["id"] == "mod:a");
     CHECK(result.value["removed"] == 2);
     const PlayRestriction* pipeline = GetPipeline(h.store, match);
@@ -214,6 +217,27 @@ TEST_CASE("restriction_ops: set_active_type writes the match requirement") {
     REQUIRE(req != nullptr);
     REQUIRE(req->type.has_value());
     CHECK(*req->type == "space:shielded");
+}
+
+TEST_CASE("restriction_ops: set_active_type emits only on a real change") {
+    Harness h;
+    AddMatch(h.store);
+
+    const OpResult first =
+        h.Invoke("set_active_type", json{{"type", "green"}});
+    REQUIRE(first.events.size() == 1);
+    CHECK(first.events[0]["payload"]["color"] == "green");
+    CHECK(first.events[0]["payload"]["previous_color"] == "");
+
+    const OpResult same =
+        h.Invoke("set_active_type", json{{"type", "green"}});
+    CHECK(same.status == OpStatus::kResolved);
+    CHECK(same.events.empty());
+
+    const OpResult changed =
+        h.Invoke("set_active_type", json{{"type", "blue"}});
+    REQUIRE(changed.events.size() == 1);
+    CHECK(changed.events[0]["payload"]["previous_color"] == "green");
 }
 
 TEST_CASE("restriction_ops: set_active_type binds a prompt result") {

@@ -1,0 +1,252 @@
+{
+  "log_skip": {
+    "template": "{name} got skipped.",
+    "resolved": "Ann got skipped.",
+    "fallbackToEnglish": false
+  },
+  "log_skip_again": {
+    "template": "{name} got skipped again.",
+    "resolved": "Ann got skipped again.",
+    "fallbackToEnglish": false
+  },
+  "log_skip_again_2": {
+    "template": "Skipped again. {name} is collecting missed turns.",
+    "resolved": "Skipped again. Ann is collecting missed turns.",
+    "fallbackToEnglish": false
+  },
+  "log_skip_third": {
+    "template": "[c=red]{name}[/c] got skipped a third time. Somebody has a grudge.",
+    "resolved": "[c=red]Ann[/c] got skipped a third time. Somebody has a grudge.",
+    "fallbackToEnglish": false
+  },
+  "log_skip_streak": {
+    "template": "[c=red]{name}[/c] got skipped again. [fx=shake]Spectator mode unlocked.[/fx]",
+    "resolved": "[c=red]Ann[/c] got skipped again. [fx=shake]Spectator mode unlocked.[/fx]",
+    "fallbackToEnglish": false
+  },
+  "log_skip_streak_2": {
+    "template": "[c=red]{name}[/c] again. [fx=shake]LET {name} PLAY!![/fx]",
+    "resolved": "[c=red]Ann[/c] again. [fx=shake]LET Ann PLAY!![/fx]",
+    "fallbackToEnglish": false
+  },
+  "log_reverse": {
+    "template": "Reverse.",
+    "resolved": "Reverse.",
+    "fallbackToEnglish": false
+  },
+  "log_reverse_back": {
+    "template": "Reverse back.",
+    "resolved": "Reverse back.",
+    "fallbackToEnglish": false
+  },
+  "log_reverse_back_2": {
+    "template": "Reverse back. Going in circles counts as a strategy.",
+    "resolved": "Reverse back. Going in circles counts as a strategy.",
+    "fallbackToEnglish": false
+  },
+  "log_reverse_again": {
+    "template": "Reverse again. Nobody knows whose turn it is.",
+    "resolved": "Reverse again. Nobody knows whose turn it is.",
+    "fallbackToEnglish": false
+  },
+  "log_reverse_spin": {
+    "template": "Another reverse. [fx=shake]This table is a revolving door.[/fx]",
+    "resolved": "Another reverse. [fx=shake]This table is a revolving door.[/fx]",
+    "fallbackToEnglish": false
+  },
+  "log_reverse_spin_2": {
+    "template": "Another reverse. [fx=shake]Back the other way.[/fx]",
+    "resolved": "Another reverse. [fx=shake]Back the other way.[/fx]",
+    "fallbackToEnglish": false
+  },
+  "log_draw_first_1": {
+    "template": "{name} is the first to draw this match. RIP.",
+    "resolved": "Ann is the first to draw this match. RIP.",
+    "fallbackToEnglish": false
+  },
+  "log_draw_first_2": {
+    "template": "First blood on the draw pile goes to {name}.",
+    "resolved": "First blood on the draw pile goes to Ann.",
+    "fallbackToEnglish": false
+  },
+  "log_draw_generic_1": {
+    "template": "{name} draws.",
+    "resolved": "Ann draws.",
+    "fallbackToEnglish": false
+  },
+  "log_draw_generic_2": {
+    "template": "{name} takes one from the pile.",
+    "resolved": "Ann takes one from the pile.",
+    "fallbackToEnglish": false
+  },
+  "log_draw_generic_3": {
+    "template": "{name} draws. The pile gives what it gives.",
+    "resolved": "Ann draws. The pile gives what it gives.",
+    "fallbackToEnglish": false
+  },
+  "log_draw_many_1": {
+    "template": "This is... the {drawRun}th time {name} draws, god.",
+    "resolved": "This is... the 3th time Ann draws, god.",
+    "fallbackToEnglish": false
+  },
+  "log_draw_many_2": {
+    "template": "{name} again. The deck knows them by name.",
+    "resolved": "Ann again. The deck knows them by name.",
+    "fallbackToEnglish": false
+  },
+  "log_draw_big_hand_1": {
+    "template": "[c=red]{name}[/c] is up to {handSize} cards. Give them a breather.",
+    "resolved": "[c=red]Ann[/c] is up to 5 cards. Give them a breather.",
+    "fallbackToEnglish": false
+  },
+  "log_draw_big_hand_2": {
+    "template": "{handSize} cards, [c=red]{name}[/c]. Maybe leave some for the rest.",
+    "resolved": "5 cards, [c=red]Ann[/c]. Maybe leave some for the rest.",
+    "fallbackToEnglish": false
+  },
+  "log_draw_large_1": {
+    "template": "{name} draws {count}. Ouch.",
+    "resolved": "Ann draws 2. Ouch.",
+    "fallbackToEnglish": false
+  },
+  "log_blocked_1": {
+    "template": "[fx=shake:3,2]{blocker} actually did![/fx]",
+    "resolved": "[fx=shake:3,2]Bob actually did![/fx]",
+    "fallbackToEnglish": false
+  },
+  "log_blocked_2": {
+    "template": "Told you. [fx=shake:3,2]{blocker} stopped them.[/fx]",
+    "resolved": "Told you. [fx=shake:3,2]Bob stopped them.[/fx]",
+    "fallbackToEnglish": false
+  },
+  "log_play": {
+    "template": "{name} plays [k={kind}][c={color}]{cardName}[/c][/k].",
+    "resolved": "Ann plays [k=uni:red_draw2][c=red]Draw Two (+2)[/c][/k].",
+    "fallbackToEnglish": false
+  },
+  "log_keep_drawn": {
+    "template": "{name} keeps the drawn card.",
+    "resolved": "Ann keeps the drawn card.",
+    "fallbackToEnglish": false
+  },
+  "log_reshuffle_1": {
+    "template": "Discard pile shuffled back in. Fresh cards, same pain.",
+    "resolved": "Discard pile shuffled back in. Fresh cards, same pain.",
+    "fallbackToEnglish": false
+  },
+  "log_reshuffle_2": {
+    "template": "The deck ran dry, so the pile is back. Shuffle up.",
+    "resolved": "The deck ran dry, so the pile is back. Shuffle up.",
+    "fallbackToEnglish": false
+  },
+  "log_reshuffle_3": {
+    "template": "Deck empty, pile back. Same cards, second chance.",
+    "resolved": "Deck empty, pile back. Same cards, second chance.",
+    "fallbackToEnglish": false
+  },
+  "log_wild_reaction_1": {
+    "template": "[c={color}]{colorName}[/c] it is.",
+    "resolved": "[c=red]red[/c] it is.",
+    "fallbackToEnglish": false
+  },
+  "log_wild_reaction_first_2": {
+    "template": "Going with [c={color}]{colorName}[/c].",
+    "resolved": "Going with [c=red]red[/c].",
+    "fallbackToEnglish": false
+  },
+  "log_wild_reaction_second_1": {
+    "template": "{name} had other plans. [c={color}]{colorName}[/c] it is.",
+    "resolved": "Ann had other plans. [c=red]red[/c] it is.",
+    "fallbackToEnglish": false
+  },
+  "log_wild_reaction_second_2": {
+    "template": "After [c={prevColor}]{prevColorName}[/c], {name} switches to [c={color}]{colorName}[/c].",
+    "resolved": "After [c=blue]blue[/c], Ann switches to [c=red]red[/c].",
+    "fallbackToEnglish": false
+  },
+  "log_wild_reaction_third_1": {
+    "template": "Y'all can't decide on a colour. Now it's [c={color}]{colorName}[/c]! [fx=shake:3,2]Pick one.[/fx]",
+    "resolved": "Y'all can't decide on a colour. Now it's [c=red]red[/c]! [fx=shake:3,2]Pick one.[/fx]",
+    "fallbackToEnglish": false
+  },
+  "log_wild_reaction_third_2": {
+    "template": "[c={prevColor}]{prevColorName}[/c], then [c={color}]{colorName}[/c] again? [fx=shake:3,2]Make up your minds.[/fx]",
+    "resolved": "[c=blue]blue[/c], then [c=red]red[/c] again? [fx=shake:3,2]Make up your minds.[/fx]",
+    "fallbackToEnglish": false
+  },
+  "log_auto_play_1": {
+    "template": "{name} was made to play [k={kind}]{cardName}[/k].",
+    "resolved": "Ann was made to play [k=uni:red_draw2]Draw Two (+2)[/k].",
+    "fallbackToEnglish": false
+  },
+  "log_auto_play_2": {
+    "template": "No choice for {name}: [k={kind}]{cardName}[/k] hits the table.",
+    "resolved": "No choice for Ann: [k=uni:red_draw2]Draw Two (+2)[/k] hits the table.",
+    "fallbackToEnglish": false
+  },
+  "log_near_win_1": {
+    "template": "[c=red]{name}[/c] is down to one card. Brace.",
+    "resolved": "[c=red]Ann[/c] is down to one card. Brace.",
+    "fallbackToEnglish": false
+  },
+  "log_near_win_2": {
+    "template": "One card left for {name}. Somebody stop them.",
+    "resolved": "One card left for Ann. Somebody stop them.",
+    "fallbackToEnglish": false
+  },
+  "log_near_win_3": {
+    "template": "{name} is one card away. Everyone panic quietly.",
+    "resolved": "Ann is one card away. Everyone panic quietly.",
+    "fallbackToEnglish": false
+  },
+  "log_win_1": {
+    "template": "{name} wins the round!",
+    "resolved": "Ann wins the round!",
+    "fallbackToEnglish": false
+  },
+  "log_win_2": {
+    "template": "That's the game. {name} takes it.",
+    "resolved": "That's the game. Ann takes it.",
+    "fallbackToEnglish": false
+  },
+  "log_finish_1": {
+    "template": "{name} finishes in place {place}.",
+    "resolved": "Ann finishes in place 1.",
+    "fallbackToEnglish": false
+  },
+  "log_finish_2": {
+    "template": "{name} is done. Place {place}.",
+    "resolved": "Ann is done. Place 1.",
+    "fallbackToEnglish": false
+  },
+  "log_left_behind_1": {
+    "template": "{name} is left behind in place {place}.",
+    "resolved": "Ann is left behind in place 1.",
+    "fallbackToEnglish": false
+  },
+  "log_left_behind_2": {
+    "template": "{name} didn't make it. Place {place}.",
+    "resolved": "Ann didn't make it. Place 1.",
+    "fallbackToEnglish": false
+  },
+  "log_color_red": {
+    "template": "red",
+    "resolved": "red",
+    "fallbackToEnglish": false
+  },
+  "log_color_yellow": {
+    "template": "yellow",
+    "resolved": "yellow",
+    "fallbackToEnglish": false
+  },
+  "log_color_green": {
+    "template": "green",
+    "resolved": "green",
+    "fallbackToEnglish": false
+  },
+  "log_color_blue": {
+    "template": "blue",
+    "resolved": "blue",
+    "fallbackToEnglish": false
+  }
+}

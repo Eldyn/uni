@@ -168,8 +168,8 @@ describe("parseRichText", () => {
 	});
 
 	it("parses namespaced keyword ids", () => {
-		expect(parseRichText("[k=vanilla:draw_pile]pile[/k]", { allowKeywords: true })).toEqual([
-			{ text: "pile", keyword: "vanilla:draw_pile" }
+		expect(parseRichText("[k=uni:draw_pile]pile[/k]", { allowKeywords: true })).toEqual([
+			{ text: "pile", keyword: "uni:draw_pile" }
 		]);
 	});
 

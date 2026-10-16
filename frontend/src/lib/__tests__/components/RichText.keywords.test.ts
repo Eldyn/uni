@@ -1,12 +1,17 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/svelte";
 import RichText from "$components/common/RichText.svelte";
+import { prepareCoreTexts } from "../glossary/coreTextsHarness";
+
+beforeEach(async () => {
+	await prepareCoreTexts("en");
+});
 
 describe("RichText keyword effects and styling", () => {
 	it("renders keyword with TextEffects when segment has effect", () => {
 		render(RichText, {
 			props: {
-				text: "Check [k=vanilla:turn][fx=shine]turn[/fx][/k] now",
+				text: "Check [k=uni:turn][fx=shine]turn[/fx][/k] now",
 				allowKeywords: true
 			}
 		});
@@ -20,7 +25,7 @@ describe("RichText keyword effects and styling", () => {
 	it("applies red card color and underline styling to keyword button", () => {
 		render(RichText, {
 			props: {
-				text: "Check [k=vanilla:turn]turn[/k]",
+				text: "Check [k=uni:turn]turn[/k]",
 				allowKeywords: true
 			}
 		});

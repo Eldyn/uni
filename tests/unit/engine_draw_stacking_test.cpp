@@ -24,9 +24,9 @@
  * @file engine_draw_stacking_test.cpp
  * @brief Draw-stacking tests for the engine MatchInstance.
  *
- * Assembles real `mods/` content (`vanilla` + `draw_stacking`) and asserts the
+ * Assembles real `mods/` content (`uni` + `draw_stacking`) and asserts the
  * engine-owned debt mechanics that the DAG content cannot express: a
- * draw-penalty play opens the window and records its N as `vanilla:draw_debt`
+ * draw-penalty play opens the window and records its N as `uni:draw_debt`
  * on the seat after the player, a stackable response carries the debt on to
  * the seat after the responder and re-opens the window on one budget ledger,
  * the default route makes the victim draw the accumulated debt with
@@ -93,7 +93,7 @@ bool LoadContent(Content& out) {
     out.mods = std::move(load.mods);
     for (const LoadedMod& mod : out.mods) {
         for (const DeckDef& deck : mod.decks) {
-            if (deck.deck_id == "vanilla:classic") out.classic = deck;
+            if (deck.deck_id == "uni:classic") out.classic = deck;
         }
     }
     return !out.classic.deck_id.empty();
@@ -124,11 +124,11 @@ std::unique_ptr<MatchInstance> Assemble(
                                            std::move(clock));
 }
 
-/** @brief `{"vanilla","draw_stacking"}` match (0.subject). */
+/** @brief `{"uni","draw_stacking"}` match (0.subject). */
 std::unique_ptr<MatchInstance> MakeStackingEngine(
     Content& content, int players, int cards, uint64_t seed,
     match::WindowConfig config, match::NowMs clock) {
-    return Assemble(content, {"vanilla", "draw_stacking"}, players, cards, seed,
+    return Assemble(content, {"uni", "draw_stacking"}, players, cards, seed,
                     config, std::move(clock));
 }
 
@@ -167,7 +167,7 @@ std::optional<ecs::Entity> FindCard(MatchInstance& engine,
     return std::nullopt;
 }
 
-/** @brief Accumulated `vanilla:draw_debt` magnitude on `player` (0 = none). */
+/** @brief Accumulated `uni:draw_debt` magnitude on `player` (0 = none). */
 int64_t DebtOf(MatchInstance& engine, ecs::Entity player) {
     const ecs::Status* debt = match::status::Find(
         engine.Store(), player, ops::kDrawDebtStatusId);
@@ -279,8 +279,8 @@ std::size_t CountNoJumpSignals(const MatchInstance& engine) {
 
 /** @brief Mod load orders of the merged pair; outcomes must not differ. */
 const std::vector<std::vector<std::string>> kMergedLoadOrders = {
-    {"vanilla", "jump_in", "draw_stacking"},
-    {"vanilla", "draw_stacking", "jump_in"}};
+    {"uni", "jump_in", "draw_stacking"},
+    {"uni", "draw_stacking", "jump_in"}};
 
 /** @brief Three seats after player0 played a wild +4 into a merged group. */
 struct Plus4Table {
@@ -350,7 +350,7 @@ TEST_CASE("engine draw_stacking: +N play opens the window and records debt") {
     REQUIRE(engine->PlayCard("player0", *draw2));
     CHECK(engine->WindowOpen());
     CHECK(engine->PendingWindow().has_value());
-    CHECK(FindEvent(*engine, "window_open") != nullptr);
+    CHECK(FindEvent(*engine, "window_opened") != nullptr);
 
     // INFO: The +2 play records its N as debt on the victim (the
     //       seat after the player), who draws nothing until the chain ends.
@@ -367,7 +367,7 @@ TEST_CASE("engine draw_stacking: +N play opens the window and records debt") {
     CHECK(window["default_route"] == "n2");
     // INFO: a window that declares no kind stays generic on the env duration.
     CHECK(window["kind"] == "generic");
-    const json* opened = FindEvent(*engine, "window_open");
+    const json* opened = FindEvent(*engine, "window_opened");
     REQUIRE(opened != nullptr);
     CHECK((*opened)["payload"]["kind"] == "generic");
     CHECK((*opened)["payload"]["duration_ms"] == 1000);
@@ -428,7 +428,7 @@ TEST_CASE("engine draw_stacking: stack response stacks and re-opens") {
     REQUIRE(engine->WindowOpen());
     CHECK(DebtOf(*engine, player1) == 2);
     const uint64_t steps_after_open = engine->Assembly().budget.chain_steps;
-    CHECK(CountEvents(*engine, "window_open") == 1);
+    CHECK(CountEvents(*engine, "window_opened") == 1);
 
     // INFO: the victim's out-of-turn stack is rescued by the mod's allow and,
     //       as the only responder, closes the window at once.
@@ -446,8 +446,8 @@ TEST_CASE("engine draw_stacking: stack response stacks and re-opens") {
     CHECK(DebtOf(*engine, player1) == 0);
     CHECK(DebtOf(*engine, player2) == 4);
     CHECK(engine->GetCurrentPlayerUsername() == "player1");
-    CHECK(CountEvents(*engine, "window_open") == 2);
-    CHECK(CountEvents(*engine, "window_close") == 1);
+    CHECK(CountEvents(*engine, "window_opened") == 2);
+    CHECK(CountEvents(*engine, "window_closed") == 1);
     const uint64_t steps_after_reopen = engine->Assembly().budget.chain_steps;
     // INFO: the chain shares one budget ledger (no reset across re-open).
     CHECK(steps_after_reopen > steps_after_open);
@@ -458,13 +458,130 @@ TEST_CASE("engine draw_stacking: stack response stacks and re-opens") {
     REQUIRE(engine->PassWindow("player2"));
 
     CHECK_FALSE(engine->WindowOpen());
-    CHECK(CountEvents(*engine, "window_close") == 2);
+    CHECK(CountEvents(*engine, "window_closed") == 2);
     // INFO: default route draws the accumulated debt on the victim, clears the
     //       status and skips them.
     CHECK(DebtOf(*engine, player2) == 0);
     CHECK(HandSize(*engine, player2) == victim_hand + 4);
     CHECK(HandSize(*engine, player1) == 1);
     CHECK(engine->GetCurrentPlayerUsername() == "player0");
+}
+
+TEST_CASE("engine draw_stacking: a +4 answers a +2 window") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    FakeClock clock;
+    std::unique_ptr<MatchInstance> engine = MakeStackingEngine(
+        content, 3, 7, 42, FixedWindow(1000), clock.Fn());
+
+    const ecs::Entity player0 = *engine->FindPlayer("player0");
+    const ecs::Entity player1 = *engine->FindPlayer("player1");
+    const ecs::Entity player2 = *engine->FindPlayer("player2");
+    const std::optional<ecs::Entity> draw2 = FindCard(*engine, "red", "+2");
+    const std::optional<ecs::Entity> stack4 =
+        FindCard(*engine, "white", "jolly_draw4");
+    const std::optional<ecs::Entity> filler1 = FindCard(*engine, "blue", "6");
+    REQUIRE(draw2.has_value());
+    REQUIRE(stack4.has_value());
+    REQUIRE(filler1.has_value());
+    ForceHand(*engine, player0, {*draw2});
+    ForceHand(*engine, player1, {*stack4, *filler1});
+    engine->Store().Get<ecs::ActiveTypeReq>(engine->Registries().match)->type =
+        "red";
+
+    REQUIRE(engine->PlayCard("player0", *draw2));
+    REQUIRE(engine->WindowOpen());
+    CHECK(DebtOf(*engine, player1) == 2);
+    CHECK(CountEvents(*engine, "window_opened") == 1);
+
+    // INFO: the victim answers the +2 with a +4. The winning response's own
+    //       graph is not drained (CommitWinningPlay), so the wild prompt does
+    //       not park the stack: the carried debt accumulates at once and the
+    //       previous colour stands - no empty active colour is left behind.
+    REQUIRE(engine->RespondWindow("player1", *stack4));
+
+    // INFO: the mixed stack carries 2 + 4 on to the seat after the responder.
+    CHECK(engine->WindowOpen());
+    CHECK(DebtOf(*engine, player1) == 0);
+    CHECK(DebtOf(*engine, player2) == 6);
+    CHECK(engine->GetCurrentPlayerUsername() == "player1");
+    CHECK(CountEvents(*engine, "window_opened") == 2);
+    CHECK(CountEvents(*engine, "window_closed") == 1);
+    // INFO: the stacked +4 never drains its wild prompt, so the previous
+    //       colour stands - the next victim can still answer with a colour.
+    CHECK(engine->Store().Get<ecs::ActiveTypeReq>(engine->Registries().match)
+              ->type
+          == "red");
+}
+
+TEST_CASE("engine draw_stacking: the response filter accepts mixed stacks") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    FakeClock clock;
+    std::unique_ptr<MatchInstance> engine = MakeStackingEngine(
+        content, 3, 7, 42, FixedWindow(1000), clock.Fn());
+
+    // INFO: `CanRespondWindow` is the snapshot `can_play` authority
+    //       (ViewBuilder `EvaluatorCanPlay`). A mixed stack must be eligible
+    //       in both directions, or the client dims the card and the victim
+    //       cannot stack at all.
+    const ecs::Entity player0 = *engine->FindPlayer("player0");
+    const ecs::Entity player1 = *engine->FindPlayer("player1");
+    const std::optional<ecs::Entity> draw2 = FindCard(*engine, "red", "+2");
+    const std::optional<ecs::Entity> stack4 =
+        FindCard(*engine, "white", "jolly_draw4");
+    const std::optional<ecs::Entity> filler1 = FindCard(*engine, "blue", "6");
+    REQUIRE(draw2.has_value());
+    REQUIRE(stack4.has_value());
+    REQUIRE(filler1.has_value());
+    ForceHand(*engine, player0, {*draw2});
+    ForceHand(*engine, player1, {*stack4, *filler1});
+    engine->Store().Get<ecs::ActiveTypeReq>(engine->Registries().match)->type =
+        "red";
+
+    REQUIRE(engine->PlayCard("player0", *draw2));
+    REQUIRE(engine->WindowOpen());
+    CHECK(engine->CanRespondWindow(player1, *stack4));
+    // INFO: the live gesture (match_play_card while the window is open)
+    //       routes through PlayCard to RespondWindow and stacks 2 + 4.
+    REQUIRE(engine->PlayCard("player1", *stack4));
+    CHECK(engine->WindowOpen());
+    CHECK(DebtOf(*engine, player1) == 0);
+    CHECK(DebtOf(*engine, *engine->FindPlayer("player2")) == 6);
+}
+
+TEST_CASE("engine draw_stacking: a +2 answers a wild_draw4 window") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    FakeClock clock;
+    std::unique_ptr<MatchInstance> engine = MakeStackingEngine(
+        content, 3, 7, 42, FixedWindow(1000), clock.Fn());
+
+    const ecs::Entity player0 = *engine->FindPlayer("player0");
+    const ecs::Entity player1 = *engine->FindPlayer("player1");
+    const ecs::Entity player2 = *engine->FindPlayer("player2");
+    const std::optional<ecs::Entity> wild4 =
+        FindCard(*engine, "white", "jolly_draw4");
+    const std::optional<ecs::Entity> stack2 = FindCard(*engine, "blue", "+2");
+    REQUIRE(wild4.has_value());
+    REQUIRE(stack2.has_value());
+    ForceHand(*engine, player0, {*wild4});
+    ForceHand(*engine, player1, {*stack2});
+
+    REQUIRE(engine->PlayCard("player0", *wild4));
+    REQUIRE(engine->SubmitInput("player0", "red"));
+    REQUIRE(engine->WindowOpen());
+    CHECK(DebtOf(*engine, player1) == 4);
+
+    // INFO: a coloured +2 stacks on the +4 window and moves the whole debt
+    //       of 6 to the seat after the responder.
+    REQUIRE(engine->RespondWindow("player1", *stack2));
+    CHECK(engine->WindowOpen());
+    CHECK(DebtOf(*engine, player1) == 0);
+    CHECK(DebtOf(*engine, player2) == 6);
+    CHECK(engine->GetCurrentPlayerUsername() == "player1");
+    CHECK(CountEvents(*engine, "window_opened") == 2);
+    CHECK(CountEvents(*engine, "window_closed") == 1);
 }
 
 TEST_CASE("engine draw_stacking: wild_draw4 prompt then window is sequenced") {
@@ -489,12 +606,12 @@ TEST_CASE("engine draw_stacking: wild_draw4 prompt then window is sequenced") {
     REQUIRE(engine->PlayCard("player0", *wild4));
     CHECK_FALSE(engine->WindowOpen());
     REQUIRE(engine->PendingInput().has_value());
-    CHECK(FindEvent(*engine, "window_open") == nullptr);
+    CHECK(FindEvent(*engine, "window_opened") == nullptr);
 
     REQUIRE(engine->SubmitInput("player0", "red"));
     CHECK_FALSE(engine->PendingInput().has_value());
     CHECK(engine->WindowOpen());
-    CHECK(FindEvent(*engine, "window_open") != nullptr);
+    CHECK(FindEvent(*engine, "window_opened") != nullptr);
     // INFO: the deferred window records the +4 play's N as the initial debt
     //       on the victim; the mutated card no longer draws it immediately.
     CHECK(DebtOf(*engine, player1) == 4);
@@ -509,7 +626,7 @@ TEST_CASE("engine draw_stacking: a second window over the play records once") {
     REQUIRE(LoadContent(content));
     FakeClock clock;
     MergedTable table = SetUpMergedTable(
-        content, {"vanilla", "jump_in", "draw_stacking"}, clock);
+        content, {"uni", "jump_in", "draw_stacking"}, clock);
     MatchInstance& engine = *table.engine;
 
     // INFO: both windows open over the same play as one group; the stacking
@@ -530,15 +647,15 @@ TEST_CASE("engine merge: jump_in and draw_stacking open one longest group") {
     REQUIRE(LoadContent(content));
     FakeClock clock;
     MergedTable table = SetUpMergedTable(
-        content, {"vanilla", "jump_in", "draw_stacking"}, clock);
+        content, {"uni", "jump_in", "draw_stacking"}, clock);
     MatchInstance& engine = *table.engine;
 
     REQUIRE(engine.PlayCard("player0", table.draw2));
     REQUIRE(engine.WindowOpen());
 
     // INFO: one open event for the group, on the longest member duration.
-    CHECK(CountEvents(engine, "window_open") == 1);
-    const json* opened = FindEvent(engine, "window_open");
+    CHECK(CountEvents(engine, "window_opened") == 1);
+    const json* opened = FindEvent(engine, "window_opened");
     REQUIRE(opened != nullptr);
     CHECK((*opened)["payload"]["duration_ms"] == kStackingWindowMs);
     CHECK((*opened)["payload"]["kind"] == "jump_in");
@@ -556,8 +673,8 @@ TEST_CASE("engine merge: jump_in and draw_stacking open one longest group") {
     clock.now = 800;
     engine.Tick();
     CHECK(engine.WindowOpen());
-    CHECK(CountEvents(engine, "window_open") == 1);
-    CHECK(CountEvents(engine, "window_close") == 0);
+    CHECK(CountEvents(engine, "window_opened") == 1);
+    CHECK(CountEvents(engine, "window_closed") == 0);
 }
 
 TEST_CASE("engine merge: CanRespondWindow accepts any member's filter") {
@@ -565,7 +682,7 @@ TEST_CASE("engine merge: CanRespondWindow accepts any member's filter") {
     REQUIRE(LoadContent(content));
     FakeClock clock;
     MergedTable table = SetUpMergedTable(
-        content, {"vanilla", "jump_in", "draw_stacking"}, clock);
+        content, {"uni", "jump_in", "draw_stacking"}, clock);
     MatchInstance& engine = *table.engine;
 
     REQUIRE(engine.PlayCard("player0", table.draw2));
@@ -600,8 +717,8 @@ ChainOutcome SnapshotChain(MatchInstance& engine,
         outcome.hands.push_back(HandSize(engine, seat));
     }
     outcome.current = engine.GetCurrentPlayerUsername();
-    outcome.opens = CountEvents(engine, "window_open");
-    outcome.closes = CountEvents(engine, "window_close");
+    outcome.opens = CountEvents(engine, "window_opened");
+    outcome.closes = CountEvents(engine, "window_closed");
     outcome.window_open = engine.WindowOpen();
     return outcome;
 }
@@ -643,8 +760,8 @@ TEST_CASE("engine jump_in debt: a jump-in on a +4 accumulates to 8") {
         // INFO: the jump-in resolved as a stack response by the jumper: the
         //       debt moved on to the jumper's next opponent (player0), the
         //       turn is the jumper's and a new window is open over their card.
-        CHECK(CountEvents(engine, "window_close") == 1);
-        CHECK(CountEvents(engine, "window_open") == 2);
+        CHECK(CountEvents(engine, "window_closed") == 1);
+        CHECK(CountEvents(engine, "window_opened") == 2);
         CHECK(engine.WindowOpen());
         CHECK(DebtOf(engine, table.player0) == 8);
         CHECK(DebtOf(engine, table.player1) == 0);
@@ -662,11 +779,38 @@ TEST_CASE("engine jump_in debt: a jump-in on a +4 accumulates to 8") {
         clock.now = 2 * kStackingWindowMs;
         engine.Tick();
         CHECK_FALSE(engine.WindowOpen());
-        CHECK(CountEvents(engine, "window_close") == 2);
+        CHECK(CountEvents(engine, "window_closed") == 2);
         CHECK(DebtOf(engine, table.player0) == 0);
         CHECK(HandSize(engine, table.player0) == player0_hand + 8);
         CHECK(engine.GetCurrentPlayerUsername() == "player1");
     }
+}
+
+TEST_CASE("engine jump_in debt: the draw that pays the kept debt is from_debt") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    FakeClock clock;
+    ecs::Entity jump4{};
+    Plus4Table table = OpenPlus4JumpTable(
+        content, {"uni", "jump_in", "draw_stacking"}, clock, jump4);
+    MatchInstance& engine = *table.engine;
+    REQUIRE(engine.RespondWindow("player2", jump4));
+    clock.now = kJumpInHoldMs;
+    engine.Tick();
+    REQUIRE(DebtOf(engine, table.player0) == 8);
+
+    clock.now = 2 * kStackingWindowMs;
+    engine.Tick();
+
+    const json* drawn = nullptr;
+    for (const json& event : engine.Events()) {
+        if (event.value("type", "") == "cards_drawn") drawn = &event;
+    }
+    REQUIRE(drawn != nullptr);
+    CHECK((*drawn)["payload"]["count"] == 8);
+    CHECK((*drawn)["payload"]["from_debt"] == true);
+    CHECK((*drawn)["payload"]["hand_size_after"]
+          == HandSize(engine, table.player0));
 }
 
 TEST_CASE("engine jump_in debt: a victim pass with a winner keeps the debt") {
@@ -795,8 +939,8 @@ TEST_CASE("engine jump_in debt: a jump-in with no debt only redirects") {
         engine.Tick();
 
         CHECK_FALSE(engine.WindowOpen());
-        CHECK(CountEvents(engine, "window_open") == 1);
-        CHECK(CountEvents(engine, "window_close") == 1);
+        CHECK(CountEvents(engine, "window_opened") == 1);
+        CHECK(CountEvents(engine, "window_closed") == 1);
         for (ecs::Entity seat : seats) CHECK(DebtOf(engine, seat) == 0);
         CHECK(HandSize(engine, table.player1) == table.victim_hand);
         CHECK(CountNoJumpSignals(engine) == 0);
@@ -873,7 +1017,7 @@ TEST_CASE("engine merge: a jump-in winner skips the stacking default draw") {
     REQUIRE(LoadContent(content));
     FakeClock clock;
     MergedTable table = SetUpMergedTable(
-        content, {"vanilla", "jump_in", "draw_stacking"}, clock);
+        content, {"uni", "jump_in", "draw_stacking"}, clock);
     MatchInstance& engine = *table.engine;
 
     REQUIRE(engine.PlayCard("player0", table.draw2));
@@ -893,7 +1037,7 @@ TEST_CASE("engine merge: a member's responders scope its accepted cards") {
     REQUIRE(LoadContent(content));
     FakeClock clock;
     MergedTable table = SetUpMergedTable(
-        content, {"vanilla", "jump_in", "draw_stacking"}, clock);
+        content, {"uni", "jump_in", "draw_stacking"}, clock);
     MatchInstance& engine = *table.engine;
     const std::optional<ecs::Entity> stack_card =
         FindCard(engine, "yellow", "+2");
@@ -919,7 +1063,7 @@ TEST_CASE("engine merge: a wild +4 prompt then one merged group") {
     REQUIRE(LoadContent(content));
     FakeClock clock;
     std::unique_ptr<MatchInstance> engine =
-        Assemble(content, {"vanilla", "jump_in", "draw_stacking"}, 3, 7, 42,
+        Assemble(content, {"uni", "jump_in", "draw_stacking"}, 3, 7, 42,
                  FixedWindow(kStackingWindowMs), clock.Fn());
     const ecs::Entity player0 = *engine->FindPlayer("player0");
     const ecs::Entity player1 = *engine->FindPlayer("player1");
@@ -937,8 +1081,8 @@ TEST_CASE("engine merge: a wild +4 prompt then one merged group") {
 
     // INFO: both windows deferred behind the prompt open as one group.
     REQUIRE(engine->WindowOpen());
-    CHECK(CountEvents(*engine, "window_open") == 1);
-    const json* opened = FindEvent(*engine, "window_open");
+    CHECK(CountEvents(*engine, "window_opened") == 1);
+    const json* opened = FindEvent(*engine, "window_opened");
     REQUIRE(opened != nullptr);
     CHECK((*opened)["payload"]["duration_ms"] == kStackingWindowMs);
     CHECK((*opened)["payload"]["kind"] == "jump_in");
@@ -950,7 +1094,7 @@ TEST_CASE("engine merge: a stack response still stacks and re-opens") {
     REQUIRE(LoadContent(content));
     FakeClock clock;
     MergedTable table = SetUpMergedTable(
-        content, {"vanilla", "jump_in", "draw_stacking"}, clock);
+        content, {"uni", "jump_in", "draw_stacking"}, clock);
     MatchInstance& engine = *table.engine;
 
     REQUIRE(engine.PlayCard("player0", table.draw2));
@@ -963,8 +1107,8 @@ TEST_CASE("engine merge: a stack response still stacks and re-opens") {
     // INFO: draw_stacking's on_response owns the reply: the debt moves on to
     //       player2, player1 holds the turn and the stacking window re-opens;
     //       jump_in's default did not run.
-    CHECK(CountEvents(engine, "window_close") == 1);
-    CHECK(CountEvents(engine, "window_open") == 2);
+    CHECK(CountEvents(engine, "window_closed") == 1);
+    CHECK(CountEvents(engine, "window_opened") == 2);
     CHECK(engine.WindowOpen());
     CHECK(DebtOf(engine, table.player1) == 0);
     CHECK(DebtOf(engine, table.player2) == 4);
@@ -972,12 +1116,44 @@ TEST_CASE("engine merge: a stack response still stacks and re-opens") {
     CHECK(CountNoJumpSignals(engine) == 0);
 }
 
+TEST_CASE("engine merge: a stack answer reports the stacking member kind") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    FakeClock clock;
+    MergedTable table = SetUpMergedTable(
+        content, {"uni", "jump_in", "draw_stacking"}, clock);
+    MatchInstance& engine = *table.engine;
+
+    // INFO: the victim answers the red +2 with their own identical red +2.
+    //       Jump_in owns the card (first eligible member), but the card
+    //       stacks, so the wire must name the stacking member, not jump_in
+    //       (otherwise both the jump-in line and the stack line post).
+    ForceHand(engine, table.player1, {table.identical2, table.filler1});
+    REQUIRE(engine.PlayCard("player0", table.draw2));
+    REQUIRE(engine.WindowOpen());
+    REQUIRE(engine.RespondWindow("player1", table.identical2));
+
+    const json* answered = nullptr;
+    for (const json& event : engine.Events()) {
+        if (event.is_object()
+            && event.value("type", "") == "window_responded"
+            && event["payload"].value("outcome", "") == "winning") {
+            answered = &event;
+            break;
+        }
+    }
+    REQUIRE(answered != nullptr);
+    // INFO: draw_stacking declares no window kind, so the stacking member
+    //       kind is the generic default.
+    CHECK((*answered)["payload"]["window_kind"] == "generic");
+}
+
 TEST_CASE("engine merge: no responder runs every default once in order") {
     Content content;
     REQUIRE(LoadContent(content));
     FakeClock clock;
     MergedTable table = SetUpMergedTable(
-        content, {"vanilla", "jump_in", "draw_stacking"}, clock);
+        content, {"uni", "jump_in", "draw_stacking"}, clock);
     MatchInstance& engine = *table.engine;
 
     REQUIRE(engine.PlayCard("player0", table.draw2));
@@ -986,8 +1162,8 @@ TEST_CASE("engine merge: no responder runs every default once in order") {
     engine.Tick();
 
     CHECK_FALSE(engine.WindowOpen());
-    CHECK(CountEvents(engine, "window_open") == 1);
-    CHECK(CountEvents(engine, "window_close") == 1);
+    CHECK(CountEvents(engine, "window_opened") == 1);
+    CHECK(CountEvents(engine, "window_closed") == 1);
     CHECK(CountNoJumpSignals(engine) == 1);
     CHECK(DebtOf(engine, table.player1) == 0);
     CHECK(HandSize(engine, table.player1) == table.victim_hand + 2);
@@ -1014,12 +1190,12 @@ TEST_CASE("engine merge: the group kind follows the first member") {
     REQUIRE(LoadContent(content));
     FakeClock clock;
     MergedTable table = SetUpMergedTable(
-        content, {"vanilla", "draw_stacking", "jump_in"}, clock);
+        content, {"uni", "draw_stacking", "jump_in"}, clock);
     MatchInstance& engine = *table.engine;
 
     REQUIRE(engine.PlayCard("player0", table.draw2));
     REQUIRE(engine.WindowOpen());
-    CHECK(CountEvents(engine, "window_open") == 1);
+    CHECK(CountEvents(engine, "window_opened") == 1);
     CHECK(engine.ExportWindow()["kind"] == "generic");
 
     // INFO: passability keys on the hold, not the kind: the victim passes
@@ -1028,7 +1204,7 @@ TEST_CASE("engine merge: the group kind follows the first member") {
     CHECK_FALSE(engine.PassWindow("player2"));
     REQUIRE(engine.PassWindow("player1"));
     CHECK_FALSE(engine.WindowOpen());
-    CHECK(CountEvents(engine, "window_close") == 1);
+    CHECK(CountEvents(engine, "window_closed") == 1);
     CHECK(CountNoJumpSignals(engine) == 1);
     CHECK(HandSize(engine, table.player1) == table.victim_hand + 2);
 }
@@ -1050,13 +1226,13 @@ TEST_CASE("engine hold: the victim passes at the hold boundary, not before") {
         CHECK(engine.ExportWindow()["responses"].empty());
         CHECK(DebtOf(engine, table.player1) == 4);
         CHECK(HandSize(engine, table.player1) == table.victim_hand);
-        CHECK(CountEvents(engine, "window_close") == 0);
+        CHECK(CountEvents(engine, "window_closed") == 0);
 
         clock.now = kJumpInHoldMs;
         CHECK(engine.WindowHoldElapsed());
         REQUIRE(engine.PassWindow("player1"));
         CHECK_FALSE(engine.WindowOpen());
-        CHECK(CountEvents(engine, "window_close") == 1);
+        CHECK(CountEvents(engine, "window_closed") == 1);
         CHECK(DebtOf(engine, table.player1) == 0);
         CHECK(HandSize(engine, table.player1) == table.victim_hand + 4);
         CHECK(HandSize(engine, table.player2) == table.bystander_hand);
@@ -1099,7 +1275,7 @@ TEST_CASE("engine hold: timer expiry draws the same cards as a pass") {
         engine.Tick();
 
         CHECK_FALSE(engine.WindowOpen());
-        CHECK(CountEvents(engine, "window_close") == 1);
+        CHECK(CountEvents(engine, "window_closed") == 1);
         CHECK(DebtOf(engine, table.player1) == 0);
         CHECK(HandSize(engine, table.player1) == table.victim_hand + 4);
         CHECK(engine.GetCurrentPlayerUsername() == "player2");
@@ -1120,17 +1296,17 @@ TEST_CASE("engine hold: a jump-in closes the group at the hold end") {
         REQUIRE(engine.RespondWindow("player2", jump4));
         clock.now = kJumpInHoldMs - 1;
         engine.Tick();
-        CHECK(CountEvents(engine, "window_close") == 0);
+        CHECK(CountEvents(engine, "window_closed") == 0);
         CHECK(DebtOf(engine, table.player1) == 4);
 
         clock.now = kJumpInHoldMs;
         engine.Tick();
-        CHECK(CountEvents(engine, "window_close") == 1);
+        CHECK(CountEvents(engine, "window_closed") == 1);
         CHECK(DebtOf(engine, table.player0) == 8);
         CHECK(DebtOf(engine, table.player1) == 0);
         CHECK(HandSize(engine, table.player1) == table.victim_hand);
         engine.Tick();
-        CHECK(CountEvents(engine, "window_close") == 1);
+        CHECK(CountEvents(engine, "window_closed") == 1);
     }
 }
 
@@ -1146,7 +1322,7 @@ TEST_CASE("engine hold: a jump-in after the hold closes immediately") {
 
         clock.now = 1500;
         REQUIRE(engine.RespondWindow("player2", jump4));
-        CHECK(CountEvents(engine, "window_close") == 1);
+        CHECK(CountEvents(engine, "window_closed") == 1);
         CHECK(DebtOf(engine, table.player0) == 8);
         CHECK(engine.GetCurrentPlayerUsername() == "player2");
     }
@@ -1166,10 +1342,10 @@ TEST_CASE("engine hold: a victim stack closes at the hold end or at once") {
             REQUIRE(engine.RespondWindow("player1", table.stack2));
             clock.now = kJumpInHoldMs - 1;
             engine.Tick();
-            CHECK(CountEvents(engine, "window_close") == 0);
+            CHECK(CountEvents(engine, "window_closed") == 0);
             clock.now = kJumpInHoldMs;
             engine.Tick();
-            CHECK(CountEvents(engine, "window_close") == 1);
+            CHECK(CountEvents(engine, "window_closed") == 1);
             CHECK(DebtOf(engine, table.player2) == 4);
         }
         {
@@ -1179,7 +1355,7 @@ TEST_CASE("engine hold: a victim stack closes at the hold end or at once") {
             REQUIRE(engine.PlayCard("player0", table.draw2));
             clock.now = 1500;
             REQUIRE(engine.RespondWindow("player1", table.stack2));
-            CHECK(CountEvents(engine, "window_close") == 1);
+            CHECK(CountEvents(engine, "window_closed") == 1);
             CHECK(DebtOf(engine, table.player2) == 4);
         }
     }
@@ -1204,7 +1380,7 @@ TEST_CASE("engine hold: no winner still runs to the timeout and draws") {
         engine.Tick();
         CHECK_FALSE(engine.WindowOpen());
         CHECK(HandSize(engine, table.player1) == table.victim_hand + 4);
-        CHECK(CountEvents(engine, "window_close") == 1);
+        CHECK(CountEvents(engine, "window_closed") == 1);
     }
 }
 
@@ -1227,8 +1403,8 @@ TEST_CASE("engine hold: a pass then a tick never draws twice") {
         CHECK_FALSE(engine.PassWindow("player1"));
         CHECK(HandSize(engine, table.player1) == drawn_hand);
         CHECK(drawn_hand == table.victim_hand + 4);
-        CHECK(CountEvents(engine, "window_close") == 1);
-        CHECK(CountEvents(engine, "window_open") == 1);
+        CHECK(CountEvents(engine, "window_closed") == 1);
+        CHECK(CountEvents(engine, "window_opened") == 1);
     }
 }
 
@@ -1256,7 +1432,7 @@ TEST_CASE("engine hold: a play after a pass opens a jumpable group") {
         ForceHand(engine, table.player0, {*second5, table.filler0});
         REQUIRE(engine.PlayCard("player2", *first5));
         REQUIRE(engine.WindowOpen());
-        CHECK(CountEvents(engine, "window_open") == 2);
+        CHECK(CountEvents(engine, "window_opened") == 2);
         CHECK(engine.CanRespondWindow(table.player0, *second5));
         CHECK(engine.RespondWindow("player0", *second5));
     }
@@ -1267,7 +1443,7 @@ TEST_CASE("engine hold: a jump_in-only window has no pass at all") {
     REQUIRE(LoadContent(content));
     FakeClock clock;
     std::unique_ptr<MatchInstance> engine =
-        Assemble(content, {"vanilla", "jump_in"}, 3, 7, 42,
+        Assemble(content, {"uni", "jump_in"}, 3, 7, 42,
                  FixedWindow(kStackingWindowMs), clock.Fn());
     const ecs::Entity player1 = *engine->FindPlayer("player1");
     const std::optional<ecs::Entity> top = [&]() {
@@ -1303,7 +1479,7 @@ TEST_CASE("engine hold: a jump_in-only window has no pass at all") {
     }
     engine->Tick();
     CHECK_FALSE(engine->WindowOpen());
-    CHECK(CountEvents(*engine, "window_close") == 1);
+    CHECK(CountEvents(*engine, "window_closed") == 1);
 }
 
 TEST_CASE("engine draw_stacking: CanRespondWindow mirrors RespondWindow") {
@@ -1340,8 +1516,9 @@ TEST_CASE("engine draw_stacking: CanRespondWindow mirrors RespondWindow") {
     CHECK(engine->CanRespondWindow(player1, *stack2));
     CHECK_FALSE(engine->CanRespondWindow(player1, *filler1));
     CHECK_FALSE(engine->CanRespondWindow(player0, *filler0));
-    // INFO: legacy stacking only matches the same draw value (+4 on +2 no).
-    CHECK_FALSE(engine->CanRespondWindow(player1, *wild4));
+    // INFO: mixed stacking: a +4 answers a +2 window too (any stackable +N
+    //       answers any stackable +N).
+    CHECK(engine->CanRespondWindow(player1, *wild4));
 
     REQUIRE(engine->RespondWindow("player1", *stack2));
     CHECK_FALSE(engine->CanRespondWindow(player1, *filler1));

@@ -71,4 +71,15 @@ std::string ResolvePlayer(const match::engine::MatchInstance& match,
 uint32_t CardBitsFor(const match::engine::MatchInstance& match,
                      const nlohmann::json& value);
 
+/**
+ * @brief The kind id (`namespace:id`) of a card entity handle.
+ *
+ * Reads the frozen registry only. Returns an empty string when `value` is not
+ * a card of this match. The kind of a card says nothing about where it is, but
+ * the caller must still decide whether the kind is public at that moment.
+ */
+std::string KindIdFor(const match::engine::MatchInstance& match,
+                      const nlohmann::json& value);
+
+
 }  // namespace match::view

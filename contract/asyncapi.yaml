@@ -47,6 +47,8 @@ channels:
       message:
         oneOf:
           - $ref: "#/components/messages/MatchPlayCard"
+          - $ref: "#/components/messages/DirectorCommand"
+
           - $ref: "#/components/messages/MatchDrawCard"
           - $ref: "#/components/messages/MatchKeepDrawn"
           - $ref: "#/components/messages/MatchSubmitInput"
@@ -54,6 +56,7 @@ channels:
           - $ref: "#/components/messages/MatchWindowResponse"
           - $ref: "#/components/messages/MatchExit"
           - $ref: "#/components/messages/MatchClientReady"
+          - $ref: "#/components/messages/MatchSnapshotRequest"
           - $ref: "#/components/messages/LobbyListRequest"
           - $ref: "#/components/messages/LobbyCreate"
           - $ref: "#/components/messages/LobbyJoin"
@@ -87,6 +90,8 @@ components:
   # the envelope `payload` object. Add new packet types here additively.
   # This map is documentation/registry only; the codegens ignore unknown
   # `x-` extensions, so adding it changes no generated artifact.
+  # `chain_aborted` and `mod_disarmed` are server-only diagnostics (audience
+  # `none`): they never leave the server, so they have no packet type.
   x-packet-types:
     match_start: MatchStartPayload
     players_ready: PlayersReadyPayload
@@ -95,27 +100,42 @@ components:
     card_played: CardPlayedPayload
     play_rejected: PlayRejectedPayload
     cards_drawn: CardsDrawnPayload
+    drawn_card_kept: DrawnCardKeptPayload
     reshuffle: ReshufflePayload
     hands_swapped: HandsSwappedPayload
     hands_passed: HandsPassedPayload
+    hands_redistributed: HandsRedistributedPayload
+    card_moved: CardMovedPayload
+    card_created: CardCreatedPayload
+    card_removed: CardRemovedPayload
+    card_replaced: CardReplacedPayload
     status_applied: StatusAppliedPayload
     status_removed: StatusRemovedPayload
-    window_open: WindowOpenPayload
-    window_response: WindowResponsePayload
-    window_close: WindowClosePayload
+    window_opened: WindowOpenedPayload
+    window_responded: WindowRespondedPayload
+    window_closed: WindowClosedPayload
     auto_played: AutoPlayedPayload
-    prompt_open: PromptOpenPayload
-    prompt_close: PromptClosePayload
+    prompt_opened: PromptOpenedPayload
+    prompt_answered: PromptAnsweredPayload
     turn_advance: TurnAdvancePayload
+    direction_changed: DirectionChangedPayload
+    mod_event: ModEventPayload
+    turn_skipped: TurnSkippedPayload
+    extra_turn_granted: ExtraTurnGrantedPayload
+    near_win_entered: NearWinEnteredPayload
+    blocked: BlockedPayload
+    active_type_changed: ActiveTypeChangedPayload
+    restriction_added: RestrictionAddedPayload
+    restriction_removed: RestrictionRemovedPayload
+    turn_timer_changed: TurnTimerChangedPayload
     round_advance: RoundAdvancePayload
-    roll_result: RollResultPayload
     signal: SignalPayload
-    chain_aborted: ChainAbortedPayload
-    mod_disarmed: ModDisarmedPayload
     visibility_granted: VisibilityGrantedPayload
     visibility_revoked: VisibilityRevokedPayload
-    placement: PlacementPayload
-    match_end: MatchEndPayload
+    outcome_rolled: OutcomeRolledPayload
+    status_modified: StatusModifiedPayload
+    placement_set: PlacementSetPayload
+    match_ended: MatchEndedPayload
 
   # -------------------------------------------------------------------------
   # Messages
@@ -250,6 +270,27 @@ components:
                 description:
                   type: string
                   description: One-sentence explanation of the rule's effect.
+          mods:
+            type: array
+            description: >
+              The text listing of the loaded mods, for use before a match
+              starts: the same `texts` and `glossary` listings that the `defs`
+              packet carries. The lobby shows glossary tooltips before any
+              `defs` packet exists. A mod with neither listing is absent.
+            items:
+              type: object
+              required: [id]
+              properties:
+                id:
+                  type: string
+                texts:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/ModTextsFile"
+                glossary:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/ModGlossaryEntry"
 
     LobbyUpdated:
       name: lobby_updated
@@ -306,9 +347,9 @@ components:
               MatchInstance::SerializePlayerState(). Structure owned by the match engine.
               Timer fields: `server_now_ms` is the server clock the absolute
               deadlines are measured on (`turn_deadline_ms`, `window.deadline_ms`,
-              `prompts[].deadline_ms`); `window` has the `WindowOpenPayload`
-              shape plus `responses`, and `prompts[]` the `PromptOpenPayload`
-              shape (with `duration_ms`). `prompt_wait` ({deadline_ms,
+              `prompts[].deadline_ms`); `window` has the `WindowOpenedPayload`
+              shape plus `responses`, and `prompts[]` the `PromptOpenedPayload` shape
+              (with `duration_ms`). `prompt_wait` ({deadline_ms,
               duration_ms}, same absolute convention as `prompts[]`) is sent to
               EVERY viewer while any prompt is pending and carries only the
               clock, never the payload or target; it is omitted when no
@@ -323,6 +364,28 @@ components:
               usernames best-first. In a race it grows as seats finish and
               `winner` stays empty until the race ends, when every seat still
               holding cards is ranked below the finishers.
+              `context` holds the engine-owned values that a late joiner or
+              a seat after `match_snapshot_request` reads instead of
+              rebuilding them from client events (see `SnapshotContext`).
+              `tail` (warm-up snapshot only: a late join, a reconnect and the
+              answer to `match_snapshot_request`; a broadcast snapshot has no
+              `tail`) holds the retained client events for the PLAY LOG. It
+              is a self-contained list: its `sequence` numbers start at 0 and
+              count the tail only, it never consumes the live stream of the
+              recipient, and every envelope has `replayed: true`. The live
+              stream continues at `seq_watermark` with no gap and no
+              duplicate. The server stores each logical client event one time
+              and projects it for the recipient with the same redaction as a
+              live event. A client feeds the tail to the play log ONLY: no
+              animation, no sound, no timer and no state change. Retention:
+              see `MatchEventPayload.replayed`.
+            properties:
+              context:
+                $ref: "#/components/schemas/SnapshotContext"
+              tail:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MatchEventPayload"
           action_required:
             type: integer
             description: >
@@ -468,6 +531,12 @@ components:
       payload:
         $ref: "#/components/schemas/GamePlayCardPayload"
 
+    DirectorCommand:
+      name: director_command
+      title: Director Control
+      payload:
+        $ref: "#/components/schemas/GameDirectorCommandPayload"
+
     MatchDrawCard:
       name: match_draw_card
       title: Draw a Card
@@ -506,6 +575,24 @@ components:
             type: string
             enum: ["match_client_ready"]
 
+    MatchSnapshotRequest:
+      name: match_snapshot_request
+      title: Request A New Snapshot (after a sequence gap)
+      description: >
+        Sent by a client that sees a gap in the `sequence` of its client
+        events. The server answers with `match_state_updated`; its
+        `seq_watermark` is the `sequence` of the next packet for this
+        recipient. The server rate limits the request per recipient (default
+        one per 1000 ms, environment variable
+        `SNAPSHOT_REQUEST_MIN_INTERVAL_MS`); a request inside the interval
+        gets no answer. Empty payload.
+      payload:
+        type: object
+        properties:
+          action:
+            type: string
+            enum: ["match_snapshot_request"]
+
     MatchSubmitInput:
       name: match_submit_input
       title: Submit Mandatory Input (e.g. colour choice)
@@ -516,7 +603,7 @@ components:
       name: match_prompt_response
       title: Prompt Response (generic prompt envelope reply)
       description: >
-        Client response to a prompt opened by a prompt_open event packet.
+        Client response to a prompt opened by a `prompt_opened` event packet.
         `value` is an arbitrary JSON value validated server-side against the
         prompt's response_schema. ADDITIVE: coexists with match_submit_input /
         the Action enum, which the new engine no longer uses.
@@ -527,7 +614,7 @@ components:
       name: match_window_response
       title: Window Response (pass or play a card into the open window)
       description: >
-        Client reply to a `window_open` event packet. `pass`
+        Client reply to a `window_opened` event packet. `pass`
         true declines the window (the Pass button); otherwise
         `card_id` (CompactCardV2.bits) plays a response card. `window_id` is
         informational and currently ignored by the server.
@@ -718,6 +805,93 @@ components:
     # mirrors. Backend: scripts/generate_contract_hpp.py -> common/contract.hpp
     # (contract::k...). Frontend: scripts/generate-schemas.js -> schemas.ts.
 
+    # INFO: engine-owned values of a warm-up snapshot. A client reads them and
+    #       computes nothing from client events (spec "Snapshot and late join").
+    SnapshotContext:
+      type: object
+      required:
+        - active_color
+        - direction
+        - draw_debt
+        - hold
+        - timers
+        - last_event_sequence
+        - streaks
+      properties:
+        active_color:
+          type: [string, "null"]
+          description: The color that a play must match. Null when none.
+        direction:
+          type: integer
+          description: Play direction, 1 clockwise and -1 counter-clockwise.
+        draw_debt:
+          type: integer
+          description: >
+            Draw debt that one seat holds, 0 when none. It follows the rule
+            of `status_applied`: a hidden `uni:draw_debt` status counts only
+            for the seat that owns it. Another seat and a spectator get the
+            sum of the visible statuses. The old top-level `pending_draws`
+            field is unchanged and still counts hidden debt.
+        hold:
+          description: >
+            The play-drawn hold, or null. All recipients get `player` and
+            `held`; only the owner of the drawn card gets `card`.
+          oneOf:
+            - type: "null"
+            - type: object
+              required: [player, held]
+              properties:
+                player:
+                  type: string
+                held:
+                  type: boolean
+                card:
+                  type: integer
+                  description: Compact card bits. Owner only.
+        timers:
+          type: object
+          description: >
+            Live timers on the clock of `server_now_ms`. A remaining time of 0
+            means no time is left or no timer runs. While a window is open the
+            turn clock is suspended: `turn_deadline_ms` is 0 and
+            `turn_remaining_ms` holds the time that is left for the turn.
+          required:
+            - turn_deadline_ms
+            - turn_remaining_ms
+            - window_deadline_ms
+            - window_remaining_ms
+          properties:
+            turn_deadline_ms: { type: integer }
+            turn_remaining_ms: { type: integer }
+            window_deadline_ms: { type: integer }
+            window_remaining_ms: { type: integer }
+        last_event_sequence:
+          type: [integer, "null"]
+          description: >
+            The `sequence` of the last client event that this recipient
+            received. Null before the first event. The next live event has
+            this value plus one. `seq_watermark` is that next value.
+        streaks:
+          type: object
+          description: >
+            The current value of every `uni` streak, by streak id (for
+            example `uni:skip_run`). A client reads the same values as a
+            continuous player read from the envelope `context`. The values
+            are public to all seats and spectators.
+          additionalProperties:
+            $ref: "#/components/schemas/StreakValue"
+        near_win:
+          type: object
+          description: >
+            The derived event windows, keyed by the event id that opens them
+            (`near_win_entered`). The windows are engine-owned state, not
+            streak values: closing a window compares an event with the seat
+            of the window. `blocked` has no state of its own; it reads the
+            window. A late joiner shows the same near-win cue as a
+            continuous player from this object and from the tail.
+          additionalProperties:
+            $ref: "#/components/schemas/DerivedWindow"
+
     Username:
       type: string
       minLength: 3
@@ -764,10 +938,12 @@ components:
     # (frontend: MOD_API_VERSION, backend: contract::kModApiVersion).
     ModApiVersion:
       type: integer
-      minimum: 1
+      minimum: 2
       description: >
         Highest mod content API version this engine accepts. Starts at 1 and
-        lives with the generated contract constants.
+        lives with the generated contract constants. Bumped to 2 for
+        `entities/` and `presentations/` (a mod using them must not load on an
+        engine that would silently ignore the directories).
       x-constants: { minimum: ModApiVersion }
 
     # --- Client → Server payload schemas (C++ structs generated from these) ---
@@ -785,6 +961,22 @@ components:
           description: >
             CompactCardV2.bits of the card to play (uint32 identity:
             mod/kind/instance), not a 16-bit legacy id.
+
+    GameDirectorCommandPayload:
+      type: object
+      required:
+        - op
+      properties:
+        op:
+          type: string
+          description: >
+            Whitelisted director operation name, e.g. materialize_card.
+        args:
+          type: object
+          additionalProperties: true
+          description: Operation arguments passed to OpRuntime Invoke.
+        request_id:
+          type: string
 
     GameSubmitInputPayload:
       type: object
@@ -1007,6 +1199,13 @@ components:
           description: >
             Op-specific fields (e.g. move's destination slot, screenEffect's
             effect name and duration).
+        groupId:
+          type: string
+          description: >
+            Optional grouping key. Steps in a beat sharing a groupId are placed
+            at the group's first atS (in array order) and their timelines added
+            at that shared position; absent, each step uses its own atS within
+            the beat.
 
     UserUpdatePrivacyPayload:
       type: object
@@ -1021,7 +1220,13 @@ components:
           type: string
         privacy_mode:
           type: boolean
-          description: Whether streamer / privacy mode is enabled (hides hand from spectators).
+          description: >-
+            Whether Streamer/Privacy Mode is enabled. When true, a spectator
+            sees card backs for the seat of this player; when false, a
+            spectator sees the hidden cards of the seat. The server saves the
+            value for an account (default false) and keeps it for the socket
+            session of a guest. The change reaches a spectator at the next
+            client event.
 
     SpectatorViewPayload:
       type: object
@@ -1039,25 +1244,29 @@ components:
             attributes the spectator to whoever's turn it is.
 
     # --- Event-stream packet payloads -----------------------
-    # The MatchEvent envelope is {seq, type, payload}; the named *Payload
-    # schemas below describe the inner `payload` object for each packet `type`.
+    # The MatchEvent envelope is the client event envelope. The named *Payload
+    # schemas below describe the inner `payload` object for each packet `id`.
     #
     # Versioning convention (x-packet-v1): every packet payload schema carries
     # a top-level `x-packet-version: "1"` marker. Evolve payloads additively;
     # bump the marker only on a breaking change. Clients MUST ignore unknown
-    # `type` strings (and unknown trailing fields) without error.
+    # `id` strings (and unknown trailing fields) without error.
 
-    # Event-stream envelope. The MatchEvent message references this
-    # schema. `seq` is a per-match monotonic uint32; per-recipient filtering may
-    # drop a packet for one viewer but never renumbers, so each recipient's
-    # stream is gap-free. The server emits in resolution order and the transport
-    # preserves per-connection order. On a seq gap > 1 the client flushes its
-    # animation queue, marks itself desynced, and reconciles from the next
-    # state snapshot. FORWARD-COMPAT (normative): unknown `type` strings MUST be
-    # ignored by clients, never treated as errors. The valid `type` values are
-    # pinned by components.x-packet-types; the inner payload shape per `type` is
+    # Event-stream envelope. The MatchEvent message references this schema.
+    # Each recipient has its own `sequence`. It grows by one for each packet
+    # that this recipient receives, and session packets (prompts, defs, ...)
+    # use the same counter. An event that goes to one seat only never makes a
+    # gap for another seat. On a `sequence` gap the client flushes its
+    # animation queue, sends `match_snapshot_request`, and reconciles from the
+    # snapshot. `cause` is the `sequence` of the causing client event as this
+    # recipient knows it. It is absent when there is no cause or when the
+    # recipient cannot see the causing event. `actor` is the username of the
+    # seat that caused the event. It is absent for a table event.
+    # FORWARD-COMPAT (normative): unknown `id` strings MUST be ignored by
+    # clients, never treated as errors. The valid `id` values are pinned by
+    # components.x-packet-types; the inner payload shape per `id` is
     # described by the named *Payload schemas below, versioned by name via the
-    # x-packet-v1 marker (`x-packet-version: "1"`); new packet types are added
+    # x-packet-v1 marker (`x-packet-version: "1"`); new packet ids are added
     # additively.
     #
     # WARN: `payload` (here, and the same for SignalPayload.payload and
@@ -1067,30 +1276,112 @@ components:
     #       parses its contents (toJson() -> `{}`, fromJson() discards). Do NOT
     #       assume the C++ generated struct round-trips this field; consumers
     #       must carry/parse raw JSON for it (the view layer and the session
-    # layer). WARN: `seq` is a uint32 on the wire but asyncapi_gencpp emits
-    #       every integer as C++ `int` (32-bit signed), so the 4294967295
-    #       maximum does not fit and the generated range check is inert. The
-    #       view layer and the controller must handle the uint32 range
-    #       explicitly (carry raw JSON or widen); no schema change is made here.
+    # layer). WARN: `sequence` is a uint32 on the wire but asyncapi_gencpp
+    #       emits every integer as C++ `int` (32-bit signed), so the
+    #       4294967295 maximum does not fit and the generated range check is
+    #       inert. The view layer and the controller must handle the uint32
+    #       range explicitly (carry raw JSON or widen); no schema change is
+    #       made here.
+    StreakValue:
+      description: >
+        The value of one streak. A `run` streak and an ungrouped `total`
+        streak give an integer. A grouped `total` streak gives an object
+        from group to count. A `last_value` streak gives an object with
+        `last` and `previous`. A streak reads payload fields with the
+        audience `all` only, so a value never holds hidden information.
+      oneOf:
+        - type: integer
+          minimum: 0
+        - type: object
+          additionalProperties: true
+
+    DerivedWindow:
+      type: object
+      required: [target, open]
+      properties:
+        target:
+          type: [string, "null"]
+          description: >
+            The seat of the last window. Null until a window opens. It stays
+            after the window closes.
+        open:
+          type: boolean
+          description: True while the window is open.
+
+    StreakContext:
+      type: object
+      description: >
+        The streak values that an event asked for (`uni:context`, and a
+        table of core events in `event_audience.hpp`: `direction_changed`
+        asks for `uni:reverse_run`, `turn_skipped` asks for
+        `uni:skip_run`, `cards_drawn` asks for `uni:draw_run` and
+        `uni:total_draws`, `active_type_changed` asks for `uni:wild_run` and
+        `uni:last_wild_color`). The value is the value AFTER the event. The
+        object is public to every seat and spectator. It is absent when the
+        event asks for nothing. The size is at most `UNI_CONTEXT_SIZE_MAX`
+        bytes (default 512).
+      additionalProperties:
+        $ref: "#/components/schemas/StreakValue"
+
     MatchEventPayload:
       type: object
       x-packet-version: "1"
-      required: [seq, type, payload]
+      required: [sequence, id, payload]
       properties:
-        seq:
+        sequence:
           type: integer
           minimum: 0
           maximum: 4294967295
           description: >
-            Per-match monotonic sequence number (uint32); gap-free per
-            recipient. Generated C++ type is `int` (see WARN above).
-        type:
+            Per-recipient sequence number (uint32); gap-free per recipient.
+            Generated C++ type is `int` (see WARN above).
+        id:
           type: string
-          description: Packet discriminator. Unknown values MUST be ignored by clients.
+          description: >
+            Namespaced name of what happened. Unknown values MUST be ignored
+            by clients.
+        actor:
+          type: string
+          description: Username of the seat that caused the event.
+        cause:
+          type: integer
+          minimum: 0
+          maximum: 4294967295
+          description: >
+            The `sequence` of the causing client event, in the sequence space
+            of this recipient. Absent when the recipient cannot see it.
+        turn:
+          type: integer
+          minimum: 0
+          description: The turn number of the event.
+        round:
+          type: integer
+          minimum: 0
+          description: The round number of the event.
+        context:
+          $ref: "#/components/schemas/StreakContext"
+        replayed:
+          type: boolean
+          description: >
+            True on an envelope of the snapshot `tail` (a replayed client
+            event); absent on a live event. A replayed event is stale: it
+            must not start an animation, a sound or a timer (a replayed
+            `turn_advance` holds the deadline of its time, and the live timer
+            state is in `context.timers`), and it never opens the play-drawn
+            hold (that is `context.hold`). Retention of a core event is set by
+            the engine in one table (`event_audience.hpp`): `transient` is
+            never replayed; `until_turn_end` is dropped when the turn counter
+            changes; `until_round_end` when the round counter changes; `log`
+            is kept up to `UNI_EVENT_TAIL_MAX` events (default 200). A turn
+            ends at the engine turn advance (the `turn_advance` event and the
+            `turn` counter). A jump-in and an extra turn raise the counter
+            too: an event belongs to the `turn` value that the engine stamped
+            at emit time, and it is dropped when the counter next changes. A
+            mod event is `log` by default.
         payload:
           type: object
           additionalProperties: true
-          description: Type-specific payload object (see the named *Payload schemas).
+          description: Id-specific payload object (see the named *Payload schemas).
 
     # Compact wire identity: bits 31..24 mod_index, 23..12
     # kind_index, 11..0 instance_id. Serialized as a plain integer.
@@ -1108,11 +1399,75 @@ components:
           type: string
         version:
           type: string
+        hash:
+          type: string
+          description: >
+            SHA-256 (lowercase hex) of the files of the mod in a canonical
+            order. The client cache is keyed by `version` and `hash`. Absent
+            from a server that predates it.
         index:
           type: integer
           minimum: 0
           maximum: 255
           description: Position of this mod in the frozen match mod list (8-bit on the wire).
+        texts:
+          type: array
+          description: >
+            The texts files of the mod, one for each locale. Absent when the
+            mod has none. The client fetches only the active locale and `en`
+            from `/assets/{mod}/texts/{locale}/low/{hash}`, where the hash in
+            the URL is the first 16 hex characters of `hash`. The client
+            checks the SHA-256 of the bytes against `hash` before it parses the
+            file.
+          items:
+            $ref: "#/components/schemas/ModTextsFile"
+        glossary:
+          type: array
+          description: >
+            The glossary entries of the mod, sorted by id: one automatic entry
+            for each card definition, and the explicit entries of the
+            `glossary` files (an explicit entry replaces the automatic entry
+            with the same id). An entry holds translation keys only; the
+            client resolves the texts through the texts files of the same mod.
+            Absent when the mod has no entry. The client ignores an entry
+            whose id is outside the namespace of the listing mod.
+          items:
+            $ref: "#/components/schemas/ModGlossaryEntry"
+
+    ModGlossaryEntry:
+      type: object
+      required: [id, label_key, description_key, source]
+      properties:
+        id:
+          type: string
+          description: Full entry id, `namespace:name`; the namespace is the mod id.
+        label_key:
+          type: string
+          description: Translation key of the label.
+        description_key:
+          type: string
+          description: Translation key of the description.
+        source:
+          type: string
+          enum: [card, explicit]
+          description: >
+            `card` for the automatic entry of a card definition, `explicit`
+            for an entry of a `glossary` file.
+
+    ModTextsFile:
+      type: object
+      required: [locale, hash, size]
+      properties:
+        locale:
+          type: string
+          description: Locale tag from the file name, for example `en` or `pt-BR`.
+        hash:
+          type: string
+          description: SHA-256 (lowercase hex) of the bytes of the file.
+        size:
+          type: integer
+          minimum: 0
+          description: Size of the file in bytes (at most 262144).
 
     # Per-kind entry in the flattened card kind table (`defs` packet).
     KindDef:
@@ -1170,6 +1525,101 @@ components:
           items:
             type: string
 
+    # Per-entity entry in the `defs` packet. Hash-addressed:
+    # `def_hash` is the stable digest of the canonical def, so the client
+    # caches by content and reloads only what changed.
+    EntityDef:
+      type: object
+      required: [id, def_hash, components]
+      properties:
+        id:
+          type: string
+          description: Full `namespace:local` id.
+        def_hash:
+          type: string
+        components:
+          type: object
+          additionalProperties: true
+          description: >
+            Component name to its verbatim parameter object; the client entity runtime interprets them.
+
+    # Per-event entry in the `defs` packet. The field audiences stay on the
+    # server.
+    EventDefinitionManifest:
+      type: object
+      required: [id, def_hash, retention, fields]
+      properties:
+        id:
+          type: string
+          description: Full `namespace:name` id of the mod event.
+        def_hash:
+          type: string
+        retention:
+          type: string
+          enum: [transient, until_turn_end, until_round_end, log]
+        fields:
+          type: array
+          items:
+            type: object
+            required: [name, type]
+            properties:
+              name:
+                type: string
+              type:
+                type: string
+                enum: [seat, color, integer, number, boolean, string]
+        context:
+          type: array
+          items:
+            type: string
+
+    # Per-presentation entry in the `defs` packet.
+    PresentationDef:
+      type: object
+      required: [id, def_hash, target, modifiers]
+      properties:
+        id:
+          type: string
+          description: Full `namespace:local` id.
+        def_hash:
+          type: string
+        target:
+          type: string
+        priority:
+          type: integer
+        modifiers:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        triggers:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+
+    PresentationBindingDef:
+      type: object
+      description: >
+        An entry of `defs.presentations[]`. It is either an old-style
+        PresentationDef (keys `target`, `modifiers`) or a presentation binding
+        (key `uni:binding`), so only `id` and `def_hash` are required here.
+        One presentation binding (format version 1). The verbatim file object
+        with `id` set to the full `namespace:local` id. The shape is
+        `contract/schemas/bindings.schema.json`: the keys `uni:format_version`
+        and `uni:binding` stay in the open object, because a key with a colon
+        cannot be a generated struct member. The data is static and public:
+        it holds no audience and no event value. The matcher runs on the
+        client, on the event as the server projected it for the viewer.
+      required: [id, def_hash]
+      additionalProperties: true
+      properties:
+        id:
+          type: string
+          description: Full `namespace:local` id.
+        def_hash:
+          type: string
+
     MatchStartPayload:
       type: object
       x-packet-version: "1"
@@ -1211,6 +1661,10 @@ components:
     DefsPayload:
       type: object
       x-packet-version: "1"
+      # INFO: `entities`/`presentations` are deliberately NOT required. They are
+      # additive and the server always emits them, but a client must
+      # tolerate a frame from an engine that predates them (degrade to absent,
+      # never fail validation).
       required: [defs_digest, mods, kinds]
       properties:
         defs_digest:
@@ -1223,6 +1677,27 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/KindDef"
+        entities:
+          type: array
+          items:
+            $ref: "#/components/schemas/EntityDef"
+        presentations:
+          type: array
+          description: >
+            Two kinds in one array. An old-style presentation has `target` and
+            `modifiers` (PresentationDef). A presentation binding has the key
+            `uni:binding` (PresentationBindingDef) and binds a client event id
+            to beats, sounds, a play log line, and a glossary key. The client
+            tells them apart by that key.
+          items:
+            $ref: "#/components/schemas/PresentationBindingDef"
+        events:
+          type: array
+          description: >
+            Event definitions of the active mods. A client with no presentation
+            for an event ignores it.
+          items:
+            $ref: "#/components/schemas/EventDefinitionManifest"
 
     CardPlayedPayload:
       type: object
@@ -1236,27 +1711,50 @@ components:
         from_zone_ordinal:
           type: integer
           minimum: 0
+        tags:
+          type: array
+          description: Tags of the card kind. Optional, additive; no version bump.
+          items:
+            type: string
 
     PlayRejectedPayload:
       type: object
-      x-packet-version: "1"
-      required: [player, reason_id]
+      x-packet-version: "2"
+      required: [target, reason_id]
       properties:
-        player:
+        target:
           $ref: "#/components/schemas/PlayerRef"
+          description: >
+            The seat whose play the engine rejected. Only that seat receives
+            the packet.
         reason_id:
           type: string
 
     CardsDrawnPayload:
       type: object
-      x-packet-version: "1"
-      required: [player, count, source_pile]
+      x-packet-version: "2"
+      required: [target, count, source_pile, hand_size_after, from_debt]
       properties:
-        player:
+        target:
           $ref: "#/components/schemas/PlayerRef"
+          description: >
+            The seat that draws. The envelope `actor` is the seat that caused
+            the draw. The server always sends it.
         count:
           type: integer
           minimum: 0
+        hand_size_after:
+          type: integer
+          minimum: 0
+          description: >
+            The size of the drawer hand after the draw. Public. The server
+            always sends it.
+        from_debt:
+          type: boolean
+          description: >
+            True when the draw pays a draw debt. The size of the debt is the
+            `magnitude` of the `uni:draw_debt` status event, not this event.
+            The server always sends it.
         source_pile:
           type: string
         held:
@@ -1270,6 +1768,23 @@ components:
           items:
             $ref: "#/components/schemas/CompactCardV2"
 
+    DrawnCardKeptPayload:
+      type: object
+      x-packet-version: "1"
+      required: [target]
+      properties:
+        target:
+          $ref: "#/components/schemas/PlayerRef"
+          description: >
+            The seat that kept the drawn card. The event ends the play-or-keep
+            choice that a held `cards_drawn` opened. The clock can choose for
+            the seat; the cause then reads turn_timer_expired. The envelope
+            `actor` is that seat.
+        card:
+          $ref: "#/components/schemas/CompactCardV2"
+          description: >
+            The kept card. Owner only: other viewers receive no `card`.
+
     ReshufflePayload:
       type: object
       x-packet-version: "1"
@@ -1282,50 +1797,140 @@ components:
           type: integer
           minimum: 0
 
-    # NOTE: patchwork. Server-authored for now; a later pass makes the event
-    #       data-driven or mod-declared, with the mod owning the animation.
-    # Public data only: pre-move hand sizes, never card ids.
+    # The hand events carry seats and counts only. A hand count is public; the
+    # cards of a hand are not, so no hand event names a card.
     HandsSwappedPayload:
       type: object
-      x-packet-version: "1"
-      required: [a, b, a_size, b_size]
+      x-packet-version: "2"
+      required: [source, target, count, target_count]
       properties:
-        a:
+        source:
           $ref: "#/components/schemas/PlayerRef"
-        b:
+          description: >
+            The seat that gives `count` cards to `target` (the op argument
+            `a`). The envelope `actor` is the seat that caused the swap. It can
+            differ from `source`, for example when a mod swaps two other seats.
+        target:
           $ref: "#/components/schemas/PlayerRef"
-        a_size:
+          description: The other seat. It gives `target_count` cards back.
+        count:
           type: integer
           minimum: 0
-          description: Cards that moved from `a` to `b` (a's pre-swap hand size).
-        b_size:
+          description: Hand size of `source` before the swap.
+        target_count:
           type: integer
           minimum: 0
-          description: Cards that moved from `b` to `a` (b's pre-swap hand size).
+          description: Hand size of `target` before the swap.
 
-    # NOTE: patchwork. See HandsSwappedPayload.
     HandsPassedPayload:
       type: object
-      x-packet-version: "1"
-      required: [direction, players, hand_sizes]
+      x-packet-version: "2"
+      required: [direction, targets, counts]
       properties:
         direction:
           type: string
           enum: [forward, backward]
           description: >
-            `forward` moves each hand to the next seat in `players`, `backward`
+            `forward` moves each hand to the next seat in `targets`, `backward`
             to the previous one (wrapping).
-        players:
+        targets:
           type: array
           items:
             $ref: "#/components/schemas/PlayerRef"
           description: Seats in order.
-        hand_sizes:
+        counts:
           type: array
           items:
             type: integer
             minimum: 0
-          description: Pre-move hand size of each seat, parallel to `players`.
+          description: Hand size of each seat before the pass, parallel to `targets`.
+
+    HandsRedistributedPayload:
+      type: object
+      x-packet-version: "1"
+      required: [targets, counts]
+      properties:
+        targets:
+          type: array
+          items:
+            $ref: "#/components/schemas/PlayerRef"
+          description: Seats in order.
+        counts:
+          type: array
+          items:
+            type: integer
+            minimum: 0
+          description: >
+            Hand size of each seat after all hands were collected and dealt
+            again, parallel to `targets`. No card identity is sent; a seat
+            reads its new hand from the snapshot.
+
+    CardMovedPayload:
+      type: object
+      x-packet-version: "1"
+      required: [from_zone, to_zone]
+      properties:
+        card:
+          $ref: "#/components/schemas/CompactCardV2"
+          description: >
+            The moved card. The server fixes who sees it when it emits the
+            event: everyone for a move into the discard pile, else only the
+            seat that owns the `target` hand. Nobody sees it for a move into
+            the draw pile or limbo.
+        from_zone:
+          $ref: "#/components/schemas/CardZoneKind"
+        to_zone:
+          $ref: "#/components/schemas/CardZoneKind"
+        source:
+          $ref: "#/components/schemas/PlayerRef"
+          description: The seat whose hand the card left. Absent for a pile.
+        target:
+          $ref: "#/components/schemas/PlayerRef"
+          description: The seat whose hand the card entered. Absent for a pile.
+
+    CardCreatedPayload:
+      type: object
+      x-packet-version: "1"
+      required: [zone]
+      properties:
+        zone:
+          $ref: "#/components/schemas/CardZoneKind"
+        target:
+          $ref: "#/components/schemas/PlayerRef"
+          description: The seat whose hand got the card. Absent for a pile.
+
+    CardRemovedPayload:
+      type: object
+      x-packet-version: "1"
+      required: [from_zone]
+      properties:
+        card:
+          $ref: "#/components/schemas/CompactCardV2"
+          description: >
+            The removed card. Owner only: the seat that lost the card, and the
+            spectators of that seat when its privacy mode is off.
+        from_zone:
+          $ref: "#/components/schemas/CardZoneKind"
+        target:
+          $ref: "#/components/schemas/PlayerRef"
+          description: The seat that lost the card. Absent for a pile.
+
+    CardReplacedPayload:
+      type: object
+      x-packet-version: "1"
+      required: [zone]
+      properties:
+        zone:
+          $ref: "#/components/schemas/CardZoneKind"
+        target:
+          $ref: "#/components/schemas/PlayerRef"
+          description: >
+            The seat whose hand holds the card. Absent for a pile. The new
+            identity is never sent; the snapshot carries it.
+
+    CardZoneKind:
+      type: string
+      enum: [hand, draw_pile, discard_pile, limbo]
 
     StatusAppliedPayload:
       type: object
@@ -1356,83 +1961,79 @@ components:
         instance_id:
           type: integer
 
-    WindowOpenPayload:
+    WindowOpenedPayload:
       type: object
       x-packet-version: "1"
-      required: [deadline_ms, responders, eligible_filter_digest, window_id]
+      required: [window_id, targets, deadline_ms, eligible_filter_digest]
+      description: >
+        A response window opened. `targets` are the seats that may respond.
       properties:
+        window_id:
+          type: string
         kind:
           type: string
           pattern: "^[a-z0-9_:.-]{1,32}$"
-          default: generic
-          description: >
-            Presentation tag declared by the window node (for example
-            `jump_in`); `generic` when the node declares none. Identical for
-            every viewer, spectators included. The snapshot's `window` object
-            in `match_state` carries the same field. Equals `kinds[0]`.
         kinds:
           type: array
-          description: >
-            Kind of every member of the merged window group, in member order
-            (`kind` is the first). A single window is `["generic"]` or its own
-            kind. Identical for every viewer. The snapshot's `window` object
-            carries the same field.
           items:
             type: string
             pattern: "^[a-z0-9_:.-]{1,32}$"
-        hold_ms:
-          type: integer
-          minimum: 0
-          description: >
-            Length of the group's hold in ms, measured from the open (the fuse
-            line's hold segment). While it runs only the debt victim may pass,
-            and only by drawing. Omitted (or 0) when the group has no hold.
-            Also carried by the snapshot's `window` object.
-        duration_ms:
-          type: integer
-          minimum: 0
-          description: >
-            Total length of the group's clock in ms. In `window_open` it
-            equals `deadline_ms`; the snapshot's `window` object carries it
-            too because there `deadline_ms` is absolute.
-        deadline_ms:
-          type: integer
-          minimum: 0
-          description: >
-            In the `window_open` packet: ms REMAINING at the open. In the
-            snapshot's `window` object: ABSOLUTE epoch ms on the server clock
-            (`match_state.server_now_ms`).
-        responders:
+        targets:
           type: array
           items:
             $ref: "#/components/schemas/PlayerRef"
+        deadline_ms:
+          type: integer
+          minimum: 0
+          description: Ms REMAINING at the open.
+        duration_ms:
+          type: integer
+          minimum: 0
+        hold_ms:
+          type: integer
+          minimum: 0
         eligible_filter_digest:
           type: string
-          description: Identical for every viewer of a uniform window (no eligibility leak).
+
+    WindowRespondedPayload:
+      type: object
+      x-packet-version: "1"
+      required: [window_id, target]
+      description: >
+        A seat responded to a window. `target` is the seat that
+        responded. A losing response hides `card` from every other seat.
+        `window_kind` is the kind of the window. `outcome` is the result of
+        the response.
+      properties:
         window_id:
           type: string
-
-    WindowResponsePayload:
-      type: object
-      x-packet-version: "1"
-      required: [player]
-      properties:
-        player:
+        target:
           $ref: "#/components/schemas/PlayerRef"
-        card:
-          $ref: "#/components/schemas/CompactCardV2"
         passed:
           type: boolean
+        card:
+          $ref: "#/components/schemas/CompactCardV2"
+        window_kind:
+          type: string
+          pattern: "^[a-z0-9_:.-]{1,32}$"
+        outcome:
+          type: string
+          enum: [winning, lost, pass]
 
-    WindowClosePayload:
+    WindowClosedPayload:
       type: object
       x-packet-version: "1"
-      required: [outcome]
+      required: [window_id, outcome]
+      description: >
+        A response window closed. `target` is the winning seat; it is
+        absent when the window closed by default.
       properties:
+        window_id:
+          type: string
         outcome:
           type: string
           enum: ["default", "winner"]
-        winner:
+        target:
           $ref: "#/components/schemas/PlayerRef"
         card:
           $ref: "#/components/schemas/CompactCardV2"
@@ -1448,35 +2049,11 @@ components:
           $ref: "#/components/schemas/CompactCardV2"
         trigger_summary:
           type: string
-
-    PromptOpenPayload:
-      type: object
-      x-packet-version: "1"
-      required: [prompt_id, kind, payload, response_schema, deadline_ms]
-      properties:
-        duration_ms:
-          type: integer
-          minimum: 0
-          description: >
-            Length of the prompt clock the server enforces, in ms. Present on
-            the `prompt_open` packet and on the snapshot's `prompts` entries.
-            On `prompt_open`, `deadline_ms` is only the op's declared timeout
-            (usually 0, and not what is enforced); the snapshot's
-            `deadline_ms` is ABSOLUTE epoch ms on the server clock. Draw the
-            wait from `duration_ms`.
-        prompt_id:
-          type: string
-        kind:
-          type: string
-        payload:
-          type: object
-          additionalProperties: true
-        response_schema:
-          type: object
-          additionalProperties: true
-        deadline_ms:
-          type: integer
-          minimum: 0
+        tags:
+          type: array
+          description: Tags of the card kind. Optional, additive; no version bump.
+          items:
+            type: string
 
     # Generic prompt envelope. Mod manifests declare prompt
     # kinds by this shape; clients render unknown kinds from `response_schema`
@@ -1503,10 +2080,40 @@ components:
         default:
           description: Default value bound on timeout when present.
 
-    PromptClosePayload:
+    PromptOpenedPayload:
+      type: object
+      x-packet-version: "1"
+      required: [prompt_id, kind, payload, response_schema, deadline_ms]
+      description: >
+        A prompt opened. Only the seat that must answer receives it.
+        `duration_ms` is the length of the prompt clock that the server
+        enforces; `deadline_ms` is only the op's declared timeout (usually 0).
+        The snapshot's `prompts` entries carry the same fields, with an
+        absolute `deadline_ms` on the server clock.
+      properties:
+        duration_ms:
+          type: integer
+          minimum: 0
+        prompt_id:
+          type: string
+        kind:
+          type: string
+        payload:
+          type: object
+          additionalProperties: true
+        response_schema:
+          type: object
+          additionalProperties: true
+        deadline_ms:
+          type: integer
+          minimum: 0
+
+    PromptAnsweredPayload:
       type: object
       x-packet-version: "1"
       required: [prompt_id, outcome]
+      description: >
+        A prompt ended. `outcome` says how the prompt ended: answered, timed out, or cancelled.
       properties:
         prompt_id:
           type: string
@@ -1538,27 +2145,157 @@ components:
           items:
             $ref: "#/components/schemas/PlayerRef"
 
+    ModEventPayload:
+      type: object
+      x-packet-version: "1"
+      additionalProperties: true
+      description: >
+        The `payload` of a mod event. The envelope `type` is `mod_event` and
+        the envelope `id` is the namespaced id of the mod event, for example
+        `my_mod:apple_eaten`. The keys are the payload fields that the event
+        definition (`events/<name>.json`) declares. The server sends a field
+        only to the seats in its declared audience; a field with no declared
+        audience is never sent. A client with no presentation for the `id`
+        ignores the event. The `sequence` rules are those of every other client
+        event.
+
+        WARN: the event id, the retention, the timing, and the field names
+        and types (in the `defs` manifest) are public to every client. Do not
+        put a hidden fact in them. A string value is at most 256 bytes and a
+        payload at most 1024 bytes (`UNI_MOD_EVENT_PAYLOAD_MAX`); the server
+        drops a larger event.
+
+        The server also drops the extra mod events of a mod in one turn
+        (`UNI_MOD_EVENTS_PER_TURN`, default 64) and the mod events beyond a
+        cause chain of `UNI_MOD_CAUSE_CHAIN_MAX` (default 16). The sequence
+        has no gap: a dropped event never gets a `sequence`. A mod that breaks
+        a budget in `UNI_MOD_VIOLATION_TURNS` (default 3) distinct turns is
+        disarmed. A core event is never dropped.
+
+    DirectionChangedPayload:
+      type: object
+      x-packet-version: "1"
+      required: [direction]
+      properties:
+        direction:
+          type: integer
+          description: >
+            The play direction after the change: `1` forward, `-1` reverse. The
+            envelope `actor` is the seat that caused the change.
+
+    TurnSkippedPayload:
+      type: object
+      x-packet-version: "1"
+      required: [target]
+      properties:
+        target:
+          $ref: "#/components/schemas/PlayerRef"
+          description: >
+            The seat that lost its turn. The event marks the turn advance that
+            skips it. The envelope `actor` is the seat that caused the skip.
+
+    ExtraTurnGrantedPayload:
+      type: object
+      x-packet-version: "1"
+      required: [target]
+      properties:
+        target:
+          $ref: "#/components/schemas/PlayerRef"
+          description: >
+            The seat that gets an extra turn. The envelope `actor` is the seat
+            that caused it.
+
+    NearWinEnteredPayload:
+      type: object
+      x-packet-version: "1"
+      required: [target]
+      description: >
+        A derived event (spec "Streaks and derived events"). The engine emits
+        it right after the base event that left a seat with one card. The
+        envelope `cause` is the `sequence` of that base event and the
+        envelope `actor` is the seat that played. The retention is `log`.
+        The seat is public: a hand count is public. A late joiner reads the
+        open window in `context.near_win` of the snapshot.
+      properties:
+        target:
+          $ref: "#/components/schemas/PlayerRef"
+          description: The seat that has one card left.
+
+    BlockedPayload:
+      type: object
+      x-packet-version: "1"
+      required: [target]
+      description: >
+        A derived event. The engine emits it right after the base event
+        (a skip or a forced draw) that hit the seat of the open near-win
+        window. The engine reads the window as it was BEFORE the base event,
+        so the same event can block and close the window. The envelope
+        `cause` is the `sequence` of the base event. The envelope `actor` is
+        the seat that caused it; when the base event has no actor, it is the
+        seat that acted last. The retention is `log`.
+      properties:
+        target:
+          $ref: "#/components/schemas/PlayerRef"
+          description: The seat of the near-win window that was blocked.
+
+    ActiveTypeChangedPayload:
+      type: object
+      x-packet-version: "1"
+      required: [color, previous_color]
+      properties:
+        color:
+          type: string
+          description: The active color after the change. Empty when cleared.
+        previous_color:
+          type: string
+          description: The active color before the change. Empty when none.
+
+    RestrictionAddedPayload:
+      type: object
+      x-packet-version: "1"
+      required: [restriction_id, phase]
+      properties:
+        restriction_id:
+          type: string
+        phase:
+          type: string
+          enum: ["allow", "deny"]
+          description: >
+            The condition of the restriction is mod data and is never sent.
+
+    RestrictionRemovedPayload:
+      type: object
+      x-packet-version: "1"
+      required: [restriction_id]
+      properties:
+        restriction_id:
+          type: string
+
+    TurnTimerChangedPayload:
+      type: object
+      x-packet-version: "1"
+      required: [target, duration_ms]
+      description: >
+        A mod changed the turn timer of a seat with the `set_turn_timer` op.
+        Only that op emits this event. The engine arms, suspends, resumes and
+        resets the turn timer every turn and emits nothing for that; the
+        client reads those deadlines from the turn and state packets.
+      properties:
+        target:
+          $ref: "#/components/schemas/PlayerRef"
+        duration_ms:
+          type: integer
+          minimum: 0
+          description: >
+            The new turn time in milliseconds. It is a relative duration, not
+            an epoch time.
+
     RoundAdvancePayload:
       type: object
       x-packet-version: "1"
       required: [round]
       properties:
         round:
-          type: integer
-          minimum: 0
-
-    RollResultPayload:
-      type: object
-      x-packet-version: "1"
-      required: [spec, outcomes, roll_counter]
-      properties:
-        spec:
-          type: string
-        outcomes:
-          type: array
-          items:
-            type: integer
-        roll_counter:
           type: integer
           minimum: 0
 
@@ -1572,28 +2309,6 @@ components:
         payload:
           type: object
           additionalProperties: true
-
-    ChainAbortedPayload:
-      type: object
-      x-packet-version: "1"
-      required: [mod, node, reason]
-      properties:
-        mod:
-          type: string
-        node:
-          type: string
-        reason:
-          type: string
-
-    ModDisarmedPayload:
-      type: object
-      x-packet-version: "1"
-      required: [mod_id, reason]
-      properties:
-        mod_id:
-          type: string
-        reason:
-          type: string
 
     VisibilityGrantedPayload:
       type: object
@@ -1619,28 +2334,87 @@ components:
           items:
             type: string
 
-    PlacementPayload:
+    OutcomeRolledPayload:
       type: object
       x-packet-version: "1"
-      required: [player, place]
+      required: [roll_ordinal]
+      description: >
+        A dice roll or an outcome pick happened. A dice roll carries
+        `spec` and `outcomes`; an outcome pick carries `table`, `key` and
+        `value`. `roll_ordinal` counts the public rolls that this stream has
+        received; it is never the engine counter, which also counts hidden
+        draws.
       properties:
-        player:
+        spec:
+          type: string
+        outcomes:
+          type: array
+          items:
+            type: integer
+        table:
+          type: string
+        key:
+          type: string
+        value:
+          type: integer
+        roll_ordinal:
+          type: integer
+          minimum: 1
+
+    StatusModifiedPayload:
+      type: object
+      x-packet-version: "1"
+      required: [target, status_kind, magnitude, delta, instance_id]
+      description: >
+        A status changed its magnitude. A hidden status is sent to its
+        target seat only, like `status_applied`.
+      properties:
+        target:
+          $ref: "#/components/schemas/PlayerRef"
+        status_kind:
+          type: string
+        magnitude:
+          type: integer
+        delta:
+          type: integer
+          description: The change that the op asked for, after the range clamp.
+        instance_id:
+          type: integer
+
+    PlacementSetPayload:
+      type: object
+      x-packet-version: "1"
+      required: [target, place, is_elimination]
+      description: >
+        A seat finished. `is_elimination` is false for a normal
+        finish. No engine path sets it to true yet; it is the seam for a later
+        elimination mechanic. `finished` is true when this place ends the
+        race for that seat.
+      properties:
+        target:
           $ref: "#/components/schemas/PlayerRef"
         place:
           type: integer
           minimum: 1
+        is_elimination:
+          type: boolean
+        finished:
+          type: boolean
 
-    MatchEndPayload:
+    MatchEndedPayload:
       type: object
       x-packet-version: "1"
-      required: [winner, placements, final_digest]
+      required: [target, targets, final_digest]
+      description: >
+        The match ended. `target` is the winner (empty when there
+        is none). `targets` lists every placed seat, best first.
       properties:
-        winner:
+        target:
           $ref: "#/components/schemas/PlayerRef"
-        placements:
+        targets:
           type: array
           items:
-            $ref: "#/components/schemas/PlacementPayload"
+            $ref: "#/components/schemas/PlayerRef"
         final_digest:
           type: string
 

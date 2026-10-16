@@ -2,9 +2,13 @@
 	import { Canvas } from "@threlte/core";
 	import { storeGame, type GamePlayer } from "$stores/game.svelte";
 	import { storeGameLoader } from "$stores/gameLoader.svelte";
+	import { storeAnimation } from "$stores/animation.svelte";
+	import { storeAffliction } from "$stores/affliction.svelte";
+	import { storeFxBudget } from "$stores/fxBudget.svelte";
 	import { playerColorFor } from "$lib/palette";
 	import { createCardBus } from "./card-bus.svelte";
 	import { createCardRegistry } from "./animation/cardRegistry.svelte";
+	import { EntityRuntime } from "./entity/entityRuntime.svelte";
 	import { createMatchEventBeatController } from "./animation/matchEventController.svelte";
 	import { createMatchIntroController } from "./animation/matchIntroController.svelte";
 	import { shouldStartMatchIntro } from "./animation/matchIntroGate";
@@ -15,6 +19,8 @@
 	import HeldDrawCard from "./HeldDrawCard.svelte";
 	import AccessibleHandControls from "./AccessibleHandControls.svelte";
 	import { resetImpactEffects } from "./animation/impactReset";
+	import { storeDamageFx } from "$stores/damageFx.svelte";
+	import { storeWebglCapability } from "$stores/webglCapability.svelte";
 	import { computeSceneGeometry } from "./layout/sceneGeometry";
 	import { isPhoneLayout } from "./layout/seatLayout";
 	import { devFixturePreset } from "../../dev/devFixturePreset.svelte";
@@ -47,8 +53,56 @@
 	import { computeOpponentRingPoses } from "./layout/seatRingPerspective";
 
 	const bus = createCardBus();
-	const cardRegistry = createCardRegistry();
+	// One shared entity runtime: the step renderers spawn into the exact
+	// instance the entity renderer will observe and tick. Its cap
+	// comes from the runtime budget store, not a hardcoded default.
+	const entityRuntime = new EntityRuntime({ maxEntities: storeFxBudget.maxEntities });
+	const cardRegistry = createCardRegistry(entityRuntime);
+	// the affliction subsystem bootstraps from the `defs` packet's
+	// entities/presentations and drives the read-only face-override channel the
+	// card renderer consults. Disposed on match teardown via the effect below.
+	const disposeAffliction = storeAffliction.bind(entityRuntime, (cb) => storeGame.onMatchEvent(cb));
+	$effect(() => {
+		storeAffliction.enabled = storeAnimation.enabled;
+	});
+	$effect(() => disposeAffliction);
 	const layout = useGameLayoutContext() ?? createGameLayoutContext();
+
+	// Creeping tension vignette: while local victim sits in response window waiting on
+	// draw debt, the red vignette creeps darker, thicker, and pulses faster as the deadline nears.
+	let debtTimer = $derived(storeGame.isDebtVictim ? storeGame.activeTimer : null);
+	let debtNow = $state(Date.now());
+
+	$effect(() => {
+		if (debtTimer === null) return;
+		debtNow = Date.now();
+		const interval = storeWebglCapability.reducedMotion ? 250 : 50;
+		const id = setInterval(() => (debtNow = Date.now()), interval);
+		return () => clearInterval(id);
+	});
+
+	let tensionProgress = $derived.by(() => {
+		if (!debtTimer || debtTimer.durationMs <= 0) return 0;
+		const raw = Math.min(1, Math.max(0, 1 - (debtTimer.deadlineAt - debtNow) / debtTimer.durationMs));
+		return storeWebglCapability.reducedMotion ? Math.floor(raw * 5) / 5 : raw;
+	});
+
+	let vignetteStyle = $derived.by(() => {
+		if (!storeGame.isDebtVictim) return undefined;
+		const inner = 45 - tensionProgress * 30; // 45% -> 15%
+		const mid = 75 - tensionProgress * 30; // 75% -> 45%
+		const midAlpha = 0.35 + tensionProgress * 0.4; // 0.35 -> 0.75
+		const edgeAlpha = 0.75 + tensionProgress * 0.2; // 0.75 -> 0.95
+		const pulseSpeed = 2 - tensionProgress * 1.3; // 2s -> 0.7s
+
+		return [
+			`--vignette-inner: ${inner.toFixed(1)}%`,
+			`--vignette-mid: ${mid.toFixed(1)}%`,
+			`--vignette-mid-alpha: ${midAlpha.toFixed(2)}`,
+			`--vignette-edge-alpha: ${edgeAlpha.toFixed(2)}`,
+			`--vignette-pulse-duration: ${pulseSpeed.toFixed(2)}s`
+		].join("; ");
+	});
 
 	// On touch, playing is a two-step gesture: pick a card in the hand, then tap
 	// the discard pile to commit it; on keyboard, Enter does the same two steps.
@@ -351,6 +405,7 @@
 		cardRegistry,
 		getPlacement,
 		subscribeDesync: (cb) => storeGame.onDesync(cb),
+		subscribeTail: (cb) => storeGame.onTail(cb),
 		getOpponentCardScale,
 		getOpponentSeatAnchor: (username) => {
 			const idx = mappedOpponents.findIndex((o) => o.player.username === username);
@@ -526,7 +581,19 @@
 				onPointerHover={() => (keyboardFocusId = null)}
 			/>
 		</Canvas>
-		<div class="screen-vignette" aria-hidden="true"></div>
+		<div
+			class="screen-vignette"
+			class:debt-danger={storeGame.isDebtVictim}
+			style={vignetteStyle}
+			aria-hidden="true"
+		></div>
+		{#if storeDamageFx.flashOpacity > 0}
+			<div
+				class="damage-overlay"
+				style:opacity={storeDamageFx.flashOpacity}
+				aria-hidden="true"
+			></div>
+		{/if}
 		{#if heldDrawCardId !== null && heldDrawScreen}
 			<HeldDrawCard
 				cardId={heldDrawCardId}
@@ -587,5 +654,44 @@
 			rgba(0, 0, 0, 0.55) 100%
 		);
 		z-index: 2;
+		transition: background 0.4s ease;
+	}
+
+	.screen-vignette.debt-danger {
+		background: radial-gradient(
+			ellipse at center,
+			rgba(255, 0, 0, 0) var(--vignette-inner, 40%),
+			rgba(140, 10, 0, var(--vignette-mid-alpha, 0.35)) var(--vignette-mid, 75%),
+			rgba(70, 0, 0, var(--vignette-edge-alpha, 0.75)) 100%
+		);
+		animation: vignette-danger-pulse var(--vignette-pulse-duration, 2s) ease-in-out infinite alternate;
+	}
+
+	.damage-overlay {
+		position: absolute;
+		inset: 0;
+		pointer-events: none;
+		background: radial-gradient(
+			ellipse at center,
+			rgba(255, 0, 0, 0.1) 25%,
+			rgba(255, 20, 20, 0.55) 70%,
+			rgba(180, 0, 0, 0.9) 100%
+		);
+		z-index: 3;
+	}
+
+	@keyframes vignette-danger-pulse {
+		0% {
+			opacity: 0.75;
+		}
+		100% {
+			opacity: 1;
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.screen-vignette.debt-danger {
+			animation: none;
+		}
 	}
 </style>

@@ -1,0 +1,34 @@
+{
+  "uni:format_version": "1.0.0",
+  "uni:binding": {
+    "uni:description": { "uni:identifier": "seven_zero:pass_log" },
+    "uni:event": "hands_passed",
+    "uni:select": "first",
+    "uni:cases": [
+      {
+        "uni:tests": [
+          {
+            "uni:test": "equals",
+            "uni:field": "direction",
+            "uni:value": "forward"
+          }
+        ],
+        "uni:present": {
+          "uni:log": { "uni:variants": ["seven_zero:pass_forward"] }
+        }
+      },
+      {
+        "uni:tests": [
+          {
+            "uni:test": "equals",
+            "uni:field": "direction",
+            "uni:value": "backward"
+          }
+        ],
+        "uni:present": {
+          "uni:log": { "uni:variants": ["seven_zero:pass_backward"] }
+        }
+      }
+    ]
+  }
+}

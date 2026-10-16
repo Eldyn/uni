@@ -1,0 +1,39 @@
+{
+  "uni:format_version": "1.0.0",
+  "uni:binding": {
+    "uni:description": {
+      "uni:identifier": "parity:win"
+    },
+    "uni:event": "match_ended",
+    "uni:select": "first",
+    "uni:cases": [
+      {
+        "uni:tests": [
+          {
+            "uni:test": "exists",
+            "uni:field": "target"
+          },
+          {
+            "uni:test": "equals",
+            "uni:field": "target",
+            "uni:value": "",
+            "uni:negate": true
+          }
+        ],
+        "uni:present": {
+          "uni:log": {
+            "uni:variants": [
+              "uni:log.win_1",
+              "uni:log.win_2"
+            ],
+            "uni:params": {
+              "name": {
+                "uni:field": "target"
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}

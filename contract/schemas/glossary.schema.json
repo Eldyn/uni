@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://playuni.app/contract/schemas/glossary.schema.json",
+  "title": "Glossary entry (glossary/<name>.json), format version 1",
+  "description": "One explicit glossary entry. It holds translation keys only; the texts come from the texts files of the same mod. The key names are listed in include/match/modload/glossary_entries.hpp; a test compares both. An explicit entry replaces the automatic entry of a card with the same id, inside the same mod only. A mod defines ids only in its own namespace, and only the uni mod defines uni: ids (loader check glossary.id.namespace). The key syntax and the key namespace are semantic checks (glossary.key.syntax, glossary.key.namespace).",
+  "type": "object",
+  "required": ["uni:format_version", "uni:glossary_entry"],
+  "additionalProperties": false,
+  "properties": {
+    "uni:format_version": {
+      "type": "string",
+      "pattern": "^1(\\.[0-9]+){0,2}$",
+      "description": "Version of the file style. This build reads major version 1."
+    },
+    "uni:glossary_entry": {
+      "type": "object",
+      "required": ["uni:description", "uni:label_key", "uni:description_key"],
+      "additionalProperties": false,
+      "properties": {
+        "uni:description": {
+          "type": "object",
+          "required": ["uni:identifier"],
+          "additionalProperties": false,
+          "properties": {
+            "uni:identifier": {
+              "type": "string",
+              "pattern": "^[a-z0-9_]{1,32}:[a-z0-9_]{1,32}$",
+              "description": "Full entry id, namespace:name. The namespace is the id of the defining mod."
+            }
+          }
+        },
+        "uni:label_key": {
+          "type": "string",
+          "description": "Translation key of the label. A key, never a text."
+        },
+        "uni:description_key": {
+          "type": "string",
+          "description": "Translation key of the description. A key, never a text."
+        }
+      }
+    }
+  }
+}

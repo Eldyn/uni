@@ -1,0 +1,11 @@
+{
+  "id": "lsd",
+  "target": "hand",
+  "priority": 10,
+  "modifiers": [
+    { "kind": "face.override", "source": "seeded-random-tile" }
+  ],
+  "triggers": [
+    { "on": "play_rejected", "where": { "reason_id": "unplayable" }, "duration": 5 }
+  ]
+}

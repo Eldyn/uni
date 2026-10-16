@@ -1,0 +1,101 @@
+{
+  "uni:format_version": "1.0.0",
+  "uni:binding": {
+    "uni:description": {
+      "uni:identifier": "uni:skip_log"
+    },
+    "uni:event": "turn_skipped",
+    "uni:select": "first",
+    "uni:cases": [
+      {
+        "uni:tests": [
+          {
+            "uni:test": "gte",
+            "uni:streak": "uni:skip_run",
+            "uni:value": 4
+          },
+          { "uni:test": "caused_by", "uni:value": "card_played", "uni:tag": "uni:own_log", "uni:negate": true, "uni:ancestor": true },
+          { "uni:test": "caused_by", "uni:value": "auto_played", "uni:tag": "uni:own_log", "uni:negate": true, "uni:ancestor": true }
+        ],
+        "uni:present": {
+          "uni:log": {
+            "uni:variants": [
+              "uni:log.skip_streak",
+              "uni:log.skip_streak_2"
+            ],
+            "uni:params": {
+              "name": {
+                "uni:field": "target"
+              }
+            }
+          }
+        }
+      },
+      {
+        "uni:tests": [
+          {
+            "uni:test": "equals",
+            "uni:streak": "uni:skip_run",
+            "uni:value": 3
+          },
+          { "uni:test": "caused_by", "uni:value": "card_played", "uni:tag": "uni:own_log", "uni:negate": true, "uni:ancestor": true },
+          { "uni:test": "caused_by", "uni:value": "auto_played", "uni:tag": "uni:own_log", "uni:negate": true, "uni:ancestor": true }
+        ],
+        "uni:present": {
+          "uni:log": {
+            "uni:variants": [
+              "uni:log.skip_third"
+            ],
+            "uni:params": {
+              "name": {
+                "uni:field": "target"
+              }
+            }
+          }
+        }
+      },
+      {
+        "uni:tests": [
+          {
+            "uni:test": "equals",
+            "uni:streak": "uni:skip_run",
+            "uni:value": 2
+          },
+          { "uni:test": "caused_by", "uni:value": "card_played", "uni:tag": "uni:own_log", "uni:negate": true, "uni:ancestor": true },
+          { "uni:test": "caused_by", "uni:value": "auto_played", "uni:tag": "uni:own_log", "uni:negate": true, "uni:ancestor": true }
+        ],
+        "uni:present": {
+          "uni:log": {
+            "uni:variants": [
+              "uni:log.skip_again",
+              "uni:log.skip_again_2"
+            ],
+            "uni:params": {
+              "name": {
+                "uni:field": "target"
+              }
+            }
+          }
+        }
+      },
+      {
+        "uni:tests": [
+          { "uni:test": "caused_by", "uni:value": "card_played", "uni:tag": "uni:own_log", "uni:negate": true, "uni:ancestor": true },
+          { "uni:test": "caused_by", "uni:value": "auto_played", "uni:tag": "uni:own_log", "uni:negate": true, "uni:ancestor": true }
+        ],
+        "uni:present": {
+          "uni:log": {
+            "uni:variants": [
+              "uni:log.skip"
+            ],
+            "uni:params": {
+              "name": {
+                "uni:field": "target"
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}

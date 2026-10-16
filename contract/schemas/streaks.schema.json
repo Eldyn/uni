@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://playuni.app/contract/schemas/streaks.schema.json",
+  "title": "Streak definition (streaks/<name>.json), format version 1",
+  "description": "One streak that a mod defines. The key names are listed in include/match/modload/streak_definition_keys.hpp; a test compares both. A streak is a counter that the engine updates from client events. The value of a streak is public to every seat, so a matcher, uni:group_by, and uni:value_field may read a payload field with the audience all only (semantic check streak.field.audience). A mod defines ids only in its own namespace, and only the uni mod defines uni: ids (loader check streak.id.namespace).",
+  "type": "object",
+  "required": ["uni:format_version", "uni:streak"],
+  "additionalProperties": false,
+  "properties": {
+    "uni:format_version": {
+      "type": "string",
+      "pattern": "^1(\\.[0-9]+){0,2}$",
+      "description": "Version of the file style. This build reads major version 1."
+    },
+    "uni:streak": {
+      "type": "object",
+      "required": ["uni:description", "uni:type", "uni:matcher"],
+      "additionalProperties": false,
+      "properties": {
+        "uni:description": {
+          "type": "object",
+          "required": ["uni:identifier"],
+          "additionalProperties": false,
+          "properties": {
+            "uni:identifier": {
+              "type": "string",
+              "pattern": "^[a-z0-9_]{1,32}:[a-z0-9_]{1,32}$",
+              "description": "Full streak id, namespace:name. The namespace is the id of the defining mod."
+            }
+          }
+        },
+        "uni:type": {
+          "type": "string",
+          "enum": ["run", "total", "last_value"],
+          "description": "run counts consecutive matches, total counts all matches, last_value stores a payload field of the last match and of the one before it."
+        },
+        "uni:matcher": { "$ref": "#/$defs/matcher" },
+        "uni:group_by": {
+          "type": "string",
+          "pattern": "^[a-z0-9_]{1,32}$",
+          "description": "A payload field of the matched event with the audience all. The streak keeps one count for each value."
+        },
+        "uni:value_field": {
+          "type": "string",
+          "pattern": "^[a-z0-9_]{1,32}$",
+          "description": "last_value only: the payload field to store."
+        },
+        "uni:reset_on": {
+          "type": "array",
+          "description": "A run only: an event that matches one of these matchers sets the count to 0.",
+          "items": { "$ref": "#/$defs/matcher" }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "matcher": {
+      "type": "object",
+      "required": ["uni:event"],
+      "additionalProperties": false,
+      "properties": {
+        "uni:event": {
+          "type": "string",
+          "pattern": "^([a-z0-9_]{1,32}:)?[a-z0-9_]{1,32}$",
+          "description": "The client event id."
+        },
+        "uni:tests": {
+          "type": "array",
+          "description": "All tests must be true for the event to match.",
+          "items": { "$ref": "#/$defs/test" }
+        }
+      }
+    },
+    "test": {
+      "type": "object",
+      "required": ["uni:test"],
+      "additionalProperties": false,
+      "properties": {
+        "uni:test": {
+          "type": "string",
+          "enum": ["equals", "in", "exists", "has_tag", "relation"]
+        },
+        "uni:field": { "type": "string" },
+        "uni:state": { "type": "string" },
+        "uni:value": {},
+        "uni:values": { "type": "array" },
+        "uni:tag": { "type": "string" },
+        "uni:relation": { "type": "string" },
+        "uni:negate": { "type": "boolean" }
+      }
+    }
+  }
+}

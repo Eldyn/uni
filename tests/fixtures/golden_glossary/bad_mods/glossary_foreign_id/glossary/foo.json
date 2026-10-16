@@ -1,0 +1,8 @@
+{
+  "uni:format_version": "1.0.0",
+  "uni:glossary_entry": {
+    "uni:description": { "uni:identifier": "other_mod:foo" },
+    "uni:label_key": "glossary_foreign_id:a",
+    "uni:description_key": "glossary_foreign_id:b"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "uni:format_version": "1.0.0",
+  "uni:binding": {
+    "uni:description": { "uni:identifier": "texts_non_string:shown" },
+    "uni:event": "turn_skipped",
+    "uni:cases": [
+      { "uni:tests": [], "uni:present": { "uni:log": { "uni:variants": ["log_a"] } } }
+    ]
+  }
+}

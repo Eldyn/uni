@@ -1,0 +1,36 @@
+{
+  "uni:format_version": "1.0.0",
+  "uni:binding": {
+    "uni:description": {
+      "uni:identifier": "uni:blocked_log"
+    },
+    "uni:event": "blocked",
+    "uni:select": "first",
+    "uni:cases": [
+      {
+        "uni:present": {
+          "uni:log": {
+            "uni:variants": [
+              "uni:log.blocked_1",
+              "uni:log.blocked_2"
+            ],
+            "uni:params": {
+              "blocker": {
+                "uni:actor": true
+              },
+              "target": {
+                "uni:field": "target"
+              }
+            }
+          }
+        },
+        "uni:tests": [
+          {
+            "uni:test": "exists",
+            "uni:actor": true
+          }
+        ]
+      }
+    ]
+  }
+}

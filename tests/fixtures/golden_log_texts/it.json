@@ -1,0 +1,252 @@
+{
+  "log_skip": {
+    "template": "{name} salta il turno.",
+    "resolved": "Ann salta il turno.",
+    "fallbackToEnglish": false
+  },
+  "log_skip_again": {
+    "template": "{name} salta di nuovo.",
+    "resolved": "Ann salta di nuovo.",
+    "fallbackToEnglish": false
+  },
+  "log_skip_again_2": {
+    "template": "Saltato di nuovo. {name} colleziona turni persi.",
+    "resolved": "Saltato di nuovo. Ann colleziona turni persi.",
+    "fallbackToEnglish": false
+  },
+  "log_skip_third": {
+    "template": "[c=red]{name}[/c] salta per la terza volta. Qualcuno ha il dente avvelenato.",
+    "resolved": "[c=red]Ann[/c] salta per la terza volta. Qualcuno ha il dente avvelenato.",
+    "fallbackToEnglish": false
+  },
+  "log_skip_streak": {
+    "template": "[c=red]{name}[/c] salta ancora. [fx=shake]Ormai è un soprammobile.[/fx]",
+    "resolved": "[c=red]Ann[/c] salta ancora. [fx=shake]Ormai è un soprammobile.[/fx]",
+    "fallbackToEnglish": false
+  },
+  "log_skip_streak_2": {
+    "template": "Ancora [c=red]{name}[/c]. [fx=shake]FATE GIOCARE {name}!![/fx]",
+    "resolved": "Ancora [c=red]Ann[/c]. [fx=shake]FATE GIOCARE Ann!![/fx]",
+    "fallbackToEnglish": false
+  },
+  "log_reverse": {
+    "template": "Cambio giro.",
+    "resolved": "Cambio giro.",
+    "fallbackToEnglish": false
+  },
+  "log_reverse_back": {
+    "template": "E si torna indietro.",
+    "resolved": "E si torna indietro.",
+    "fallbackToEnglish": false
+  },
+  "log_reverse_back_2": {
+    "template": "E si torna indietro. Girare in tondo ora è una strategia.",
+    "resolved": "E si torna indietro. Girare in tondo ora è una strategia.",
+    "fallbackToEnglish": false
+  },
+  "log_reverse_again": {
+    "template": "Di nuovo cambio giro. Non si capisce più a chi tocca.",
+    "resolved": "Di nuovo cambio giro. Non si capisce più a chi tocca.",
+    "fallbackToEnglish": false
+  },
+  "log_reverse_spin": {
+    "template": "Ancora cambio giro. [fx=shake]Qui gira la testa a tutti.[/fx]",
+    "resolved": "Ancora cambio giro. [fx=shake]Qui gira la testa a tutti.[/fx]",
+    "fallbackToEnglish": false
+  },
+  "log_reverse_spin_2": {
+    "template": "Un altro cambio giro. [fx=shake]Si torna dall'altra parte.[/fx]",
+    "resolved": "Un altro cambio giro. [fx=shake]Si torna dall'altra parte.[/fx]",
+    "fallbackToEnglish": false
+  },
+  "log_draw_first_1": {
+    "template": "{name} è il primo a pescare in questa partita. RIP.",
+    "resolved": "Ann è il primo a pescare in questa partita. RIP.",
+    "fallbackToEnglish": false
+  },
+  "log_draw_first_2": {
+    "template": "Il primo sangue sul mazzo di pesca va a {name}.",
+    "resolved": "Il primo sangue sul mazzo di pesca va a Ann.",
+    "fallbackToEnglish": false
+  },
+  "log_draw_generic_1": {
+    "template": "{name} pesca.",
+    "resolved": "Ann pesca.",
+    "fallbackToEnglish": false
+  },
+  "log_draw_generic_2": {
+    "template": "{name} prende una carta dal mazzo.",
+    "resolved": "Ann prende una carta dal mazzo.",
+    "fallbackToEnglish": false
+  },
+  "log_draw_generic_3": {
+    "template": "{name} pesca. Il mazzo dà quello che dà.",
+    "resolved": "Ann pesca. Il mazzo dà quello che dà.",
+    "fallbackToEnglish": false
+  },
+  "log_draw_many_1": {
+    "template": "Questa è la {drawRun}a volta che {name} pesca, mamma mia.",
+    "resolved": "Questa è la 3a volta che Ann pesca, mamma mia.",
+    "fallbackToEnglish": false
+  },
+  "log_draw_many_2": {
+    "template": "Ancora {name}. Il mazzo lo conosce per nome.",
+    "resolved": "Ancora Ann. Il mazzo lo conosce per nome.",
+    "fallbackToEnglish": false
+  },
+  "log_draw_big_hand_1": {
+    "template": "[c=red]{name}[/c] è a {handSize} carte. Una pausa non guasterebbe.",
+    "resolved": "[c=red]Ann[/c] è a 5 carte. Una pausa non guasterebbe.",
+    "fallbackToEnglish": false
+  },
+  "log_draw_big_hand_2": {
+    "template": "{handSize} carte, [c=red]{name}[/c]. Magari lasciane qualcuna agli altri.",
+    "resolved": "5 carte, [c=red]Ann[/c]. Magari lasciane qualcuna agli altri.",
+    "fallbackToEnglish": false
+  },
+  "log_draw_large_1": {
+    "template": "{name} pesca {count}. Ahia.",
+    "resolved": "Ann pesca 2. Ahia.",
+    "fallbackToEnglish": false
+  },
+  "log_blocked_1": {
+    "template": "[fx=shake:3,2]{blocker} l'ha fatto davvero![/fx]",
+    "resolved": "[fx=shake:3,2]Bob l'ha fatto davvero![/fx]",
+    "fallbackToEnglish": false
+  },
+  "log_blocked_2": {
+    "template": "Te l'avevo detto. [fx=shake:3,2]{blocker} l'ha fermato.[/fx]",
+    "resolved": "Te l'avevo detto. [fx=shake:3,2]Bob l'ha fermato.[/fx]",
+    "fallbackToEnglish": false
+  },
+  "log_play": {
+    "template": "{name} gioca [k={kind}][c={color}]{cardName}[/c][/k].",
+    "resolved": "Ann gioca [k=uni:red_draw2][c=red]Pesca Due (+2)[/c][/k].",
+    "fallbackToEnglish": false
+  },
+  "log_keep_drawn": {
+    "template": "{name} tiene la carta pescata.",
+    "resolved": "Ann tiene la carta pescata.",
+    "fallbackToEnglish": false
+  },
+  "log_reshuffle_1": {
+    "template": "Gli scarti rientrano nel mazzo. Carte fresche, stesso dolore.",
+    "resolved": "Gli scarti rientrano nel mazzo. Carte fresche, stesso dolore.",
+    "fallbackToEnglish": false
+  },
+  "log_reshuffle_2": {
+    "template": "Il mazzo è finito, quindi tornano gli scarti. Si mescola.",
+    "resolved": "Il mazzo è finito, quindi tornano gli scarti. Si mescola.",
+    "fallbackToEnglish": false
+  },
+  "log_reshuffle_3": {
+    "template": "Mazzo di pesca esaurito, tornano gli scarti. Stesse carte, seconda occasione.",
+    "resolved": "Mazzo di pesca esaurito, tornano gli scarti. Stesse carte, seconda occasione.",
+    "fallbackToEnglish": false
+  },
+  "log_wild_reaction_1": {
+    "template": "Va bene, [c={color}]{colorName}[/c].",
+    "resolved": "Va bene, [c=red]rosso[/c].",
+    "fallbackToEnglish": false
+  },
+  "log_wild_reaction_first_2": {
+    "template": "Andiamo con [c={color}]{colorName}[/c].",
+    "resolved": "Andiamo con [c=red]rosso[/c].",
+    "fallbackToEnglish": false
+  },
+  "log_wild_reaction_second_1": {
+    "template": "{name} aveva altri piani. Va bene, [c={color}]{colorName}[/c].",
+    "resolved": "Ann aveva altri piani. Va bene, [c=red]rosso[/c].",
+    "fallbackToEnglish": false
+  },
+  "log_wild_reaction_second_2": {
+    "template": "Dopo [c={prevColor}]{prevColorName}[/c], {name} passa a [c={color}]{colorName}[/c].",
+    "resolved": "Dopo [c=blue]blu[/c], Ann passa a [c=red]rosso[/c].",
+    "fallbackToEnglish": false
+  },
+  "log_wild_reaction_third_1": {
+    "template": "Non riuscite a decidere un colore. Ora è [c={color}]{colorName}[/c]! [fx=shake:3,2]Decidetevi.[/fx]",
+    "resolved": "Non riuscite a decidere un colore. Ora è [c=red]rosso[/c]! [fx=shake:3,2]Decidetevi.[/fx]",
+    "fallbackToEnglish": false
+  },
+  "log_wild_reaction_third_2": {
+    "template": "[c={prevColor}]{prevColorName}[/c], poi di nuovo [c={color}]{colorName}[/c]? [fx=shake:3,2]Decidetevi.[/fx]",
+    "resolved": "[c=blue]blu[/c], poi di nuovo [c=red]rosso[/c]? [fx=shake:3,2]Decidetevi.[/fx]",
+    "fallbackToEnglish": false
+  },
+  "log_auto_play_1": {
+    "template": "{name} è costretto a giocare [k={kind}]{cardName}[/k].",
+    "resolved": "Ann è costretto a giocare [k=uni:red_draw2]Pesca Due (+2)[/k].",
+    "fallbackToEnglish": false
+  },
+  "log_auto_play_2": {
+    "template": "Nessuna scelta per {name}: [k={kind}]{cardName}[/k] finisce sul tavolo.",
+    "resolved": "Nessuna scelta per Ann: [k=uni:red_draw2]Pesca Due (+2)[/k] finisce sul tavolo.",
+    "fallbackToEnglish": false
+  },
+  "log_near_win_1": {
+    "template": "[c=red]{name}[/c] è a una carta sola. Allacciate le cinture.",
+    "resolved": "[c=red]Ann[/c] è a una carta sola. Allacciate le cinture.",
+    "fallbackToEnglish": false
+  },
+  "log_near_win_2": {
+    "template": "Una carta rimasta a {name}. Qualcuno lo fermi.",
+    "resolved": "Una carta rimasta a Ann. Qualcuno lo fermi.",
+    "fallbackToEnglish": false
+  },
+  "log_near_win_3": {
+    "template": "{name} è a una carta dalla vittoria. Panico, ma in silenzio.",
+    "resolved": "Ann è a una carta dalla vittoria. Panico, ma in silenzio.",
+    "fallbackToEnglish": false
+  },
+  "log_win_1": {
+    "template": "{name} vince il round!",
+    "resolved": "Ann vince il round!",
+    "fallbackToEnglish": false
+  },
+  "log_win_2": {
+    "template": "Partita finita. La vince {name}.",
+    "resolved": "Partita finita. La vince Ann.",
+    "fallbackToEnglish": false
+  },
+  "log_finish_1": {
+    "template": "{name} arriva al posto {place}.",
+    "resolved": "Ann arriva al posto 1.",
+    "fallbackToEnglish": false
+  },
+  "log_finish_2": {
+    "template": "{name} ha finito. Posto {place}.",
+    "resolved": "Ann ha finito. Posto 1.",
+    "fallbackToEnglish": false
+  },
+  "log_left_behind_1": {
+    "template": "{name} resta indietro al posto {place}.",
+    "resolved": "Ann resta indietro al posto 1.",
+    "fallbackToEnglish": false
+  },
+  "log_left_behind_2": {
+    "template": "{name} non ce l'ha fatta. Posto {place}.",
+    "resolved": "Ann non ce l'ha fatta. Posto 1.",
+    "fallbackToEnglish": false
+  },
+  "log_color_red": {
+    "template": "rosso",
+    "resolved": "rosso",
+    "fallbackToEnglish": false
+  },
+  "log_color_yellow": {
+    "template": "giallo",
+    "resolved": "giallo",
+    "fallbackToEnglish": false
+  },
+  "log_color_green": {
+    "template": "verde",
+    "resolved": "verde",
+    "fallbackToEnglish": false
+  },
+  "log_color_blue": {
+    "template": "blu",
+    "resolved": "blu",
+    "fallbackToEnglish": false
+  }
+}

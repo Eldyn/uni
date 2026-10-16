@@ -1,0 +1,23 @@
+{
+  "uni:format_version": "1.0.0",
+  "uni:derived_event": {
+    "uni:description": { "uni:identifier": "uni:near_win_entered" },
+    "uni:emits": "near_win_entered",
+    "uni:open_on": [
+      {
+        "uni:event": "card_played",
+        "uni:seat_field": "player",
+        "uni:tests": [
+          { "uni:test": "equals", "uni:state": "hand_size", "uni:value": 1 },
+          { "uni:test": "has_tag", "uni:tag": "uni:draw_penalty", "uni:negate": true }
+        ]
+      }
+    ],
+    "uni:close_on": [
+      { "uni:event": "card_played", "uni:seat_field": "player" },
+      { "uni:event": "cards_drawn", "uni:seat_field": "target" },
+      { "uni:event": "turn_skipped", "uni:seat_field": "target" },
+      { "uni:event": "match_ended", "uni:seat_field": "target" }
+    ]
+  }
+}

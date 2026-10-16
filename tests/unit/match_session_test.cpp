@@ -26,7 +26,7 @@
  * @file match_session_test.cpp
  * @brief Headless integration test for `match::server::MatchSession`.
  *
- * Assembles a real 2-player vanilla match, scripts play / prompt-answer /
+ * Assembles a real 2-player uni match, scripts play / prompt-answer /
  * draw / win through the session surface, and asserts the per-recipient
  * `match_event` / `match_state_updated` / `match_over` wire output plus the
  * visibility rules (a non-owner never sees another hand's identity) and the
@@ -81,7 +81,7 @@ bool LoadContent(Content& out) {
     out.mods = std::move(load.mods);
     for (const LoadedMod& mod : out.mods) {
         for (const DeckDef& deck : mod.decks) {
-            if (deck.deck_id == "vanilla:classic") out.classic = deck;
+            if (deck.deck_id == "uni:classic") out.classic = deck;
         }
     }
     return !out.classic.deck_id.empty();
@@ -207,9 +207,19 @@ const json* FindEvent(const std::vector<json>& packets,
                       const std::string& type) {
     for (const json& packet : packets) {
         if (packet.value("action", std::string()) != "match_event") continue;
-        if (packet.value("type", std::string()) == type) return &packet;
+        if (packet.value("id", std::string()) == type) return &packet;
     }
     return nullptr;
+}
+
+std::size_t CountEvents(const std::vector<json>& packets,
+                        const std::string& type) {
+    std::size_t count = 0;
+    for (const json& packet : packets) {
+        if (packet.value("action", std::string()) != "match_event") continue;
+        if (packet.value("id", std::string()) == type) ++count;
+    }
+    return count;
 }
 
 /** @brief The snapshot's player row for `username`, or nullptr. */
@@ -229,7 +239,7 @@ TEST_CASE("match session: scripted two-player match emits per-recipient wire") {
     std::unique_ptr<MatchInstance> engine = MakeEngine(content, 2, 42);
     REQUIRE(engine->GetCurrentPlayerUsername() == "player0");
 
-    const std::vector<ecs::Entity> wilds = CardsByKind(*engine, "vanilla:wild");
+    const std::vector<ecs::Entity> wilds = CardsByKind(*engine, "uni:wild");
     REQUIRE(wilds.size() >= 4);
     const ecs::Entity player0 = *engine->FindPlayer("player0");
     const ecs::Entity player1 = *engine->FindPlayer("player1");
@@ -279,12 +289,12 @@ TEST_CASE("match session: scripted two-player match emits per-recipient wire") {
     CHECK((*card_played)["payload"]["card"] == wild0);
     CHECK(FindEvent(s1_play, "card_played") != nullptr);
 
-    const json* prompt = FindEvent(s0_play, "prompt_open");
+    const json* prompt = FindEvent(s0_play, "prompt_opened");
     REQUIRE(prompt != nullptr);
     CHECK((*prompt)["payload"]["kind"] == "choose_color");
     CHECK((*prompt)["payload"]["prompt_id"] == "choose_color");
     CHECK((*prompt)["payload"]["response_schema"]["type"] == "string");
-    CHECK(FindEvent(s1_play, "prompt_open") == nullptr);
+    CHECK(FindEvent(s1_play, "prompt_opened") == nullptr);
 
     // --- prompt response validation before SubmitInput ---------------------
     CHECK_FALSE(session.SubmitInput("player1", "choose_color", json("red")));
@@ -300,7 +310,7 @@ TEST_CASE("match session: scripted two-player match emits per-recipient wire") {
     session.BroadcastSnapshot(fake);
     const std::vector<json> s0_after = PacketsFor(fake, s0);
     const std::vector<json> s1_after = PacketsFor(fake, s1);
-    CHECK(FindEvent(s0_after, "prompt_open") == nullptr);
+    CHECK(FindEvent(s0_after, "prompt_opened") == nullptr);
     REQUIRE(FindEvent(s0_after, "turn_advance") != nullptr);
     REQUIRE(FindEvent(s1_after, "turn_advance") != nullptr);
     CHECK(session.Engine().GetCurrentPlayerUsername() == "player1");
@@ -316,7 +326,7 @@ TEST_CASE("match session: scripted two-player match emits per-recipient wire") {
     const json* drawn1 = FindEvent(s1_draw, "cards_drawn");
     REQUIRE(drawn0 != nullptr);
     REQUIRE(drawn1 != nullptr);
-    CHECK((*drawn0)["payload"]["player"] == "player1");
+    CHECK((*drawn0)["payload"]["target"] == "player1");
     CHECK((*drawn0)["payload"]["count"] == 1);
     CHECK_FALSE((*drawn0)["payload"].contains("cards"));
 
@@ -349,8 +359,8 @@ TEST_CASE("match session: scripted two-player match emits per-recipient wire") {
     CHECK((*over0)["winner"] == "player0");
     CHECK((*over1)["winner"] == "player0");
     CHECK((*over0)["placements"][0] == "player0");
-    REQUIRE(FindEvent(s0_end, "match_end") != nullptr);
-    REQUIRE(FindEvent(s1_end, "placement") != nullptr);
+    REQUIRE(FindEvent(s0_end, "match_ended") != nullptr);
+    REQUIRE(FindEvent(s1_end, "placement_set") != nullptr);
 
     // INFO: match_over is idempotent - a second broadcast re-sends nothing.
     fake.Clear();
@@ -364,7 +374,7 @@ TEST_CASE("match session: answer closes the prompt for the target only") {
     REQUIRE(LoadContent(content));
     std::unique_ptr<MatchInstance> engine = MakeEngine(content, 2, 42);
 
-    const std::vector<ecs::Entity> wilds = CardsByKind(*engine, "vanilla:wild");
+    const std::vector<ecs::Entity> wilds = CardsByKind(*engine, "uni:wild");
     REQUIRE(wilds.size() >= 4);
     const ecs::Entity player0 = *engine->FindPlayer("player0");
     const ecs::Entity player1 = *engine->FindPlayer("player1");
@@ -384,7 +394,7 @@ TEST_CASE("match session: answer closes the prompt for the target only") {
     REQUIRE(session.PlayCard("player0", wild0));
     fake.Clear();
     session.EmitEvents(fake);
-    REQUIRE(FindEvent(PacketsFor(fake, s0), "prompt_open") != nullptr);
+    REQUIRE(FindEvent(PacketsFor(fake, s0), "prompt_opened") != nullptr);
 
     // --- answer -> the target gets a matching prompt_close ---------------
     REQUIRE(session.SubmitInput("player0", "choose_color", json("red")));
@@ -394,17 +404,71 @@ TEST_CASE("match session: answer closes the prompt for the target only") {
     const std::vector<json> s0_after = PacketsFor(fake, s0);
     const std::vector<json> s1_after = PacketsFor(fake, s1);
 
-    const json* close0 = FindEvent(s0_after, "prompt_close");
+    const json* close0 = FindEvent(s0_after, "prompt_answered");
     REQUIRE(close0 != nullptr);
     CHECK(close0->value("action", std::string()) == "match_event");
     CHECK((*close0)["payload"]["prompt_id"] == "choose_color");
     CHECK((*close0)["payload"]["outcome"] == "answered");
-    CHECK(close0->contains("seq"));
+    CHECK(close0->contains("sequence"));
 
     // INFO: prompt_close is target-only - the opponent never receives it.
-    CHECK(FindEvent(s1_after, "prompt_close") == nullptr);
-    // INFO: a cleared prompt never re-sends prompt_open either.
-    CHECK(FindEvent(s0_after, "prompt_open") == nullptr);
+    CHECK(FindEvent(s1_after, "prompt_answered") == nullptr);
+    // INFO: a cleared prompt never re-sends prompt_opened either.
+    CHECK(FindEvent(s0_after, "prompt_opened") == nullptr);
+}
+
+TEST_CASE("match session: a prompt sends prompt_opened and prompt_answered "
+          "one time each") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    std::unique_ptr<MatchInstance> engine = MakeEngine(content, 2, 42);
+
+    const std::vector<ecs::Entity> wilds = CardsByKind(*engine, "uni:wild");
+    REQUIRE(wilds.size() >= 4);
+    const ecs::Entity player0 = *engine->FindPlayer("player0");
+    const ecs::Entity player1 = *engine->FindPlayer("player1");
+    ForceHand(*engine, player0, {wilds[0], wilds[1]});
+    ForceHand(*engine, player1, {wilds[2], wilds[3]});
+    const uint32_t wild0 = BitsOf(*engine, wilds[0]);
+
+    AppWebSocket* s0 = PlayerSocket(0);
+    AppWebSocket* s1 = PlayerSocket(1);
+    match::server::MatchSession session(
+        std::move(engine), std::move(content.mods),
+        {{"player0", s0}, {"player1", s1}});
+    FakeBroadcaster fake;
+
+    REQUIRE(session.PlayCard("player0", wild0));
+    session.EmitEvents(fake);
+    REQUIRE(session.SubmitInput("player0", "choose_color", json("red")));
+    session.EmitEvents(fake);
+
+    const std::vector<json> s0_packets = PacketsFor(fake, s0);
+    const std::vector<json> s1_packets = PacketsFor(fake, s1);
+    const json* opened = FindEvent(s0_packets, "prompt_opened");
+    REQUIRE(opened != nullptr);
+    CHECK(CountEvents(s0_packets, "prompt_opened") == 1);
+
+    const json* answered = FindEvent(s0_packets, "prompt_answered");
+    REQUIRE(answered != nullptr);
+    CHECK(CountEvents(s0_packets, "prompt_answered") == 1);
+    CHECK((*answered)["payload"]["outcome"] == "answered");
+    CHECK((*answered)["payload"]["prompt_id"] == "choose_color");
+
+    CHECK(FindEvent(s1_packets, "prompt_opened") == nullptr);
+    CHECK(FindEvent(s1_packets, "prompt_answered") == nullptr);
+
+    for (const std::vector<json>* packets : {&s0_packets, &s1_packets}) {
+        uint32_t previous = 0;
+        bool first = true;
+        for (const json& packet : *packets) {
+            if (!packet.contains("sequence")) continue;
+            const uint32_t sequence = packet["sequence"].get<uint32_t>();
+            if (!first) CHECK(sequence == previous + 1);
+            previous = sequence;
+            first = false;
+        }
+    }
 }
 
 TEST_CASE("match session: KeepDrawn forwards to the engine for the owner only") {
@@ -439,7 +503,7 @@ TEST_CASE("match session: per-recipient seq persists across batches") {
     REQUIRE(LoadContent(content));
     std::unique_ptr<MatchInstance> engine = MakeEngine(content, 2, 42);
 
-    const std::vector<ecs::Entity> wilds = CardsByKind(*engine, "vanilla:wild");
+    const std::vector<ecs::Entity> wilds = CardsByKind(*engine, "uni:wild");
     REQUIRE(wilds.size() >= 4);
     const ecs::Entity player0 = *engine->FindPlayer("player0");
     const ecs::Entity player1 = *engine->FindPlayer("player1");
@@ -462,12 +526,12 @@ TEST_CASE("match session: per-recipient seq persists across batches") {
         session.BroadcastSnapshot(fake);
         for (const json& packet : PacketsFor(fake, s0)) {
             if (packet.value("action", std::string()) == "match_event") {
-                seq0.push_back(packet.value("seq", 0u));
+                seq0.push_back(packet.value("sequence", 0u));
             }
         }
         for (const json& packet : PacketsFor(fake, s1)) {
             if (packet.value("action", std::string()) == "match_event") {
-                seq1.push_back(packet.value("seq", 0u));
+                seq1.push_back(packet.value("sequence", 0u));
             }
         }
     };
@@ -498,7 +562,7 @@ TEST_CASE("match session: a bound spectator keeps receiving live updates") {
     REQUIRE(LoadContent(content));
     std::unique_ptr<MatchInstance> engine = MakeEngine(content, 2, 42);
 
-    const std::vector<ecs::Entity> wilds = CardsByKind(*engine, "vanilla:wild");
+    const std::vector<ecs::Entity> wilds = CardsByKind(*engine, "uni:wild");
     REQUIRE(wilds.size() >= 4);
     const ecs::Entity player0 = *engine->FindPlayer("player0");
     const ecs::Entity player1 = *engine->FindPlayer("player1");
@@ -538,7 +602,7 @@ TEST_CASE("match session: a bound spectator keeps receiving live updates") {
     REQUIRE(snapshot != nullptr);
 
     // INFO: a spectator is never a prompt target, so it sees no prompt_open.
-    CHECK(FindEvent(spectator_packets, "prompt_open") == nullptr);
+    CHECK(FindEvent(spectator_packets, "prompt_opened") == nullptr);
 
     // INFO: unbinding drops the viewer from the live stream entirely.
     REQUIRE(session.UnbindViewer("watcher"));
@@ -612,7 +676,7 @@ TEST_CASE("match session: defs and match_start precede the first snapshot") {
                 packet.value("action", std::string());
             if (action == "match_event") {
                 ++match_events;
-                const std::string type = packet.value("type", std::string());
+                const std::string type = packet.value("id", std::string());
                 if (type == "defs") {
                     ++defs_count;
                     if (defs_idx == npos) defs_idx = i;
@@ -631,8 +695,8 @@ TEST_CASE("match session: defs and match_start precede the first snapshot") {
         CHECK(defs_idx < start_idx);
         CHECK(start_idx < snap_idx);
         // INFO: the persistent stream starts at seq 0 and never renumbers.
-        CHECK(packets[defs_idx].value("seq", 0u) == 0u);
-        CHECK(packets[start_idx].value("seq", 0u) == 1u);
+        CHECK(packets[defs_idx].value("sequence", 0u) == 0u);
+        CHECK(packets[start_idx].value("sequence", 0u) == 1u);
         // INFO: the snapshot watermark reconciles with the packets already
         //       emitted into this recipient's sink.
         CHECK(packets[snap_idx]["match_state"].value("seq_watermark", 0u)
@@ -689,11 +753,11 @@ TEST_CASE("match session: defs carries the frozen mods and kind table") {
     }
     CHECK(cursor == defs["kinds"].size());
 
-    // INFO: a vanilla kind appears with the face authored in
-    //       `mods/vanilla/cards.json`, not a blank placeholder.
+    // INFO: a uni kind appears with the face authored in
+    //       `mods/uni/cards.json`, not a blank placeholder.
     const json* wild = nullptr;
     for (const json& kind : defs["kinds"]) {
-        if (kind.value("string_id", std::string()) == "vanilla:wild") {
+        if (kind.value("string_id", std::string()) == "uni:wild") {
             wild = &kind;
         }
     }
@@ -725,7 +789,7 @@ TEST_CASE("match session: match_start carries the retained deck snapshot") {
     REQUIRE(start != nullptr);
 
     const json& start_payload = (*start)["payload"];
-    CHECK(start_payload["deck_id"] == "vanilla:classic");
+    CHECK(start_payload["deck_id"] == "uni:classic");
     CHECK(start_payload["deck_name"] == "Classic");
     REQUIRE(start_payload["settings"].is_object());
     CHECK_FALSE(start_payload["settings"].empty());
@@ -752,7 +816,7 @@ TEST_CASE("match session: a second EmitMatchStart does not re-send") {
     int start_count = 0;
     for (const json& packet : PacketsFor(fake, s0)) {
         if (packet.value("action", std::string()) != "match_event") continue;
-        const std::string type = packet.value("type", std::string());
+        const std::string type = packet.value("id", std::string());
         if (type == "defs") ++defs_count;
         if (type == "match_start") ++start_count;
     }
@@ -783,11 +847,11 @@ TEST_CASE("match session: a spectator bound after start receives defs") {
     REQUIRE(defs != nullptr);
     // INFO: a mid-match spectator gets the kind table exactly once, before
     //       any event; it does not need `match_start` (no deck UI).
-    CHECK(packets.front().value("type", std::string()) == "defs");
+    CHECK(packets.front().value("id", std::string()) == "defs");
     int defs_count = 0;
     for (const json& packet : packets) {
         if (packet.value("action", std::string()) == "match_event"
-            && packet.value("type", std::string()) == "defs") {
+            && packet.value("id", std::string()) == "defs") {
             ++defs_count;
         }
     }
@@ -810,7 +874,7 @@ std::vector<json> EventsOfType(const FakeBroadcaster& broadcaster,
     for (const SentFrame& frame : broadcaster.FramesFor(socket)) {
         const json packet = json::parse(frame.payload, nullptr, false);
         if (packet.is_object() && packet.value("action", "") == "match_event" &&
-            packet.value("type", "") == type) {
+            packet.value("id", "") == type) {
             out.push_back(packet);
         }
     }
@@ -948,4 +1012,176 @@ TEST_CASE("MatchSession ready barrier: no timeout omits timeout_ms") {
         EventsOfType(broadcaster, PlayerSocket(1), "players_ready");
     REQUIRE(packets.size() == 1);
     CHECK_FALSE(packets[0]["payload"].contains("timeout_ms"));
+}
+
+namespace {
+
+struct TwoSeatSession {
+    std::unique_ptr<match::server::MatchSession> session;
+    AppWebSocket* socket0 = PlayerSocket(0);
+    AppWebSocket* socket1 = PlayerSocket(1);
+    uint32_t wild0 = 0;
+    uint32_t wild2 = 0;
+};
+
+TwoSeatSession MakeTwoSeatSession() {
+    Content content;
+    REQUIRE(LoadContent(content));
+    std::unique_ptr<MatchInstance> engine = MakeEngine(content, 2, 42);
+    const std::vector<ecs::Entity> wilds = CardsByKind(*engine, "uni:wild");
+    REQUIRE(wilds.size() >= 4);
+    ForceHand(*engine, *engine->FindPlayer("player0"), {wilds[0], wilds[1]});
+    ForceHand(*engine, *engine->FindPlayer("player1"), {wilds[2], wilds[3]});
+
+    TwoSeatSession result;
+    result.wild0 = BitsOf(*engine, wilds[0]);
+    result.wild2 = BitsOf(*engine, wilds[2]);
+    result.session = std::make_unique<match::server::MatchSession>(
+        std::move(engine), std::move(content.mods),
+        match::server::MatchSession::SocketMap{{"player0", result.socket0},
+                                               {"player1", result.socket1}});
+    return result;
+}
+
+std::vector<json> MatchEventsFor(const FakeBroadcaster& fake,
+                                 AppWebSocket* socket) {
+    std::vector<json> events;
+    for (const json& packet : PacketsFor(fake, socket)) {
+        if (packet.value("action", std::string()) == "match_event") {
+            events.push_back(packet);
+        }
+    }
+    return events;
+}
+
+}  // namespace
+
+TEST_CASE("match session: a seat that misses events gets its own sequence") {
+    TwoSeatSession seats = MakeTwoSeatSession();
+    FakeBroadcaster fake;
+
+    REQUIRE_FALSE(seats.session->PlayCard("player1", seats.wild2));
+    REQUIRE(seats.session->PlayCard("player0", seats.wild0));
+    seats.session->EmitEvents(fake);
+
+    const std::vector<json> events0 = MatchEventsFor(fake, seats.socket0);
+    const std::vector<json> events1 = MatchEventsFor(fake, seats.socket1);
+    const json* played0 = FindEvent(events0, "card_played");
+    const json* played1 = FindEvent(events1, "card_played");
+    REQUIRE(played0 != nullptr);
+    REQUIRE(played1 != nullptr);
+    CHECK(FindEvent(events0, "play_rejected") == nullptr);
+    CHECK(FindEvent(events1, "play_rejected") != nullptr);
+    CHECK((*played0)["sequence"] != (*played1)["sequence"]);
+    CHECK((*played0)["actor"] == "player0");
+}
+
+TEST_CASE("match session: a one seat event leaves no gap for the other seat") {
+    TwoSeatSession seats = MakeTwoSeatSession();
+    FakeBroadcaster fake;
+
+    REQUIRE_FALSE(seats.session->PlayCard("player1", seats.wild2));
+    REQUIRE(seats.session->PlayCard("player0", seats.wild0));
+    seats.session->EmitEvents(fake);
+
+    for (AppWebSocket* socket : {seats.socket0, seats.socket1}) {
+        const std::vector<json> events = MatchEventsFor(fake, socket);
+        REQUIRE_FALSE(events.empty());
+        for (std::size_t index = 0; index < events.size(); ++index) {
+            CHECK(events[index]["sequence"] == index);
+        }
+    }
+}
+
+TEST_CASE("match session: a prompt takes its sequence from the seat counter") {
+    TwoSeatSession seats = MakeTwoSeatSession();
+    FakeBroadcaster fake;
+
+    REQUIRE(seats.session->PlayCard("player0", seats.wild0));
+    seats.session->EmitEvents(fake);
+
+    const std::vector<json> events0 = MatchEventsFor(fake, seats.socket0);
+    const json* prompt = FindEvent(events0, "prompt_opened");
+    REQUIRE(prompt != nullptr);
+    CHECK((*prompt)["sequence"] == events0.size() - 1);
+    CHECK((*prompt)["id"] == "prompt_opened");
+    CHECK(events0.back()["id"] == "prompt_opened");
+    CHECK(events0.back()["sequence"] == events0.size() - 1);
+}
+
+TEST_CASE("match session: a seat that reconnects with a prompt pending keeps "
+          "one prompt and a gap-free sequence") {
+    TwoSeatSession seats = MakeTwoSeatSession();
+    FakeBroadcaster fake;
+
+    REQUIRE(seats.session->PlayCard("player0", seats.wild0));
+    seats.session->EmitEvents(fake);
+    const std::size_t first_count =
+        MatchEventsFor(fake, seats.socket0).size();
+    REQUIRE(first_count > 0);
+
+    REQUIRE(seats.session->BindSocket("player0", nullptr));
+    REQUIRE(seats.session->BindSocket("player0", seats.socket0));
+    fake.Clear();
+    seats.session->EmitEvents(fake);
+    // INFO: the prompt is already open for this seat. A reconnect sends no
+    //       second prompt packet; the snapshot carries it.
+    const std::vector<json> quiet = MatchEventsFor(fake, seats.socket0);
+    CHECK(FindEvent(quiet, "prompt_opened") == nullptr);
+
+    REQUIRE(seats.session->SubmitInput("player0", "choose_color",
+                                       json("red")));
+    fake.Clear();
+    seats.session->EmitEvents(fake);
+    const std::vector<json> answered = MatchEventsFor(fake, seats.socket0);
+    REQUIRE(FindEvent(answered, "prompt_answered") != nullptr);
+    CHECK(answered.front()["sequence"] == first_count);
+    for (std::size_t index = 0; index < answered.size(); ++index) {
+        CHECK(answered[index]["sequence"] == first_count + index);
+    }
+}
+
+TEST_CASE("match session: a snapshot request is answered with a watermark") {
+    TwoSeatSession seats = MakeTwoSeatSession();
+    FakeBroadcaster fake;
+    REQUIRE(seats.session->PlayCard("player0", seats.wild0));
+    seats.session->EmitEvents(fake);
+    const std::size_t events_before =
+        MatchEventsFor(fake, seats.socket1).size();
+    fake.Clear();
+
+    CHECK(seats.session->HandleSnapshotRequest(
+        fake, "player1", match::view::SnapshotOptions{}));
+
+    const std::vector<json> packets = PacketsFor(fake, seats.socket1);
+    const json* snapshot = FindPacket(packets, "match_state_updated");
+    REQUIRE(snapshot != nullptr);
+    CHECK((*snapshot)["match_state"]["seq_watermark"] == events_before);
+    CHECK(PacketsFor(fake, seats.socket0).empty());
+}
+
+TEST_CASE("match session: a flood of snapshot requests is limited") {
+    TwoSeatSession seats = MakeTwoSeatSession();
+    seats.session->SetSnapshotRequestIntervalMs(60'000);
+    FakeBroadcaster fake;
+
+    CHECK(seats.session->HandleSnapshotRequest(
+        fake, "player1", match::view::SnapshotOptions{}));
+    const std::size_t sent_after_first = fake.sent.size();
+    for (int attempt = 0; attempt < 20; ++attempt) {
+        CHECK_FALSE(seats.session->HandleSnapshotRequest(
+            fake, "player1", match::view::SnapshotOptions{}));
+    }
+    CHECK(fake.sent.size() == sent_after_first);
+    CHECK(seats.session->HandleSnapshotRequest(
+        fake, "player0", match::view::SnapshotOptions{}));
+}
+
+TEST_CASE("match session: an unknown recipient gets no snapshot") {
+    TwoSeatSession seats = MakeTwoSeatSession();
+    FakeBroadcaster fake;
+
+    CHECK_FALSE(seats.session->HandleSnapshotRequest(
+        fake, "stranger", match::view::SnapshotOptions{}));
+    CHECK(fake.sent.empty());
 }

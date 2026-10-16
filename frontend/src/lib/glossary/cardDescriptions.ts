@@ -1,11 +1,16 @@
 /**
  * @file cardDescriptions.ts
  * @brief Rich card descriptions and titles with glossary hypertext markup.
+ *
+ * The texts of the base cards live in the `uni` mod (`<card>.label` and
+ * `<card>.description`) and come through the mod text layer. They follow the
+ * active locale. A reader gets null while the texts load.
  */
 
-import * as m from "$lib/paraglide/messages.js";
+import { isBaseModNamespace } from "$lib/utils/baseMod";
 import { ValueMap } from "$lib/generated/schemas";
-import { storeI18n } from "$stores/i18n.svelte";
+import { storeModGlossary } from "$stores/modGlossary.svelte";
+import { storeModTexts } from "$stores/modTexts.svelte";
 import type { CardValue } from "$stores/game.svelte";
 
 export interface CardDescriptionInfo {
@@ -13,59 +18,19 @@ export interface CardDescriptionInfo {
 	description: string;
 }
 
-export function getCardDescription(value: CardValue, locale?: string): string {
-	const l = locale ?? storeI18n.locale;
-	switch (value) {
-		case "skip":
-			return m.card_desc_skip({}, { locale: l });
-		case "reverse":
-			return m.card_desc_reverse({}, { locale: l });
-		case "+2":
-			return m.card_desc_draw2({}, { locale: l });
-		case "jolly":
-			return m.card_desc_wild({}, { locale: l });
-		case "jolly_draw4":
-			return m.card_desc_wild_draw4({}, { locale: l });
-		case "7":
-			return m.card_desc_seven({}, { locale: l });
-		case "0":
-			return m.card_desc_zero({}, { locale: l });
-		default:
-			return m.card_desc_number({}, { locale: l });
-	}
-}
+const BASE_COLORS = ["red", "blue", "green", "yellow"];
+const REPRESENTATIVE_COLOR = "red";
+const BASE_KIND_PREFIX = "uni:";
+const LABEL_SUFFIX = ".label";
+const DESCRIPTION_SUFFIX = ".description";
 
-export function getCardTitle(card: { type: string; value: CardValue }, locale?: string): string {
-	const l = locale ?? storeI18n.locale;
-	switch (card.value) {
-		case "skip":
-			return m.card_title_skip({}, { locale: l });
-		case "reverse":
-			return m.card_title_reverse({}, { locale: l });
-		case "+2":
-			return m.card_title_draw2({}, { locale: l });
-		case "jolly":
-			return m.card_title_wild({}, { locale: l });
-		case "jolly_draw4":
-			return m.card_title_wild_draw4({}, { locale: l });
-		default: {
-			const color = card.type.charAt(0).toUpperCase() + card.type.slice(1);
-			return `${color} ${card.value}`;
-		}
-	}
-}
-
-export function getCardInfo(
-	card: { type: string; value: CardValue },
-	locale?: string
-): CardDescriptionInfo {
-	return {
-		title: getCardTitle(card, locale),
-		description: getCardDescription(card.value, locale)
-	};
-}
-
-const VANILLA_COLORS = ["red", "blue", "green", "yellow"];
+const SLUG_BY_VALUE: Partial<Record<CardValue, string>> = {
+	skip: "skip",
+	reverse: "reverse",
+	"+2": "draw2",
+	jolly: "wild",
+	jolly_draw4: "wild_draw4"
+};
 
 const VALUE_BY_SLUG: Record<string, CardValue> = {
 	draw2: "+2",
@@ -73,39 +38,71 @@ const VALUE_BY_SLUG: Record<string, CardValue> = {
 	wild_draw4: "jolly_draw4"
 };
 
-const KNOWN_VALUES = new Set<string>(ValueMap);
+const COLORLESS_SLUGS = new Set(["wild", "wild_draw4"]);
 
-function vanillaSlug(localId: string): string {
-	for (const color of VANILLA_COLORS) {
+/** The base kind that carries the texts of a card value; the texts do not depend on the colour. */
+function representativeKind(value: CardValue): string {
+	const slug = SLUG_BY_VALUE[value] ?? String(value);
+	return COLORLESS_SLUGS.has(slug)
+		? `${BASE_KIND_PREFIX}${slug}`
+		: `${BASE_KIND_PREFIX}${REPRESENTATIVE_COLOR}_${slug}`;
+}
+
+/**
+ * The text of a card kind, or null while the `defs` listing or the texts are
+ * missing. A kind that no listing names never shows its raw key.
+ */
+function resolveCardText(kindId: string, suffix: string): string | null {
+	if (!storeModGlossary.has(kindId)) return null;
+	return storeModTexts.resolve(`${kindId}${suffix}`, {});
+}
+
+export function getCardDescription(value: CardValue): string | null {
+	return resolveCardText(representativeKind(value), DESCRIPTION_SUFFIX);
+}
+
+export function getCardTitle(card: { type: string; value: CardValue }): string | null {
+	if (SLUG_BY_VALUE[card.value] === undefined) {
+		const color = card.type.charAt(0).toUpperCase() + card.type.slice(1);
+		return `${color} ${card.value}`;
+	}
+	return resolveCardText(representativeKind(card.value), LABEL_SUFFIX);
+}
+
+export function getCardInfo(card: { type: string; value: CardValue }): CardDescriptionInfo | null {
+	const title = getCardTitle(card);
+	const description = getCardDescription(card.value);
+	return title === null || description === null ? null : { title, description };
+}
+
+function baseSlug(localId: string): string {
+	for (const color of BASE_COLORS) {
 		const prefix = `${color}_`;
 		if (localId.startsWith(prefix)) return localId.slice(prefix.length);
 	}
 	return localId;
 }
 
+const KNOWN_VALUES = new Set<string>(ValueMap);
+
 export function cardValueFromKind(kindId: string): CardValue | null {
 	const [namespace, localId] = kindId.split(":");
-	if (namespace !== "vanilla" || !localId) return null;
-	const slug = vanillaSlug(localId);
+	if (!isBaseModNamespace(namespace) || !localId) return null;
+	const slug = baseSlug(localId);
 	const value = VALUE_BY_SLUG[slug] ?? slug;
 	return KNOWN_VALUES.has(value) ? (value as CardValue) : null;
 }
 
-export function cardInfoByKind(kindId: string, locale?: string): CardDescriptionInfo | null {
+/**
+ * The colour-free title and the description of a base card kind. A title
+ * without a colour word suits copy that already conveys the colour separately:
+ * specials keep their localized title, numbers are just the value.
+ */
+export function cardInfoByKind(kindId: string): CardDescriptionInfo | null {
 	const value = cardValueFromKind(kindId);
 	if (!value) return null;
-	return {
-		title: colorFreeTitle(value, locale),
-		description: getCardDescription(value, locale)
-	};
-}
-
-const SPECIAL_VALUES = new Set<CardValue>(["skip", "reverse", "+2", "jolly", "jolly_draw4"]);
-
-/**
- * A card title without a colour word, for copy that already conveys colour
- * separately. Specials keep their localized title; numbers are just the value.
- */
-function colorFreeTitle(value: CardValue, locale?: string): string {
-	return SPECIAL_VALUES.has(value) ? getCardTitle({ type: "white", value }, locale) : String(value);
+	const title =
+		SLUG_BY_VALUE[value] === undefined ? String(value) : resolveCardText(kindId, LABEL_SUFFIX);
+	const description = resolveCardText(kindId, DESCRIPTION_SUFFIX);
+	return title === null || description === null ? null : { title, description };
 }

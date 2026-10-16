@@ -45,7 +45,7 @@
  *   `Start` semantics);
  * - subscribes every rule hook and card behavior as a mod system on the
  *   `EventBus` in frozen order (mod list order, then registration order) and
- *   dispatches `match_start`, which is what installs the vanilla restriction
+ *   dispatches `match_start`, which is what installs the uni restriction
  *   entries shipped as `after:match_start` data
  * - installs the `PlayConditionMatcher` and populates the per-match the op
  *   layer `CardTagTable` (`MatchRegistries::card_tags`) from the loaded card
@@ -127,6 +127,66 @@ struct MatchRegistries {
      * (before `match_start`) and it is read-only during play.
      */
     ops::CardTagTable card_tags;
+
+    /**
+     * @brief Frozen full-`namespace:id` -> outcome table for this match.
+     *
+     * Same per-match rule as `card_tags`: filled once at assembly from the
+     * active mods' `TableDef`s and read-only during play, so concurrent matches
+     * with different content cannot clobber each other's `roll_table` targets.
+     */
+    ops::TableRegistry tables;
+
+    /**
+     * @brief Frozen full-`namespace:id` -> entity def for this match.
+     *
+     * Same per-match rule as `tables`: filled once at assembly from the active
+     * mods' `EntityDef`s and read-only during play. The `defs` packet publishes
+     * them so the client's entity runtime can spawn by def id.
+     */
+    modload::EntityRegistry entities;
+
+    /**
+     * @brief Frozen full-`namespace:id` -> presentation def for this match
+     *.
+     *
+     * Same per-match rule as `entities`: filled once at assembly and read-only
+     * during play; client-consumed through the `defs` packet.
+     */
+    modload::PresentationRegistry presentations;
+
+    /**
+     * @brief Frozen full-`namespace:id` -> event definition for this match.
+     *
+     * Same per-match rule as `entities`. The `emit_event` op validates a mod
+     * event against it, and the view layer reads the field audiences from it.
+     */
+    modload::EventRegistry events;
+
+    /**
+     * @brief Frozen full-`namespace:id` -> streak definition for this match.
+     *
+     * Filled once at assembly from the active mods. The streak engine of the
+     * match reads it when the match starts.
+     */
+    modload::StreakRegistry streaks;
+
+    /**
+     * @brief Frozen full-`namespace:id` -> derived event definition.
+     *
+     * Same per-match rule as `streaks`. The derived engine of the match reads
+     * it when the match starts.
+     */
+    modload::DerivedRegistry derived;
+
+    /**
+     * @brief Frozen full-`namespace:id` -> presentation binding.
+     *
+     * Per match like `presentations`. The `defs` packet publishes it in the
+     * `presentations` array; the client binds the beats, sounds, and play log
+     * line to the event id.
+     */
+    modload::BindingRegistry bindings;
 
     /** @brief Frozen position of `kind_id`, or nullopt when not active. */
     std::optional<KindIndex> FindKind(const std::string& kind_id) const;
@@ -212,7 +272,7 @@ class MatchAssembler;
  *
  * The engine freezes only the deck's mod list and card multiset; the view layer
  * also needs the deck id / name and the lobby settings bag to build
- * `match_start` and to carry real settings into `match_end`. Retained
+ * `match_start` and to carry real settings into `match_ended`. Retained
  * additively at assembly time (this resolves the former `match_instance.cpp`
  * TODO).
  */
@@ -266,7 +326,7 @@ public:
      * @brief Deck identity + settings retained from the assembly input.
      *
      * Populated by `MatchAssembler::Assemble`; the view layer reads it through
-     * `Deck()` to build `match_start` and `match_end` settings.
+     * `Deck()` to build `match_start` and `match_ended` settings.
      */
     MatchDeckSnapshot deck;
 

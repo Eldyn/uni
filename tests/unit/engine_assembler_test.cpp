@@ -17,7 +17,7 @@
  * @file engine_assembler_test.cpp
  * @brief `MatchAssembler` acceptance tests.
  *
- * Builds matches from the real `mods/` tree and the vanilla classic deck, so
+ * Builds matches from the real `mods/` tree and the uni classic deck, so
  * the frozen registries, entity layout, deterministic instance ids, bound
  * enforcement and RNG seeding are all exercised against shipped content.
  */
@@ -36,7 +36,7 @@ std::string AssemblyMessage(const AssemblyResult& result) {
 }
 
 /* INFO: locate the project root from this file, mirroring
- *       vanilla_content_test.cpp, so the test is cwd-independent. */
+ *       uni_content_test.cpp, so the test is cwd-independent. */
 fs::path ProjectRoot() {
     fs::path p(__FILE__);
     while (!p.empty()) {
@@ -62,7 +62,7 @@ bool LoadContent(Content& out) {
     out.mods = std::move(load.mods);
     for (const LoadedMod& mod : out.mods) {
         for (const DeckDef& deck : mod.decks) {
-            if (deck.deck_id == "vanilla:classic") out.classic = deck;
+            if (deck.deck_id == "uni:classic") out.classic = deck;
         }
     }
     return !out.classic.deck_id.empty();
@@ -156,7 +156,7 @@ TEST_CASE("engine assembler: classic deck builds entities and hands") {
     CHECK(assembly.registries.cards.size() == 108);
     CHECK(assembly.registries.players.size() == 4);
     CHECK(assembly.registries.mods.size() == 1);
-    CHECK(assembly.registries.mods.front().id == "vanilla");
+    CHECK(assembly.registries.mods.front().id == "uni");
 
     for (ecs::Entity player : assembly.registries.players) {
         CHECK(HandKinds(assembly, player).size() == 7);
@@ -214,7 +214,7 @@ TEST_CASE("engine assembler: kind table and CompactCardV2 round-trip") {
         CHECK(instance == expected);
     }
 
-    const std::optional<KindIndex> red5 = reg.FindKind("vanilla:red_5");
+    const std::optional<KindIndex> red5 = reg.FindKind("uni:red_5");
     REQUIRE(red5.has_value());
     CHECK(red5->mod_index == 0);
     CHECK_FALSE(reg.FindKind("ghost:nope").has_value());
@@ -275,7 +275,7 @@ TEST_CASE("engine assembler: RNG seeding is explicit and deterministic") {
     CHECK(other_state->seed != state->seed);
 }
 
-TEST_CASE("engine assembler: installs vanilla restriction entries") {
+TEST_CASE("engine assembler: installs uni restriction entries") {
     Content content;
     REQUIRE(LoadContent(content));
     AssemblyResult result =
@@ -288,9 +288,9 @@ TEST_CASE("engine assembler: installs vanilla restriction entries") {
             result.assembly->registries.match);
     REQUIRE(pipeline != nullptr);
     REQUIRE(pipeline->entries.size() == 3);
-    CHECK(pipeline->entries[0].id == "vanilla:turn_order");
-    CHECK(pipeline->entries[1].id == "vanilla:match_type_or_value");
-    CHECK(pipeline->entries[2].id == "vanilla:must_own_card");
+    CHECK(pipeline->entries[0].id == "uni:turn_order");
+    CHECK(pipeline->entries[1].id == "uni:match_type_or_value");
+    CHECK(pipeline->entries[2].id == "uni:must_own_card");
     CHECK(pipeline->entries[1].phase == ecs::RestrictionPhase::kDeny);
 
     REQUIRE(result.assembly->play_matcher != nullptr);
@@ -307,12 +307,12 @@ TEST_CASE("engine assembler: installs vanilla restriction entries") {
 
     // INFO: The tag table is per-assembly, read through the
     //       assembly's own registries, not a process-global static.
-    CHECK(match::ops::CardHasTag(&result.assembly->registries, "vanilla:red_5",
+    CHECK(match::ops::CardHasTag(&result.assembly->registries, "uni:red_5",
                                  "red"));
     CHECK(match::ops::CardHasTag(&result.assembly->registries,
-                                 "vanilla:wild_draw4", "stackable"));
+                                 "uni:wild_draw4", "stackable"));
     CHECK_FALSE(match::ops::CardHasTag(&result.assembly->registries,
-                                       "vanilla:red_5", "stackable"));
+                                       "uni:red_5", "stackable"));
 }
 
 TEST_CASE("engine assembler: per-match card tags are isolated") {
@@ -348,7 +348,7 @@ TEST_CASE("engine assembler: all active mods subscribe restrictions") {
     Content content;
     REQUIRE(LoadContent(content));
     DeckDef deck = content.classic;
-    deck.mods = {"vanilla", "jump_in", "no_bluffing"};
+    deck.mods = {"uni", "jump_in", "no_bluffing"};
 
     AssemblyResult result =
         MatchAssembler::Assemble(content.mods, deck, Players(4, 7, 3));
@@ -375,7 +375,7 @@ TEST_CASE("engine assembler: enforces index-space bounds") {
 
     SUBCASE("copy count over 4096") {
         DeckDef deck = content.classic;
-        deck.cards = {{"vanilla:red_5", 4097}};
+        deck.cards = {{"uni:red_5", 4097}};
         AssemblyResult result =
             MatchAssembler::Assemble(content.mods, deck, Players(2, 7, 1));
         CHECK_FALSE(result.ok());
@@ -384,7 +384,7 @@ TEST_CASE("engine assembler: enforces index-space bounds") {
     }
     SUBCASE("unknown kind") {
         DeckDef deck = content.classic;
-        deck.cards = {{"vanilla:not_a_card", 1}};
+        deck.cards = {{"uni:not_a_card", 1}};
         AssemblyResult result =
             MatchAssembler::Assemble(content.mods, deck, Players(2, 7, 1));
         CHECK_FALSE(result.ok());

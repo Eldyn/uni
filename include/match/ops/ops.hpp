@@ -7,7 +7,7 @@
 
 #include <nlohmann/json.hpp>
 
-#include <cstddef>
+#include <algorithm>
 #include <cstdint>
 #include <map>
 #include <optional>
@@ -78,6 +78,56 @@ struct InputRequest {
     nlohmann::json payload = nlohmann::json::object();  /**< envelope body. */
 };
 
+/** @brief Cause labels of the causal frame. */
+inline constexpr std::string_view kCauseSystem = "system";
+inline constexpr std::string_view kCausePlay = "play";
+inline constexpr std::string_view kCauseDraw = "draw";
+inline constexpr std::string_view kCauseKeepDrawn = "keep_drawn";
+inline constexpr std::string_view kCausePromptAnswer = "prompt_answer";
+inline constexpr std::string_view kCauseWindowResponse = "window_responded";
+inline constexpr std::string_view kCauseWindowTimeout = "window_timeout";
+inline constexpr std::string_view kCauseTurnTimerExpired =
+    "turn_timer_expired";
+
+/**
+ * @struct CausalFrame
+ * @brief Who caused an engine event and why.
+ *
+ * `actor` is the seat that caused the event. An empty `actor` means the
+ * table: the engine itself caused the event. System events use these actors:
+ * - turn timer expiry: the seat whose clock lapsed (`kCauseTurnTimerExpired`);
+ * - window timeout: empty, no seat acted (`kCauseWindowTimeout`);
+ * - bot move: the bot seat, because a bot plays through its own seat with
+ *   the same `kCausePlay` / `kCauseDraw` causes as a human.
+ * `cause_event` names the engine event that the later events of the same
+ * entry point come from (the `card_played` event of a play). It is empty
+ * until that event is emitted. The turn and round are read from `MatchMeta`
+ * when the event is stamped.
+ */
+struct CausalFrame {
+    std::optional<ecs::Entity> actor;  /**< causing seat, empty = the table. */
+    std::string cause{kCauseSystem};   /**< cause label (`kCause*`). */
+    /** `event_id` of the engine event that started this entry point. */
+    std::optional<int64_t> cause_event;
+    /**
+     * `event_id` of the last mod event of this entry point. The next mod
+     * event names it as its cause, so the mod events of one entry point form
+     * a cause chain. The scope of an entry point restores the field when it
+     * ends, so the next entry point starts a new chain. Core events never
+     * read this field.
+     */
+    std::optional<int64_t> mod_cause_event;
+};
+
+/**
+ * @brief Add `causal_frame` to `event` unless it already has one.
+ *
+ * The stamp holds `actor` (username or null), `cause`, `cause_event` (only
+ * when set), and the `turn` and `round` from `MatchMeta`. Defined in `op_helpers.cpp`.
+ */
+void StampCausalFrame(const ecs::EntityStore& store, const CausalFrame& frame,
+                      nlohmann::json& event);
+
 /**
  * @struct ResolutionFrame
  * @brief Bound context selectors and prompt results for one resolution.
@@ -95,6 +145,7 @@ struct ResolutionFrame {
         prompt_values;  /**< prompt node id -> bound result. */
     std::map<std::string, nlohmann::json, std::less<>>
         facts;  /**< engine-bound hook payload facts (e.g. `draw_cause`). */
+    CausalFrame causal;  /**< actor and cause stamped on emitted events. */
 
     /** @brief Bound entities for `token`, or nullptr when unbound. */
     const std::vector<ecs::Entity>* FindSelector(
@@ -344,6 +395,9 @@ private:
             case modload::ArgType::kPileRef:
             case modload::ArgType::kAspectMask:
             case modload::ArgType::kDuration:
+            case modload::ArgType::kTableRef:
+            case modload::ArgType::kEventRef:
+            case modload::ArgType::kBindingName:
             case modload::ArgType::kAny:
                 return true;
             default:
@@ -412,6 +466,14 @@ struct OpContext {
      *       not assemble a match; an op must then decline to emit identity.
      */
     const engine::MatchRegistries* registries = nullptr;
+
+    /**
+     * INFO: the invoking mod's id, set by the Resolver per invocation so
+     *       an op holding a bare (namespace-less) content ref can scope it to
+     *       the owning mod before falling back to a tail match. Null in
+     *       bare-op tests, where a bare ref may only match unambiguously.
+     */
+    const std::string* mod_id = nullptr;
 };
 
 /**
@@ -514,7 +576,21 @@ public:
         if (it == ops_.end() || it->second == nullptr) {
             return OpResult::Error("unknown op: " + name);
         }
-        return it->second(store, args, ctx);
+        OpResult result = it->second(store, args, ctx);
+        for (nlohmann::json& event : result.events) {
+            StampCausalFrame(store, ctx.frame.causal, event);
+        }
+        return result;
+    }
+
+    /**
+     * @brief True when `name` is on the Creative director whitelist.
+     */
+    bool IsDirectorOp(const std::string& name) const {
+        static const std::vector<std::string> allowed = {
+            "materialize_card", "move_card", "transfer_card",
+            "remove_card", "replace_card", "swap_hands"};
+        return std::find(allowed.begin(), allowed.end(), name) != allowed.end();
     }
 
 private:

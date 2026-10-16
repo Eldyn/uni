@@ -1,5 +1,7 @@
 #include <match/server/stats_gate.hpp>
 
+#include <match/modload/base_mod.hpp>
+
 #include <algorithm>
 
 /**
@@ -10,11 +12,11 @@
 namespace match::server {
 namespace {
 
-/** @brief Build the vanilla classic deck kind -> count list. */
-std::vector<std::pair<std::string, int>> BuildVanillaClassicCards() {
+/** @brief Build the uni classic deck kind -> count list. */
+std::vector<std::pair<std::string, int>> BuildUniClassicCards() {
     std::vector<std::pair<std::string, int>> cards;
     for (const char* color : {"red", "blue", "green", "yellow"}) {
-        const std::string prefix = std::string("vanilla:") + color + "_";
+        const std::string prefix = std::string("uni:") + color + "_";
         cards.emplace_back(prefix + "0", 1);
         for (int number = 1; number <= 9; ++number) {
             cards.emplace_back(prefix + std::to_string(number), 2);
@@ -23,16 +25,16 @@ std::vector<std::pair<std::string, int>> BuildVanillaClassicCards() {
         cards.emplace_back(prefix + "reverse", 2);
         cards.emplace_back(prefix + "draw2", 2);
     }
-    cards.emplace_back("vanilla:wild", 4);
-    cards.emplace_back("vanilla:wild_draw4", 4);
+    cards.emplace_back("uni:wild", 4);
+    cards.emplace_back("uni:wild_draw4", 4);
     return cards;
 }
 
 }  // namespace
 
-const std::vector<std::pair<std::string, int>>& VanillaClassicDeckCards() {
+const std::vector<std::pair<std::string, int>>& UniClassicDeckCards() {
     static const std::vector<std::pair<std::string, int>> kCards =
-        BuildVanillaClassicCards();
+        BuildUniClassicCards();
     return kCards;
 }
 
@@ -61,12 +63,12 @@ bool DeckKindMultisetsEqual(const std::vector<std::string>& lhs,
 bool StatsGateAllows(const std::vector<std::string>& mods,
                      const std::vector<std::pair<std::string, int>>&
                          deck_cards) {
-    if (mods.size() != 1 || mods.front() != "vanilla") {
+    if (mods.size() != 1 || !modload::IsBaseModId(mods.front())) {
         return false;
     }
     return DeckKindMultisetsEqual(
         ExpandKindMultiset(deck_cards),
-        ExpandKindMultiset(VanillaClassicDeckCards()));
+        ExpandKindMultiset(UniClassicDeckCards()));
 }
 
 }  // namespace match::server

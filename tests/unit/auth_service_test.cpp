@@ -213,6 +213,28 @@ TEST_CASE("IsFullMember is false for unverified, true for verified, false for gu
     CHECK(AuthService::IsFullMember("Guest#ABCDE") == false);
 }
 
+TEST_CASE("privacy mode: false by default, saved per user, false for guests") {
+    AuthFixture f;
+    AuthService svc;
+    svc.Register("auth_test_privacy", "privacy@example.com", "password123");
+    CHECK_FALSE(AuthService::GetPrivacyMode("auth_test_privacy"));
+
+    REQUIRE(AuthService::SetPrivacyMode("auth_test_privacy", true).has_value());
+    CHECK(AuthService::GetPrivacyMode("auth_test_privacy"));
+
+    svc.Register("auth_test_privacy_other", "privacy_other@example.com",
+                 "password123");
+    CHECK_FALSE(AuthService::GetPrivacyMode("auth_test_privacy_other"));
+
+    REQUIRE(
+        AuthService::SetPrivacyMode("auth_test_privacy", false).has_value());
+    CHECK_FALSE(AuthService::GetPrivacyMode("auth_test_privacy"));
+
+    CHECK_FALSE(AuthService::GetPrivacyMode("Guest#ABCDE"));
+    CHECK(AuthService::SetPrivacyMode("Guest#ABCDE", true).has_value());
+    CHECK_FALSE(AuthService::GetPrivacyMode("Guest#ABCDE"));
+}
+
 TEST_CASE("token_version: bumping revokes an existing token") {
     AuthFixture f;
     AuthService auth;

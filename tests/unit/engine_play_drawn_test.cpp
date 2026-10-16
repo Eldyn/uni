@@ -125,7 +125,7 @@ bool LoadContent(Content& out) {
     out.mods = std::move(load.mods);
     for (const LoadedMod& mod : out.mods) {
         for (const DeckDef& deck : mod.decks) {
-            if (deck.deck_id == "vanilla:classic") out.classic = deck;
+            if (deck.deck_id == "uni:classic") out.classic = deck;
         }
     }
     return !out.classic.deck_id.empty();
@@ -265,8 +265,8 @@ void MakeUnplayable(MatchInstance& engine, ecs::Entity drawn) {
     REQUIRE_FALSE(discard->cards.empty());
     // INFO: discard top blue 9, drawn card red 5, active colour green: the
     //       drawn card matches neither the active type nor the top value.
-    SetCard(engine, discard->cards.back(), "vanilla:blue_9", "blue", "9");
-    SetCard(engine, drawn, "vanilla:red_5", "red", "5");
+    SetCard(engine, discard->cards.back(), "uni:blue_9", "blue", "9");
+    SetCard(engine, drawn, "uni:red_5", "red", "5");
     SetActiveType(engine, "green");
 }
 

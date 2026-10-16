@@ -1,0 +1,878 @@
+{
+  "entries": {
+    "uni:draw": {
+      "id": "uni:draw",
+      "title": "Draw",
+      "description": "Take one or more cards from the [k=uni:draw_pile]draw pile[/k] into your hand.",
+      "tags": [
+        {
+          "label": "Action",
+          "bg": "var(--glossary-tag-action)",
+          "shadowColor": "var(--glossary-tag-action-shadow)"
+        }
+      ]
+    },
+    "uni:skip": {
+      "id": "uni:skip",
+      "title": "Skip",
+      "description": "Causes the next player in [k=uni:turn]turn[/k] order to lose their turn.",
+      "tags": [
+        {
+          "label": "Action",
+          "bg": "var(--glossary-tag-action)",
+          "shadowColor": "var(--glossary-tag-action-shadow)"
+        }
+      ]
+    },
+    "uni:reverse": {
+      "id": "uni:reverse",
+      "title": "Reverse",
+      "description": "Reverses the direction of play. In a 2-player match, acts as a [k=uni:skip]skip[/k].",
+      "tags": [
+        {
+          "label": "Action",
+          "bg": "var(--glossary-tag-action)",
+          "shadowColor": "var(--glossary-tag-action-shadow)"
+        }
+      ]
+    },
+    "uni:wild": {
+      "id": "uni:wild",
+      "title": "Wild",
+      "description": "Can be played on any card. The player chooses the active [k=uni:color]color[/k].",
+      "tags": [
+        {
+          "label": "Action",
+          "bg": "var(--glossary-tag-action)",
+          "shadowColor": "var(--glossary-tag-action-shadow)"
+        }
+      ]
+    },
+    "uni:turn": {
+      "id": "uni:turn",
+      "title": "Turn",
+      "description": "A player's opportunity to [k=uni:play]play[/k] a valid card or [k=uni:draw]draw[/k].",
+      "tags": [
+        {
+          "label": "Flow",
+          "bg": "var(--glossary-tag-flow)",
+          "shadowColor": "var(--glossary-tag-flow-shadow)"
+        }
+      ]
+    },
+    "uni:color": {
+      "id": "uni:color",
+      "title": "Color",
+      "description": "The active suit (Red, Blue, Green, Yellow) that determines valid plays."
+    },
+    "uni:draw_pile": {
+      "id": "uni:draw_pile",
+      "title": "Draw Pile",
+      "description": "The central deck where players [k=uni:draw]draw[/k] cards when unable or choosing not to play.",
+      "tags": [
+        {
+          "label": "Pile",
+          "bg": "var(--glossary-tag-pile)",
+          "shadowColor": "var(--glossary-tag-pile-shadow)"
+        }
+      ]
+    },
+    "uni:discard_pile": {
+      "id": "uni:discard_pile",
+      "title": "Discard Pile",
+      "description": "The pile where played cards are placed face-up.",
+      "tags": [
+        {
+          "label": "Pile",
+          "bg": "var(--glossary-tag-pile)",
+          "shadowColor": "var(--glossary-tag-pile-shadow)"
+        }
+      ]
+    },
+    "uni:play": {
+      "id": "uni:play",
+      "title": "Play",
+      "description": "Place a matching card from your hand onto the [k=uni:discard_pile]discard pile[/k].",
+      "tags": [
+        {
+          "label": "Action",
+          "bg": "var(--glossary-tag-action)",
+          "shadowColor": "var(--glossary-tag-action-shadow)"
+        }
+      ]
+    },
+    "uni:seven_zero": {
+      "id": "uni:seven_zero",
+      "title": "7-0 Rule",
+      "description": "Playing a 7 allows swapping hands with any player. Playing a 0 rotates all hands in [k=uni:turn]turn[/k] direction.",
+      "tags": [
+        {
+          "label": "Rule",
+          "bg": "var(--glossary-tag-rule)",
+          "shadowColor": "var(--glossary-tag-rule-shadow)"
+        }
+      ]
+    },
+    "uni:draw_stacking": {
+      "id": "uni:draw_stacking",
+      "title": "Draw Stacking",
+      "description": "Stack +2 or +4 cards to pass the accumulated [k=uni:draw]draw[/k] penalty to the next player.",
+      "tags": [
+        {
+          "label": "Rule",
+          "bg": "var(--glossary-tag-rule)",
+          "shadowColor": "var(--glossary-tag-rule-shadow)"
+        }
+      ]
+    },
+    "uni:force_play": {
+      "id": "uni:force_play",
+      "title": "Force Play",
+      "description": "When drawing a playable card from the deck, you must play it immediately.",
+      "tags": [
+        {
+          "label": "Rule",
+          "bg": "var(--glossary-tag-rule)",
+          "shadowColor": "var(--glossary-tag-rule-shadow)"
+        }
+      ]
+    },
+    "uni:jump_in": {
+      "id": "uni:jump_in",
+      "title": "Jump-In",
+      "description": "Play out of turn if you have the exact identical card (same color and value) as the top card.",
+      "tags": [
+        {
+          "label": "Rule",
+          "bg": "var(--glossary-tag-rule)",
+          "shadowColor": "var(--glossary-tag-rule-shadow)"
+        }
+      ]
+    },
+    "uni:progressive": {
+      "id": "uni:progressive",
+      "title": "Progressive",
+      "description": "Cards that match the top card's value can be chained together in the same [k=uni:turn]turn[/k].",
+      "tags": [
+        {
+          "label": "Rule",
+          "bg": "var(--glossary-tag-rule)",
+          "shadowColor": "var(--glossary-tag-rule-shadow)"
+        }
+      ]
+    },
+    "uni:race": {
+      "id": "uni:race",
+      "title": "Race",
+      "description": "The first players to empty their hand win. The match ends once enough have finished, and everyone else loses.",
+      "tags": [
+        {
+          "label": "Rule",
+          "bg": "var(--glossary-tag-rule)",
+          "shadowColor": "var(--glossary-tag-rule-shadow)"
+        }
+      ]
+    },
+    "uni:blue_0": {
+      "id": "uni:blue_0",
+      "title": "0",
+      "description": "Number card 0. If the [k=uni:seven_zero]7-0[/k] rule is active, rotates all hands in [k=uni:turn]turn[/k] direction."
+    },
+    "uni:blue_1": {
+      "id": "uni:blue_1",
+      "title": "1",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "uni:blue_2": {
+      "id": "uni:blue_2",
+      "title": "2",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "uni:blue_3": {
+      "id": "uni:blue_3",
+      "title": "3",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "uni:blue_4": {
+      "id": "uni:blue_4",
+      "title": "4",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "uni:blue_5": {
+      "id": "uni:blue_5",
+      "title": "5",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "uni:blue_6": {
+      "id": "uni:blue_6",
+      "title": "6",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "uni:blue_7": {
+      "id": "uni:blue_7",
+      "title": "7",
+      "description": "Number card 7. If the [k=uni:seven_zero]7-0[/k] rule is active, swap hands with any player."
+    },
+    "uni:blue_8": {
+      "id": "uni:blue_8",
+      "title": "8",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "uni:blue_9": {
+      "id": "uni:blue_9",
+      "title": "9",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "uni:blue_draw2": {
+      "id": "uni:blue_draw2",
+      "title": "Draw Two (+2)",
+      "description": "Forces the next player to [k=uni:draw]draw[/k] 2 cards from the [k=uni:draw_pile]draw pile[/k] and [k=uni:skip]skip[/k] their [k=uni:turn]turn[/k]."
+    },
+    "uni:blue_reverse": {
+      "id": "uni:blue_reverse",
+      "title": "Reverse",
+      "description": "[k=uni:reverse]Reverses[/k] the direction of [k=uni:play]play[/k]. In 2-player games, acts as a [k=uni:skip]skip[/k]."
+    },
+    "uni:blue_skip": {
+      "id": "uni:blue_skip",
+      "title": "Skip",
+      "description": "Causes the next player in [k=uni:turn]turn[/k] order to be [k=uni:skip]skipped[/k]."
+    },
+    "uni:green_0": {
+      "id": "uni:green_0",
+      "title": "0",
+      "description": "Number card 0. If the [k=uni:seven_zero]7-0[/k] rule is active, rotates all hands in [k=uni:turn]turn[/k] direction."
+    },
+    "uni:green_1": {
+      "id": "uni:green_1",
+      "title": "1",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "uni:green_2": {
+      "id": "uni:green_2",
+      "title": "2",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "uni:green_3": {
+      "id": "uni:green_3",
+      "title": "3",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "uni:green_4": {
+      "id": "uni:green_4",
+      "title": "4",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "uni:green_5": {
+      "id": "uni:green_5",
+      "title": "5",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "uni:green_6": {
+      "id": "uni:green_6",
+      "title": "6",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "uni:green_7": {
+      "id": "uni:green_7",
+      "title": "7",
+      "description": "Number card 7. If the [k=uni:seven_zero]7-0[/k] rule is active, swap hands with any player."
+    },
+    "uni:green_8": {
+      "id": "uni:green_8",
+      "title": "8",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "uni:green_9": {
+      "id": "uni:green_9",
+      "title": "9",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "uni:green_draw2": {
+      "id": "uni:green_draw2",
+      "title": "Draw Two (+2)",
+      "description": "Forces the next player to [k=uni:draw]draw[/k] 2 cards from the [k=uni:draw_pile]draw pile[/k] and [k=uni:skip]skip[/k] their [k=uni:turn]turn[/k]."
+    },
+    "uni:green_reverse": {
+      "id": "uni:green_reverse",
+      "title": "Reverse",
+      "description": "[k=uni:reverse]Reverses[/k] the direction of [k=uni:play]play[/k]. In 2-player games, acts as a [k=uni:skip]skip[/k]."
+    },
+    "uni:green_skip": {
+      "id": "uni:green_skip",
+      "title": "Skip",
+      "description": "Causes the next player in [k=uni:turn]turn[/k] order to be [k=uni:skip]skipped[/k]."
+    },
+    "uni:red_0": {
+      "id": "uni:red_0",
+      "title": "0",
+      "description": "Number card 0. If the [k=uni:seven_zero]7-0[/k] rule is active, rotates all hands in [k=uni:turn]turn[/k] direction."
+    },
+    "uni:red_1": {
+      "id": "uni:red_1",
+      "title": "1",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "uni:red_2": {
+      "id": "uni:red_2",
+      "title": "2",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "uni:red_3": {
+      "id": "uni:red_3",
+      "title": "3",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "uni:red_4": {
+      "id": "uni:red_4",
+      "title": "4",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "uni:red_5": {
+      "id": "uni:red_5",
+      "title": "5",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "uni:red_6": {
+      "id": "uni:red_6",
+      "title": "6",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "uni:red_7": {
+      "id": "uni:red_7",
+      "title": "7",
+      "description": "Number card 7. If the [k=uni:seven_zero]7-0[/k] rule is active, swap hands with any player."
+    },
+    "uni:red_8": {
+      "id": "uni:red_8",
+      "title": "8",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "uni:red_9": {
+      "id": "uni:red_9",
+      "title": "9",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "uni:red_draw2": {
+      "id": "uni:red_draw2",
+      "title": "Draw Two (+2)",
+      "description": "Forces the next player to [k=uni:draw]draw[/k] 2 cards from the [k=uni:draw_pile]draw pile[/k] and [k=uni:skip]skip[/k] their [k=uni:turn]turn[/k]."
+    },
+    "uni:red_reverse": {
+      "id": "uni:red_reverse",
+      "title": "Reverse",
+      "description": "[k=uni:reverse]Reverses[/k] the direction of [k=uni:play]play[/k]. In 2-player games, acts as a [k=uni:skip]skip[/k]."
+    },
+    "uni:red_skip": {
+      "id": "uni:red_skip",
+      "title": "Skip",
+      "description": "Causes the next player in [k=uni:turn]turn[/k] order to be [k=uni:skip]skipped[/k]."
+    },
+    "uni:wild_draw4": {
+      "id": "uni:wild_draw4",
+      "title": "Wild Draw Four (+4)",
+      "description": "Choose the active [k=uni:color]color[/k]. The next player must [k=uni:draw]draw[/k] 4 cards and [k=uni:skip]skip[/k] their [k=uni:turn]turn[/k]."
+    },
+    "uni:yellow_0": {
+      "id": "uni:yellow_0",
+      "title": "0",
+      "description": "Number card 0. If the [k=uni:seven_zero]7-0[/k] rule is active, rotates all hands in [k=uni:turn]turn[/k] direction."
+    },
+    "uni:yellow_1": {
+      "id": "uni:yellow_1",
+      "title": "1",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "uni:yellow_2": {
+      "id": "uni:yellow_2",
+      "title": "2",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "uni:yellow_3": {
+      "id": "uni:yellow_3",
+      "title": "3",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "uni:yellow_4": {
+      "id": "uni:yellow_4",
+      "title": "4",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "uni:yellow_5": {
+      "id": "uni:yellow_5",
+      "title": "5",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "uni:yellow_6": {
+      "id": "uni:yellow_6",
+      "title": "6",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "uni:yellow_7": {
+      "id": "uni:yellow_7",
+      "title": "7",
+      "description": "Number card 7. If the [k=uni:seven_zero]7-0[/k] rule is active, swap hands with any player."
+    },
+    "uni:yellow_8": {
+      "id": "uni:yellow_8",
+      "title": "8",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "uni:yellow_9": {
+      "id": "uni:yellow_9",
+      "title": "9",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "uni:yellow_draw2": {
+      "id": "uni:yellow_draw2",
+      "title": "Draw Two (+2)",
+      "description": "Forces the next player to [k=uni:draw]draw[/k] 2 cards from the [k=uni:draw_pile]draw pile[/k] and [k=uni:skip]skip[/k] their [k=uni:turn]turn[/k]."
+    },
+    "uni:yellow_reverse": {
+      "id": "uni:yellow_reverse",
+      "title": "Reverse",
+      "description": "[k=uni:reverse]Reverses[/k] the direction of [k=uni:play]play[/k]. In 2-player games, acts as a [k=uni:skip]skip[/k]."
+    },
+    "uni:yellow_skip": {
+      "id": "uni:yellow_skip",
+      "title": "Skip",
+      "description": "Causes the next player in [k=uni:turn]turn[/k] order to be [k=uni:skip]skipped[/k]."
+    }
+  },
+  "cardKinds": {
+    "uni:blue_0": {
+      "title": "0",
+      "description": "Number card 0. If the [k=uni:seven_zero]7-0[/k] rule is active, rotates all hands in [k=uni:turn]turn[/k] direction."
+    },
+    "uni:blue_1": {
+      "title": "1",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "uni:blue_2": {
+      "title": "2",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "uni:blue_3": {
+      "title": "3",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "uni:blue_4": {
+      "title": "4",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "uni:blue_5": {
+      "title": "5",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "uni:blue_6": {
+      "title": "6",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "uni:blue_7": {
+      "title": "7",
+      "description": "Number card 7. If the [k=uni:seven_zero]7-0[/k] rule is active, swap hands with any player."
+    },
+    "uni:blue_8": {
+      "title": "8",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "uni:blue_9": {
+      "title": "9",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "uni:blue_draw2": {
+      "title": "Draw Two (+2)",
+      "description": "Forces the next player to [k=uni:draw]draw[/k] 2 cards from the [k=uni:draw_pile]draw pile[/k] and [k=uni:skip]skip[/k] their [k=uni:turn]turn[/k]."
+    },
+    "uni:blue_reverse": {
+      "title": "Reverse",
+      "description": "[k=uni:reverse]Reverses[/k] the direction of [k=uni:play]play[/k]. In 2-player games, acts as a [k=uni:skip]skip[/k]."
+    },
+    "uni:blue_skip": {
+      "title": "Skip",
+      "description": "Causes the next player in [k=uni:turn]turn[/k] order to be [k=uni:skip]skipped[/k]."
+    },
+    "uni:green_0": {
+      "title": "0",
+      "description": "Number card 0. If the [k=uni:seven_zero]7-0[/k] rule is active, rotates all hands in [k=uni:turn]turn[/k] direction."
+    },
+    "uni:green_1": {
+      "title": "1",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "uni:green_2": {
+      "title": "2",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "uni:green_3": {
+      "title": "3",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "uni:green_4": {
+      "title": "4",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "uni:green_5": {
+      "title": "5",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "uni:green_6": {
+      "title": "6",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "uni:green_7": {
+      "title": "7",
+      "description": "Number card 7. If the [k=uni:seven_zero]7-0[/k] rule is active, swap hands with any player."
+    },
+    "uni:green_8": {
+      "title": "8",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "uni:green_9": {
+      "title": "9",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "uni:green_draw2": {
+      "title": "Draw Two (+2)",
+      "description": "Forces the next player to [k=uni:draw]draw[/k] 2 cards from the [k=uni:draw_pile]draw pile[/k] and [k=uni:skip]skip[/k] their [k=uni:turn]turn[/k]."
+    },
+    "uni:green_reverse": {
+      "title": "Reverse",
+      "description": "[k=uni:reverse]Reverses[/k] the direction of [k=uni:play]play[/k]. In 2-player games, acts as a [k=uni:skip]skip[/k]."
+    },
+    "uni:green_skip": {
+      "title": "Skip",
+      "description": "Causes the next player in [k=uni:turn]turn[/k] order to be [k=uni:skip]skipped[/k]."
+    },
+    "uni:red_0": {
+      "title": "0",
+      "description": "Number card 0. If the [k=uni:seven_zero]7-0[/k] rule is active, rotates all hands in [k=uni:turn]turn[/k] direction."
+    },
+    "uni:red_1": {
+      "title": "1",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "uni:red_2": {
+      "title": "2",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "uni:red_3": {
+      "title": "3",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "uni:red_4": {
+      "title": "4",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "uni:red_5": {
+      "title": "5",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "uni:red_6": {
+      "title": "6",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "uni:red_7": {
+      "title": "7",
+      "description": "Number card 7. If the [k=uni:seven_zero]7-0[/k] rule is active, swap hands with any player."
+    },
+    "uni:red_8": {
+      "title": "8",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "uni:red_9": {
+      "title": "9",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "uni:red_draw2": {
+      "title": "Draw Two (+2)",
+      "description": "Forces the next player to [k=uni:draw]draw[/k] 2 cards from the [k=uni:draw_pile]draw pile[/k] and [k=uni:skip]skip[/k] their [k=uni:turn]turn[/k]."
+    },
+    "uni:red_reverse": {
+      "title": "Reverse",
+      "description": "[k=uni:reverse]Reverses[/k] the direction of [k=uni:play]play[/k]. In 2-player games, acts as a [k=uni:skip]skip[/k]."
+    },
+    "uni:red_skip": {
+      "title": "Skip",
+      "description": "Causes the next player in [k=uni:turn]turn[/k] order to be [k=uni:skip]skipped[/k]."
+    },
+    "uni:wild": {
+      "title": "Wild",
+      "description": "A [k=uni:wild]wild[/k] card that can be played on any card. Choose the active [k=uni:color]color[/k]."
+    },
+    "uni:wild_draw4": {
+      "title": "Wild Draw Four (+4)",
+      "description": "Choose the active [k=uni:color]color[/k]. The next player must [k=uni:draw]draw[/k] 4 cards and [k=uni:skip]skip[/k] their [k=uni:turn]turn[/k]."
+    },
+    "uni:yellow_0": {
+      "title": "0",
+      "description": "Number card 0. If the [k=uni:seven_zero]7-0[/k] rule is active, rotates all hands in [k=uni:turn]turn[/k] direction."
+    },
+    "uni:yellow_1": {
+      "title": "1",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "uni:yellow_2": {
+      "title": "2",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "uni:yellow_3": {
+      "title": "3",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "uni:yellow_4": {
+      "title": "4",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "uni:yellow_5": {
+      "title": "5",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "uni:yellow_6": {
+      "title": "6",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "uni:yellow_7": {
+      "title": "7",
+      "description": "Number card 7. If the [k=uni:seven_zero]7-0[/k] rule is active, swap hands with any player."
+    },
+    "uni:yellow_8": {
+      "title": "8",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "uni:yellow_9": {
+      "title": "9",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "uni:yellow_draw2": {
+      "title": "Draw Two (+2)",
+      "description": "Forces the next player to [k=uni:draw]draw[/k] 2 cards from the [k=uni:draw_pile]draw pile[/k] and [k=uni:skip]skip[/k] their [k=uni:turn]turn[/k]."
+    },
+    "uni:yellow_reverse": {
+      "title": "Reverse",
+      "description": "[k=uni:reverse]Reverses[/k] the direction of [k=uni:play]play[/k]. In 2-player games, acts as a [k=uni:skip]skip[/k]."
+    },
+    "uni:yellow_skip": {
+      "title": "Skip",
+      "description": "Causes the next player in [k=uni:turn]turn[/k] order to be [k=uni:skip]skipped[/k]."
+    }
+  },
+  "cardInfos": {
+    "blue_0": {
+      "title": "Blue 0",
+      "description": "Number card 0. If the [k=uni:seven_zero]7-0[/k] rule is active, rotates all hands in [k=uni:turn]turn[/k] direction."
+    },
+    "blue_1": {
+      "title": "Blue 1",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "blue_2": {
+      "title": "Blue 2",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "blue_3": {
+      "title": "Blue 3",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "blue_4": {
+      "title": "Blue 4",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "blue_5": {
+      "title": "Blue 5",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "blue_6": {
+      "title": "Blue 6",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "blue_7": {
+      "title": "Blue 7",
+      "description": "Number card 7. If the [k=uni:seven_zero]7-0[/k] rule is active, swap hands with any player."
+    },
+    "blue_8": {
+      "title": "Blue 8",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "blue_9": {
+      "title": "Blue 9",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "blue_draw2": {
+      "title": "Draw Two (+2)",
+      "description": "Forces the next player to [k=uni:draw]draw[/k] 2 cards from the [k=uni:draw_pile]draw pile[/k] and [k=uni:skip]skip[/k] their [k=uni:turn]turn[/k]."
+    },
+    "blue_reverse": {
+      "title": "Reverse",
+      "description": "[k=uni:reverse]Reverses[/k] the direction of [k=uni:play]play[/k]. In 2-player games, acts as a [k=uni:skip]skip[/k]."
+    },
+    "blue_skip": {
+      "title": "Skip",
+      "description": "Causes the next player in [k=uni:turn]turn[/k] order to be [k=uni:skip]skipped[/k]."
+    },
+    "green_0": {
+      "title": "Green 0",
+      "description": "Number card 0. If the [k=uni:seven_zero]7-0[/k] rule is active, rotates all hands in [k=uni:turn]turn[/k] direction."
+    },
+    "green_1": {
+      "title": "Green 1",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "green_2": {
+      "title": "Green 2",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "green_3": {
+      "title": "Green 3",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "green_4": {
+      "title": "Green 4",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "green_5": {
+      "title": "Green 5",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "green_6": {
+      "title": "Green 6",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "green_7": {
+      "title": "Green 7",
+      "description": "Number card 7. If the [k=uni:seven_zero]7-0[/k] rule is active, swap hands with any player."
+    },
+    "green_8": {
+      "title": "Green 8",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "green_9": {
+      "title": "Green 9",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "green_draw2": {
+      "title": "Draw Two (+2)",
+      "description": "Forces the next player to [k=uni:draw]draw[/k] 2 cards from the [k=uni:draw_pile]draw pile[/k] and [k=uni:skip]skip[/k] their [k=uni:turn]turn[/k]."
+    },
+    "green_reverse": {
+      "title": "Reverse",
+      "description": "[k=uni:reverse]Reverses[/k] the direction of [k=uni:play]play[/k]. In 2-player games, acts as a [k=uni:skip]skip[/k]."
+    },
+    "green_skip": {
+      "title": "Skip",
+      "description": "Causes the next player in [k=uni:turn]turn[/k] order to be [k=uni:skip]skipped[/k]."
+    },
+    "red_0": {
+      "title": "Red 0",
+      "description": "Number card 0. If the [k=uni:seven_zero]7-0[/k] rule is active, rotates all hands in [k=uni:turn]turn[/k] direction."
+    },
+    "red_1": {
+      "title": "Red 1",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "red_2": {
+      "title": "Red 2",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "red_3": {
+      "title": "Red 3",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "red_4": {
+      "title": "Red 4",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "red_5": {
+      "title": "Red 5",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "red_6": {
+      "title": "Red 6",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "red_7": {
+      "title": "Red 7",
+      "description": "Number card 7. If the [k=uni:seven_zero]7-0[/k] rule is active, swap hands with any player."
+    },
+    "red_8": {
+      "title": "Red 8",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "red_9": {
+      "title": "Red 9",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "red_draw2": {
+      "title": "Draw Two (+2)",
+      "description": "Forces the next player to [k=uni:draw]draw[/k] 2 cards from the [k=uni:draw_pile]draw pile[/k] and [k=uni:skip]skip[/k] their [k=uni:turn]turn[/k]."
+    },
+    "red_reverse": {
+      "title": "Reverse",
+      "description": "[k=uni:reverse]Reverses[/k] the direction of [k=uni:play]play[/k]. In 2-player games, acts as a [k=uni:skip]skip[/k]."
+    },
+    "red_skip": {
+      "title": "Skip",
+      "description": "Causes the next player in [k=uni:turn]turn[/k] order to be [k=uni:skip]skipped[/k]."
+    },
+    "wild": {
+      "title": "Wild",
+      "description": "A [k=uni:wild]wild[/k] card that can be played on any card. Choose the active [k=uni:color]color[/k]."
+    },
+    "wild_draw4": {
+      "title": "Wild Draw Four (+4)",
+      "description": "Choose the active [k=uni:color]color[/k]. The next player must [k=uni:draw]draw[/k] 4 cards and [k=uni:skip]skip[/k] their [k=uni:turn]turn[/k]."
+    },
+    "yellow_0": {
+      "title": "Yellow 0",
+      "description": "Number card 0. If the [k=uni:seven_zero]7-0[/k] rule is active, rotates all hands in [k=uni:turn]turn[/k] direction."
+    },
+    "yellow_1": {
+      "title": "Yellow 1",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "yellow_2": {
+      "title": "Yellow 2",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "yellow_3": {
+      "title": "Yellow 3",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "yellow_4": {
+      "title": "Yellow 4",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "yellow_5": {
+      "title": "Yellow 5",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "yellow_6": {
+      "title": "Yellow 6",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "yellow_7": {
+      "title": "Yellow 7",
+      "description": "Number card 7. If the [k=uni:seven_zero]7-0[/k] rule is active, swap hands with any player."
+    },
+    "yellow_8": {
+      "title": "Yellow 8",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "yellow_9": {
+      "title": "Yellow 9",
+      "description": "Number card. Match by [k=uni:color]color[/k] or number to [k=uni:play]play[/k] onto the [k=uni:discard_pile]discard pile[/k]."
+    },
+    "yellow_draw2": {
+      "title": "Draw Two (+2)",
+      "description": "Forces the next player to [k=uni:draw]draw[/k] 2 cards from the [k=uni:draw_pile]draw pile[/k] and [k=uni:skip]skip[/k] their [k=uni:turn]turn[/k]."
+    },
+    "yellow_reverse": {
+      "title": "Reverse",
+      "description": "[k=uni:reverse]Reverses[/k] the direction of [k=uni:play]play[/k]. In 2-player games, acts as a [k=uni:skip]skip[/k]."
+    },
+    "yellow_skip": {
+      "title": "Skip",
+      "description": "Causes the next player in [k=uni:turn]turn[/k] order to be [k=uni:skip]skipped[/k]."
+    }
+  }
+}

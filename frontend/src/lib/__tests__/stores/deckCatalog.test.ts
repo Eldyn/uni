@@ -7,7 +7,7 @@ global.fetch = fetchMock as unknown as typeof fetch;
 const classicDeck: DeckInfo = {
 	id: "classic",
 	name: "Classic",
-	namespace: "vanilla",
+	namespace: "uni",
 	mods: []
 };
 

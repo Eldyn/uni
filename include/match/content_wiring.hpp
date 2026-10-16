@@ -51,6 +51,66 @@ void LoadCardTags(const std::vector<modload::CardDef>& cards,
                   ops::CardTagTable& out);
 
 /**
+ * @brief Build full-`namespace:id` -> table into `out`.
+ *
+ * Replaces `out` with an entry for every table declared across the loaded
+ * mods, so `roll_table` resolves at runtime. Like `LoadCardTags`, written to
+ * the caller-owned per-match `MatchRegistries::tables`, never a process global.
+ */
+void LoadTables(const std::vector<modload::TableDef>& tables,
+                ops::TableRegistry& out);
+
+/**
+ * @brief Build full-`namespace:id` -> entity into `out`.
+ *
+ * Replaces `out` with an entry for every entity declared across the loaded
+ * mods. Like `LoadTables`, written to the caller-owned per-match
+ * `MatchRegistries::entities`, never a process global.
+ */
+void LoadEntities(const std::vector<modload::EntityDef>& entities,
+                  modload::EntityRegistry& out);
+
+/**
+ * @brief Build full-`namespace:id` -> presentation into `out`.
+ *
+ * Replaces `out` with an entry for every presentation declared across the
+ * loaded mods; per-match like `LoadEntities`.
+ */
+void LoadPresentations(
+    const std::vector<modload::PresentationDef>& presentations,
+    modload::PresentationRegistry& out);
+
+/**
+ * @brief Build full-`namespace:id` -> event definition into `out`.
+ *
+ * Replaces `out` with an entry for every event declared across the loaded
+ * mods; per-match like `LoadEntities`.
+ */
+void LoadEvents(const std::vector<modload::EventDef>& events,
+                modload::EventRegistry& out);
+
+/**
+ * @brief Build full-`namespace:id` -> streak definition into `out`.
+ *
+ * Replaces `out` with an entry for every streak declared across the loaded
+ * mods; per-match like `LoadEvents`.
+ */
+void LoadStreaks(const std::vector<modload::StreakDef>& streaks,
+                 modload::StreakRegistry& out);
+
+/**
+ * @brief Build full-`namespace:id` -> derived event definition into `out`.
+ */
+void LoadDerived(const std::vector<modload::DerivedEventDef>& derived,
+                 modload::DerivedRegistry& out);
+
+/**
+ * @brief Build full-`namespace:id` -> presentation binding into `out`.
+ */
+void LoadBindings(const std::vector<modload::BindingDef>& bindings,
+                  modload::BindingRegistry& out);
+
+/**
  * @brief Install the default conditions and load card tags in one call.
  *
  * The single content-load seam the engine can invoke; equivalent to calling

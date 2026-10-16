@@ -29,6 +29,8 @@ bool ReadBytes(const std::string& path, std::string& out) {
 
 }  // namespace
 
+constexpr std::size_t kShortHashLength = 16;
+
 std::string ShortContentHash(const std::string& bytes) {
     unsigned char digest[EVP_MAX_MD_SIZE];
     unsigned int length = 0;
@@ -67,6 +69,22 @@ AssetIndex AssetIndex::Build(const LoadResult& loaded) {
 AssetIndex AssetIndex::BuildFromMods(const std::vector<LoadedMod>& mods) {
     AssetIndex index;
     for (const LoadedMod& mod : mods) {
+        // INFO: a texts file is the slot of its locale in the bundle
+        //       `texts`, in the lowest tier. Files over the limit never get
+        //       here: the mod is rejected, or the hash is empty.
+        for (const TextsFileDef& texts : mod.texts) {
+            if (texts.hash.size() < kShortHashLength) continue;
+            AssetEntry entry;
+            entry.mod_id = mod.manifest.id;
+            entry.bundle_id = std::string(kTextsBundleId);
+            entry.slot = texts.locale;
+            entry.tier = AssetTier::kLow;
+            entry.hash = texts.hash.substr(0, kShortHashLength);
+            entry.content_type = AssetContentType(texts.path);
+            entry.path = texts.path;
+            entry.size = texts.size;
+            index.entries_.push_back(std::move(entry));
+        }
         for (const AssetBundleDef& bundle : mod.assets) {
             for (const AssetSlot& slot : bundle.slots) {
                 for (const AssetVariant& variant : slot.variants) {

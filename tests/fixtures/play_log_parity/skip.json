@@ -1,0 +1,91 @@
+{
+  "uni:format_version": "1.0.0",
+  "uni:binding": {
+    "uni:description": {
+      "uni:identifier": "parity:skip"
+    },
+    "uni:event": "turn_skipped",
+    "uni:select": "first",
+    "uni:cases": [
+      {
+        "uni:tests": [
+          {
+            "uni:test": "gte",
+            "uni:streak": "uni:skip_run",
+            "uni:value": 4
+          }
+        ],
+        "uni:present": {
+          "uni:log": {
+            "uni:variants": [
+              "uni:log.skip_streak",
+              "uni:log.skip_streak_2"
+            ],
+            "uni:params": {
+              "name": {
+                "uni:field": "target"
+              }
+            }
+          }
+        }
+      },
+      {
+        "uni:tests": [
+          {
+            "uni:test": "equals",
+            "uni:streak": "uni:skip_run",
+            "uni:value": 3
+          }
+        ],
+        "uni:present": {
+          "uni:log": {
+            "uni:variants": [
+              "uni:log.skip_third"
+            ],
+            "uni:params": {
+              "name": {
+                "uni:field": "target"
+              }
+            }
+          }
+        }
+      },
+      {
+        "uni:tests": [
+          {
+            "uni:test": "equals",
+            "uni:streak": "uni:skip_run",
+            "uni:value": 2
+          }
+        ],
+        "uni:present": {
+          "uni:log": {
+            "uni:variants": [
+              "uni:log.skip_again",
+              "uni:log.skip_again_2"
+            ],
+            "uni:params": {
+              "name": {
+                "uni:field": "target"
+              }
+            }
+          }
+        }
+      },
+      {
+        "uni:present": {
+          "uni:log": {
+            "uni:variants": [
+              "uni:log.skip"
+            ],
+            "uni:params": {
+              "name": {
+                "uni:field": "target"
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}

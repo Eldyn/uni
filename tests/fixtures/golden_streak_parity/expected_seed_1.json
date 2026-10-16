@@ -1,0 +1,2186 @@
+[
+ {
+  "event": "card_played",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 0,
+   "wild_run": 0,
+   "last_wild_color": null,
+   "prev_wild_color": null,
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "card_played",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 0,
+   "wild_run": 0,
+   "last_wild_color": null,
+   "prev_wild_color": null,
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "card_played",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 0,
+   "wild_run": 0,
+   "last_wild_color": null,
+   "prev_wild_color": null,
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "card_played",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 0,
+   "wild_run": 0,
+   "last_wild_color": null,
+   "prev_wild_color": null,
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "round_advance",
+  "old": null
+ },
+ {
+  "event": "card_played",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 0,
+   "wild_run": 0,
+   "last_wild_color": null,
+   "prev_wild_color": null,
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "card_played",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 0,
+   "wild_run": 0,
+   "last_wild_color": null,
+   "prev_wild_color": null,
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "card_played",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 0,
+   "wild_run": 0,
+   "last_wild_color": null,
+   "prev_wild_color": null,
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "cards_drawn",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 1,
+   "total_draws": 1,
+   "wild_run": 0,
+   "last_wild_color": null,
+   "prev_wild_color": null,
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_skipped",
+  "old": {
+   "skip_run": 1,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 1,
+   "wild_run": 0,
+   "last_wild_color": null,
+   "prev_wild_color": null,
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "card_played",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 1,
+   "wild_run": 0,
+   "last_wild_color": null,
+   "prev_wild_color": null,
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "round_advance",
+  "old": null
+ },
+ {
+  "event": "card_played",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 1,
+   "wild_run": 0,
+   "last_wild_color": null,
+   "prev_wild_color": null,
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "card_played",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 1,
+   "wild_run": 0,
+   "last_wild_color": null,
+   "prev_wild_color": null,
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "direction_changed",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 1,
+   "draw_run": 0,
+   "total_draws": 1,
+   "wild_run": 0,
+   "last_wild_color": null,
+   "prev_wild_color": null,
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "card_played",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 1,
+   "draw_run": 0,
+   "total_draws": 1,
+   "wild_run": 0,
+   "last_wild_color": null,
+   "prev_wild_color": null,
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "direction_changed",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 2,
+   "draw_run": 0,
+   "total_draws": 1,
+   "wild_run": 0,
+   "last_wild_color": null,
+   "prev_wild_color": null,
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "card_played",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 2,
+   "draw_run": 0,
+   "total_draws": 1,
+   "wild_run": 0,
+   "last_wild_color": null,
+   "prev_wild_color": null,
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "direction_changed",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 3,
+   "draw_run": 0,
+   "total_draws": 1,
+   "wild_run": 0,
+   "last_wild_color": null,
+   "prev_wild_color": null,
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "round_advance",
+  "old": null
+ },
+ {
+  "event": "card_played",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 1,
+   "wild_run": 0,
+   "last_wild_color": null,
+   "prev_wild_color": null,
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "card_played",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 1,
+   "wild_run": 0,
+   "last_wild_color": null,
+   "prev_wild_color": null,
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "cards_drawn",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 2,
+   "total_draws": 2,
+   "wild_run": 0,
+   "last_wild_color": null,
+   "prev_wild_color": null,
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "card_played",
+  "old": null
+ },
+ {
+  "event": "active_type_changed",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 2,
+   "wild_run": 1,
+   "last_wild_color": "blue",
+   "prev_wild_color": null,
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "cards_drawn",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 1,
+   "total_draws": 3,
+   "wild_run": 0,
+   "last_wild_color": "blue",
+   "prev_wild_color": null,
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "card_played",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 3,
+   "wild_run": 0,
+   "last_wild_color": "blue",
+   "prev_wild_color": null,
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "round_advance",
+  "old": null
+ },
+ {
+  "event": "card_played",
+  "old": null
+ },
+ {
+  "event": "active_type_changed",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 3,
+   "wild_run": 1,
+   "last_wild_color": "yellow",
+   "prev_wild_color": "blue",
+   "near_win_target": "bot1",
+   "near_win_open": true
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "cards_drawn",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 1,
+   "total_draws": 4,
+   "wild_run": 0,
+   "last_wild_color": "yellow",
+   "prev_wild_color": "blue",
+   "near_win_target": "bot1",
+   "near_win_open": true
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "cards_drawn",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 3,
+   "total_draws": 5,
+   "wild_run": 0,
+   "last_wild_color": "yellow",
+   "prev_wild_color": "blue",
+   "near_win_target": "bot1",
+   "near_win_open": true
+  }
+ },
+ {
+  "event": "card_played",
+  "old": null
+ },
+ {
+  "event": "active_type_changed",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 5,
+   "wild_run": 1,
+   "last_wild_color": "blue",
+   "prev_wild_color": "yellow",
+   "near_win_target": "bot1",
+   "near_win_open": true
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "cards_drawn",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 2,
+   "total_draws": 6,
+   "wild_run": 0,
+   "last_wild_color": "blue",
+   "prev_wild_color": "yellow",
+   "near_win_target": "bot1",
+   "near_win_open": true
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "round_advance",
+  "old": null
+ },
+ {
+  "event": "cards_drawn",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 1,
+   "total_draws": 7,
+   "wild_run": 0,
+   "last_wild_color": "blue",
+   "prev_wild_color": "yellow",
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "card_played",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 7,
+   "wild_run": 0,
+   "last_wild_color": "blue",
+   "prev_wild_color": "yellow",
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "direction_changed",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 1,
+   "draw_run": 0,
+   "total_draws": 7,
+   "wild_run": 0,
+   "last_wild_color": "blue",
+   "prev_wild_color": "yellow",
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "cards_drawn",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 2,
+   "total_draws": 8,
+   "wild_run": 0,
+   "last_wild_color": "blue",
+   "prev_wild_color": "yellow",
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "cards_drawn",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 3,
+   "total_draws": 9,
+   "wild_run": 0,
+   "last_wild_color": "blue",
+   "prev_wild_color": "yellow",
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "round_advance",
+  "old": null
+ },
+ {
+  "event": "card_played",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 9,
+   "wild_run": 0,
+   "last_wild_color": "blue",
+   "prev_wild_color": "yellow",
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_skipped",
+  "old": {
+   "skip_run": 1,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 9,
+   "wild_run": 0,
+   "last_wild_color": "blue",
+   "prev_wild_color": "yellow",
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "card_played",
+  "old": {
+   "skip_run": 1,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 9,
+   "wild_run": 0,
+   "last_wild_color": "blue",
+   "prev_wild_color": "yellow",
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_skipped",
+  "old": {
+   "skip_run": 1,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 9,
+   "wild_run": 0,
+   "last_wild_color": "blue",
+   "prev_wild_color": "yellow",
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "card_played",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 9,
+   "wild_run": 0,
+   "last_wild_color": "blue",
+   "prev_wild_color": "yellow",
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "card_played",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 9,
+   "wild_run": 0,
+   "last_wild_color": "blue",
+   "prev_wild_color": "yellow",
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "round_advance",
+  "old": null
+ },
+ {
+  "event": "cards_drawn",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 3,
+   "total_draws": 10,
+   "wild_run": 0,
+   "last_wild_color": "blue",
+   "prev_wild_color": "yellow",
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "card_played",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 10,
+   "wild_run": 0,
+   "last_wild_color": "blue",
+   "prev_wild_color": "yellow",
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "cards_drawn",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 4,
+   "total_draws": 11,
+   "wild_run": 0,
+   "last_wild_color": "blue",
+   "prev_wild_color": "yellow",
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "card_played",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 11,
+   "wild_run": 0,
+   "last_wild_color": "blue",
+   "prev_wild_color": "yellow",
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "card_played",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 11,
+   "wild_run": 0,
+   "last_wild_color": "blue",
+   "prev_wild_color": "yellow",
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "cards_drawn",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 2,
+   "total_draws": 12,
+   "wild_run": 0,
+   "last_wild_color": "blue",
+   "prev_wild_color": "yellow",
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "card_played",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 12,
+   "wild_run": 0,
+   "last_wild_color": "blue",
+   "prev_wild_color": "yellow",
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "round_advance",
+  "old": null
+ },
+ {
+  "event": "card_played",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 12,
+   "wild_run": 0,
+   "last_wild_color": "blue",
+   "prev_wild_color": "yellow",
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "cards_drawn",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 5,
+   "total_draws": 13,
+   "wild_run": 0,
+   "last_wild_color": "blue",
+   "prev_wild_color": "yellow",
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_skipped",
+  "old": {
+   "skip_run": 1,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 13,
+   "wild_run": 0,
+   "last_wild_color": "blue",
+   "prev_wild_color": "yellow",
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "cards_drawn",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 4,
+   "total_draws": 14,
+   "wild_run": 0,
+   "last_wild_color": "blue",
+   "prev_wild_color": "yellow",
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "card_played",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 14,
+   "wild_run": 0,
+   "last_wild_color": "blue",
+   "prev_wild_color": "yellow",
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "cards_drawn",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 4,
+   "total_draws": 15,
+   "wild_run": 0,
+   "last_wild_color": "blue",
+   "prev_wild_color": "yellow",
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_skipped",
+  "old": {
+   "skip_run": 1,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 15,
+   "wild_run": 0,
+   "last_wild_color": "blue",
+   "prev_wild_color": "yellow",
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "card_played",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 15,
+   "wild_run": 0,
+   "last_wild_color": "blue",
+   "prev_wild_color": "yellow",
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "round_advance",
+  "old": null
+ },
+ {
+  "event": "card_played",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 15,
+   "wild_run": 0,
+   "last_wild_color": "blue",
+   "prev_wild_color": "yellow",
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "direction_changed",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 1,
+   "draw_run": 0,
+   "total_draws": 15,
+   "wild_run": 0,
+   "last_wild_color": "blue",
+   "prev_wild_color": "yellow",
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "card_played",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 15,
+   "wild_run": 0,
+   "last_wild_color": "blue",
+   "prev_wild_color": "yellow",
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "cards_drawn",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 5,
+   "total_draws": 16,
+   "wild_run": 0,
+   "last_wild_color": "blue",
+   "prev_wild_color": "yellow",
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "cards_drawn",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 3,
+   "total_draws": 17,
+   "wild_run": 0,
+   "last_wild_color": "blue",
+   "prev_wild_color": "yellow",
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "round_advance",
+  "old": null
+ },
+ {
+  "event": "card_played",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 17,
+   "wild_run": 0,
+   "last_wild_color": "blue",
+   "prev_wild_color": "yellow",
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "card_played",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 17,
+   "wild_run": 0,
+   "last_wild_color": "blue",
+   "prev_wild_color": "yellow",
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "card_played",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 17,
+   "wild_run": 0,
+   "last_wild_color": "blue",
+   "prev_wild_color": "yellow",
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "card_played",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 17,
+   "wild_run": 0,
+   "last_wild_color": "blue",
+   "prev_wild_color": "yellow",
+   "near_win_target": "bot0",
+   "near_win_open": true
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "round_advance",
+  "old": null
+ },
+ {
+  "event": "card_played",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 17,
+   "wild_run": 0,
+   "last_wild_color": "blue",
+   "prev_wild_color": "yellow",
+   "near_win_target": "bot0",
+   "near_win_open": true
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "cards_drawn",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 6,
+   "total_draws": 18,
+   "wild_run": 0,
+   "last_wild_color": "blue",
+   "prev_wild_color": "yellow",
+   "near_win_target": "bot0",
+   "near_win_open": true
+  }
+ },
+ {
+  "event": "card_played",
+  "old": null
+ },
+ {
+  "event": "active_type_changed",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 18,
+   "wild_run": 1,
+   "last_wild_color": "yellow",
+   "prev_wild_color": "blue",
+   "near_win_target": "bot0",
+   "near_win_open": true
+  }
+ },
+ {
+  "event": "cards_drawn",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 6,
+   "total_draws": 19,
+   "wild_run": 0,
+   "last_wild_color": "yellow",
+   "prev_wild_color": "blue",
+   "near_win_target": "bot0",
+   "near_win_open": true
+  }
+ },
+ {
+  "event": "turn_skipped",
+  "old": {
+   "skip_run": 1,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 19,
+   "wild_run": 0,
+   "last_wild_color": "yellow",
+   "prev_wild_color": "blue",
+   "near_win_target": "bot0",
+   "near_win_open": true
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "cards_drawn",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 4,
+   "total_draws": 20,
+   "wild_run": 0,
+   "last_wild_color": "yellow",
+   "prev_wild_color": "blue",
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "cards_drawn",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 5,
+   "total_draws": 21,
+   "wild_run": 0,
+   "last_wild_color": "yellow",
+   "prev_wild_color": "blue",
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "card_played",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 21,
+   "wild_run": 0,
+   "last_wild_color": "yellow",
+   "prev_wild_color": "blue",
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "round_advance",
+  "old": null
+ },
+ {
+  "event": "card_played",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 21,
+   "wild_run": 0,
+   "last_wild_color": "yellow",
+   "prev_wild_color": "blue",
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_skipped",
+  "old": {
+   "skip_run": 1,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 21,
+   "wild_run": 0,
+   "last_wild_color": "yellow",
+   "prev_wild_color": "blue",
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "cards_drawn",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 5,
+   "total_draws": 22,
+   "wild_run": 0,
+   "last_wild_color": "yellow",
+   "prev_wild_color": "blue",
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "card_played",
+  "old": null
+ },
+ {
+  "event": "active_type_changed",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 22,
+   "wild_run": 1,
+   "last_wild_color": "red",
+   "prev_wild_color": "yellow",
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "cards_drawn",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 6,
+   "total_draws": 23,
+   "wild_run": 0,
+   "last_wild_color": "red",
+   "prev_wild_color": "yellow",
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_skipped",
+  "old": {
+   "skip_run": 1,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 23,
+   "wild_run": 0,
+   "last_wild_color": "red",
+   "prev_wild_color": "yellow",
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "cards_drawn",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 7,
+   "total_draws": 24,
+   "wild_run": 0,
+   "last_wild_color": "red",
+   "prev_wild_color": "yellow",
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "card_played",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 24,
+   "wild_run": 0,
+   "last_wild_color": "red",
+   "prev_wild_color": "yellow",
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "cards_drawn",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 7,
+   "total_draws": 25,
+   "wild_run": 0,
+   "last_wild_color": "red",
+   "prev_wild_color": "yellow",
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_skipped",
+  "old": {
+   "skip_run": 1,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 25,
+   "wild_run": 0,
+   "last_wild_color": "red",
+   "prev_wild_color": "yellow",
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "card_played",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 25,
+   "wild_run": 0,
+   "last_wild_color": "red",
+   "prev_wild_color": "yellow",
+   "near_win_target": "bot0",
+   "near_win_open": true
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "round_advance",
+  "old": null
+ },
+ {
+  "event": "card_played",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 25,
+   "wild_run": 0,
+   "last_wild_color": "red",
+   "prev_wild_color": "yellow",
+   "near_win_target": "bot0",
+   "near_win_open": true
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "card_played",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 25,
+   "wild_run": 0,
+   "last_wild_color": "red",
+   "prev_wild_color": "yellow",
+   "near_win_target": "bot0",
+   "near_win_open": true
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "card_played",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 25,
+   "wild_run": 0,
+   "last_wild_color": "red",
+   "prev_wild_color": "yellow",
+   "near_win_target": "bot0",
+   "near_win_open": true
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "cards_drawn",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 6,
+   "total_draws": 26,
+   "wild_run": 0,
+   "last_wild_color": "red",
+   "prev_wild_color": "yellow",
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "round_advance",
+  "old": null
+ },
+ {
+  "event": "card_played",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 26,
+   "wild_run": 0,
+   "last_wild_color": "red",
+   "prev_wild_color": "yellow",
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "cards_drawn",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 8,
+   "total_draws": 27,
+   "wild_run": 0,
+   "last_wild_color": "red",
+   "prev_wild_color": "yellow",
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "card_played",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 27,
+   "wild_run": 0,
+   "last_wild_color": "red",
+   "prev_wild_color": "yellow",
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "cards_drawn",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 7,
+   "total_draws": 28,
+   "wild_run": 0,
+   "last_wild_color": "red",
+   "prev_wild_color": "yellow",
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "round_advance",
+  "old": null
+ },
+ {
+  "event": "card_played",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 28,
+   "wild_run": 0,
+   "last_wild_color": "red",
+   "prev_wild_color": "yellow",
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "cards_drawn",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 9,
+   "total_draws": 29,
+   "wild_run": 0,
+   "last_wild_color": "red",
+   "prev_wild_color": "yellow",
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "card_played",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 29,
+   "wild_run": 0,
+   "last_wild_color": "red",
+   "prev_wild_color": "yellow",
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "cards_drawn",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 8,
+   "total_draws": 30,
+   "wild_run": 0,
+   "last_wild_color": "red",
+   "prev_wild_color": "yellow",
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "card_played",
+  "old": null
+ },
+ {
+  "event": "active_type_changed",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 30,
+   "wild_run": 1,
+   "last_wild_color": "green",
+   "prev_wild_color": "red",
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "round_advance",
+  "old": null
+ },
+ {
+  "event": "cards_drawn",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 7,
+   "total_draws": 31,
+   "wild_run": 0,
+   "last_wild_color": "green",
+   "prev_wild_color": "red",
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "card_played",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 31,
+   "wild_run": 0,
+   "last_wild_color": "green",
+   "prev_wild_color": "red",
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "cards_drawn",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 10,
+   "total_draws": 32,
+   "wild_run": 0,
+   "last_wild_color": "green",
+   "prev_wild_color": "red",
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "card_played",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 32,
+   "wild_run": 0,
+   "last_wild_color": "green",
+   "prev_wild_color": "red",
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "card_played",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 32,
+   "wild_run": 0,
+   "last_wild_color": "green",
+   "prev_wild_color": "red",
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "direction_changed",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 1,
+   "draw_run": 0,
+   "total_draws": 32,
+   "wild_run": 0,
+   "last_wild_color": "green",
+   "prev_wild_color": "red",
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "card_played",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 32,
+   "wild_run": 0,
+   "last_wild_color": "green",
+   "prev_wild_color": "red",
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_skipped",
+  "old": {
+   "skip_run": 1,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 32,
+   "wild_run": 0,
+   "last_wild_color": "green",
+   "prev_wild_color": "red",
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "round_advance",
+  "old": null
+ },
+ {
+  "event": "cards_drawn",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 9,
+   "total_draws": 33,
+   "wild_run": 0,
+   "last_wild_color": "green",
+   "prev_wild_color": "red",
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "card_played",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 33,
+   "wild_run": 0,
+   "last_wild_color": "green",
+   "prev_wild_color": "red",
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_skipped",
+  "old": {
+   "skip_run": 1,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 33,
+   "wild_run": 0,
+   "last_wild_color": "green",
+   "prev_wild_color": "red",
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "card_played",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 33,
+   "wild_run": 0,
+   "last_wild_color": "green",
+   "prev_wild_color": "red",
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "cards_drawn",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 10,
+   "total_draws": 34,
+   "wild_run": 0,
+   "last_wild_color": "green",
+   "prev_wild_color": "red",
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "card_played",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 34,
+   "wild_run": 0,
+   "last_wild_color": "green",
+   "prev_wild_color": "red",
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "round_advance",
+  "old": null
+ },
+ {
+  "event": "card_played",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 34,
+   "wild_run": 0,
+   "last_wild_color": "green",
+   "prev_wild_color": "red",
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "card_played",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 34,
+   "wild_run": 0,
+   "last_wild_color": "green",
+   "prev_wild_color": "red",
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "card_played",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 34,
+   "wild_run": 0,
+   "last_wild_color": "green",
+   "prev_wild_color": "red",
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "cards_drawn",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 11,
+   "total_draws": 35,
+   "wild_run": 0,
+   "last_wild_color": "green",
+   "prev_wild_color": "red",
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "round_advance",
+  "old": null
+ },
+ {
+  "event": "card_played",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 35,
+   "wild_run": 0,
+   "last_wild_color": "green",
+   "prev_wild_color": "red",
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "card_played",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 35,
+   "wild_run": 0,
+   "last_wild_color": "green",
+   "prev_wild_color": "red",
+   "near_win_target": "bot2",
+   "near_win_open": true
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "cards_drawn",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 8,
+   "total_draws": 36,
+   "wild_run": 0,
+   "last_wild_color": "green",
+   "prev_wild_color": "red",
+   "near_win_target": "bot2",
+   "near_win_open": true
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "cards_drawn",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 12,
+   "total_draws": 37,
+   "wild_run": 0,
+   "last_wild_color": "green",
+   "prev_wild_color": "red",
+   "near_win_target": "bot2",
+   "near_win_open": true
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "round_advance",
+  "old": null
+ },
+ {
+  "event": "card_played",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 37,
+   "wild_run": 0,
+   "last_wild_color": "green",
+   "prev_wild_color": "red",
+   "near_win_target": "bot1",
+   "near_win_open": true
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "cards_drawn",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 11,
+   "total_draws": 38,
+   "wild_run": 0,
+   "last_wild_color": "green",
+   "prev_wild_color": "red",
+   "near_win_target": "bot1",
+   "near_win_open": true
+  }
+ },
+ {
+  "event": "card_played",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 38,
+   "wild_run": 0,
+   "last_wild_color": "green",
+   "prev_wild_color": "red",
+   "near_win_target": "bot2",
+   "near_win_open": true
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "card_played",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 38,
+   "wild_run": 0,
+   "last_wild_color": "green",
+   "prev_wild_color": "red",
+   "near_win_target": "bot2",
+   "near_win_open": true
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "card_played",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 38,
+   "wild_run": 0,
+   "last_wild_color": "green",
+   "prev_wild_color": "red",
+   "near_win_target": "bot2",
+   "near_win_open": true
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "round_advance",
+  "old": null
+ },
+ {
+  "event": "card_played",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 38,
+   "wild_run": 0,
+   "last_wild_color": "green",
+   "prev_wild_color": "red",
+   "near_win_target": "bot2",
+   "near_win_open": true
+  }
+ },
+ {
+  "event": "placement_set",
+  "old": null
+ },
+ {
+  "event": "match_ended",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 38,
+   "wild_run": 0,
+   "last_wild_color": "green",
+   "prev_wild_color": "red",
+   "near_win_target": "bot2",
+   "near_win_open": true
+  }
+ }
+]

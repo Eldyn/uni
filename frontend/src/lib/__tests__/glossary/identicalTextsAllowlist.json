@@ -1,0 +1,15 @@
+{
+	"patterns": [
+		{
+			"keyPattern": "^uni:(red|yellow|green|blue)_[0-9]\\.label$",
+			"reason": "A digit label is the same figure in every locale."
+		}
+	],
+	"entries": [
+		{
+			"locale": "es",
+			"key": "uni:glossary.color.label",
+			"reason": "The Spanish word for color is spelled like the English word."
+		}
+	]
+}

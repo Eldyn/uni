@@ -3,6 +3,11 @@ import { render, screen, fireEvent, act } from "@testing-library/svelte";
 import TooltipStack from "$components/common/TooltipStack.svelte";
 import TwoKeywordHarness from "./TwoKeywordHarness.svelte";
 import { storeTooltipStack } from "$stores/tooltipStack.svelte";
+import { prepareCoreTexts } from "../glossary/coreTextsHarness";
+
+beforeEach(async () => {
+	await prepareCoreTexts("en");
+});
 
 describe("root tooltip with two keywords", () => {
 	beforeEach(() => {
@@ -30,7 +35,7 @@ describe("root tooltip with two keywords", () => {
 		await act(() => vi.runAllTimers());
 
 		expect(storeTooltipStack.stack).toHaveLength(1);
-		expect(storeTooltipStack.stack[0].keyword).toBe("vanilla:play");
+		expect(storeTooltipStack.stack[0].keyword).toBe("uni:play");
 
 		// Click "draw" keyword inside the SAME root popover
 		const drawBtn = screen.getByRole("button", { name: "draw" });
@@ -39,7 +44,7 @@ describe("root tooltip with two keywords", () => {
 
 		// BOTH children should be open as siblings, stacked apart (not overlapping).
 		const keywords = storeTooltipStack.stack.map((s) => s.keyword);
-		expect(keywords).toEqual(["vanilla:play", "vanilla:draw"]);
+		expect(keywords).toEqual(["uni:play", "uni:draw"]);
 		const play = storeTooltipStack.stack[0];
 		const draw = storeTooltipStack.stack[1];
 		expect(draw.depth).toBe(0);

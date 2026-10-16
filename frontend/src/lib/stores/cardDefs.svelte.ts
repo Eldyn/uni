@@ -47,7 +47,7 @@ export interface KindDef {
 	mod_index: number;
 	/** Position in the owning mod's sorted kind list (bits 23..12). */
 	kind_index: number;
-	/** Full frozen kind id, e.g. `vanilla:red_5`. */
+	/** Full frozen kind id, e.g. `uni:red_5`. */
 	string_id: string;
 	/** Declarative face, always present (normalized to `blank` if omitted). */
 	face: KindFace;
@@ -83,10 +83,28 @@ const RawKindSchema = z.looseObject({
 
 const RawModSchema = z.looseObject({
 	id: z.string(),
-	index: z.number().int()
+	index: z.number().int(),
+	version: z.string().optional(),
+	hash: z.string().optional()
 });
 
+/**
+ * @brief The cache key of a mod list: `id@version#hash` for each mod. A
+ * changed version or a changed file hash gives a new key. A server that sends
+ * no hash gives an empty hash part.
+ */
+export function modCacheKey(mods: readonly unknown[]): string {
+	const parts: string[] = [];
+	for (const rawMod of mods) {
+		const mod = RawModSchema.safeParse(rawMod);
+		if (!mod.success) continue;
+		parts.push(`${mod.data.id}@${mod.data.version ?? ""}#${mod.data.hash ?? ""}`);
+	}
+	return parts.join("|");
+}
+
 interface DefsTable {
+	cacheKey: string;
 	digest: string;
 	byIndex: Map<string, KindDef>;
 	byStringId: Map<string, KindDef>;
@@ -160,7 +178,12 @@ function buildTable(payload: z.infer<typeof DefsPayloadSchema>): DefsTable {
 		byStringId.set(stringId, def);
 	}
 
-	return { digest: payload.defs_digest, byIndex, byStringId };
+	return {
+		cacheKey: modCacheKey(payload.mods),
+		digest: payload.defs_digest,
+		byIndex,
+		byStringId
+	};
 }
 
 /**
@@ -171,6 +194,18 @@ function buildTable(payload: z.infer<typeof DefsPayloadSchema>): DefsTable {
 class CardDefsStore {
 	/** Digest of the active table, or null before a `defs` frame. */
 	digest = $state<string | null>(null);
+
+	/**
+	 * Cache key of the active mod list (`id@version#hash` for each mod), or
+	 * null before a `defs` frame. Caches of mod content key on it.
+	 */
+	cacheKey = $state<string | null>(null);
+
+	/**
+	 * Grows by one each time the cache key changes. A cache that holds mod
+	 * content compares this number and drops its entries when it differs.
+	 */
+	cacheGeneration = $state(0);
 
 	/**
 	 * True iff the active table's digest equals the last digest a `match_start`
@@ -290,11 +325,14 @@ class CardDefsStore {
 		this.#confirmedDigest = null;
 		this.#pendingDigest = null;
 		this.digest = null;
+		this.cacheKey = null;
 		this.accepted = false;
 	}
 
 	#install(table: DefsTable): void {
+		if (table.cacheKey !== this.cacheKey) this.cacheGeneration += 1;
 		this.#table = table;
+		this.cacheKey = table.cacheKey;
 		this.digest = table.digest;
 		this.#syncAccepted();
 	}

@@ -139,6 +139,23 @@ TEST_CASE("rng: SeedFromEnv reads UNI_SEED and ignores malformed values") {
     Env::SetEnv("UNI_SEED", previous);
 }
 
+TEST_CASE("rng: production ignores UNI_SEED and falls back to random") {
+    const std::string previous_seed = Env::Get("UNI_SEED");
+    const std::string previous_environment = Env::Get("UNI_ENV");
+    Env::SetEnv("UNI_SEED", "123456789012");
+    Env::SetEnv("UNI_ENV", "production");
+
+    CHECK(!match::Rng::SeedFromEnv().has_value());
+    CHECK(match::Rng::ResolveSeed() != 123456789012ULL);
+
+    Env::SetEnv("UNI_ENV", "development");
+    CHECK(match::Rng::SeedFromEnv()
+          == std::optional<uint64_t>(123456789012ULL));
+
+    Env::SetEnv("UNI_ENV", previous_environment);
+    Env::SetEnv("UNI_SEED", previous_seed);
+}
+
 TEST_CASE("rng: LogRoll binds $last_roll for the rolled condition") {
     ResolutionFrame frame;
     const json outcomes = json::array({3, 4, 4});

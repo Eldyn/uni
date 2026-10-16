@@ -1,5 +1,10 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { storeTooltipStack } from "$stores/tooltipStack.svelte";
+import { prepareCoreTexts } from "../glossary/coreTextsHarness";
+
+beforeEach(async () => {
+	await prepareCoreTexts("en");
+});
 
 function rect(left: number, top: number, width: number, height: number) {
 	return {
@@ -29,9 +34,9 @@ describe("storeTooltipStack: two children from the same root anchor", () => {
 		card.getBoundingClientRect = () => rect(100, 300, 200, 120);
 		document.body.appendChild(card);
 
-		const a = storeTooltipStack.open("vanilla:play", card, null)!;
+		const a = storeTooltipStack.open("uni:play", card, null)!;
 		storeTooltipStack.measureAndReposition(a.id, { width: 260, height: 140 });
-		const b = storeTooltipStack.open("vanilla:draw", card, null)!;
+		const b = storeTooltipStack.open("uni:draw", card, null)!;
 		storeTooltipStack.measureAndReposition(b.id, { width: 260, height: 140 });
 
 		expect(storeTooltipStack.stack).toHaveLength(2);
@@ -43,9 +48,9 @@ describe("storeTooltipStack: two children from the same root anchor", () => {
 		card.getBoundingClientRect = () => rect(100, 4, 200, 100);
 		document.body.appendChild(card);
 
-		const a = storeTooltipStack.open("vanilla:play", card, null)!;
+		const a = storeTooltipStack.open("uni:play", card, null)!;
 		storeTooltipStack.measureAndReposition(a.id, { width: 260, height: 140 });
-		const b = storeTooltipStack.open("vanilla:draw", card, null)!;
+		const b = storeTooltipStack.open("uni:draw", card, null)!;
 		storeTooltipStack.measureAndReposition(b.id, { width: 260, height: 140 });
 
 		expect(storeTooltipStack.stack).toHaveLength(2);

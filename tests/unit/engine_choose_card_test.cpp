@@ -30,9 +30,9 @@
  * - submitting a chosen candidate's bits resumes the graph with that exact
  *   card entity bound as the `from_prompt` value (server maps what it emits).
  *
- * The synthetic mod kind covers the "same-class" guard for a non-vanilla
+ * The synthetic mod kind covers the "same-class" guard for a non-uni
  * kind; the `modx` mod is second in the deck's mod list so its cards carry a
- * non-zero `mod_index`, not the vanilla zero.
+ * non-zero `mod_index`, not the uni zero.
  */
 
 namespace ecs = match::ecs;
@@ -220,7 +220,7 @@ AppWebSocket* PlayerSocket(int index) {
 }
 
 /**
- * @brief `response_schema.type` of the first `prompt_open` sent to `socket`.
+ * @brief `response_schema.type` of the first `prompt_opened` sent to `socket`.
  *
  * Returned by value (the parsed packet is local), empty when none was sent.
  */
@@ -230,7 +230,7 @@ std::string SessionPromptSchemaType(const FakeBroadcaster& fake,
         if (frame.to != socket) continue;
         const json packet = json::parse(frame.payload);
         if (packet.value("action", std::string()) != "match_event") continue;
-        if (packet.value("type", std::string()) != "prompt_open") continue;
+        if (packet.value("id", std::string()) != "prompt_opened") continue;
         const json payload = packet.value("payload", json::object());
         const json schema = payload.value("response_schema", json::object());
         return schema.value("type", std::string());
@@ -449,7 +449,7 @@ TEST_CASE("choose_card: a mod cannot override the built-in prompt schema") {
     for (const SentFrame& frame : fake.sent) {
         if (frame.to != s1) continue;
         const json packet = json::parse(frame.payload);
-        if (packet.value("type", std::string()) == "prompt_close") closed = true;
+        if (packet.value("id", std::string()) == "prompt_answered") closed = true;
     }
     CHECK(closed);
 }

@@ -22,9 +22,9 @@
  * @file engine_jump_in_window_test.cpp
  * @brief Jump-in window characterisation tests for the engine MatchInstance.
  *
- * Assembles real `mods/` content (`vanilla` + `jump_in`) and pins the current
+ * Assembles real `mods/` content (`uni` + `jump_in`) and pins the current
  * behaviour of an out-of-turn `PlayCard` made with no window open: the jump_in
- * `allow` rescues vanilla's out-of-turn deny, so the engine accepts it, while
+ * `allow` rescues uni's out-of-turn deny, so the engine accepts it, while
  * nothing redirects the turn (the redirect lives only in the window's
  * `on_response`). This is the latent hole recorded earlier; it is
  * pinned, not fixed, in this task.
@@ -87,7 +87,7 @@ bool LoadContent(Content& out) {
     out.mods = std::move(load.mods);
     for (const LoadedMod& mod : out.mods) {
         for (const DeckDef& deck : mod.decks) {
-            if (deck.deck_id == "vanilla:classic") out.classic = deck;
+            if (deck.deck_id == "uni:classic") out.classic = deck;
         }
     }
     return !out.classic.deck_id.empty();
@@ -118,11 +118,11 @@ std::unique_ptr<MatchInstance> Assemble(
                                            std::move(clock));
 }
 
-/** @brief `{"vanilla","jump_in"}` match (the out-of-turn play subject). */
+/** @brief `{"uni","jump_in"}` match (the out-of-turn play subject). */
 std::unique_ptr<MatchInstance> MakeJumpInEngine(
     Content& content, int players, int cards, uint64_t seed,
     match::WindowConfig config, match::NowMs clock) {
-    return Assemble(content, {"vanilla", "jump_in"}, players, cards, seed,
+    return Assemble(content, {"uni", "jump_in"}, players, cards, seed,
                     config, std::move(clock));
 }
 
@@ -245,7 +245,7 @@ TEST_CASE("engine jump_in: out-of-turn identical PlayCard wins (no window)") {
 
     const bool accepted = engine->PlayCard("player1", *identical);
 
-    // INFO: pins latent hole. The jump_in `allow` rescues vanilla's
+    // INFO: pins latent hole. The jump_in `allow` rescues uni's
     //       out-of-turn deny, so the engine accepts the play today.
     CHECK(accepted);
     CHECK(CountEvents(*engine, "play_rejected") == rejected_before);
@@ -296,7 +296,7 @@ TEST_CASE("engine jump_in: gate window is kind jump_in and 800 ms") {
     REQUIRE(engine->WindowOpen());
 
     // INFO: the mod's integer `duration` overrides the 1000 ms env window.
-    const json* opened = FindEvent(*engine, "window_open");
+    const json* opened = FindEvent(*engine, "window_opened");
     REQUIRE(opened != nullptr);
     CHECK((*opened)["payload"]["duration_ms"] == 800);
     CHECK((*opened)["payload"]["kind"] == "jump_in");
@@ -329,16 +329,16 @@ TEST_CASE("engine jump_in: a timeout with a winner resolves once") {
     //       winner recorded until its 800 ms duration elapses.
     REQUIRE(engine->RespondWindow("player2", *jumper_card));
     CHECK(engine->WindowOpen());
-    CHECK(CountEvents(*engine, "window_close") == 0);
+    CHECK(CountEvents(*engine, "window_closed") == 0);
 
     clock.now = 800;
     engine->Tick();
     CHECK_FALSE(engine->WindowOpen());
-    CHECK(CountEvents(*engine, "window_close") == 1);
+    CHECK(CountEvents(*engine, "window_closed") == 1);
     CHECK(engine->GetCurrentPlayerUsername() == "player2");
 
     engine->Tick();
     engine->Tick();
-    CHECK(CountEvents(*engine, "window_close") == 1);
+    CHECK(CountEvents(*engine, "window_closed") == 1);
     CHECK(engine->GetCurrentPlayerUsername() == "player2");
 }

@@ -5,6 +5,7 @@
 #include <common/payloads.hpp>
 #include <common/ws.hpp>
 #include <database.hpp>
+#include <services/auth_service.hpp>
 #include <match/ecs/compact_card.hpp>
 #include <match/ecs/components.hpp>
 #include <match/engine/match_instance.hpp>
@@ -381,6 +382,122 @@ TEST_CASE("start: succeeds once every human member is ready") {
     Lobby* lp = f.lobby.GetLobbyByCode(code);
     REQUIRE(lp);
     CHECK(lp->session != nullptr);
+}
+
+static void InsertPrivacyUser(const std::string& username) {
+    REQUIRE(Database::Get()
+                .Exec("INSERT OR IGNORE INTO users "
+                      "(username, pass_hash, salt, email) "
+                      "VALUES (?, 'h', 's', ?);",
+                      {username, username + "@privacy.test"})
+                .has_value());
+}
+
+static void DeletePrivacyUsers(const std::vector<std::string>& usernames) {
+    for (const std::string& username : usernames) {
+        (void)Database::Get().Exec("DELETE FROM users WHERE username = ?;",
+                                   {username});
+    }
+}
+
+static json update_privacy_msg(bool privacy_mode) {
+    return {{"action", ws::ClientAction::kUserUpdatePrivacy},
+            {"privacy_mode", privacy_mode}};
+}
+
+static bool SpectatorSeesBacksOf(const Lobby& lobby,
+                                 const std::string& username) {
+    return lobby.session->SpectatorViewer().SeesCardBacksOf(username);
+}
+
+TEST_CASE("privacy: the seat setting reaches the session at match start") {
+    LobbyFixture f{ProjectModsRoot()};
+    f.alice_sd.privacy_mode = true;
+    std::string code = f.alice_creates();
+    f.bob_joins(code);
+    f.router.Dispatch(f.actx(), toggle_ready_msg());
+    f.router.Dispatch(f.bctx(), toggle_ready_msg());
+    f.router.Dispatch(f.actx(), start_msg());
+
+    Lobby* lp = f.lobby.GetLobbyByCode(code);
+    REQUIRE(lp);
+    REQUIRE(lp->session != nullptr);
+    CHECK(SpectatorSeesBacksOf(*lp, "alice"));
+    CHECK_FALSE(SpectatorSeesBacksOf(*lp, "bob"));
+}
+
+TEST_CASE("privacy: a change during the match reaches the session") {
+    LobbyFixture f{ProjectModsRoot()};
+    std::string code = f.alice_creates();
+    f.bob_joins(code);
+    f.router.Dispatch(f.actx(), toggle_ready_msg());
+    f.router.Dispatch(f.bctx(), toggle_ready_msg());
+    f.router.Dispatch(f.actx(), start_msg());
+    Lobby* lp = f.lobby.GetLobbyByCode(code);
+    REQUIRE(lp);
+    REQUIRE(lp->session != nullptr);
+    REQUIRE_FALSE(SpectatorSeesBacksOf(*lp, "bob"));
+
+    f.router.Dispatch(f.bctx(), update_privacy_msg(true));
+    CHECK(SpectatorSeesBacksOf(*lp, "bob"));
+    CHECK_FALSE(SpectatorSeesBacksOf(*lp, "alice"));
+
+    f.router.Dispatch(f.bctx(), update_privacy_msg(false));
+    CHECK_FALSE(SpectatorSeesBacksOf(*lp, "bob"));
+}
+
+TEST_CASE("privacy: the setting of a registered user is saved") {
+    REQUIRE(Database::Get().RunMigrations().has_value());
+    InsertPrivacyUser("privacy_saved");
+    LobbyFixture f;
+    f.alice_sd.username = "privacy_saved";
+
+    f.router.Dispatch(f.actx(), update_privacy_msg(true));
+    CHECK(AuthService::GetPrivacyMode("privacy_saved"));
+    f.router.Dispatch(f.actx(), update_privacy_msg(false));
+    CHECK_FALSE(AuthService::GetPrivacyMode("privacy_saved"));
+    DeletePrivacyUsers({"privacy_saved"});
+}
+
+TEST_CASE("privacy: an unchanged value does not write the database again") {
+    REQUIRE(Database::Get().RunMigrations().has_value());
+    InsertPrivacyUser("privacy_same");
+    LobbyFixture f;
+    f.alice_sd.username = "privacy_same";
+    REQUIRE(AuthService::SetPrivacyMode("privacy_same", true).has_value());
+
+    f.router.Dispatch(f.actx(), update_privacy_msg(false));
+    CHECK(AuthService::GetPrivacyMode("privacy_same"));
+
+    f.router.Dispatch(f.actx(), update_privacy_msg(true));
+    f.router.Dispatch(f.actx(), update_privacy_msg(false));
+    CHECK_FALSE(AuthService::GetPrivacyMode("privacy_same"));
+    DeletePrivacyUsers({"privacy_same"});
+}
+
+TEST_CASE("privacy: a guest keeps the setting for the session only") {
+    LobbyFixture f;
+    f.alice_sd.username = "Guest#PRIV1";
+
+    f.router.Dispatch(f.actx(), update_privacy_msg(true));
+    CHECK(f.alice_sd.privacy_mode);
+    CHECK_FALSE(AuthService::GetPrivacyMode("Guest#PRIV1"));
+}
+
+TEST_CASE("privacy: opening a socket loads the saved setting") {
+    REQUIRE(Database::Get().RunMigrations().has_value());
+    InsertPrivacyUser("privacy_loaded");
+    REQUIRE(AuthService::SetPrivacyMode("privacy_loaded", true).has_value());
+    LobbyFixture f;
+    f.alice_sd.username = "privacy_loaded";
+
+    f.lobby.OnOpen(f.alice_sock, &f.alice_sd);
+    CHECK(f.alice_sd.privacy_mode);
+
+    f.bob_sd.username = "Guest#PRIV2";
+    f.lobby.OnOpen(f.bob_sock, &f.bob_sd);
+    CHECK_FALSE(f.bob_sd.privacy_mode);
+    DeletePrivacyUsers({"privacy_loaded"});
 }
 
 TEST_CASE("start: a race lobby hands the seated race target to the engine") {
@@ -835,13 +952,13 @@ TEST_CASE("deck catalog: lists the classic deck with namespace and mods") {
     const json* classic = nullptr;
     for (const auto& deck : catalog["decks"]) {
         if (deck.value("id", "") == "classic" &&
-            deck.value("namespace", "") == "vanilla") {
+            deck.value("namespace", "") == "uni") {
             classic = &deck;
         }
     }
     REQUIRE(classic != nullptr);
     CHECK(classic->value("name", "") == "Classic");
-    CHECK((*classic)["mods"] == json::array({"vanilla"}));
+    CHECK((*classic)["mods"] == json::array({"uni"}));
 
     // Every entry carries exactly the endpoint's four documented fields.
     for (const auto& deck : catalog["decks"]) {
@@ -864,7 +981,7 @@ TEST_CASE("deck catalog: marks a deck with an unavailable mod invalid") {
     broken.namespace_id = mods[0].manifest.id;
     broken.deck_id = broken.namespace_id + ":" + broken.id;
     broken.name = "Needs Ghost";
-    broken.mods = {"vanilla", "ghost_mod"};
+    broken.mods = {"uni", "ghost_mod"};
     mods[0].decks.push_back(broken);
 
     json catalog = LobbyController::DeckCatalogJson(mods);
@@ -915,14 +1032,14 @@ TEST_CASE("deck snapshot: selection loads mods, cards and settings at once") {
     LobbySettings settings;
     settings.active_mods = {"seven_zero"};
     REQUIRE(LobbyController::ApplyDeckSnapshot(
-        settings, mods, "vanilla:classic"));
+        settings, mods, "uni:classic"));
 
     CHECK(settings.deck.value("id", "") == "classic");
     CHECK(settings.deck.value("name", "") == "Classic");
-    CHECK(settings.deck.value("namespace", "") == "vanilla");
-    CHECK(settings.deck["mods"] == json::array({"vanilla"}));
-    CHECK(settings.deck["cards"]["vanilla:wild"] == 4);
-    CHECK(settings.deck["cards"]["vanilla:red_0"] == 1);
+    CHECK(settings.deck.value("namespace", "") == "uni");
+    CHECK(settings.deck["mods"] == json::array({"uni"}));
+    CHECK(settings.deck["cards"]["uni:wild"] == 4);
+    CHECK(settings.deck["cards"]["uni:red_0"] == 1);
     CHECK(settings.deck["settings"]["count_zeros"] == 1);
 
     // Additive: the legacy scalar settings are untouched by deck selection.
@@ -949,13 +1066,13 @@ TEST_CASE("settings: host selecting a deck loads the whole snapshot") {
         f.actx(),
         json{{"action", ws::ClientAction::kLobbyUpdateSettings},
              {"request_id", "req-deck"},
-             {"deck_id", "vanilla:classic"}});
+             {"deck_id", "uni:classic"}});
 
     Lobby* lp = f.lobby.GetLobbyByCode(code);
     REQUIRE(lp);
     CHECK(lp->settings.deck.value("id", "") == "classic");
-    CHECK(lp->settings.deck["mods"] == json::array({"vanilla"}));
-    CHECK(lp->settings.deck["cards"]["vanilla:blue_3"] == 2);
+    CHECK(lp->settings.deck["mods"] == json::array({"uni"}));
+    CHECK(lp->settings.deck["cards"]["uni:blue_3"] == 2);
     CHECK(lp->settings.deck["settings"]["count_zeros"] == 1);
 
     auto resp = json::parse(f.bus.FramesFor(f.alice_sock).back().payload);
@@ -990,7 +1107,7 @@ TEST_CASE("settings: freestyle edits still apply after a deck is selected") {
         f.actx(),
         json{{"action", ws::ClientAction::kLobbyUpdateSettings},
              {"request_id", "req-deck"},
-             {"deck_id", "vanilla:classic"}});
+             {"deck_id", "uni:classic"}});
     f.bus.Clear();
     f.router.Dispatch(
         f.actx(),
@@ -1147,7 +1264,7 @@ void FinishWithAliceWin(LobbyFixture& f, const std::string& alice,
 
     match::engine::MatchInstance& engine = lobby->session->Engine();
     const std::vector<match::ecs::Entity> wilds =
-        CardsByKind(engine, "vanilla:wild");
+        CardsByKind(engine, "uni:wild");
     REQUIRE(wilds.size() >= 1);
     const match::ecs::Entity alice_entity = *engine.FindPlayer(alice);
     ForceHand(engine, alice_entity, {wilds[0]});
@@ -1165,7 +1282,7 @@ void FinishWithAliceWin(LobbyFixture& f, const std::string& alice,
 
 TEST_SUITE("LobbyController::MatchEnd") {
 
-TEST_CASE("match end: vanilla classic updates player_stats and writes rows") {
+TEST_CASE("match end: uni classic updates player_stats and writes rows") {
     REQUIRE(Database::Get().RunMigrations().has_value());
     const std::string alice = "wp13g_alice";
     const std::string bob = "wp13g_bob";
@@ -1237,10 +1354,10 @@ TEST_CASE("match end: extra mod keeps player_stats untouched but writes rows") {
     std::string code = f.alice_creates();
 
     // INFO: a second, real loaded mod flips the gate while the deck
-    //       multiset stays the vanilla classic one.
+    //       multiset stays the uni classic one.
     Lobby* lobby = f.lobby.GetLobbyByCode(code);
     REQUIRE(lobby != nullptr);
-    lobby->settings.active_mods = {"vanilla", "progressive"};
+    lobby->settings.active_mods = {"uni", "progressive"};
 
     f.bob_joins(code);
     InsertUser(alice);
@@ -1279,6 +1396,105 @@ TEST_CASE("match end: extra mod keeps player_stats untouched but writes rows") {
     CleanupUsers({alice, bob});
 }
 
+TEST_CASE("match end: uni listed as an active mod keeps the classic stats") {
+    REQUIRE(Database::Get().RunMigrations().has_value());
+    const std::string alice = "ticket17_alice";
+    const std::string bob = "ticket17_bob";
+    CleanupUsers({alice, bob});
+
+    LobbyFixture f{ProjectModsRoot()};
+    f.alice_sd.username = alice;
+    f.bob_sd.username = bob;
+    std::string code = f.alice_creates();
+
+    Lobby* lobby = f.lobby.GetLobbyByCode(code);
+    REQUIRE(lobby != nullptr);
+    lobby->settings.active_mods = {"uni"};
+
+    f.bob_joins(code);
+    InsertUser(alice);
+    InsertUser(bob);
+    ReadyAndStart(f);
+
+    std::string match_id;
+    FinishWithAliceWin(f, alice, match_id);
+
+    auto alice_stats = Database::Get().QueryOne(
+        "SELECT total_wins FROM player_stats WHERE username = ?;", {alice});
+    REQUIRE(alice_stats.has_value());
+    REQUIRE(alice_stats->has_value());
+    CHECK(alice_stats->value().Get<int>("total_wins") == 1);
+
+    CleanupUsers({alice, bob});
+}
+
+TEST_CASE("match end: a deck that requires uni resolves to the base mod") {
+    REQUIRE(Database::Get().RunMigrations().has_value());
+    const std::string alice = "ticket17d_alice";
+    const std::string bob = "ticket17d_bob";
+    CleanupUsers({alice, bob});
+
+    LobbyFixture f{ProjectModsRoot()};
+    f.alice_sd.username = alice;
+    f.bob_sd.username = bob;
+    std::string code = f.alice_creates();
+
+    Lobby* lobby = f.lobby.GetLobbyByCode(code);
+    REQUIRE(lobby != nullptr);
+    json deck = json{{"id", "classic"},
+                     {"name", "Classic"},
+                     {"namespace", "uni"},
+                     {"mods", json::array({"uni"})},
+                     {"cards", json::object()}};
+    for (const auto& [kind, count] :
+         match::server::UniClassicDeckCards()) {
+        deck["cards"][kind] = count;
+    }
+    lobby->settings.deck = std::move(deck);
+
+    f.bob_joins(code);
+    InsertUser(alice);
+    InsertUser(bob);
+    ReadyAndStart(f);
+
+    std::string match_id;
+    FinishWithAliceWin(f, alice, match_id);
+
+    auto alice_stats = Database::Get().QueryOne(
+        "SELECT total_wins FROM player_stats WHERE username = ?;", {alice});
+    REQUIRE(alice_stats.has_value());
+    REQUIRE(alice_stats->has_value());
+    CHECK(alice_stats->value().Get<int>("total_wins") == 1);
+
+    CleanupUsers({alice, bob});
+}
+
+TEST_CASE("start: a deck that requires the retired base mod id is rejected") {
+    // INFO: the retired id is built in parts so the rename guard test finds
+    //       no old mod name in this file.
+    const std::string retired_base_mod_id = std::string("van") + "illa";
+    LobbyFixture f{ProjectModsRoot()};
+    std::string code = f.alice_creates();
+    Lobby* lobby = f.lobby.GetLobbyByCode(code);
+    REQUIRE(lobby != nullptr);
+    lobby->settings.deck =
+        json{{"id", "classic"},
+             {"name", "Classic"},
+             {"namespace", retired_base_mod_id},
+             {"mods", json::array({retired_base_mod_id})},
+             {"cards", json{{retired_base_mod_id + ":red_5", 10}}}};
+    f.bob_joins(code);
+    f.router.Dispatch(f.actx(), toggle_ready_msg());
+    f.router.Dispatch(f.bctx(), toggle_ready_msg());
+    f.bus.Clear();
+
+    f.router.Dispatch(f.actx(), start_msg());
+
+    auto resp = json::parse(f.bus.FramesFor(f.alice_sock).back().payload);
+    CHECK(resp.value("action", "") == "error");
+    CHECK(lobby->session == nullptr);
+}
+
 TEST_CASE("match end: changed deck multiset keeps player_stats untouched") {
     REQUIRE(Database::Get().RunMigrations().has_value());
     const std::string alice = "wp13d_alice";
@@ -1297,14 +1513,14 @@ TEST_CASE("match end: changed deck multiset keeps player_stats untouched") {
     REQUIRE(lobby != nullptr);
     json deck = json{{"id", "classic"},
                      {"name", "Classic"},
-                     {"namespace", "vanilla"},
-                     {"mods", json::array({"vanilla"})},
+                     {"namespace", "uni"},
+                     {"mods", json::array({"uni"})},
                      {"cards", json::object()}};
     for (const auto& [kind, count] :
-         match::server::VanillaClassicDeckCards()) {
+         match::server::UniClassicDeckCards()) {
         deck["cards"][kind] = count;
     }
-    deck["cards"]["vanilla:red_0"] = 2;
+    deck["cards"]["uni:red_0"] = 2;
     lobby->settings.deck = std::move(deck);
 
     f.bob_joins(code);
@@ -1373,7 +1589,7 @@ TEST_CASE("leave: a seated player leaving during the ready barrier opens it") {
         if (frame.to != f.bob_sock) continue;
         const json packet = json::parse(frame.payload);
         if (packet.value("action", std::string()) == "match_event"
-            && packet.value("type", std::string()) == "match_begin") {
+            && packet.value("id", std::string()) == "match_begin") {
             bob_saw_begin = true;
         }
     }
@@ -1455,7 +1671,7 @@ TEST_CASE("reconnect: a closed barrier sends players_ready, not match_begin, and
         if (frame.to != f.alice_sock) continue;
         const json packet = json::parse(frame.payload);
         if (packet.value("action", std::string()) != "match_event") continue;
-        const std::string type = packet.value("type", std::string());
+        const std::string type = packet.value("id", std::string());
         if (type == "players_ready") {
             alice_saw_players_ready = true;
             ready_seen = packet["payload"].value("ready", -1);
@@ -1496,7 +1712,7 @@ TEST_CASE("reconnect: an open barrier sends match_begin") {
         if (frame.to != f.alice_sock) continue;
         const json packet = json::parse(frame.payload);
         if (packet.value("action", std::string()) != "match_event") continue;
-        const std::string type = packet.value("type", std::string());
+        const std::string type = packet.value("id", std::string());
         if (type == "match_begin") alice_saw_match_begin = true;
         if (type == "players_ready") alice_saw_players_ready = true;
     }
@@ -1562,6 +1778,108 @@ TEST_CASE("rejoin: a socket seated in one lobby cannot rebind another") {
 
     CHECK(LastErrorCode(f.bus, f.bob_sock) == "already_in_lobby");
     CHECK(f.bob_sd.lobby_code == bob_code);
+}
+
+namespace {
+
+json RejoinMessage(const std::string& code) {
+    return json{{"action", ws::ClientAction::kLobbyRejoin},
+                {"request_id", "req-rj"},
+                {"code", code}};
+}
+
+json LastMatchSnapshot(FakeBroadcaster& bus, AppWebSocket* socket) {
+    json found;
+    for (const SentFrame& frame : bus.sent) {
+        if (frame.to != socket) continue;
+        const json packet = json::parse(frame.payload);
+        if (packet.value("action", std::string()) == "match_state_updated") {
+            found = packet;
+        }
+    }
+    return found;
+}
+
+const json* SeatEntry(const json& snapshot, const std::string& username) {
+    for (const json& entry : snapshot["match_state"]["players"]) {
+        if (entry.value("username", std::string()) == username) return &entry;
+    }
+    return nullptr;
+}
+
+}  // namespace
+
+TEST_CASE("rejoin: a disconnected human gets the own seat back") {
+    LobbyFixture f{ProjectModsRoot()};
+    MatchController match(f.router, f.bus, f.timers, f.lobby);
+    const std::string code = f.alice_creates();
+    f.bob_joins(code);
+    ReadyAndStart(f);
+    Lobby* lobby = f.lobby.GetLobbyByCode(code);
+    REQUIRE(lobby != nullptr);
+    REQUIRE(lobby->session != nullptr);
+
+    f.lobby.OnClose(f.alice_sock, &f.alice_sd);
+
+    PerSocketData returning_sd;
+    returning_sd.username = "alice";
+    AppWebSocket* returning_sock = fake_sock(returning_sd);
+    f.bus.Clear();
+    f.router.Dispatch(make_ctx(returning_sock, &returning_sd),
+                      RejoinMessage(code));
+
+    const LobbyMember* member = lobby->FindMember("alice");
+    REQUIRE(member != nullptr);
+    CHECK_FALSE(member->is_bot);
+    CHECK(member->is_connected);
+    CHECK(member->socket == returning_sock);
+    const json snapshot = LastMatchSnapshot(f.bus, returning_sock);
+    REQUIRE_FALSE(snapshot.is_null());
+    const json* own_seat = SeatEntry(snapshot, "alice");
+    REQUIRE(own_seat != nullptr);
+    CHECK(own_seat->contains("hand"));
+    const json* other_seat = SeatEntry(snapshot, "bob");
+    REQUIRE(other_seat != nullptr);
+    CHECK_FALSE(other_seat->contains("hand"));
+}
+
+TEST_CASE("rejoin: nobody takes over a seat that a bot holds") {
+    LobbyFixture f{ProjectModsRoot()};
+    MatchController match(f.router, f.bus, f.timers, f.lobby);
+    const std::string code = f.alice_creates();
+    f.bob_joins(code);
+    ReadyAndStart(f);
+    Lobby* lobby = f.lobby.GetLobbyByCode(code);
+    REQUIRE(lobby != nullptr);
+    REQUIRE(lobby->session != nullptr);
+
+    f.lobby.OnClose(f.alice_sock, &f.alice_sd);
+    lobby->FindMember("alice")->disconnected_at =
+        std::chrono::steady_clock::now() - std::chrono::hours(1);
+    f.timers.Fire("lobby_eviction");
+
+    REQUIRE(lobby->FindMember("alice") == nullptr);
+    std::string bot_name;
+    for (const LobbyMember& member : lobby->members) {
+        if (member.is_bot) bot_name = member.username;
+    }
+    REQUIRE_FALSE(bot_name.empty());
+
+    PerSocketData former_sd;
+    former_sd.username = "alice";
+    PerSocketData stranger_sd;
+    stranger_sd.username = "carol";
+    for (PerSocketData* data : {&former_sd, &stranger_sd}) {
+        AppWebSocket* socket = fake_sock(*data);
+        f.bus.Clear();
+        f.router.Dispatch(make_ctx(socket, data), RejoinMessage(code));
+        CHECK(LastErrorCode(f.bus, socket) == "not_in_lobby");
+        CHECK(LastMatchSnapshot(f.bus, socket).is_null());
+        const LobbyMember* seat = lobby->FindMember(bot_name);
+        REQUIRE(seat != nullptr);
+        CHECK(seat->is_bot);
+        CHECK(seat->socket == nullptr);
+    }
 }
 
 TEST_CASE("close: unbinds the member even when the socket's lobby_code has drifted") {

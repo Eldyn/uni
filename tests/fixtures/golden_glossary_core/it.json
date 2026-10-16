@@ -1,0 +1,878 @@
+{
+  "entries": {
+    "uni:draw": {
+      "id": "uni:draw",
+      "title": "Pesca",
+      "description": "Prendi una o piu' carte dal [k=uni:draw_pile]mazzo di pesca[/k] e aggiungile alla tua mano.",
+      "tags": [
+        {
+          "label": "Azione",
+          "bg": "var(--glossary-tag-action)",
+          "shadowColor": "var(--glossary-tag-action-shadow)"
+        }
+      ]
+    },
+    "uni:skip": {
+      "id": "uni:skip",
+      "title": "Salta",
+      "description": "Fa perdere il [k=uni:turn]turno[/k] al giocatore successivo.",
+      "tags": [
+        {
+          "label": "Azione",
+          "bg": "var(--glossary-tag-action)",
+          "shadowColor": "var(--glossary-tag-action-shadow)"
+        }
+      ]
+    },
+    "uni:reverse": {
+      "id": "uni:reverse",
+      "title": "Inverti",
+      "description": "Inverte la direzione del gioco. In partite a due giocatori, funziona come un [k=uni:skip]salta[/k].",
+      "tags": [
+        {
+          "label": "Azione",
+          "bg": "var(--glossary-tag-action)",
+          "shadowColor": "var(--glossary-tag-action-shadow)"
+        }
+      ]
+    },
+    "uni:wild": {
+      "id": "uni:wild",
+      "title": "Jolly",
+      "description": "Puo' essere giocato su qualsiasi carta. Il giocatore sceglie il [k=uni:color]colore[/k] attivo.",
+      "tags": [
+        {
+          "label": "Azione",
+          "bg": "var(--glossary-tag-action)",
+          "shadowColor": "var(--glossary-tag-action-shadow)"
+        }
+      ]
+    },
+    "uni:turn": {
+      "id": "uni:turn",
+      "title": "Turno",
+      "description": "L'opportunita' di un giocatore di [k=uni:play]giocare[/k] una carta valida o [k=uni:draw]pescare[/k].",
+      "tags": [
+        {
+          "label": "Flusso",
+          "bg": "var(--glossary-tag-flow)",
+          "shadowColor": "var(--glossary-tag-flow-shadow)"
+        }
+      ]
+    },
+    "uni:color": {
+      "id": "uni:color",
+      "title": "Colore",
+      "description": "Il seme attivo (Rosso, Blu, Verde, Giallo) che determina le giocate valide."
+    },
+    "uni:draw_pile": {
+      "id": "uni:draw_pile",
+      "title": "Mazzo di Pesca",
+      "description": "Il mazzo centrale da cui i giocatori [k=uni:draw]pescano[/k] carte quando non possono o scelgono di non giocare.",
+      "tags": [
+        {
+          "label": "Mazzo",
+          "bg": "var(--glossary-tag-pile)",
+          "shadowColor": "var(--glossary-tag-pile-shadow)"
+        }
+      ]
+    },
+    "uni:discard_pile": {
+      "id": "uni:discard_pile",
+      "title": "Mazzo degli Scarti",
+      "description": "La pila in cui le carte giocate vengono posizionate scoperte.",
+      "tags": [
+        {
+          "label": "Mazzo",
+          "bg": "var(--glossary-tag-pile)",
+          "shadowColor": "var(--glossary-tag-pile-shadow)"
+        }
+      ]
+    },
+    "uni:play": {
+      "id": "uni:play",
+      "title": "Giocare",
+      "description": "Posiziona una carta corrispondente dalla tua mano sul [k=uni:discard_pile]mazzo degli scarti[/k].",
+      "tags": [
+        {
+          "label": "Azione",
+          "bg": "var(--glossary-tag-action)",
+          "shadowColor": "var(--glossary-tag-action-shadow)"
+        }
+      ]
+    },
+    "uni:seven_zero": {
+      "id": "uni:seven_zero",
+      "title": "Regola 7-0",
+      "description": "Giocare un 7 permette di scambiare le mani con un giocatore. Giocare uno 0 fa ruotare tutte le mani nella direzione del [k=uni:turn]turno[/k].",
+      "tags": [
+        {
+          "label": "Regola",
+          "bg": "var(--glossary-tag-rule)",
+          "shadowColor": "var(--glossary-tag-rule-shadow)"
+        }
+      ]
+    },
+    "uni:draw_stacking": {
+      "id": "uni:draw_stacking",
+      "title": "Accumulo di Pesca",
+      "description": "Accumula carte +2 o +4 per trasferire la penalita' di [k=uni:draw]pesca[/k] al giocatore successivo.",
+      "tags": [
+        {
+          "label": "Regola",
+          "bg": "var(--glossary-tag-rule)",
+          "shadowColor": "var(--glossary-tag-rule-shadow)"
+        }
+      ]
+    },
+    "uni:force_play": {
+      "id": "uni:force_play",
+      "title": "Giocata Forzata",
+      "description": "Quando peschi una carta giocabile dal mazzo, devi giocarla immediatamente.",
+      "tags": [
+        {
+          "label": "Regola",
+          "bg": "var(--glossary-tag-rule)",
+          "shadowColor": "var(--glossary-tag-rule-shadow)"
+        }
+      ]
+    },
+    "uni:jump_in": {
+      "id": "uni:jump_in",
+      "title": "Intervento",
+      "description": "Gioca fuori turno se possiedi una carta esattamente identica (stesso colore e valore) a quella in cima.",
+      "tags": [
+        {
+          "label": "Regola",
+          "bg": "var(--glossary-tag-rule)",
+          "shadowColor": "var(--glossary-tag-rule-shadow)"
+        }
+      ]
+    },
+    "uni:progressive": {
+      "id": "uni:progressive",
+      "title": "Progressivo",
+      "description": "Le carte che corrispondono al valore della carta in cima possono essere concatenate nello stesso [k=uni:turn]turno[/k].",
+      "tags": [
+        {
+          "label": "Regola",
+          "bg": "var(--glossary-tag-rule)",
+          "shadowColor": "var(--glossary-tag-rule-shadow)"
+        }
+      ]
+    },
+    "uni:race": {
+      "id": "uni:race",
+      "title": "Gara",
+      "description": "I primi giocatori a svuotare la mano vincono. La partita finisce quando ne hanno finito abbastanza e tutti gli altri perdono.",
+      "tags": [
+        {
+          "label": "Regola",
+          "bg": "var(--glossary-tag-rule)",
+          "shadowColor": "var(--glossary-tag-rule-shadow)"
+        }
+      ]
+    },
+    "uni:blue_0": {
+      "id": "uni:blue_0",
+      "title": "0",
+      "description": "Carta numero 0. Se la regola [k=uni:seven_zero]7-0[/k] e' attiva, ruota tutte le mani nella direzione del [k=uni:turn]turno[/k]."
+    },
+    "uni:blue_1": {
+      "id": "uni:blue_1",
+      "title": "1",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "uni:blue_2": {
+      "id": "uni:blue_2",
+      "title": "2",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "uni:blue_3": {
+      "id": "uni:blue_3",
+      "title": "3",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "uni:blue_4": {
+      "id": "uni:blue_4",
+      "title": "4",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "uni:blue_5": {
+      "id": "uni:blue_5",
+      "title": "5",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "uni:blue_6": {
+      "id": "uni:blue_6",
+      "title": "6",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "uni:blue_7": {
+      "id": "uni:blue_7",
+      "title": "7",
+      "description": "Carta numero 7. Se la regola [k=uni:seven_zero]7-0[/k] e' attiva, scambia la mano con qualsiasi giocatore."
+    },
+    "uni:blue_8": {
+      "id": "uni:blue_8",
+      "title": "8",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "uni:blue_9": {
+      "id": "uni:blue_9",
+      "title": "9",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "uni:blue_draw2": {
+      "id": "uni:blue_draw2",
+      "title": "Pesca Due (+2)",
+      "description": "Costringe il giocatore successivo a [k=uni:draw]pescare[/k] 2 carte dal [k=uni:draw_pile]mazzo di pesca[/k] e a perdere il proprio [k=uni:turn]turno[/k]."
+    },
+    "uni:blue_reverse": {
+      "id": "uni:blue_reverse",
+      "title": "Inverti",
+      "description": "[k=uni:reverse]Inverte[/k] la direzione di [k=uni:play]gioco[/k]. In partite a 2 giocatori, funge da [k=uni:skip]salta[/k]."
+    },
+    "uni:blue_skip": {
+      "id": "uni:blue_skip",
+      "title": "Salta",
+      "description": "Fa perdere il [k=uni:turn]turno[/k] al giocatore successivo."
+    },
+    "uni:green_0": {
+      "id": "uni:green_0",
+      "title": "0",
+      "description": "Carta numero 0. Se la regola [k=uni:seven_zero]7-0[/k] e' attiva, ruota tutte le mani nella direzione del [k=uni:turn]turno[/k]."
+    },
+    "uni:green_1": {
+      "id": "uni:green_1",
+      "title": "1",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "uni:green_2": {
+      "id": "uni:green_2",
+      "title": "2",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "uni:green_3": {
+      "id": "uni:green_3",
+      "title": "3",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "uni:green_4": {
+      "id": "uni:green_4",
+      "title": "4",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "uni:green_5": {
+      "id": "uni:green_5",
+      "title": "5",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "uni:green_6": {
+      "id": "uni:green_6",
+      "title": "6",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "uni:green_7": {
+      "id": "uni:green_7",
+      "title": "7",
+      "description": "Carta numero 7. Se la regola [k=uni:seven_zero]7-0[/k] e' attiva, scambia la mano con qualsiasi giocatore."
+    },
+    "uni:green_8": {
+      "id": "uni:green_8",
+      "title": "8",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "uni:green_9": {
+      "id": "uni:green_9",
+      "title": "9",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "uni:green_draw2": {
+      "id": "uni:green_draw2",
+      "title": "Pesca Due (+2)",
+      "description": "Costringe il giocatore successivo a [k=uni:draw]pescare[/k] 2 carte dal [k=uni:draw_pile]mazzo di pesca[/k] e a perdere il proprio [k=uni:turn]turno[/k]."
+    },
+    "uni:green_reverse": {
+      "id": "uni:green_reverse",
+      "title": "Inverti",
+      "description": "[k=uni:reverse]Inverte[/k] la direzione di [k=uni:play]gioco[/k]. In partite a 2 giocatori, funge da [k=uni:skip]salta[/k]."
+    },
+    "uni:green_skip": {
+      "id": "uni:green_skip",
+      "title": "Salta",
+      "description": "Fa perdere il [k=uni:turn]turno[/k] al giocatore successivo."
+    },
+    "uni:red_0": {
+      "id": "uni:red_0",
+      "title": "0",
+      "description": "Carta numero 0. Se la regola [k=uni:seven_zero]7-0[/k] e' attiva, ruota tutte le mani nella direzione del [k=uni:turn]turno[/k]."
+    },
+    "uni:red_1": {
+      "id": "uni:red_1",
+      "title": "1",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "uni:red_2": {
+      "id": "uni:red_2",
+      "title": "2",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "uni:red_3": {
+      "id": "uni:red_3",
+      "title": "3",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "uni:red_4": {
+      "id": "uni:red_4",
+      "title": "4",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "uni:red_5": {
+      "id": "uni:red_5",
+      "title": "5",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "uni:red_6": {
+      "id": "uni:red_6",
+      "title": "6",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "uni:red_7": {
+      "id": "uni:red_7",
+      "title": "7",
+      "description": "Carta numero 7. Se la regola [k=uni:seven_zero]7-0[/k] e' attiva, scambia la mano con qualsiasi giocatore."
+    },
+    "uni:red_8": {
+      "id": "uni:red_8",
+      "title": "8",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "uni:red_9": {
+      "id": "uni:red_9",
+      "title": "9",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "uni:red_draw2": {
+      "id": "uni:red_draw2",
+      "title": "Pesca Due (+2)",
+      "description": "Costringe il giocatore successivo a [k=uni:draw]pescare[/k] 2 carte dal [k=uni:draw_pile]mazzo di pesca[/k] e a perdere il proprio [k=uni:turn]turno[/k]."
+    },
+    "uni:red_reverse": {
+      "id": "uni:red_reverse",
+      "title": "Inverti",
+      "description": "[k=uni:reverse]Inverte[/k] la direzione di [k=uni:play]gioco[/k]. In partite a 2 giocatori, funge da [k=uni:skip]salta[/k]."
+    },
+    "uni:red_skip": {
+      "id": "uni:red_skip",
+      "title": "Salta",
+      "description": "Fa perdere il [k=uni:turn]turno[/k] al giocatore successivo."
+    },
+    "uni:wild_draw4": {
+      "id": "uni:wild_draw4",
+      "title": "Jolly Pesca Quattro (+4)",
+      "description": "Scegli il [k=uni:color]colore[/k] attivo. Il giocatore successivo deve [k=uni:draw]pescare[/k] 4 carte e perdere il proprio [k=uni:turn]turno[/k]."
+    },
+    "uni:yellow_0": {
+      "id": "uni:yellow_0",
+      "title": "0",
+      "description": "Carta numero 0. Se la regola [k=uni:seven_zero]7-0[/k] e' attiva, ruota tutte le mani nella direzione del [k=uni:turn]turno[/k]."
+    },
+    "uni:yellow_1": {
+      "id": "uni:yellow_1",
+      "title": "1",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "uni:yellow_2": {
+      "id": "uni:yellow_2",
+      "title": "2",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "uni:yellow_3": {
+      "id": "uni:yellow_3",
+      "title": "3",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "uni:yellow_4": {
+      "id": "uni:yellow_4",
+      "title": "4",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "uni:yellow_5": {
+      "id": "uni:yellow_5",
+      "title": "5",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "uni:yellow_6": {
+      "id": "uni:yellow_6",
+      "title": "6",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "uni:yellow_7": {
+      "id": "uni:yellow_7",
+      "title": "7",
+      "description": "Carta numero 7. Se la regola [k=uni:seven_zero]7-0[/k] e' attiva, scambia la mano con qualsiasi giocatore."
+    },
+    "uni:yellow_8": {
+      "id": "uni:yellow_8",
+      "title": "8",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "uni:yellow_9": {
+      "id": "uni:yellow_9",
+      "title": "9",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "uni:yellow_draw2": {
+      "id": "uni:yellow_draw2",
+      "title": "Pesca Due (+2)",
+      "description": "Costringe il giocatore successivo a [k=uni:draw]pescare[/k] 2 carte dal [k=uni:draw_pile]mazzo di pesca[/k] e a perdere il proprio [k=uni:turn]turno[/k]."
+    },
+    "uni:yellow_reverse": {
+      "id": "uni:yellow_reverse",
+      "title": "Inverti",
+      "description": "[k=uni:reverse]Inverte[/k] la direzione di [k=uni:play]gioco[/k]. In partite a 2 giocatori, funge da [k=uni:skip]salta[/k]."
+    },
+    "uni:yellow_skip": {
+      "id": "uni:yellow_skip",
+      "title": "Salta",
+      "description": "Fa perdere il [k=uni:turn]turno[/k] al giocatore successivo."
+    }
+  },
+  "cardKinds": {
+    "uni:blue_0": {
+      "title": "0",
+      "description": "Carta numero 0. Se la regola [k=uni:seven_zero]7-0[/k] e' attiva, ruota tutte le mani nella direzione del [k=uni:turn]turno[/k]."
+    },
+    "uni:blue_1": {
+      "title": "1",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "uni:blue_2": {
+      "title": "2",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "uni:blue_3": {
+      "title": "3",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "uni:blue_4": {
+      "title": "4",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "uni:blue_5": {
+      "title": "5",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "uni:blue_6": {
+      "title": "6",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "uni:blue_7": {
+      "title": "7",
+      "description": "Carta numero 7. Se la regola [k=uni:seven_zero]7-0[/k] e' attiva, scambia la mano con qualsiasi giocatore."
+    },
+    "uni:blue_8": {
+      "title": "8",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "uni:blue_9": {
+      "title": "9",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "uni:blue_draw2": {
+      "title": "Pesca Due (+2)",
+      "description": "Costringe il giocatore successivo a [k=uni:draw]pescare[/k] 2 carte dal [k=uni:draw_pile]mazzo di pesca[/k] e a perdere il proprio [k=uni:turn]turno[/k]."
+    },
+    "uni:blue_reverse": {
+      "title": "Inverti",
+      "description": "[k=uni:reverse]Inverte[/k] la direzione di [k=uni:play]gioco[/k]. In partite a 2 giocatori, funge da [k=uni:skip]salta[/k]."
+    },
+    "uni:blue_skip": {
+      "title": "Salta",
+      "description": "Fa perdere il [k=uni:turn]turno[/k] al giocatore successivo."
+    },
+    "uni:green_0": {
+      "title": "0",
+      "description": "Carta numero 0. Se la regola [k=uni:seven_zero]7-0[/k] e' attiva, ruota tutte le mani nella direzione del [k=uni:turn]turno[/k]."
+    },
+    "uni:green_1": {
+      "title": "1",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "uni:green_2": {
+      "title": "2",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "uni:green_3": {
+      "title": "3",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "uni:green_4": {
+      "title": "4",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "uni:green_5": {
+      "title": "5",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "uni:green_6": {
+      "title": "6",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "uni:green_7": {
+      "title": "7",
+      "description": "Carta numero 7. Se la regola [k=uni:seven_zero]7-0[/k] e' attiva, scambia la mano con qualsiasi giocatore."
+    },
+    "uni:green_8": {
+      "title": "8",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "uni:green_9": {
+      "title": "9",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "uni:green_draw2": {
+      "title": "Pesca Due (+2)",
+      "description": "Costringe il giocatore successivo a [k=uni:draw]pescare[/k] 2 carte dal [k=uni:draw_pile]mazzo di pesca[/k] e a perdere il proprio [k=uni:turn]turno[/k]."
+    },
+    "uni:green_reverse": {
+      "title": "Inverti",
+      "description": "[k=uni:reverse]Inverte[/k] la direzione di [k=uni:play]gioco[/k]. In partite a 2 giocatori, funge da [k=uni:skip]salta[/k]."
+    },
+    "uni:green_skip": {
+      "title": "Salta",
+      "description": "Fa perdere il [k=uni:turn]turno[/k] al giocatore successivo."
+    },
+    "uni:red_0": {
+      "title": "0",
+      "description": "Carta numero 0. Se la regola [k=uni:seven_zero]7-0[/k] e' attiva, ruota tutte le mani nella direzione del [k=uni:turn]turno[/k]."
+    },
+    "uni:red_1": {
+      "title": "1",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "uni:red_2": {
+      "title": "2",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "uni:red_3": {
+      "title": "3",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "uni:red_4": {
+      "title": "4",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "uni:red_5": {
+      "title": "5",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "uni:red_6": {
+      "title": "6",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "uni:red_7": {
+      "title": "7",
+      "description": "Carta numero 7. Se la regola [k=uni:seven_zero]7-0[/k] e' attiva, scambia la mano con qualsiasi giocatore."
+    },
+    "uni:red_8": {
+      "title": "8",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "uni:red_9": {
+      "title": "9",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "uni:red_draw2": {
+      "title": "Pesca Due (+2)",
+      "description": "Costringe il giocatore successivo a [k=uni:draw]pescare[/k] 2 carte dal [k=uni:draw_pile]mazzo di pesca[/k] e a perdere il proprio [k=uni:turn]turno[/k]."
+    },
+    "uni:red_reverse": {
+      "title": "Inverti",
+      "description": "[k=uni:reverse]Inverte[/k] la direzione di [k=uni:play]gioco[/k]. In partite a 2 giocatori, funge da [k=uni:skip]salta[/k]."
+    },
+    "uni:red_skip": {
+      "title": "Salta",
+      "description": "Fa perdere il [k=uni:turn]turno[/k] al giocatore successivo."
+    },
+    "uni:wild": {
+      "title": "Jolly",
+      "description": "Carta [k=uni:wild]jolly[/k] giocabile su qualsiasi carta. Scegli il [k=uni:color]colore[/k] attivo."
+    },
+    "uni:wild_draw4": {
+      "title": "Jolly Pesca Quattro (+4)",
+      "description": "Scegli il [k=uni:color]colore[/k] attivo. Il giocatore successivo deve [k=uni:draw]pescare[/k] 4 carte e perdere il proprio [k=uni:turn]turno[/k]."
+    },
+    "uni:yellow_0": {
+      "title": "0",
+      "description": "Carta numero 0. Se la regola [k=uni:seven_zero]7-0[/k] e' attiva, ruota tutte le mani nella direzione del [k=uni:turn]turno[/k]."
+    },
+    "uni:yellow_1": {
+      "title": "1",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "uni:yellow_2": {
+      "title": "2",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "uni:yellow_3": {
+      "title": "3",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "uni:yellow_4": {
+      "title": "4",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "uni:yellow_5": {
+      "title": "5",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "uni:yellow_6": {
+      "title": "6",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "uni:yellow_7": {
+      "title": "7",
+      "description": "Carta numero 7. Se la regola [k=uni:seven_zero]7-0[/k] e' attiva, scambia la mano con qualsiasi giocatore."
+    },
+    "uni:yellow_8": {
+      "title": "8",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "uni:yellow_9": {
+      "title": "9",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "uni:yellow_draw2": {
+      "title": "Pesca Due (+2)",
+      "description": "Costringe il giocatore successivo a [k=uni:draw]pescare[/k] 2 carte dal [k=uni:draw_pile]mazzo di pesca[/k] e a perdere il proprio [k=uni:turn]turno[/k]."
+    },
+    "uni:yellow_reverse": {
+      "title": "Inverti",
+      "description": "[k=uni:reverse]Inverte[/k] la direzione di [k=uni:play]gioco[/k]. In partite a 2 giocatori, funge da [k=uni:skip]salta[/k]."
+    },
+    "uni:yellow_skip": {
+      "title": "Salta",
+      "description": "Fa perdere il [k=uni:turn]turno[/k] al giocatore successivo."
+    }
+  },
+  "cardInfos": {
+    "blue_0": {
+      "title": "Blue 0",
+      "description": "Carta numero 0. Se la regola [k=uni:seven_zero]7-0[/k] e' attiva, ruota tutte le mani nella direzione del [k=uni:turn]turno[/k]."
+    },
+    "blue_1": {
+      "title": "Blue 1",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "blue_2": {
+      "title": "Blue 2",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "blue_3": {
+      "title": "Blue 3",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "blue_4": {
+      "title": "Blue 4",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "blue_5": {
+      "title": "Blue 5",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "blue_6": {
+      "title": "Blue 6",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "blue_7": {
+      "title": "Blue 7",
+      "description": "Carta numero 7. Se la regola [k=uni:seven_zero]7-0[/k] e' attiva, scambia la mano con qualsiasi giocatore."
+    },
+    "blue_8": {
+      "title": "Blue 8",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "blue_9": {
+      "title": "Blue 9",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "blue_draw2": {
+      "title": "Pesca Due (+2)",
+      "description": "Costringe il giocatore successivo a [k=uni:draw]pescare[/k] 2 carte dal [k=uni:draw_pile]mazzo di pesca[/k] e a perdere il proprio [k=uni:turn]turno[/k]."
+    },
+    "blue_reverse": {
+      "title": "Inverti",
+      "description": "[k=uni:reverse]Inverte[/k] la direzione di [k=uni:play]gioco[/k]. In partite a 2 giocatori, funge da [k=uni:skip]salta[/k]."
+    },
+    "blue_skip": {
+      "title": "Salta",
+      "description": "Fa perdere il [k=uni:turn]turno[/k] al giocatore successivo."
+    },
+    "green_0": {
+      "title": "Green 0",
+      "description": "Carta numero 0. Se la regola [k=uni:seven_zero]7-0[/k] e' attiva, ruota tutte le mani nella direzione del [k=uni:turn]turno[/k]."
+    },
+    "green_1": {
+      "title": "Green 1",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "green_2": {
+      "title": "Green 2",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "green_3": {
+      "title": "Green 3",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "green_4": {
+      "title": "Green 4",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "green_5": {
+      "title": "Green 5",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "green_6": {
+      "title": "Green 6",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "green_7": {
+      "title": "Green 7",
+      "description": "Carta numero 7. Se la regola [k=uni:seven_zero]7-0[/k] e' attiva, scambia la mano con qualsiasi giocatore."
+    },
+    "green_8": {
+      "title": "Green 8",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "green_9": {
+      "title": "Green 9",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "green_draw2": {
+      "title": "Pesca Due (+2)",
+      "description": "Costringe il giocatore successivo a [k=uni:draw]pescare[/k] 2 carte dal [k=uni:draw_pile]mazzo di pesca[/k] e a perdere il proprio [k=uni:turn]turno[/k]."
+    },
+    "green_reverse": {
+      "title": "Inverti",
+      "description": "[k=uni:reverse]Inverte[/k] la direzione di [k=uni:play]gioco[/k]. In partite a 2 giocatori, funge da [k=uni:skip]salta[/k]."
+    },
+    "green_skip": {
+      "title": "Salta",
+      "description": "Fa perdere il [k=uni:turn]turno[/k] al giocatore successivo."
+    },
+    "red_0": {
+      "title": "Red 0",
+      "description": "Carta numero 0. Se la regola [k=uni:seven_zero]7-0[/k] e' attiva, ruota tutte le mani nella direzione del [k=uni:turn]turno[/k]."
+    },
+    "red_1": {
+      "title": "Red 1",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "red_2": {
+      "title": "Red 2",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "red_3": {
+      "title": "Red 3",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "red_4": {
+      "title": "Red 4",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "red_5": {
+      "title": "Red 5",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "red_6": {
+      "title": "Red 6",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "red_7": {
+      "title": "Red 7",
+      "description": "Carta numero 7. Se la regola [k=uni:seven_zero]7-0[/k] e' attiva, scambia la mano con qualsiasi giocatore."
+    },
+    "red_8": {
+      "title": "Red 8",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "red_9": {
+      "title": "Red 9",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "red_draw2": {
+      "title": "Pesca Due (+2)",
+      "description": "Costringe il giocatore successivo a [k=uni:draw]pescare[/k] 2 carte dal [k=uni:draw_pile]mazzo di pesca[/k] e a perdere il proprio [k=uni:turn]turno[/k]."
+    },
+    "red_reverse": {
+      "title": "Inverti",
+      "description": "[k=uni:reverse]Inverte[/k] la direzione di [k=uni:play]gioco[/k]. In partite a 2 giocatori, funge da [k=uni:skip]salta[/k]."
+    },
+    "red_skip": {
+      "title": "Salta",
+      "description": "Fa perdere il [k=uni:turn]turno[/k] al giocatore successivo."
+    },
+    "wild": {
+      "title": "Jolly",
+      "description": "Carta [k=uni:wild]jolly[/k] giocabile su qualsiasi carta. Scegli il [k=uni:color]colore[/k] attivo."
+    },
+    "wild_draw4": {
+      "title": "Jolly Pesca Quattro (+4)",
+      "description": "Scegli il [k=uni:color]colore[/k] attivo. Il giocatore successivo deve [k=uni:draw]pescare[/k] 4 carte e perdere il proprio [k=uni:turn]turno[/k]."
+    },
+    "yellow_0": {
+      "title": "Yellow 0",
+      "description": "Carta numero 0. Se la regola [k=uni:seven_zero]7-0[/k] e' attiva, ruota tutte le mani nella direzione del [k=uni:turn]turno[/k]."
+    },
+    "yellow_1": {
+      "title": "Yellow 1",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "yellow_2": {
+      "title": "Yellow 2",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "yellow_3": {
+      "title": "Yellow 3",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "yellow_4": {
+      "title": "Yellow 4",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "yellow_5": {
+      "title": "Yellow 5",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "yellow_6": {
+      "title": "Yellow 6",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "yellow_7": {
+      "title": "Yellow 7",
+      "description": "Carta numero 7. Se la regola [k=uni:seven_zero]7-0[/k] e' attiva, scambia la mano con qualsiasi giocatore."
+    },
+    "yellow_8": {
+      "title": "Yellow 8",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "yellow_9": {
+      "title": "Yellow 9",
+      "description": "Carta numero. Abbina per [k=uni:color]colore[/k] o numero da [k=uni:play]giocare[/k] sul [k=uni:discard_pile]mazzo degli scarti[/k]."
+    },
+    "yellow_draw2": {
+      "title": "Pesca Due (+2)",
+      "description": "Costringe il giocatore successivo a [k=uni:draw]pescare[/k] 2 carte dal [k=uni:draw_pile]mazzo di pesca[/k] e a perdere il proprio [k=uni:turn]turno[/k]."
+    },
+    "yellow_reverse": {
+      "title": "Inverti",
+      "description": "[k=uni:reverse]Inverte[/k] la direzione di [k=uni:play]gioco[/k]. In partite a 2 giocatori, funge da [k=uni:skip]salta[/k]."
+    },
+    "yellow_skip": {
+      "title": "Salta",
+      "description": "Fa perdere il [k=uni:turn]turno[/k] al giocatore successivo."
+    }
+  }
+}

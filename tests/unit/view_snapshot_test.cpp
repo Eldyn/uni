@@ -27,7 +27,7 @@
  * snapshot exposes only the viewer's own hand identity, the draw pile count
  * and the discard top; `VisibilityGrant` aspects reveal another hand or a
  * pile; spectators are omniscient except for players opted into
- * `privacy_from_spectators`; own-hand entries carry `can_play`.
+ * the private seats of the spectator; own-hand entries carry `can_play`.
  */
 
 namespace fs = std::filesystem;
@@ -73,7 +73,7 @@ bool LoadContent(Content& out) {
     out.mods = std::move(load.mods);
     for (const LoadedMod& mod : out.mods) {
         for (const DeckDef& deck : mod.decks) {
-            if (deck.deck_id == "vanilla:classic") out.classic = deck;
+            if (deck.deck_id == "uni:classic") out.classic = deck;
         }
     }
     return !out.classic.deck_id.empty();
@@ -115,7 +115,7 @@ match::WindowConfig FixedWindow(int64_t ms) {
 std::unique_ptr<MatchInstance> MakeWindowEngine(Content& content) {
     FakeClock clock;
     DeckDef deck = content.classic;
-    deck.mods = {"vanilla", "draw_stacking"};
+    deck.mods = {"uni", "draw_stacking"};
     MatchAssemblyOptions options;
     options.starting_cards = 7;
     options.seed = 42;
@@ -362,7 +362,7 @@ TEST_CASE("view snapshot: pending_draws mirrors the draw-stacking debt") {
 
     // INFO: a hidden debt still counts; the "+N" is public table state.
     const ecs::Entity player1 = *engine->FindPlayer("player1");
-    ApplyStatus(*engine, player1, "vanilla:draw_debt", true);
+    ApplyStatus(*engine, player1, "uni:draw_debt", true);
     CHECK(builder.BuildSnapshot(Viewer::Player("player0"), sink)
               ["match_state"]["pending_draws"]
           == 2);
@@ -423,10 +423,8 @@ TEST_CASE("view snapshot: pending_play_drawn reveals the drawn card to the owner
 
     // SPECTATOR with the drawer's hand private: with the hand hidden, the drawn
     // identity appears NOWHERE in the JSON - the new field leaks nothing.
-    SnapshotOptions private_options;
-    private_options.privacy_from_spectators = {"player0"};
-    const json private_spec = builder.BuildSnapshot(
-        Viewer::Spectator(), sink, private_options);
+    const json private_spec =
+        builder.BuildSnapshot(Viewer::Spectator({"player0"}), sink);
     const json& private_choice =
         private_spec["match_state"]["pending_play_drawn"];
     REQUIRE(private_choice.is_object());
@@ -533,7 +531,7 @@ TEST_CASE("view snapshot: spectator is omniscient") {
     ViewBuilder builder(*engine, content.mods);
 
     const ecs::Entity player1 = *engine->FindPlayer("player1");
-    ApplyStatus(*engine, player1, "vanilla:draw_debt", true);
+    ApplyStatus(*engine, player1, "uni:draw_debt", true);
 
     EventSink sink;
     const json snapshot = builder.BuildSnapshot(Viewer::Spectator(), sink);
@@ -547,13 +545,13 @@ TEST_CASE("view snapshot: spectator is omniscient") {
 
     bool hidden_seen = false;
     for (const json& status : (*seen)["statuses"]) {
-        if (status["status_kind"] == "vanilla:draw_debt") hidden_seen = true;
+        if (status["status_kind"] == "uni:draw_debt") hidden_seen = true;
     }
     CHECK(hidden_seen);
-    CHECK(state["draw_pile"].contains("cards"));
+    CHECK_FALSE(state["draw_pile"].contains("cards"));
 }
 
-TEST_CASE("view snapshot: privacy_from_spectators strips that player only") {
+TEST_CASE("view snapshot: a private seat is stripped for a spectator") {
     Content content;
     REQUIRE(LoadContent(content));
     std::unique_ptr<MatchInstance> engine = MakeEngine(content, 4, 42);
@@ -561,24 +559,19 @@ TEST_CASE("view snapshot: privacy_from_spectators strips that player only") {
 
     const ecs::Entity player0 = *engine->FindPlayer("player0");
     const ecs::Entity player1 = *engine->FindPlayer("player1");
-    ApplyStatus(*engine, player0, "vanilla:draw_debt", true);
-    ApplyStatus(*engine, player1, "vanilla:draw_debt", true);
-
-    SnapshotOptions options;
-    options.privacy_from_spectators = {"player1"};
-    CHECK(options.PrivacyOn("player1"));
-    CHECK_FALSE(options.PrivacyOn("player0"));
+    ApplyStatus(*engine, player0, "uni:draw_debt", true);
+    ApplyStatus(*engine, player1, "uni:draw_debt", true);
 
     EventSink sink;
     const json snapshot =
-        builder.BuildSnapshot(Viewer::Spectator(), sink, options);
+        builder.BuildSnapshot(Viewer::Spectator({"player1"}), sink);
     const json& state = snapshot["match_state"];
 
     const json* private_player = FindPlayerState(state, "player1");
     REQUIRE(private_player != nullptr);
     CHECK_FALSE(private_player->contains("hand"));
     for (const json& status : (*private_player)["statuses"]) {
-        CHECK(status["status_kind"] != "vanilla:draw_debt");
+        CHECK(status["status_kind"] != "uni:draw_debt");
     }
 
     const json* public_player = FindPlayerState(state, "player0");
@@ -587,7 +580,7 @@ TEST_CASE("view snapshot: privacy_from_spectators strips that player only") {
     CHECK((*public_player)["hand"].size() == 7u);
     bool hidden_seen = false;
     for (const json& status : (*public_player)["statuses"]) {
-        if (status["status_kind"] == "vanilla:draw_debt") hidden_seen = true;
+        if (status["status_kind"] == "uni:draw_debt") hidden_seen = true;
     }
     CHECK(hidden_seen);
 }
@@ -600,7 +593,7 @@ TEST_CASE("view snapshot: hidden statuses are owner-only for players") {
 
     const ecs::Entity player1 = *engine->FindPlayer("player1");
     ApplyStatus(*engine, player1, "testmod:secret", true);
-    ApplyStatus(*engine, player1, "vanilla:draw_debt", false);
+    ApplyStatus(*engine, player1, "uni:draw_debt", false);
 
     EventSink other_sink;
     const json other =
@@ -610,7 +603,7 @@ TEST_CASE("view snapshot: hidden statuses are owner-only for players") {
     REQUIRE(seen_other != nullptr);
     // INFO: the hidden instance is dropped; the public one remains.
     REQUIRE((*seen_other)["statuses"].size() == 1u);
-    CHECK((*seen_other)["statuses"][0]["status_kind"] == "vanilla:draw_debt");
+    CHECK((*seen_other)["statuses"][0]["status_kind"] == "uni:draw_debt");
 
     EventSink own_sink;
     const json own =
@@ -627,7 +620,7 @@ TEST_CASE("view snapshot: open prompt reaches only its target") {
     ViewBuilder builder(*engine, content.mods);
 
     const std::vector<ecs::Entity> wilds =
-        CardsByKind(*engine, "vanilla:wild");
+        CardsByKind(*engine, "uni:wild");
     REQUIRE_FALSE(wilds.empty());
     const ecs::Entity player0 = *engine->FindPlayer("player0");
     ForceHand(*engine, player0, {wilds[0]});
@@ -673,7 +666,7 @@ TEST_CASE("view snapshot: window state is included when open") {
     REQUIRE_FALSE(window.is_null());
     CHECK(window["window_id"]
           == std::to_string(engine->ExportWindow().value("id", 0)));
-    CHECK(window["responders"].size() == 1u);
+    CHECK(window["targets"].size() == 1u);
     CHECK(window["eligible_filter_digest"].is_string());
     CHECK(window["kind"] == "generic");
     CHECK(window["responses"].is_array());
@@ -743,7 +736,7 @@ TEST_CASE("view snapshot: jump_in window lights the responder's identical card")
     REQUIRE(LoadContent(content));
     FakeClock clock;
     DeckDef deck = content.classic;
-    deck.mods = {"vanilla", "jump_in"};
+    deck.mods = {"uni", "jump_in"};
     MatchAssemblyOptions options;
     options.starting_cards = 7;
     options.seed = 42;
@@ -877,7 +870,7 @@ TEST_CASE("view snapshot: seq watermark tracks the viewer stream") {
     const json first =
         json{{"type", "round_advance"}, {"payload", json{{"round", 1}}}};
     const json second =
-        json{{"type", "placement"}, {"payload", json{{"player", "player0"},
+        json{{"type", "placement_set"}, {"payload", json{{"player", "player0"},
                                                      {"place", 1}}}};
     REQUIRE(builder.Wrap(first, Viewer::Player("player0"), sink).has_value());
     REQUIRE(builder.Wrap(second, Viewer::Player("player0"), sink)
@@ -948,12 +941,12 @@ std::unique_ptr<MatchInstance> OpenMergedGroup(
 json PacketOfType(const ViewBuilder& builder, const Viewer& viewer,
                   const std::string& type) {
     for (const json& packet : builder.BuildPackets(viewer)) {
-        if (packet.value("type", std::string()) == type) return packet;
+        if (packet.value("id", std::string()) == type) return packet;
     }
     return json(nullptr);
 }
 
-const std::vector<std::string> kGroupMods = {"vanilla", "jump_in",
+const std::vector<std::string> kGroupMods = {"uni", "jump_in",
                                              "draw_stacking"};
 
 }  // namespace
@@ -967,7 +960,7 @@ TEST_CASE("view window: a merged group exposes kinds and hold live") {
     ViewBuilder builder(*engine, content.mods);
 
     const json open =
-        PacketOfType(builder, Viewer::Player("player0"), "window_open");
+        PacketOfType(builder, Viewer::Player("player0"), "window_opened");
     REQUIRE_FALSE(open.is_null());
     const json& payload = open["payload"];
     REQUIRE(payload["kinds"].is_array());
@@ -979,6 +972,89 @@ TEST_CASE("view window: a merged group exposes kinds and hold live") {
     CHECK(payload["deadline_ms"] == kGroupWindowMs);
 }
 
+TEST_CASE("view window: a stacking answer reports the stacking member kind") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    FakeClock clock;
+    std::unique_ptr<MatchInstance> engine = OpenMergedGroup(
+        content, {"uni", "draw_stacking", "jump_in"}, clock);
+    const std::optional<ecs::Entity> draw2 = FindCard(*engine, "red", "+2");
+    REQUIRE(draw2.has_value());
+    const ecs::Entity player2 = *engine->FindPlayer("player2");
+    const std::vector<ecs::Entity>& hand =
+        engine->Store().Get<ecs::Hand>(player2)->cards;
+    REQUIRE(hand.size() == 1u);
+    REQUIRE(engine->RespondWindow("player2", hand.front()));
+    ViewBuilder builder(*engine, content.mods);
+    const json responded = PacketOfType(
+        builder, Viewer::Spectator(), "window_responded");
+    REQUIRE_FALSE(responded.is_null());
+    // INFO: the twin +2 stacks, so the wire names the stacking member
+    //       (draw_stacking declares no window kind: generic), not the
+    //       owning jump_in member.
+    CHECK(responded["payload"]["window_kind"] == "generic");
+    CHECK(responded["payload"]["outcome"] == "winning");
+}
+
+TEST_CASE("view window: a lost response shows the group leader kind") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    FakeClock clock;
+    std::unique_ptr<MatchInstance> engine = OpenMergedGroup(
+        content, {"uni", "jump_in", "draw_stacking"}, clock);
+    const std::optional<ecs::Entity> blue_stacker =
+        FindCard(*engine, "blue", "+2");
+    REQUIRE(blue_stacker.has_value());
+    const ecs::Entity player1 = *engine->FindPlayer("player1");
+    ForceHand(*engine, player1, {*blue_stacker});
+    const ecs::Entity player2 = *engine->FindPlayer("player2");
+    const ecs::Entity twin =
+        engine->Store().Get<ecs::Hand>(player2)->cards.front();
+    REQUIRE(engine->RespondWindow("player2", twin));
+    REQUIRE(engine->RespondWindow("player1", *blue_stacker));
+
+    ViewBuilder builder(*engine, content.mods);
+    json lost = json(nullptr);
+    for (const json& packet : builder.BuildPackets(Viewer::Spectator())) {
+        if (packet.value("id", std::string()) == "window_responded"
+            && packet["payload"]["outcome"] == "lost") {
+            lost = packet;
+        }
+    }
+    REQUIRE_FALSE(lost.is_null());
+    CHECK(lost["payload"]["window_kind"] == "jump_in");
+}
+
+TEST_CASE("view window: a held stack close keeps the responder actor") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    FakeClock clock;
+    std::unique_ptr<MatchInstance> engine = OpenMergedGroup(
+        content, {"uni", "draw_stacking", "jump_in"}, clock);
+    const ecs::Entity player2 = *engine->FindPlayer("player2");
+    const ecs::Entity stacker =
+        engine->Store().Get<ecs::Hand>(player2)->cards.front();
+    REQUIRE(engine->RespondWindow("player2", stacker));
+    const std::size_t events_before_close = engine->Events().size();
+    clock.now = kGroupHoldMs + 1;
+    engine->Tick();
+
+    bool found = false;
+    const std::vector<json>& events = engine->Events();
+    for (std::size_t index = events_before_close; index < events.size();
+         ++index) {
+        const json& event = events[index];
+        if (event.value("type", std::string()) != "status_applied") continue;
+        if (event["payload"].value("status_kind", std::string())
+            != "uni:draw_debt") {
+            continue;
+        }
+        found = true;
+        CHECK(event["causal_frame"]["actor"] == "player2");
+    }
+    CHECK(found);
+}
+
 TEST_CASE("view window: kinds follow member order, kind stays the first") {
     Content content;
     REQUIRE(LoadContent(content));
@@ -987,9 +1063,9 @@ TEST_CASE("view window: kinds follow member order, kind stays the first") {
         json kinds;
     };
     const std::vector<Order> orders = {
-        {{"vanilla", "jump_in", "draw_stacking"},
+        {{"uni", "jump_in", "draw_stacking"},
          json::array({"jump_in", "generic"})},
-        {{"vanilla", "draw_stacking", "jump_in"},
+        {{"uni", "draw_stacking", "jump_in"},
          json::array({"generic", "jump_in"})}};
     for (const Order& order : orders) {
         FakeClock clock;
@@ -997,7 +1073,7 @@ TEST_CASE("view window: kinds follow member order, kind stays the first") {
             OpenMergedGroup(content, order.mods, clock);
         ViewBuilder builder(*engine, content.mods);
         const json open =
-            PacketOfType(builder, Viewer::Player("player0"), "window_open");
+            PacketOfType(builder, Viewer::Player("player0"), "window_opened");
         REQUIRE_FALSE(open.is_null());
         CHECK(open["payload"]["kinds"] == order.kinds);
         CHECK(open["payload"]["kind"] == order.kinds[0]);
@@ -1016,12 +1092,12 @@ TEST_CASE("view window: viewers and spectators see the same group") {
     ViewBuilder builder(*engine, content.mods);
 
     const json base =
-        PacketOfType(builder, Viewer::Player("player0"), "window_open");
+        PacketOfType(builder, Viewer::Player("player0"), "window_opened");
     REQUIRE_FALSE(base.is_null());
     for (const Viewer& viewer :
          {Viewer::Player("player1"), Viewer::Player("player2"),
           Viewer::Spectator()}) {
-        CHECK(PacketOfType(builder, viewer, "window_open")["payload"]
+        CHECK(PacketOfType(builder, viewer, "window_opened")["payload"]
               == base["payload"]);
         EventSink sink;
         const json window =
@@ -1040,7 +1116,7 @@ TEST_CASE("view window: the snapshot mid-group equals the live payload") {
     ViewBuilder builder(*engine, content.mods);
 
     const json live =
-        PacketOfType(builder, Viewer::Player("player1"), "window_open")
+        PacketOfType(builder, Viewer::Player("player1"), "window_opened")
             ["payload"];
     clock.now = 300;
     EventSink sink;
@@ -1048,7 +1124,7 @@ TEST_CASE("view window: the snapshot mid-group equals the live payload") {
                             ["match_state"]["window"];
     REQUIRE_FALSE(window.is_null());
     for (const char* field :
-         {"window_id", "kind", "kinds", "hold_ms", "duration_ms", "responders",
+         {"window_id", "kind", "kinds", "hold_ms", "duration_ms", "targets",
           "eligible_filter_digest"}) {
         CHECK_MESSAGE(window[field] == live[field], field);
     }
@@ -1073,7 +1149,7 @@ TEST_CASE("view window: a single generic window has no hold") {
     REQUIRE(engine->WindowOpen());
 
     const json open =
-        PacketOfType(builder, Viewer::Spectator(), "window_open");
+        PacketOfType(builder, Viewer::Spectator(), "window_opened");
     REQUIRE_FALSE(open.is_null());
     CHECK(open["payload"]["kinds"] == json::array({"generic"}));
     CHECK_FALSE(open["payload"].contains("hold_ms"));
@@ -1120,7 +1196,7 @@ TEST_CASE("view snapshot: an armed prompt reports its clock length") {
                          clock.Fn());
     ViewBuilder builder(engine, content.mods);
 
-    const std::vector<ecs::Entity> wilds = CardsByKind(engine, "vanilla:wild");
+    const std::vector<ecs::Entity> wilds = CardsByKind(engine, "uni:wild");
     REQUIRE_FALSE(wilds.empty());
     ForceHand(engine, *engine.FindPlayer("player0"), {wilds[0]});
     REQUIRE(engine.PlayCard("player0", wilds[0]));
@@ -1157,7 +1233,7 @@ TEST_CASE("view prompt: prompt_open carries the enforced clock length") {
 
     // INFO: the controller arms the clocks at turn start, before any play.
     engine.SyncClocks(15000);
-    const std::vector<ecs::Entity> wilds = CardsByKind(engine, "vanilla:wild");
+    const std::vector<ecs::Entity> wilds = CardsByKind(engine, "uni:wild");
     REQUIRE_FALSE(wilds.empty());
     ForceHand(engine, *engine.FindPlayer("player0"), {wilds[0]});
     REQUIRE(engine.PlayCard("player0", wilds[0]));
@@ -1196,7 +1272,7 @@ TEST_CASE("view snapshot: prompt_wait exposes only the pending prompt clock") {
         builder.BuildSnapshot(Viewer::Player("player1"), idle_sink);
     CHECK_FALSE(idle["match_state"].contains("prompt_wait"));
 
-    const std::vector<ecs::Entity> wilds = CardsByKind(engine, "vanilla:wild");
+    const std::vector<ecs::Entity> wilds = CardsByKind(engine, "uni:wild");
     REQUIRE_FALSE(wilds.empty());
     ForceHand(engine, *engine.FindPlayer("player0"), {wilds[0]});
     REQUIRE(engine.PlayCard("player0", wilds[0]));

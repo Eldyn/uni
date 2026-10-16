@@ -165,11 +165,29 @@ static constexpr Migration MIGRATIONS[] = {
     // leaderboard ranks only registered accounts, so these rows are unreachable
     // anyway — this removes them from storage too.
     { 10, "DELETE FROM player_stats WHERE username NOT IN (SELECT username FROM users);" },
+    // Migration v11: per-user Streamer/Privacy Mode. 0 shows the hidden cards
+    // of the seat to spectators; 1 shows card backs. Guests have no row and
+    // keep the setting for the socket session only.
+    { 11, "ALTER TABLE users "
+          "ADD COLUMN privacy_mode INTEGER NOT NULL DEFAULT 0;" },
+    // Migration v12: leaderboard read path. The top-50 DENSE_RANK query
+    // sorts the whole player_stats table on every miss; this covering index
+    // keeps the sort cheap as accounts grow. IF NOT EXISTS: safe on fresh
+    // DBs (v1 CREATE TABLE has no index) and on upgrades.
+    { 12, "CREATE INDEX IF NOT EXISTS idx_player_stats_rank "
+          "ON player_stats(total_wins DESC, total_losses ASC);" },
 };
 
 }  // namespace
 
 // Database implementation
+
+Database::Database()  = default;
+Database::~Database() { Close(); }
+
+bool Database::OnWorkerThread() const {
+    return worker_.IsWorkerThread();
+}
 
 Database& Database::Get() {
     static Database instance;
@@ -177,6 +195,7 @@ Database& Database::Get() {
 }
 
 VoidResult Database::Open(std::string_view path) {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex_);
     if (sqlite3_open(path.data(), &db_) != SQLITE_OK) {
         return std::unexpected(Error::DatabaseFail(sqlite3_errmsg(db_)));
     }
@@ -200,6 +219,8 @@ VoidResult Database::Open(std::string_view path) {
 }
 
 void Database::Close() {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex_);
+    ClearStmtCache();
     if (db_) {
         sqlite3_close(db_);
         db_ = nullptr;
@@ -207,10 +228,13 @@ void Database::Close() {
 }
 
 bool Database::IsOpen() const {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex_);
     return db_ != nullptr;
 }
 
-VoidResult Database::ApplySchema(const char* sql) {
+VoidResult Database::ApplySchemaDirect(const char* sql) {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex_);
+    if (!db_) return std::unexpected(Error::DatabaseFail("Database is not open"));
     char* zErrMsg = nullptr;
     // INFO: sqlite3_exec runs everything in the string until the end
     int rc = sqlite3_exec(db_, sql, nullptr, nullptr, &zErrMsg);
@@ -220,15 +244,27 @@ VoidResult Database::ApplySchema(const char* sql) {
         sqlite3_free(zErrMsg);  // Must free this!
         return std::unexpected(Error::DatabaseFail(err));
     }
+    // sqlite3_exec runs raw DDL outside the cache; any schema change may have
+    // invalidated cached stmts, so drop them (migrations are rare — cheap).
+    ClearStmtCache();
     return {};
 }
 
-sqlite3_stmt* Database::Prepare(const char* sql, const std::vector<DbValue>& params) {
-    sqlite3_stmt* stmt = nullptr;
-    if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) {
-        return nullptr;
-    }
+VoidResult Database::ApplySchema(const char* sql) {
+    if (OnWorkerThread()) return ApplySchemaDirect(sql);
+    std::string owned = sql ? sql : "";
+    return worker_.Enqueue([this, owned]() -> VoidResult {
+        return ApplySchemaDirect(owned.c_str());
+    }).get();
+}
 
+namespace {
+
+// Binds params to an already-prepared stmt. Uses SQLITE_STATIC for text:
+// every caller steps (and resets) before its Direct method returns, while
+// `params` lives in the worker-task closure above it on the stack, so the
+// pointed-to strings always outlive the step.
+void BindParams(sqlite3_stmt* stmt, const std::vector<DbValue>& params) {
     for (size_t i = 0; i < params.size(); ++i) {
         int index = static_cast<int>(i) + 1;  // SQLite uses 1-based indexing for params
 
@@ -240,13 +276,62 @@ sqlite3_stmt* Database::Prepare(const char* sql, const std::vector<DbValue>& par
             } else if constexpr (std::is_same_v<T, double>) {
                 sqlite3_bind_double(stmt, index, arg);
             } else if constexpr (std::is_same_v<T, std::string>) {
-                sqlite3_bind_text(stmt, index, arg.c_str(), -1, SQLITE_TRANSIENT);
+                sqlite3_bind_text(stmt, index, arg.c_str(), -1, SQLITE_STATIC);
             } else if constexpr (std::is_same_v<T, std::nullptr_t>) {
                 sqlite3_bind_null(stmt, index);
             }
         }, params[i]);
     }
+}
+
+}  // namespace
+
+sqlite3_stmt* Database::Prepare(const char* sql, const std::vector<DbValue>& params) {
+    // Worker-thread-only cache: every caller is a *Direct method and all of
+    // those run on the single DbWorker thread, so no locking is needed here
+    // beyond db_mutex_, which callers already hold.
+    if (!sql) return nullptr;
+    auto it = stmt_cache_.find(sql);
+    if (it != stmt_cache_.end()) {
+        sqlite3_reset(it->second);
+        sqlite3_clear_bindings(it->second);
+        stmt_cache_hits_.fetch_add(1, std::memory_order_relaxed);
+        BindParams(it->second, params);
+        return it->second;
+    }
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        return nullptr;
+    }
+    stmt_cache_.emplace(sql, stmt);
+    BindParams(stmt, params);
     return stmt;
+}
+
+sqlite3_stmt* Database::ReprepareAfterSchemaChange(const char* sql,
+                                                   const std::vector<DbValue>& params) {
+    std::string key(sql ? sql : "");
+    auto it = stmt_cache_.find(key);
+    if (it != stmt_cache_.end()) {
+        sqlite3_finalize(it->second);
+        stmt_cache_.erase(it);
+    }
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        return nullptr;
+    }
+    stmt_cache_.emplace(std::move(key), stmt);
+    BindParams(stmt, params);
+    return stmt;
+}
+
+void Database::ClearStmtCache() {
+    for (auto& [sql, stmt] : stmt_cache_) sqlite3_finalize(stmt);
+    stmt_cache_.clear();
+}
+
+std::uint64_t Database::StmtCacheHitsForTests() const {
+    return stmt_cache_hits_.load(std::memory_order_relaxed);
 }
 
 DbRow Database::ReadRow(sqlite3_stmt* stmt) {
@@ -274,12 +359,20 @@ DbRow Database::ReadRow(sqlite3_stmt* stmt) {
 }
 
 
-VoidResult Database::Exec(const char* sql, std::vector<DbValue> params) {
+VoidResult Database::ExecDirect(const char* sql, const std::vector<DbValue>& params) {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex_);
+    if (!db_) return std::unexpected(Error::DatabaseFail("Database is not open"));
     sqlite3_stmt* stmt = Prepare(sql, params);
     if (!stmt) return std::unexpected(Error::DatabaseFail(sqlite3_errmsg(db_)));
 
     int rc = sqlite3_step(stmt);
-    sqlite3_finalize(stmt);
+    if (rc == SQLITE_SCHEMA) {
+        // DDL executed through another cached stmt invalidated this one.
+        stmt = ReprepareAfterSchemaChange(sql, params);
+        if (!stmt) return std::unexpected(Error::DatabaseFail(sqlite3_errmsg(db_)));
+        rc = sqlite3_step(stmt);
+    }
+    sqlite3_reset(stmt);
 
     if (rc != SQLITE_DONE && rc != SQLITE_ROW) {
         return std::unexpected(Error::DatabaseFail(sqlite3_errmsg(db_)));
@@ -287,31 +380,119 @@ VoidResult Database::Exec(const char* sql, std::vector<DbValue> params) {
     return {};
 }
 
-Result<std::vector<DbRow>> Database::Query(const char* sql, std::vector<DbValue> params) {
+VoidResult Database::Exec(const char* sql, std::vector<DbValue> params) {
+    if (OnWorkerThread()) return ExecDirect(sql, params);
+    std::string owned = sql ? sql : "";
+    return worker_.Enqueue([this, owned, params = std::move(params)]() mutable -> VoidResult {
+        return ExecDirect(owned.c_str(), params);
+    }).get();
+}
+
+std::future<VoidResult> Database::ExecAsync(std::string sql, std::vector<DbValue> params) {
+    if (OnWorkerThread()) {
+        // Called from inside a worker task (e.g. nested in RunInTxn): run
+        // inline and return a ready future — enqueue + block here would
+        // deadlock on our own queue.
+        std::promise<VoidResult> p;
+        p.set_value(ExecDirect(sql.c_str(), params));
+        return p.get_future();
+    }
+    return worker_.Enqueue([this, sql = std::move(sql),
+                            params = std::move(params)]() mutable -> VoidResult {
+        return ExecDirect(sql.c_str(), params);
+    });
+}
+
+Result<std::vector<DbRow>> Database::QueryDirect(const char* sql,
+                                                const std::vector<DbValue>& params) {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex_);
+    if (!db_) return std::unexpected(Error::DatabaseFail("Database is not open"));
     sqlite3_stmt* stmt = Prepare(sql, params);
     if (!stmt) return std::unexpected(Error::DatabaseFail(sqlite3_errmsg(db_)));
 
+    int rc = sqlite3_step(stmt);
+    if (rc == SQLITE_SCHEMA) {
+        stmt = ReprepareAfterSchemaChange(sql, params);
+        if (!stmt) return std::unexpected(Error::DatabaseFail(sqlite3_errmsg(db_)));
+        rc = sqlite3_step(stmt);
+    }
     std::vector<DbRow> rows;
-    while (sqlite3_step(stmt) == SQLITE_ROW) {
+    while (rc == SQLITE_ROW) {
         rows.push_back(ReadRow(stmt));
+        rc = sqlite3_step(stmt);
     }
 
-    sqlite3_finalize(stmt);
+    sqlite3_reset(stmt);
     return rows;
 }
 
-Result<std::optional<DbRow>> Database::QueryOne(const char* sql, std::vector<DbValue> params) {
+Result<std::vector<DbRow>> Database::Query(const char* sql, std::vector<DbValue> params) {
+    if (OnWorkerThread()) return QueryDirect(sql, params);
+    std::string owned = sql ? sql : "";
+    return worker_.Enqueue([this, owned, params = std::move(params)]() mutable
+                           -> Result<std::vector<DbRow>> {
+        return QueryDirect(owned.c_str(), params);
+    }).get();
+}
+
+std::future<Result<std::vector<DbRow>>> Database::QueryAsync(std::string sql,
+                                                             std::vector<DbValue> params) {
+    if (OnWorkerThread()) {
+        std::promise<Result<std::vector<DbRow>>> p;
+        p.set_value(QueryDirect(sql.c_str(), params));
+        return p.get_future();
+    }
+    return worker_.Enqueue([this, sql = std::move(sql),
+                            params = std::move(params)]() mutable
+                           -> Result<std::vector<DbRow>> {
+        return QueryDirect(sql.c_str(), params);
+    });
+}
+
+Result<std::optional<DbRow>> Database::QueryOneDirect(const char* sql,
+                                                     const std::vector<DbValue>& params) {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex_);
+    if (!db_) return std::unexpected(Error::DatabaseFail("Database is not open"));
     sqlite3_stmt* stmt = Prepare(sql, params);
     if (!stmt) return std::unexpected(Error::DatabaseFail(sqlite3_errmsg(db_)));
 
-    if (sqlite3_step(stmt) == SQLITE_ROW) {
+    int rc = sqlite3_step(stmt);
+    if (rc == SQLITE_SCHEMA) {
+        stmt = ReprepareAfterSchemaChange(sql, params);
+        if (!stmt) return std::unexpected(Error::DatabaseFail(sqlite3_errmsg(db_)));
+        rc = sqlite3_step(stmt);
+    }
+    if (rc == SQLITE_ROW) {
         DbRow row = ReadRow(stmt);
-        sqlite3_finalize(stmt);
+        sqlite3_reset(stmt);
         return row;
     }
 
-    sqlite3_finalize(stmt);
+    sqlite3_reset(stmt);
     return std::nullopt;
+}
+
+Result<std::optional<DbRow>> Database::QueryOne(const char* sql, std::vector<DbValue> params) {
+    if (OnWorkerThread()) return QueryOneDirect(sql, params);
+    std::string owned = sql ? sql : "";
+    return worker_.Enqueue([this, owned, params = std::move(params)]() mutable
+                           -> Result<std::optional<DbRow>> {
+        return QueryOneDirect(owned.c_str(), params);
+    }).get();
+}
+
+std::future<Result<std::optional<DbRow>>> Database::QueryOneAsync(std::string sql,
+                                                                  std::vector<DbValue> params) {
+    if (OnWorkerThread()) {
+        std::promise<Result<std::optional<DbRow>>> p;
+        p.set_value(QueryOneDirect(sql.c_str(), params));
+        return p.get_future();
+    }
+    return worker_.Enqueue([this, sql = std::move(sql),
+                            params = std::move(params)]() mutable
+                           -> Result<std::optional<DbRow>> {
+        return QueryOneDirect(sql.c_str(), params);
+    });
 }
 
 int Database::GetSchemaVersion() {

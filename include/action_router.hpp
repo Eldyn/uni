@@ -1,6 +1,11 @@
 #pragma once
+#include <cstdint>
+#include <string>
+#include <string_view>
 #include <unordered_map>
+#include <utility>
 #include <vector>
+#include <common/ws_parse.hpp>
 #include <transport/iaction_router.hpp>
 
 /**
@@ -49,9 +54,21 @@ public:
      */
     bool Dispatch(WsContext ctx, const json& msg) const;
 
+    /**
+     * @brief Pre-hashed Dispatch (backend-perf Task 7).
+     * @param action_hash `Fnv1a` over the raw-frame action span, computed by
+     *        the zero-alloc pre-parse before the DOM existed. The stored
+     *        action string is still verified against the DOM value; on any
+     *        mismatch (escapes, hash collision) it falls back to the map.
+     */
+    bool Dispatch(WsContext ctx, const json& msg, uint32_t action_hash) const;
+
 private:
     /**< Map of actions to their specific handlers. */
     std::unordered_map<std::string, ActionHandler> handlers_;
+    /**< FNV-1a fast path: hash -> (action, handler), verified on lookup so a
+     *   collision can never misroute. Synced with `handlers_` in `On`. */
+    std::unordered_map<uint32_t, std::pair<std::string, ActionHandler>> hash_handlers_;
     /**< List of middleware executed before every specific action. */
     std::vector<ActionHandler> wildcards_;
 };

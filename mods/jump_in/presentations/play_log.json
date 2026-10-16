@@ -1,0 +1,32 @@
+{
+  "uni:format_version": "1.0.0",
+  "uni:binding": {
+    "uni:description": { "uni:identifier": "jump_in:jump_log" },
+    "uni:event": "window_responded",
+    "uni:select": "first",
+    "uni:cases": [
+      {
+        "uni:tests": [
+          {
+            "uni:test": "equals",
+            "uni:field": "window_kind",
+            "uni:value": "jump_in"
+          },
+          {
+            "uni:test": "equals",
+            "uni:field": "outcome",
+            "uni:value": "winning"
+          }
+        ],
+        "uni:present": {
+          "uni:log": {
+            "uni:variants": ["jump_in:jumped_1", "jump_in:jumped_2"],
+            "uni:params": {
+              "name": { "uni:field": "target" }
+            }
+          }
+        }
+      }
+    ]
+  }
+}

@@ -4,6 +4,7 @@
 #include <match/ecs/components.hpp>
 #include <match/view/defs_builder.hpp>
 #include <match/view/view_util.hpp>
+#include <match/view/wire.hpp>
 
 #include <logger.hpp>
 #include <nlohmann/json.hpp>
@@ -110,7 +111,7 @@ bool MatchSession::SubmitInput(const std::string& username,
 
     if (!engine_->SubmitInput(username, value)) return false;
     // INFO: the target answered, so its parked prompt now closes `answered`;
-    //       EmitPendingPrompt turns this into the prompt_close.
+    //       EmitPendingPrompt turns this into the prompt_answered.
     prompt_outcome_[username] = "answered";
     return true;
 }
@@ -217,11 +218,39 @@ bool MatchSession::UnbindViewer(const std::string& username) {
     return true;
 }
 
+void MatchSession::SetSeatPrivacy(const std::string& username, bool enabled) {
+    const auto position = std::ranges::find(private_seats_, username);
+    if (enabled && position == private_seats_.end()) {
+        private_seats_.push_back(username);
+    } else if (!enabled && position != private_seats_.end()) {
+        private_seats_.erase(position);
+    }
+}
+
+match::view::Viewer MatchSession::SpectatorViewer() const {
+    return match::view::Viewer::Spectator(private_seats_);
+}
+
+bool MatchSession::DemoteSeatToSpectator(const std::string& username) {
+    auto seat = sockets_.extract(username);
+    if (seat.empty()) return false;
+    auto sink = sinks_.extract(username);
+    viewers_[username] = seat.mapped();
+    if (!sink.empty()) {
+        viewer_sinks_.insert_or_assign(username, std::move(sink.mapped()));
+    }
+    prompt_signature_.erase(username);
+    prompt_outcome_.erase(username);
+    return true;
+}
+
 void MatchSession::SendSnapshot(IBroadcaster& broadcaster, AppWebSocket* socket,
                                 const std::string& username,
                                 bool is_spectator) {
     if (socket == nullptr) return;
 
+    match::view::SnapshotOptions warm_up;
+    warm_up.tail = &tail_;
     if (!is_spectator) {
         const auto it = sinks_.find(username);
         if (it != sinks_.end()) {
@@ -230,7 +259,8 @@ void MatchSession::SendSnapshot(IBroadcaster& broadcaster, AppWebSocket* socket,
             EnsureDefs(broadcaster, socket, it->second);
             broadcaster.SendJson(
                 socket, builder_.BuildSnapshot(
-                            match::view::Viewer::Player(username), it->second));
+                            match::view::Viewer::Player(username), it->second,
+                            warm_up));
             SendBarrierPacket(
                 broadcaster, socket, it->second,
                 ready_barrier_.IsOpen() ? "match_begin" : "players_ready",
@@ -241,13 +271,13 @@ void MatchSession::SendSnapshot(IBroadcaster& broadcaster, AppWebSocket* socket,
 
     // INFO: a bound spectator keeps its persistent stream so `defs` is only
     //       sent once and `seq` stays monotonic across later live updates; an
-    //       unknown recipient still gets a one-off omniscient view.
+    //       unknown recipient still gets a one-off spectator view.
     const auto viewer = viewer_sinks_.find(username);
     if (viewer != viewer_sinks_.end()) {
         EnsureDefs(broadcaster, socket, viewer->second);
-        broadcaster.SendJson(socket,
-                             builder_.BuildSnapshot(match::view::Viewer::Spectator(),
-                                                    viewer->second));
+        broadcaster.SendJson(
+            socket, builder_.BuildSnapshot(SpectatorViewer(), viewer->second,
+                                           warm_up));
         SendBarrierPacket(
             broadcaster, socket, viewer->second,
             ready_barrier_.IsOpen() ? "match_begin" : "players_ready",
@@ -255,30 +285,67 @@ void MatchSession::SendSnapshot(IBroadcaster& broadcaster, AppWebSocket* socket,
         return;
     }
     match::view::EventSink sink;
-    broadcaster.SendJson(socket, builder_.BuildSnapshot(
-                                     match::view::Viewer::Spectator(), sink));
+    broadcaster.SendJson(
+        socket, builder_.BuildSnapshot(SpectatorViewer(), sink, warm_up));
+}
+
+bool MatchSession::HandleSnapshotRequest(
+    IBroadcaster& broadcaster, const std::string& username,
+    const match::view::SnapshotOptions& options) {
+    const auto seat_socket = sockets_.find(username);
+    const auto viewer_socket = viewers_.find(username);
+    const bool is_seat = seat_socket != sockets_.end();
+    if (!is_seat && viewer_socket == viewers_.end()) return false;
+    AppWebSocket* socket =
+        is_seat ? seat_socket->second : viewer_socket->second;
+    if (socket == nullptr) return false;
+
+    const int64_t now_ms =
+        std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now().time_since_epoch())
+            .count();
+    if (!snapshot_request_limiter_.Allow(username, now_ms)) return false;
+
+    match::view::EventSink& sink =
+        is_seat ? sinks_.at(username) : viewer_sinks_.at(username);
+    const match::view::Viewer viewer =
+        is_seat ? match::view::Viewer::Player(username)
+                : SpectatorViewer();
+    match::view::SnapshotOptions warm_up = options;
+    warm_up.tail = &tail_;
+    broadcaster.SendJson(socket, builder_.BuildSnapshot(viewer, sink, warm_up));
+    return true;
 }
 
 void MatchSession::EmitMatchStart(IBroadcaster& broadcaster) {
     if (match_start_sent_) return;
 
     // INFO: `defs` is content-derived and identical for every recipient; the
-    //       digest doubles as the `match_start` correlation id.
-    const json defs =
-        match::view::DefsBuilder::Build(engine_->Registries(), mods_);
+    //       digest doubles as the `match_start` correlation id. Built once
+    //       per session via CachedDefs (late joiners reuse the same copy
+    //       through EnsureDefs) instead of once per recipient.
+    const json& defs = CachedDefs();
     const match::engine::MatchDeckSnapshot& deck = engine_->Assembly().Deck();
     const json start = match::view::DefsBuilder::BuildMatchStart(
         engine_->Registries(), mods_, deck.deck_id, deck.name, deck.settings);
 
+    // INFO: `defs` is content-derived and identical for every recipient; the
+    //       digest doubles as the `match_start` correlation id. The payloads
+    //       below are shared, but each envelope still serializes per recipient
+    //       (it carries that sink's `seq`), into one reused frame buffer.
+    std::string scratch;
+    scratch.reserve(8192);
     for (const auto& [username, socket] : sockets_) {
         if (socket == nullptr) continue;
         match::view::EventSink& sink = sinks_.at(username);
         json defs_packet = sink.Wrap("defs", defs);
         defs_packet["action"] = "match_event";
-        broadcaster.SendJson(socket, defs_packet);
+        scratch = defs_packet.dump();
+        broadcaster.Send(socket, scratch, uWS::OpCode::TEXT);
         json start_packet = sink.Wrap("match_start", start);
         start_packet["action"] = "match_event";
-        broadcaster.SendJson(socket, start_packet);
+        scratch = start_packet.dump();
+        broadcaster.Send(socket, scratch, uWS::OpCode::TEXT);
     }
     match_start_sent_ = true;
 }
@@ -290,10 +357,17 @@ void MatchSession::EnsureDefs(IBroadcaster& broadcaster, AppWebSocket* socket,
     //       with; a non-zero sink already carries the `defs`/`match_start`
     //       prefix (or later events), so re-sending would renumber.
     if (sink.NextSeq() != 0) return;
-    json packet = sink.Wrap(
-        "defs", match::view::DefsBuilder::Build(engine_->Registries(), mods_));
+    json packet = sink.Wrap("defs", CachedDefs());
     packet["action"] = "match_event";
     broadcaster.SendJson(socket, packet);
+}
+
+const nlohmann::json& MatchSession::CachedDefs() const {
+    if (!defs_cache_.has_value()) {
+        defs_cache_ = match::view::DefsBuilder::Build(engine_->Registries(),
+                                                      mods_);
+    }
+    return *defs_cache_;
 }
 
 void MatchSession::SendBarrierPacket(IBroadcaster& broadcaster,
@@ -383,7 +457,14 @@ void MatchSession::EmitEvents(IBroadcaster& broadcaster) {
         EnsureDefs(broadcaster, socket, viewer_sinks_.at(username));
     }
     const std::vector<json>& events = engine_->Events();
+    // INFO: one scratch frame buffer for the whole drain: each per-recipient
+    //       packet still serializes on its own (the envelope carries that
+    //       recipient's `seq`), but the dump reuses this capacity instead of
+    //       allocating a fresh string per SendJson.
+    std::string scratch;
+    scratch.reserve(4096);
     for (; cursor_ < events.size(); ++cursor_) {
+        tail_.Record(events[cursor_]);
         for (const auto& [username, socket] : sockets_) {
             if (socket == nullptr) continue;
             std::optional<json> packet = builder_.Wrap(
@@ -391,18 +472,20 @@ void MatchSession::EmitEvents(IBroadcaster& broadcaster) {
                 sinks_.at(username));
             if (!packet.has_value()) continue;
             (*packet)["action"] = "match_event";
-            broadcaster.SendJson(socket, *packet);
+            scratch = packet->dump();
+            broadcaster.Send(socket, scratch, uWS::OpCode::TEXT);
         }
-        // INFO: Spectators get the same event stream through
-        //       the omniscient spectator view on their own persistent sink.
+        // INFO: Spectators get the same event stream through the spectator
+        //       view on their own persistent sink. The viewer is built for
+        //       each event, so a setting change applies to the next one.
         for (const auto& [username, socket] : viewers_) {
             if (socket == nullptr) continue;
             std::optional<json> packet = builder_.Wrap(
-                events[cursor_], match::view::Viewer::Spectator(),
-                viewer_sinks_.at(username));
+                events[cursor_], SpectatorViewer(), viewer_sinks_.at(username));
             if (!packet.has_value()) continue;
             (*packet)["action"] = "match_event";
-            broadcaster.SendJson(socket, *packet);
+            scratch = packet->dump();
+            broadcaster.Send(socket, scratch, uWS::OpCode::TEXT);
         }
     }
     EmitPendingPrompt(broadcaster);
@@ -422,7 +505,7 @@ void MatchSession::EmitPendingPrompt(IBroadcaster& broadcaster) {
         std::string& last = prompt_signature_[username];
         if (!pending.has_value()) {
             // INFO: the parked prompt cleared (answer / timeout / cancel);
-            //       close it for the recipient that was shown prompt_open.
+            //       close it for the recipient that was shown prompt_opened.
             if (!last.empty()) {
                 EmitPromptClose(broadcaster, username, socket, last);
                 last.clear();
@@ -430,13 +513,13 @@ void MatchSession::EmitPendingPrompt(IBroadcaster& broadcaster) {
             continue;
         }
         // INFO: dedupe by pending signature so a repeated EmitEvents between
-        //       the play and the answer cannot re-send the same prompt_open.
+        //       the play and the answer cannot re-send the same prompt_opened.
         if (last == signature) continue;
         std::optional<json> packet = builder_.BuildPendingPrompt(
             match::view::Viewer::Player(username), sinks_.at(username));
         if (!packet.has_value()) continue;
         // INFO: The engine op leaves `response_schema` to the session layer;
-        //       attach the resolved kind schema so `prompt_open` satisfies
+        //       attach the resolved kind schema so `prompt_opened` satisfies
         //       and the client sees exactly what `SubmitInput` validates.
         if (schema != nullptr && packet->contains("payload") &&
             (*packet)["payload"].is_object()) {
@@ -460,7 +543,7 @@ void MatchSession::EmitPromptClose(IBroadcaster& broadcaster,
                                    const std::string& username,
                                    AppWebSocket* socket,
                                    const std::string& signature) {
-    // INFO: `prompt_id` is the prompt kind (the view layer's `prompt_open`
+    // INFO: `prompt_id` is the prompt kind (the view layer's `prompt_opened`
     //       uses the kind as the id); recover it from the stored signature.
     std::string prompt_id;
     try {
@@ -473,7 +556,8 @@ void MatchSession::EmitPromptClose(IBroadcaster& broadcaster,
     std::string& outcome = prompt_outcome_[username];
     if (outcome.empty()) outcome = "cancelled";
     json payload = {{"prompt_id", prompt_id}, {"outcome", outcome}};
-    json packet = sinks_.at(username).Wrap("prompt_close", std::move(payload));
+    json packet =
+        sinks_.at(username).Wrap("prompt_answered", std::move(payload));
     packet["action"] = "match_event";
     broadcaster.SendJson(socket, packet);
     outcome = "cancelled";
@@ -485,6 +569,15 @@ void MatchSession::BroadcastSnapshot(IBroadcaster& broadcaster) {
 
 void MatchSession::BroadcastSnapshot(IBroadcaster& broadcaster,
                                      const match::view::SnapshotOptions& options) {
+    // INFO: same scratch-reuse contract as EmitEvents: snapshots are
+    //       per-recipient (own view + own `seq` watermark), so each still
+    //       serializes, but into one reused frame buffer.
+    //       Snapshots are the ONLY droppable frames: each broadcast supersedes
+    //       the last, so a backpressure skip self-heals on the next tick.
+    //       Everything else through Send (events, barrier, defs, match_start,
+    //       match_over) keeps the non-droppable default and must never drop.
+    std::string scratch;
+    scratch.reserve(4096);
     for (const auto& [username, socket] : sockets_) {
         if (socket == nullptr) continue;
         // INFO: a seat that was unreachable at start gets `defs` before its
@@ -492,16 +585,18 @@ void MatchSession::BroadcastSnapshot(IBroadcaster& broadcaster,
         EnsureDefs(broadcaster, socket, sinks_.at(username));
         const json snapshot = builder_.BuildSnapshot(
             match::view::Viewer::Player(username), sinks_.at(username), options);
-        broadcaster.SendJson(socket, snapshot);
+        scratch = snapshot.dump();
+        broadcaster.Send(socket, scratch, uWS::OpCode::TEXT, true, true);
     }
     // INFO: Spectators keep receiving snapshots after their
-    //       initial join snapshot (omniscient view, own seq watermark).
+    //       initial join snapshot (spectator view, own seq watermark).
     for (const auto& [username, socket] : viewers_) {
         if (socket == nullptr) continue;
         EnsureDefs(broadcaster, socket, viewer_sinks_.at(username));
         const json snapshot = builder_.BuildSnapshot(
-            match::view::Viewer::Spectator(), viewer_sinks_.at(username), options);
-        broadcaster.SendJson(socket, snapshot);
+            SpectatorViewer(), viewer_sinks_.at(username), options);
+        scratch = snapshot.dump();
+        broadcaster.Send(socket, scratch, uWS::OpCode::TEXT, true, true);
     }
     BroadcastMatchOver(broadcaster);
 }
@@ -510,19 +605,31 @@ bool MatchSession::BroadcastMatchOver(IBroadcaster& broadcaster) {
     if (!engine_->IsMatchOver()) return false;
     if (over_sent_) return true;
 
-    const json packet = {{"action", "match_over"},
-                         {"winner", engine_->GetWinner()},
-                         {"placements", engine_->GetPlacements()}};
+    // INFO: the terminal frame is identical for every recipient (no per-seat
+    //       view, no `seq`), so glaze serializes it once into `shared` and
+    //       every socket sends the same bytes: N recipients, 1 dump.
+    const match::view::MatchOverWire over{"match_over", engine_->GetWinner(),
+                                          engine_->GetPlacements()};
+    std::string shared;
+    shared.reserve(512);
+    if (!match::view::WritePacket(over, shared)) return true;
+    // INFO: every Send is checked: a backpressure drop on any recipient
+    //       leaves over_sent_ clear, so the next BroadcastSnapshot retries
+    //       the one-shot instead of losing it. Snapshots self-heal by
+    //       supersession; match_over has no next version, so it must not
+    //       latch a partially-dropped broadcast as delivered. (&= keeps
+    //       sending to the remaining recipients after a drop.)
+    bool all_accepted = true;
     for (const auto& [username, socket] : sockets_) {
         if (socket == nullptr) continue;
-        broadcaster.SendJson(socket, packet);
+        all_accepted &= broadcaster.Send(socket, shared, uWS::OpCode::TEXT);
     }
     for (const auto& [username, socket] : viewers_) {
         if (socket == nullptr) continue;
-        broadcaster.SendJson(socket, packet);
+        all_accepted &= broadcaster.Send(socket, shared, uWS::OpCode::TEXT);
     }
-    over_sent_ = true;
-    return true;
+    if (all_accepted) over_sent_ = true;
+    return over_sent_;
 }
 
 const nlohmann::json* MatchSession::FindPromptSchema(
@@ -567,7 +674,7 @@ bool MatchSession::MatchesSchema(const nlohmann::json& value,
 }
 
 bool IsBuiltinPromptKind(const std::string& kind) {
-    // INFO: Phase-1 engine/vanilla prompt kinds. Mods
+    // INFO: Phase-1 engine/uni prompt kinds. Mods
     //       may declare NEW kinds; these five are owned by the engine and a
     //       mod declaration for one is ignored so its validator stays fixed.
     static const std::set<std::string, std::less<>> kBuiltins = {

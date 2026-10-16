@@ -1,0 +1,10 @@
+{
+  "uni:format_version": "1.0.0",
+  "uni:glossary_entry": {
+    "uni:description": {
+      "uni:identifier": "uni:play"
+    },
+    "uni:label_key": "uni:glossary.play.label",
+    "uni:description_key": "uni:glossary.play.description"
+  }
+}

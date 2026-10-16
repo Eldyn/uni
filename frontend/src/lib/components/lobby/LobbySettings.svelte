@@ -71,7 +71,7 @@
 
 	let rules = $derived<RuleDef[]>(
 		storeCatalog.rules.map((rule: RuleDefinition) => {
-			const glossary = getGlossaryEntry(`vanilla:${rule.id}`, storeI18n.locale);
+			const glossary = getGlossaryEntry(`uni:${rule.id}`, storeI18n.locale);
 			return {
 				id: rule.id,
 				label: glossary?.title ?? ruleLabel(rule, storeI18n.locale as any),

@@ -1,0 +1,84 @@
+[
+ {
+  "event": "card_played",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 0,
+   "wild_run": 0,
+   "last_wild_color": null,
+   "prev_wild_color": null,
+   "near_win_target": "player0",
+   "near_win_open": true
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "card_played",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 0,
+   "wild_run": 0,
+   "last_wild_color": null,
+   "prev_wild_color": null,
+   "near_win_target": "player0",
+   "near_win_open": true
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ },
+ {
+  "event": "card_played",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 0,
+   "wild_run": 0,
+   "last_wild_color": null,
+   "prev_wild_color": null,
+   "near_win_target": "player0",
+   "near_win_open": true
+  }
+ },
+ {
+  "event": "cards_drawn",
+  "old": {
+   "skip_run": 0,
+   "reverse_run": 0,
+   "draw_run": 1,
+   "total_draws": 1,
+   "wild_run": 0,
+   "last_wild_color": null,
+   "prev_wild_color": null,
+   "near_win_target": "player0",
+   "near_win_open": true
+  }
+ },
+ {
+  "event": "turn_skipped",
+  "old": {
+   "skip_run": 1,
+   "reverse_run": 0,
+   "draw_run": 0,
+   "total_draws": 1,
+   "wild_run": 0,
+   "last_wild_color": null,
+   "prev_wild_color": null,
+   "near_win_target": null,
+   "near_win_open": false
+  }
+ },
+ {
+  "event": "turn_advance",
+  "old": null
+ }
+]

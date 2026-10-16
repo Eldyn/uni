@@ -22,11 +22,12 @@
  *
  * `add_restriction` / `remove_restriction` maintain the ordered the store
  * `PlayRestriction` pipeline: entries are data components on the
- * match entity and vanilla ships its entries as removable data. `add` rejects a
+ * match entity and uni ships its entries as removable data. `add` rejects a
  * duplicate id with a `kError` (fail-safe) so the pipeline never carries two
  * entries with the same reason id; a malformed `entry_def` is a `kResolved`
- * no-op. Neither op emits an event: a pipeline denial emits `play_rejected`
- * from the play-legality path, not from the pipeline edit.
+ * no-op. Each op emits its client event (`active_type_changed`,
+ * `restriction_added`, `restriction_removed`); a pipeline denial emits
+ * `play_rejected` from the play-legality path, not from the pipeline edit.
  *
  * Every fail-safe path — an unbound selector, a dead entity, a missing match,
  * a missing / malformed arg, a malformed prompt value — is a `kResolved` no-op
@@ -112,9 +113,15 @@ OpResult OpSetActiveType(ecs::EntityStore& store, const OpArgs& args,
     if (!match.has_value()) return OpResult::Resolved();
     ecs::ActiveTypeReq* req = EnsureActiveTypeReq(store, *match);
     if (req == nullptr) return OpResult::Resolved();
+    const std::string previous_color = req->type.value_or("");
     req->type = type;
 
-    return OpResult::Resolved(json{{"type", type}});
+    OpResult result = OpResult::Resolved(json{{"type", type}});
+    if (previous_color == type) return result;
+    result.events.push_back(MakeEvent(
+        "active_type_changed",
+        json{{"color", type}, {"previous_color", previous_color}}));
+    return result;
 }
 
 OpResult OpClearActiveType(ecs::EntityStore& store, const OpArgs& args,
@@ -127,8 +134,13 @@ OpResult OpClearActiveType(ecs::EntityStore& store, const OpArgs& args,
     if (req == nullptr || !req->type.has_value()) {
         return OpResult::Resolved();
     }
+    const std::string previous_color = *req->type;
     req->type.reset();
-    return OpResult::Resolved(json{{"type", nullptr}});
+    OpResult result = OpResult::Resolved(json{{"type", nullptr}});
+    result.events.push_back(MakeEvent(
+        "active_type_changed",
+        json{{"color", ""}, {"previous_color", previous_color}}));
+    return result;
 }
 
 OpResult OpAddRestriction(ecs::EntityStore& store, const OpArgs& args,
@@ -163,8 +175,12 @@ OpResult OpAddRestriction(ecs::EntityStore& store, const OpArgs& args,
     entry.condition = parsed.condition;
     pipeline->entries.push_back(std::move(entry));
 
-    return OpResult::Resolved(
+    OpResult result = OpResult::Resolved(
         json{{"id", parsed.id}, {"phase", parsed.phase}});
+    result.events.push_back(MakeEvent(
+        "restriction_added",
+        json{{"restriction_id", parsed.id}, {"phase", parsed.phase}}));
+    return result;
 }
 
 OpResult OpRemoveRestriction(ecs::EntityStore& store, const OpArgs& args,
@@ -193,8 +209,11 @@ OpResult OpRemoveRestriction(ecs::EntityStore& store, const OpArgs& args,
     if (removed == 0) return OpResult::Resolved();
 
     pipeline->entries = std::move(kept);
-    return OpResult::Resolved(
-        json{{"id", entry_id}, {"removed", removed}});
+    OpResult result =
+        OpResult::Resolved(json{{"id", entry_id}, {"removed", removed}});
+    result.events.push_back(MakeEvent(
+        "restriction_removed", json{{"restriction_id", entry_id}}));
+    return result;
 }
 
 }  // namespace match::ops::detail

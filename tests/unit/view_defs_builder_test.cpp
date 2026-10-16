@@ -15,7 +15,7 @@
  * @file view_defs_builder_test.cpp
  * @brief `DefsBuilder` acceptance tests.
  *
- * Assembles the real vanilla classic match, then asserts the `defs` and
+ * Assembles the real uni classic match, then asserts the `defs` and
  * `match_start` packets carry the frozen mod list, the full kind table with
  * face + tags, and a stable digest that is identical across rebuilds.
  */
@@ -58,7 +58,7 @@ bool LoadContent(Content& out) {
     out.mods = std::move(load.mods);
     for (const LoadedMod& mod : out.mods) {
         for (const DeckDef& deck : mod.decks) {
-            if (deck.deck_id == "vanilla:classic") out.classic = deck;
+            if (deck.deck_id == "uni:classic") out.classic = deck;
         }
     }
     return !out.classic.deck_id.empty();
@@ -101,7 +101,7 @@ TEST_CASE("view defs: builds the frozen mod and kind table") {
 
     REQUIRE(defs["mods"].is_array());
     CHECK(defs["mods"].size() == assembly->registries.mods.size());
-    CHECK(defs["mods"][0]["id"] == "vanilla");
+    CHECK(defs["mods"][0]["id"] == "uni");
     CHECK_FALSE(defs["mods"][0]["version"].get<std::string>().empty());
     CHECK(defs["mods"][0]["index"] == 0);
 
@@ -114,9 +114,9 @@ TEST_CASE("view defs: builds the frozen mod and kind table") {
     CHECK(defs["kinds"].size() == expected_kinds);
 
     const std::optional<match::engine::KindIndex> index =
-        assembly->registries.FindKind("vanilla:wild");
+        assembly->registries.FindKind("uni:wild");
     REQUIRE(index.has_value());
-    const nlohmann::json* wild = FindKindDef(defs, "vanilla:wild");
+    const nlohmann::json* wild = FindKindDef(defs, "uni:wild");
     REQUIRE(wild != nullptr);
     CHECK((*wild)["index"] == static_cast<int>(index->kind_index));
     CHECK((*wild)["face"]["kind"] == "text");
@@ -145,12 +145,12 @@ TEST_CASE("view defs: match_start mirrors the defs digest and mod list") {
         match::view::DefsBuilder::Build(assembly->registries, content.mods);
     const nlohmann::json settings = nlohmann::json{{"count_zeros", 1}};
     const nlohmann::json start = match::view::DefsBuilder::BuildMatchStart(
-        assembly->registries, content.mods, "vanilla:classic", "Classic",
+        assembly->registries, content.mods, "uni:classic", "Classic",
         settings);
 
     CHECK(start["defs_digest"] == defs["defs_digest"]);
     CHECK(start["mods"] == defs["mods"]);
-    CHECK(start["deck_id"] == "vanilla:classic");
+    CHECK(start["deck_id"] == "uni:classic");
     CHECK(start["deck_name"] == "Classic");
     CHECK(start["settings"] == settings);
 }

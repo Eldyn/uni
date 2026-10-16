@@ -1,0 +1,156 @@
+{
+ "near_win": {
+  "near_win_entered": {
+   "open": false,
+   "target": "player0"
+  }
+ },
+ "tail": [
+  {
+   "id": "restriction_added",
+   "payload": {
+    "phase": "deny",
+    "restriction_id": "uni:turn_order"
+   },
+   "replayed": true,
+   "round": 0,
+   "sequence": 0,
+   "turn": 0
+  },
+  {
+   "id": "restriction_added",
+   "payload": {
+    "phase": "deny",
+    "restriction_id": "uni:match_type_or_value"
+   },
+   "replayed": true,
+   "round": 0,
+   "sequence": 1,
+   "turn": 0
+  },
+  {
+   "id": "restriction_added",
+   "payload": {
+    "phase": "deny",
+    "restriction_id": "uni:must_own_card"
+   },
+   "replayed": true,
+   "round": 0,
+   "sequence": 2,
+   "turn": 0
+  },
+  {
+   "actor": "player0",
+   "id": "card_played",
+   "payload": {
+    "card": 126976,
+    "from_zone_ordinal": 0,
+    "player": "player0",
+    "tags": [
+     "colored",
+     "numbered",
+     "red"
+    ]
+   },
+   "replayed": true,
+   "round": 0,
+   "sequence": 3,
+   "turn": 0
+  },
+  {
+   "actor": "player0",
+   "cause": 3,
+   "id": "near_win_entered",
+   "payload": {
+    "target": "player0"
+   },
+   "replayed": true,
+   "round": 0,
+   "sequence": 4,
+   "turn": 0
+  },
+  {
+   "actor": "player1",
+   "id": "card_played",
+   "payload": {
+    "card": 139264,
+    "from_zone_ordinal": 0,
+    "player": "player1",
+    "tags": [
+     "colored",
+     "numbered",
+     "red"
+    ]
+   },
+   "replayed": true,
+   "round": 0,
+   "sequence": 5,
+   "turn": 1
+  },
+  {
+   "actor": "player2",
+   "id": "card_played",
+   "payload": {
+    "card": 155648,
+    "from_zone_ordinal": 0,
+    "player": "player2",
+    "tags": [
+     "colored",
+     "action",
+     "red",
+     "skip",
+     "uni:skip"
+    ]
+   },
+   "replayed": true,
+   "round": 0,
+   "sequence": 6,
+   "turn": 2
+  },
+  {
+   "actor": "player2",
+   "cause": 6,
+   "context": {
+    "uni:skip_run": 1
+   },
+   "id": "turn_skipped",
+   "payload": {
+    "target": "player0"
+   },
+   "replayed": true,
+   "round": 0,
+   "sequence": 7,
+   "turn": 2
+  },
+  {
+   "actor": "player2",
+   "cause": 7,
+   "id": "blocked",
+   "payload": {
+    "target": "player0"
+   },
+   "replayed": true,
+   "round": 0,
+   "sequence": 8,
+   "turn": 2
+  },
+  {
+   "actor": "player2",
+   "cause": 6,
+   "id": "turn_advance",
+   "payload": {
+    "deadline_ms": 0,
+    "direction": 1,
+    "from": "player2",
+    "skipped": [
+     "player0"
+    ],
+    "to": "player1"
+   },
+   "replayed": true,
+   "round": 0,
+   "sequence": 9,
+   "turn": 3
+  }
+ ]
+}
