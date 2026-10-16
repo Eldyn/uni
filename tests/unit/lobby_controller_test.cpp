@@ -1159,8 +1159,221 @@ TEST_CASE("start: toggled rule mods apply beside a selected deck") {
          lp->session->Engine().Registries().mods) {
         ids.push_back(mod.id);
     }
-    CHECK(std::find(ids.begin(), ids.end(), "vanilla") != ids.end());
+    CHECK(std::find(ids.begin(), ids.end(), "uni") != ids.end());
     CHECK(std::find(ids.begin(), ids.end(), "draw_stacking") != ids.end());
+}
+
+TEST_CASE("lobby: update refuses creative flip after session exists") {
+    // INFO: lock-guard intent only: host flips creative after start, the
+    //       denial keeps settings.creative untouched. Full auth matrix is Task 5.
+    LobbyFixture f{ProjectModsRoot()};
+    std::string code = f.alice_creates();
+    f.bob_joins(code);
+    f.router.Dispatch(f.actx(), toggle_ready_msg());
+    f.router.Dispatch(f.bctx(), toggle_ready_msg());
+    f.bus.Clear();
+    f.router.Dispatch(f.actx(), start_msg());
+
+    Lobby* lp = f.lobby.GetLobbyByCode(code);
+    REQUIRE(lp);
+    REQUIRE(lp->session != nullptr);
+    REQUIRE_FALSE(lp->settings.creative);
+    f.bus.Clear();
+
+    f.router.Dispatch(f.actx(), json{{"action", ws::ClientAction::kLobbyUpdateSettings},
+                                     {"request_id", "req-creative-lock"},
+                                     {"creative", true}});
+
+    auto resp = json::parse(f.bus.FramesFor(f.alice_sock).back().payload);
+    CHECK(resp.value("action", "") == "error");
+    CHECK(resp.value("code", "") == "match_already_started");
+    CHECK_FALSE(lp->settings.creative);
+}
+
+TEST_CASE("start: creative scene file sets exact hands at match start") {
+    namespace fs = std::filesystem;
+    const fs::path dir =
+        fs::temp_directory_path() / "uni_scene_test";
+    fs::create_directories(dir);
+    {
+        std::ofstream out(dir / "opening.json");
+        REQUIRE(out.good());
+        out << R"({"seats": [{"username": "alice", "hand": ["uni:blue_skip"]}]})";
+    }
+    const std::string old_scenes = Env::Get("UNI_SCENES_DIR", "scenes");
+    setenv("UNI_SCENES_DIR", dir.string().c_str(), 1);
+
+    LobbyFixture f{ProjectModsRoot()};
+    std::string code = f.alice_creates();
+    f.bob_joins(code);
+    f.router.Dispatch(f.actx(), json{{"action", ws::ClientAction::kLobbyUpdateSettings},
+                                     {"request_id", "req-scene"},
+                                     {"creative", true},
+                                     {"scene", "opening"}});
+    f.router.Dispatch(f.actx(), toggle_ready_msg());
+    f.router.Dispatch(f.bctx(), toggle_ready_msg());
+    f.bus.Clear();
+    f.router.Dispatch(f.actx(), start_msg());
+
+    Lobby* lp = f.lobby.GetLobbyByCode(code);
+    REQUIRE(lp);
+    REQUIRE(lp->session != nullptr);
+
+    const auto player =
+        lp->session->Engine().FindPlayer("alice");
+    REQUIRE(player.has_value());
+    std::vector<std::string> kinds;
+    for (match::ecs::Entity card : match::ops::HandOf(
+             lp->session->Engine().Store(), *player)) {
+        const match::ecs::CardIdentity* id =
+            lp->session->Engine().Store().Get<match::ecs::CardIdentity>(card);
+        REQUIRE(id != nullptr);
+        kinds.push_back(id->kind_id);
+    }
+    CHECK(kinds == std::vector<std::string>{"uni:blue_skip"});
+
+    setenv("UNI_SCENES_DIR", old_scenes.c_str(), 1);
+    fs::remove_all(dir);
+}
+
+TEST_CASE("creative: whole flow from lobby to start sends no error frames") {
+    // BUG hunt (task F2): the user flow "set Creative, start match" shows a
+    //       client "Malformed request" toast while the match still starts.
+    //       That string is only sent by ActionRouter's generic handler catch,
+    //       so some handler in this flow throws. This walks the whole flow
+    //       and pins zero error frames at every step. The real
+    //       MatchController is wired in so the OnGameStarted hook
+    //       (EmitMatchStart + ready barrier) runs exactly like production;
+    //       without it the start path under test would skip that hook. The
+    //       scene file covers both seats, and a second update after start
+    //       pins the clean creative-lock denial (still no Malformed).
+    //       Every fixture user is unauthenticated, so a separate guest-host
+    //       variant adds nothing over this harness.
+    namespace fs = std::filesystem;
+    const fs::path dir =
+        fs::temp_directory_path() / "uni_scene_flow_test";
+    fs::create_directories(dir);
+    {
+        std::ofstream out(dir / "opening.json");
+        REQUIRE(out.good());
+        out << R"({"seats": [{"username": "alice", "hand": ["uni:blue_skip"]}, {"username": "bob", "hand": ["uni:blue_reverse"]}]})";
+    }
+    const std::string old_scenes = Env::Get("UNI_SCENES_DIR", "scenes");
+    setenv("UNI_SCENES_DIR", dir.string().c_str(), 1);
+
+    LobbyFixture f{ProjectModsRoot()};
+    MatchController match_ctrl(f.router, f.bus, f.timers, f.lobby);
+    auto error_frames = [&]() {
+        std::vector<json> out;
+        for (const SentFrame& frame : f.bus.sent) {
+            json packet;
+            try {
+                packet = json::parse(frame.payload);
+            } catch (const json::exception&) {
+                continue;
+            }
+            if (packet.value("action", std::string()) == "error") {
+                out.push_back(packet);
+            }
+        }
+        return out;
+    };
+    auto malformed_frames = [&]() {
+        std::vector<json> out;
+        for (const json& err : error_frames()) {
+            if (err.value("detail", std::string()) == "Malformed request") {
+                out.push_back(err);
+            }
+        }
+        return out;
+    };
+
+    std::string code = f.alice_creates();
+    CHECK(error_frames().empty());
+    f.bus.Clear();
+
+    f.bob_joins(code);
+    CHECK(error_frames().empty());
+    f.bus.Clear();
+
+    // INFO: production lobbies carry a deck snapshot (ApplyFirstDeck runs
+    //       when dev content is off), so select the shipped classic deck to
+    //       take the snapshot assembly path rather than freestyle.
+    f.router.Dispatch(f.actx(), json{{"action", ws::ClientAction::kLobbyUpdateSettings},
+                                     {"request_id", "req-deck"},
+                                     {"deck_id", "uni:classic"}});
+    CHECK(error_frames().empty());
+    f.bus.Clear();
+
+    f.router.Dispatch(f.actx(), json{{"action", ws::ClientAction::kLobbyUpdateSettings},
+                                     {"request_id", "req-creative"},
+                                     {"mode", "standard"},
+                                     {"creative", true},
+                                     {"scene", "opening"},
+                                     {"bot_count", 1}});
+    CHECK(error_frames().empty());
+    Lobby* pre = f.lobby.GetLobbyByCode(code);
+    REQUIRE(pre);
+    CHECK(pre->settings.creative);
+    CHECK(pre->settings.scene == "opening");
+    f.bus.Clear();
+
+    f.router.Dispatch(f.actx(), toggle_ready_msg());
+    f.router.Dispatch(f.bctx(), toggle_ready_msg());
+    CHECK(error_frames().empty());
+    f.bus.Clear();
+
+    f.router.Dispatch(f.actx(), start_msg());
+    auto malformed = malformed_frames();
+    for (const auto& err : malformed) MESSAGE("malformed frame: " << err.dump());
+    CHECK(malformed.empty());
+
+    Lobby* lp = f.lobby.GetLobbyByCode(code);
+    REQUIRE(lp);
+    REQUIRE(lp->session != nullptr);
+    CHECK(lp->session->IsDirector("alice"));
+    f.bus.Clear();
+
+    // INFO: the client reports loaded right after start (Scene3D emits
+    //       match_client_ready after preload); both reports open the barrier,
+    //       arming the turn driver and flushing snapshots with options.
+    f.router.Dispatch(f.actx(), json{{"action", ws::ClientAction::kMatchClientReady}});
+    f.router.Dispatch(f.bctx(), json{{"action", ws::ClientAction::kMatchClientReady}});
+    auto ready_malformed = malformed_frames();
+    for (const auto& err : ready_malformed) MESSAGE("malformed frame: " << err.dump());
+    CHECK(ready_malformed.empty());
+    CHECK(lp->session->ReadyBarrierOpen());
+    f.bus.Clear();
+    auto hand_kinds = [&](const std::string& username) {
+        std::vector<std::string> kinds;
+        const auto player = lp->session->Engine().FindPlayer(username);
+        REQUIRE(player.has_value());
+        for (match::ecs::Entity card : match::ops::HandOf(
+                 lp->session->Engine().Store(), *player)) {
+            const match::ecs::CardIdentity* id =
+                lp->session->Engine().Store().Get<match::ecs::CardIdentity>(card);
+            REQUIRE(id != nullptr);
+            kinds.push_back(id->kind_id);
+        }
+        return kinds;
+    };
+    CHECK(hand_kinds("alice") == std::vector<std::string>{"uni:blue_skip"});
+    CHECK(hand_kinds("bob") == std::vector<std::string>{"uni:blue_reverse"});
+    f.bus.Clear();
+
+    // INFO: a creative flip after start is denied by the lock; the denial is
+    //       a proper error frame, never the generic Malformed one.
+    f.router.Dispatch(f.actx(), json{{"action", ws::ClientAction::kLobbyUpdateSettings},
+                                     {"request_id", "req-creative-relock"},
+                                     {"creative", false}});
+    auto post_errors = error_frames();
+    REQUIRE(post_errors.size() == 1);
+    CHECK(post_errors.front().value("code", "") == "match_already_started");
+    CHECK(malformed_frames().empty());
+    CHECK(lp->settings.creative);
+
+    setenv("UNI_SCENES_DIR", old_scenes.c_str(), 1);
+    fs::remove_all(dir);
 }
 
 } // TEST_SUITE
@@ -1944,338 +2157,3 @@ TEST_CASE("payloads: ParsePayload enforces the contract limits") {
 }
 
 }  // TEST_SUITE("LobbyController::Hardening")
-
-TEST_CASE("lobby: update refuses creative flip after session exists") {
-    // INFO: lock-guard intent only: host flips creative after start, the
-    //       denial keeps settings.creative untouched. Full auth matrix is Task 5.
-    LobbyFixture f{ProjectModsRoot()};
-    std::string code = f.alice_creates();
-    f.bob_joins(code);
-    f.router.Dispatch(f.actx(), toggle_ready_msg());
-    f.router.Dispatch(f.bctx(), toggle_ready_msg());
-    f.bus.Clear();
-    f.router.Dispatch(f.actx(), start_msg());
-
-    Lobby* lp = f.lobby.GetLobbyByCode(code);
-    REQUIRE(lp);
-    REQUIRE(lp->session != nullptr);
-    REQUIRE_FALSE(lp->settings.creative);
-    f.bus.Clear();
-
-    f.router.Dispatch(f.actx(), json{{"action", ws::ClientAction::kLobbyUpdateSettings},
-                                     {"request_id", "req-creative-lock"},
-                                     {"creative", true}});
-
-    auto resp = json::parse(f.bus.FramesFor(f.alice_sock).back().payload);
-    CHECK(resp.value("action", "") == "error");
-    CHECK(resp.value("code", "") == "match_already_started");
-    CHECK_FALSE(lp->settings.creative);
-}
-
-TEST_CASE("start: creative scene file sets exact hands at match start") {
-    namespace fs = std::filesystem;
-    const fs::path dir =
-        fs::temp_directory_path() / "uni_scene_test";
-    fs::create_directories(dir);
-    {
-        std::ofstream out(dir / "opening.json");
-        REQUIRE(out.good());
-        out << R"({"seats": [{"username": "alice", "hand": ["uni:blue_skip"]}]})";
-    }
-    const std::string old_scenes = Env::Get("UNI_SCENES_DIR", "scenes");
-    setenv("UNI_SCENES_DIR", dir.string().c_str(), 1);
-
-    LobbyFixture f{ProjectModsRoot()};
-    std::string code = f.alice_creates();
-    f.bob_joins(code);
-    f.router.Dispatch(f.actx(), json{{"action", ws::ClientAction::kLobbyUpdateSettings},
-                                     {"request_id", "req-scene"},
-                                     {"creative", true},
-                                     {"scene", "opening"}});
-    f.router.Dispatch(f.actx(), toggle_ready_msg());
-    f.router.Dispatch(f.bctx(), toggle_ready_msg());
-    f.bus.Clear();
-    f.router.Dispatch(f.actx(), start_msg());
-
-    Lobby* lp = f.lobby.GetLobbyByCode(code);
-    REQUIRE(lp);
-    REQUIRE(lp->session != nullptr);
-
-    const auto player =
-        lp->session->Engine().FindPlayer("alice");
-    REQUIRE(player.has_value());
-    std::vector<std::string> kinds;
-    for (match::ecs::Entity card : match::ops::HandOf(
-             lp->session->Engine().Store(), *player)) {
-        const match::ecs::CardIdentity* id =
-            lp->session->Engine().Store().Get<match::ecs::CardIdentity>(card);
-        REQUIRE(id != nullptr);
-        kinds.push_back(id->kind_id);
-    }
-    CHECK(kinds == std::vector<std::string>{"uni:blue_skip"});
-
-    setenv("UNI_SCENES_DIR", old_scenes.c_str(), 1);
-    fs::remove_all(dir);
-}
-
-TEST_CASE("creative: whole flow from lobby to start sends no error frames") {
-    // BUG hunt (task F2): the user flow "set Creative, start match" shows a
-    //       client "Malformed request" toast while the match still starts.
-    //       That string is only sent by ActionRouter's generic handler catch,
-    //       so some handler in this flow throws. This walks the whole flow
-    //       and pins zero error frames at every step. The real
-    //       MatchController is wired in so the OnGameStarted hook
-    //       (EmitMatchStart + ready barrier) runs exactly like production;
-    //       without it the start path under test would skip that hook. The
-    //       scene file covers both seats, and a second update after start
-    //       pins the clean creative-lock denial (still no Malformed).
-    //       Every fixture user is unauthenticated, so a separate guest-host
-    //       variant adds nothing over this harness.
-    namespace fs = std::filesystem;
-    const fs::path dir =
-        fs::temp_directory_path() / "uni_scene_flow_test";
-    fs::create_directories(dir);
-    {
-        std::ofstream out(dir / "opening.json");
-        REQUIRE(out.good());
-        out << R"({"seats": [{"username": "alice", "hand": ["uni:blue_skip"]}, {"username": "bob", "hand": ["uni:blue_reverse"]}]})";
-    }
-    const std::string old_scenes = Env::Get("UNI_SCENES_DIR", "scenes");
-    setenv("UNI_SCENES_DIR", dir.string().c_str(), 1);
-
-    LobbyFixture f{ProjectModsRoot()};
-    MatchController match_ctrl(f.router, f.bus, f.timers, f.lobby);
-    auto error_frames = [&]() {
-        std::vector<json> out;
-        for (const SentFrame& frame : f.bus.sent) {
-            json packet;
-            try {
-                packet = json::parse(frame.payload);
-            } catch (const json::exception&) {
-                continue;
-            }
-            if (packet.value("action", std::string()) == "error") {
-                out.push_back(packet);
-            }
-        }
-        return out;
-    };
-    auto malformed_frames = [&]() {
-        std::vector<json> out;
-        for (const json& err : error_frames()) {
-            if (err.value("detail", std::string()) == "Malformed request") {
-                out.push_back(err);
-            }
-        }
-        return out;
-    };
-
-    std::string code = f.alice_creates();
-    CHECK(error_frames().empty());
-    f.bus.Clear();
-
-    f.bob_joins(code);
-    CHECK(error_frames().empty());
-    f.bus.Clear();
-
-    // INFO: production lobbies carry a deck snapshot (ApplyFirstDeck runs
-    //       when dev content is off), so select the shipped classic deck to
-    //       take the snapshot assembly path rather than freestyle.
-    f.router.Dispatch(f.actx(), json{{"action", ws::ClientAction::kLobbyUpdateSettings},
-                                     {"request_id", "req-deck"},
-                                     {"deck_id", "uni:classic"}});
-    CHECK(error_frames().empty());
-    f.bus.Clear();
-
-    f.router.Dispatch(f.actx(), json{{"action", ws::ClientAction::kLobbyUpdateSettings},
-                                     {"request_id", "req-creative"},
-                                     {"mode", "standard"},
-                                     {"creative", true},
-                                     {"scene", "opening"},
-                                     {"bot_count", 1}});
-    CHECK(error_frames().empty());
-    Lobby* pre = f.lobby.GetLobbyByCode(code);
-    REQUIRE(pre);
-    CHECK(pre->settings.creative);
-    CHECK(pre->settings.scene == "opening");
-    f.bus.Clear();
-
-    f.router.Dispatch(f.actx(), toggle_ready_msg());
-    f.router.Dispatch(f.bctx(), toggle_ready_msg());
-    CHECK(error_frames().empty());
-    f.bus.Clear();
-
-    f.router.Dispatch(f.actx(), start_msg());
-    auto malformed = malformed_frames();
-    for (const auto& err : malformed) MESSAGE("malformed frame: " << err.dump());
-    CHECK(malformed.empty());
-
-    Lobby* lp = f.lobby.GetLobbyByCode(code);
-    REQUIRE(lp);
-    REQUIRE(lp->session != nullptr);
-    CHECK(lp->session->IsDirector("alice"));
-    f.bus.Clear();
-
-    // INFO: the client reports loaded right after start (Scene3D emits
-    //       match_client_ready after preload); both reports open the barrier,
-    //       arming the turn driver and flushing snapshots with options.
-    f.router.Dispatch(f.actx(), json{{"action", ws::ClientAction::kMatchClientReady}});
-    f.router.Dispatch(f.bctx(), json{{"action", ws::ClientAction::kMatchClientReady}});
-    auto ready_malformed = malformed_frames();
-    for (const auto& err : ready_malformed) MESSAGE("malformed frame: " << err.dump());
-    CHECK(ready_malformed.empty());
-    CHECK(lp->session->ReadyBarrierOpen());
-    f.bus.Clear();
-    auto hand_kinds = [&](const std::string& username) {
-        std::vector<std::string> kinds;
-        const auto player = lp->session->Engine().FindPlayer(username);
-        REQUIRE(player.has_value());
-        for (match::ecs::Entity card : match::ops::HandOf(
-                 lp->session->Engine().Store(), *player)) {
-            const match::ecs::CardIdentity* id =
-                lp->session->Engine().Store().Get<match::ecs::CardIdentity>(card);
-            REQUIRE(id != nullptr);
-            kinds.push_back(id->kind_id);
-        }
-        return kinds;
-    };
-    CHECK(hand_kinds("alice") == std::vector<std::string>{"uni:blue_skip"});
-    CHECK(hand_kinds("bob") == std::vector<std::string>{"uni:blue_reverse"});
-    f.bus.Clear();
-
-    // INFO: a creative flip after start is denied by the lock; the denial is
-    //       a proper error frame, never the generic Malformed one.
-    f.router.Dispatch(f.actx(), json{{"action", ws::ClientAction::kLobbyUpdateSettings},
-                                     {"request_id", "req-creative-relock"},
-                                     {"creative", false}});
-    auto post_errors = error_frames();
-    REQUIRE(post_errors.size() == 1);
-    CHECK(post_errors.front().value("code", "") == "match_already_started");
-    CHECK(malformed_frames().empty());
-    CHECK(lp->settings.creative);
-
-    setenv("UNI_SCENES_DIR", old_scenes.c_str(), 1);
-    fs::remove_all(dir);
-}
-
-} // TEST_SUITE
-
-// ---------------------------------------------------------------------------
-// match-end persistence + the stats gate.
-//
-// The gate comparator itself is covered by stats_gate_test.cpp; these cases
-// verify the *wiring*: a real assembled match's mod set / deck multiset must
-// decide whether the per-player player_stats aggregate is updated, while the
-// matches / match_participants rows are written for every match.
-// ---------------------------------------------------------------------------
-
-namespace {
-
-/* INFO: force a seat's hand to exactly `cards` (scripted human win),
- *       mirroring match_controller_test.cpp. */
-void ForceHand(match::engine::MatchInstance& engine,
-               match::ecs::Entity player,
-               const std::vector<match::ecs::Entity>& cards) {
-    match::ecs::Hand* hand = engine.Store().Get<match::ecs::Hand>(player);
-    REQUIRE(hand != nullptr);
-    const std::vector<match::ecs::Entity> existing = hand->cards;
-    for (match::ecs::Entity card : existing) {
-        match::ops::MoveCardToZone(
-            engine.Store(), card,
-            match::ecs::ZoneRef{match::ecs::ZoneKind::kDrawPile,
-                                match::ecs::Entity{}});
-    }
-    for (match::ecs::Entity card : cards) {
-        match::ops::MoveCardToZone(
-            engine.Store(), card,
-            match::ecs::ZoneRef{match::ecs::ZoneKind::kHand, player});
-    }
-}
-
-std::vector<match::ecs::Entity> CardsByKind(
-    const match::engine::MatchInstance& engine, const std::string& kind) {
-    std::vector<match::ecs::Entity> out;
-    for (match::ecs::Entity card : engine.Registries().cards) {
-        const match::ecs::CardIdentity* identity =
-            engine.Store().Get<match::ecs::CardIdentity>(card);
-        if (identity != nullptr && identity->kind_id == kind) {
-            out.push_back(card);
-        }
-    }
-    return out;
-}
-
-uint32_t BitsOf(const match::engine::MatchInstance& engine,
-                match::ecs::Entity card) {
-    const std::optional<match::ecs::CompactCardV2> id =
-        engine.Registries().CardId(card);
-    REQUIRE(id.has_value());
-    return id->bits;
-}
-
-/** @brief Insert a minimal `users` row so the stats gate can apply. */
-void InsertUser(const std::string& username) {
-    REQUIRE(Database::Get()
-                .Exec("INSERT OR IGNORE INTO users "
-                      "(username, pass_hash, salt, email) "
-                      "VALUES (?, 'h', 's', ?);",
-                      {username, username + "@wp13fix2.test"})
-                .has_value());
-}
-
-/** @brief Remove the test usernames' DB rows so cases stay independent. */
-void CleanupUsers(const std::vector<std::string>& users) {
-    for (const std::string& user : users) {
-        (void)Database::Get().Exec(
-            "DELETE FROM player_stats WHERE username = ?;", {user});
-        (void)Database::Get().Exec("DELETE FROM users WHERE username = ?;",
-                                   {user});
-    }
-}
-
-/** @brief Ready both humans and start the match. */
-void ReadyAndStart(LobbyFixture& f) {
-    f.router.Dispatch(f.actx(), toggle_ready_msg());
-    f.router.Dispatch(f.bctx(), toggle_ready_msg());
-    f.bus.Clear();
-    f.router.Dispatch(f.actx(), start_msg());
-}
-
-/**
- * @brief Drives the live session to a scripted Alice win, then persists it.
- *
- * Alice is forced down to a single wild, plays it and answers the colour
- * prompt, emptying her hand. `NotifyMatchOver` is then invoked exactly as the
- * MatchController teardown would.
- *
- * @param f            Fixture whose lobby holds the live session.
- * @param alice        Alice's username in this fixture.
- * @param out_match_id Receives `lobby.match_id` before it is cleared.
- */
-void FinishWithAliceWin(LobbyFixture& f, const std::string& alice,
-                        std::string& out_match_id) {
-    Lobby* lobby = f.lobby.GetLobbyByCode(f.alice_sd.lobby_code);
-    REQUIRE(lobby != nullptr);
-    REQUIRE(lobby->session != nullptr);
-    out_match_id = lobby->match_id;
-    REQUIRE(!out_match_id.empty());
-
-    match::engine::MatchInstance& engine = lobby->session->Engine();
-    const std::vector<match::ecs::Entity> wilds =
-        CardsByKind(engine, "uni:wild");
-    REQUIRE(wilds.size() >= 1);
-    const match::ecs::Entity alice_entity = *engine.FindPlayer(alice);
-    ForceHand(engine, alice_entity, {wilds[0]});
-
-    REQUIRE(lobby->session->PlayCard(alice, BitsOf(engine, wilds[0])));
-    REQUIRE(lobby->session->SubmitInput(alice, "choose_color", "red"));
-    REQUIRE(engine.IsMatchOver());
-    REQUIRE(engine.GetWinner() == alice);
-
-    f.lobby.NotifyMatchOver(lobby->id);
-    CHECK(lobby->session == nullptr);
-}
-
-}  // namespace
-
-TEST_SUITE("LobbyController::MatchEnd") {
