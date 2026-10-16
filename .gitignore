@@ -47,3 +47,10 @@ frontend/public/assets/audio/**/*.aiff
 
 # Dev-mode rendered transactional email (EMAIL_MODE=dev) — may contain reset tokens.
 email-out/
+
+# Local agent/runtime junk (never commit)
+frontend/dist-tauri/
+.playwright-mcp/
+.tokensave/
+.opencode/
+.claude/
