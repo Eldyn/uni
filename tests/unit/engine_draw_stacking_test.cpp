@@ -433,6 +433,12 @@ TEST_CASE("engine draw_stacking: stack response stacks and re-opens") {
     // INFO: the victim's out-of-turn stack is rescued by the mod's allow and,
     //       as the only responder, closes the window at once.
     REQUIRE(engine->RespondWindow("player1", *stack2));
+    // INFO: the stack response is a play: the active color follows the
+    //       played card (red +2 answered by green +2), so the active color
+    //       and the top card never disagree.
+    CHECK(engine->Store().Get<ecs::ActiveTypeReq>(engine->Registries().match)
+              ->type
+          == "green");
 
     // INFO: route n3 hands player1 the turn, the whole debt moves on to
     //       player2 -> engine re-opens.

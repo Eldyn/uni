@@ -317,18 +317,7 @@ bool MatchInstance::PlayCard(const std::string& username, ecs::Entity card) {
 
     last_play_ = LastPlay{*player, card, static_cast<uint32_t>(hand_index)};
 
-    if (ecs::ActiveTypeReq* req =
-            store.Get<ecs::ActiveTypeReq>(registries.match)) {
-        const ecs::FaceSpec* face = store.Get<ecs::FaceSpec>(card);
-        if (face != nullptr && !face->color.empty()) {
-            req->type = face->color;
-        } else {
-            const auto facts = assembly_->card_facts.find(kind_id);
-            if (facts != assembly_->card_facts.end()) {
-                req->type = facts->second.color;
-            }
-        }
-    }
+    AdoptPlayedColor(card, kind_id);
 
     // INFO: `after:play` is the resolver drain point for the played card's
     //       behavior graph. A pause stops the flow for SubmitInput.
@@ -1142,6 +1131,28 @@ void MatchInstance::OpenWindowGroup(std::vector<WindowPause> windows) {
     OpenWindow(std::move(group));
 }
 
+void MatchInstance::AdoptPlayedColor(ecs::Entity card,
+                                     const std::string& kind_id) {
+    ecs::EntityStore& store = assembly_->store;
+    ecs::ActiveTypeReq* req =
+        store.Get<ecs::ActiveTypeReq>(assembly_->registries.match);
+    if (req == nullptr) return;
+    const ecs::FaceSpec* face = store.Get<ecs::FaceSpec>(card);
+    if (face != nullptr && !face->color.empty()) {
+        req->type = face->color;
+        return;
+    }
+    const auto facts = assembly_->card_facts.find(kind_id);
+    // INFO: a wild carries no colour of its own until its prompt answers.
+    //       Adopting an empty colour would strand the table on no active
+    //       colour - which is what a stacked +4 response does, because the
+    //       winning response's graph is not drained - so the previous
+    //       colour stands until a prompt sets a new one.
+    if (facts != assembly_->card_facts.end() && !facts->second.color.empty()) {
+        req->type = facts->second.color;
+    }
+}
+
 void MatchInstance::CommitWinningPlay(ecs::Entity player, ecs::Entity card,
                                       bool stacks_penalty) {
     ecs::EntityStore& store = assembly_->store;
@@ -1181,6 +1192,7 @@ void MatchInstance::CommitWinningPlay(ecs::Entity player, ecs::Entity card,
               {"from_ordinal", ordinal.value_or(0)}});
     last_play_ =
         LastPlay{player, card, static_cast<uint32_t>(ordinal.value_or(0))};
+    AdoptPlayedColor(card, kind);
 
     // INFO: Each response appends its own N to the debt, which
     //       passes on to the seat after the responder.

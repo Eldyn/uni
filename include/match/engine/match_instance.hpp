@@ -637,6 +637,9 @@ private:
     std::string WinningRoute(const resolver::WindowRequest& request,
                              ecs::Entity card) const;
 
+    /** @brief Sets the match's active type to the played card's colour. */
+    void AdoptPlayedColor(ecs::Entity card, const std::string& kind_id);
+
     /**
      * @brief Commit the winning response card: move to discard + zone events.
      *
