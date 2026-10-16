@@ -741,13 +741,32 @@ void MatchInstance::ShuffleDrawPile() {
 
 // --- win / placement -------------------------------------------------------
 
+std::optional<ecs::Entity> MatchInstance::FindEmptyHandSeat(
+    ecs::Entity actor) {
+    ecs::EntityStore& store = assembly_->store;
+    const auto is_empty = [&store](ecs::Entity seat) {
+        const ecs::Hand* hand = store.Get<ecs::Hand>(seat);
+        return hand != nullptr && hand->cards.empty();
+    };
+    if (is_empty(actor)) return actor;
+    for (const ecs::Entity seat : ops::ActivePlayersBySeat(store)) {
+        if (is_empty(seat)) return seat;
+    }
+    return std::nullopt;
+}
+
 void MatchInstance::SettleAfterPlay(ecs::Entity player) {
     ecs::EntityStore& store = assembly_->store;
-    const ecs::Hand* after = store.Get<ecs::Hand>(player);
-    if (after != nullptr && !after->cards.empty()) {
+
+    // INFO: effects resolve before the win check, so a hand-moving card
+    //       (7, 0) played as the last card hands the empty hand to another
+    //       seat, and that seat finishes. The actor is tried first.
+    const std::optional<ecs::Entity> finisher = FindEmptyHandSeat(player);
+    if (!finisher.has_value()) {
         AdvanceTurn();
         return;
     }
+    player = *finisher;
 
     // INFO: `hand_empty` before-veto blocks the default win.
     json hand_data = json{{"player", EntityJson(player)}};

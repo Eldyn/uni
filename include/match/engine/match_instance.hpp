@@ -570,6 +570,12 @@ private:
     /** @brief `hand_empty` / `win_check` settle after a play. */
     void SettleAfterPlay(ecs::Entity player);
 
+    /**
+     * @brief The actor if its hand is empty, else the first active seat
+     *        with an empty hand; nullopt when every hand holds cards.
+     */
+    std::optional<ecs::Entity> FindEmptyHandSeat(ecs::Entity actor);
+
     // --- the engine response-window path
     // ---------------------------------------
 

@@ -9,6 +9,11 @@ version; each release below corresponds to a `vX.Y.Z` git tag.
 
 ## [Unreleased]
 
+### Fixed
+
+- **A stack or jump-in response now sets the active color.** The winning response card of a window (a stacked +2/+4, a jump-in) moved to the discard pile but left the active color on the old one, so the table color and the top card disagreed. The response now sets the active color like a normal play; a wild with no color of its own keeps the previous color until its prompt answers.
+- **Effects now resolve before the win check.** A 7 or 0 played as the last card used to pass the empty hand on and let the receiver draw. The win check now runs after the effects, so the seat that receives the empty hand wins.
+
 ## [0.6.1] - 2026-10-07
 
 ### Fixed
