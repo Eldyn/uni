@@ -433,7 +433,9 @@ std::optional<json> BuildHand(const match::engine::MatchInstance& match,
     const bool own =
         viewer_entity.has_value() && *viewer_entity == player;
     uint32_t hand_mask = 0u;
-    if (viewer.is_spectator) {
+    if (viewer.director) {
+        hand_mask = kAllAspects;
+    } else if (viewer.is_spectator) {
         const ecs::PlayerInfo* info =
             match.Store().Get<ecs::PlayerInfo>(player);
         const std::string owner =
@@ -457,7 +459,7 @@ std::optional<json> BuildHand(const match::engine::MatchInstance& match,
     json out = json::array();
     for (ecs::Entity card : hand->cards) {
         uint32_t mask = hand_mask;
-        if (!viewer.is_spectator && viewer_entity.has_value() && !own) {
+        if (!viewer.director && !viewer.is_spectator && viewer_entity.has_value() && !own) {
             mask |= GrantMask(match, card, *viewer_entity);
         }
         if (!HasAspect(mask, kCardAspects)) continue;
@@ -486,7 +488,9 @@ json BuildStatuses(const ViewBuilder& builder,
         const bool hidden =
             builder.StatusHidden(status.status_id) || status.hidden;
         bool visible = !hidden;
-        if (hidden && viewer.is_spectator) {
+        if (hidden && viewer.director) {
+            visible = true;
+        } else if (hidden && viewer.is_spectator) {
             visible = !viewer.SeesCardBacksOf(owner);
         } else if (hidden && viewer_entity.has_value()) {
             visible = *viewer_entity == player;
@@ -517,6 +521,10 @@ json BuildPlayer(const ViewBuilder& builder,
     entry["username"] = username;
     entry["seat"] = info == nullptr ? 0u : info->seat;
     entry["is_bot"] = info != nullptr && info->is_bot;
+    // INFO: display-only avatar-strip override (Creative skin op); turn
+    //       logic keeps reading `is_bot`, never this.
+    const auto skin = options.skin_overrides.find(username);
+    if (skin != options.skin_overrides.end()) entry["skin"] = skin->second;
     entry["is_current"] = turn != nullptr && turn->is_current;
     entry["card_count"] = hand == nullptr ? 0 : hand->cards.size();
     // INFO: how many connected spectators watch THIS player's POV. Lobby-owned

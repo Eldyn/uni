@@ -12,7 +12,9 @@
 #include "common/payloads.hpp"
 #include "common/env.hpp"
 #include "logger.hpp"
+#include <match/modload/mod_loader.hpp>
 #include <algorithm>
+#include <fstream>
 #include <optional>
 #include <random>
 #include <string>
@@ -363,6 +365,348 @@ void MatchController::HandleDirectorCommand(WsContext context, const json& messa
         return;
     }
 
+    if (op == "pause") {
+        paused_creative_ = !paused_creative_;
+        Logger::Info("[Director] pause toggled: ", paused_creative_ ? "on" : "off");
+        ClearCreativeTimers(active_lobby->id);
+        BroadcastMatchState(active_lobby);
+        return;
+    }
+    if (op == "step") {
+        const bool was_paused = paused_creative_;
+        paused_creative_ = false;
+        ClearCreativeTimers(active_lobby->id);
+        OnTurnStarted(active_lobby);
+        paused_creative_ = was_paused;
+        return;
+    }
+    if (op == "force_turn") {
+        paused_creative_ = false;
+        ClearCreativeTimers(active_lobby->id);
+        OnTurnStarted(active_lobby);
+        return;
+    }
+    if (op == "script") {
+        const json args = message.value("args", json::object());
+        // INFO: `args` is untrusted wire input: value() on a non-object
+        //       throws (type_error.306) and would surface as a generic
+        //       "Malformed request" through the router catch. Reject it here
+        //       with a specific error instead.
+        if (!args.is_object()) {
+            broadcaster_.SendError(context.socket, context.op_code,
+                                   contract::ErrorCode::kInvalidPayload, request_identifier,
+                                   "args must be an object");
+            return;
+        }
+        const std::string seat = ws::GetOr<std::string>(args, "seat", "");
+        const LobbyMember* member = active_lobby->FindMember(seat);
+        if (member == nullptr || !member->is_bot) {
+            Logger::Warn("director command dropped: scripts run on bot seats only");
+            broadcaster_.SendError(context.socket, context.op_code,
+                                   contract::ErrorCode::kInvalidPayload, request_identifier,
+                                   "scripts run on bot seats only");
+            return;
+        }
+        if (!args.contains("intents") || !args["intents"].is_array()) {
+            broadcaster_.SendError(context.socket, context.op_code,
+                                   contract::ErrorCode::kInvalidPayload, request_identifier,
+                                   "script needs an intents array");
+            return;
+        }
+        for (const match::server::BotIntent& intent :
+             match::server::ParseBotIntents(args.value("intents", json::array()))) {
+            (*script_queues_)[seat].push_back(intent);
+        }
+        Logger::Info("[Director] script queued for seat: ", seat);
+        BroadcastMatchState(active_lobby);
+        return;
+    }
+    if (op == "stack") {
+        const json args = message.value("args", json::object());
+        // INFO: same non-object `args` guard as the script op above.
+        if (!args.is_object()) {
+            broadcaster_.SendError(context.socket, context.op_code,
+                                   contract::ErrorCode::kInvalidPayload, request_identifier,
+                                   "args must be an object");
+            return;
+        }
+        std::vector<std::string> kinds;
+        if (args.contains("kinds") && args["kinds"].is_array()) {
+            for (const json& kind : args["kinds"]) {
+                if (kind.is_string()) kinds.push_back(kind.get<std::string>());
+            }
+        }
+        if (!active_lobby->session->StackDrawPile(kinds)) {
+            Logger::Warn("director command dropped: unknown stack kind");
+            broadcaster_.SendError(context.socket, context.op_code,
+                                   contract::ErrorCode::kInvalidPayload, request_identifier,
+                                   "unknown stack kind");
+            return;
+        }
+        Logger::Info("[Director] draw pile stacked");
+        BroadcastMatchState(active_lobby);
+        return;
+    }
+    if (op == "checkpoint") {
+        const json args = message.value("args", json::object());
+        // INFO: same non-object `args` guard as the script op above.
+        if (!args.is_object()) {
+            broadcaster_.SendError(context.socket, context.op_code,
+                                   contract::ErrorCode::kInvalidPayload, request_identifier,
+                                   "args must be an object");
+            return;
+        }
+        const std::string mode = ws::GetOr<std::string>(args, "mode", "");
+        if (mode == "save") {
+            active_lobby->session->StoreCheckpoint(
+                active_lobby->session->SaveCheckpoint());
+            Logger::Info("[Director] checkpoint saved");
+            BroadcastMatchState(active_lobby);
+            return;
+        }
+        if (mode == "load") {
+            if (!active_lobby->session->HasCheckpoint()) {
+                broadcaster_.SendError(context.socket, context.op_code,
+                                       contract::ErrorCode::kInvalidPayload, request_identifier,
+                                       "no checkpoint stored");
+                return;
+            }
+            std::map<std::string, nlohmann::json> intents;
+            if (!active_lobby->session->RestoreCheckpoint(
+                    active_lobby->session->Checkpoint(), &intents)) {
+                broadcaster_.SendError(context.socket, context.op_code,
+                                       contract::ErrorCode::kInvalidPayload, request_identifier,
+                                       "checkpoint restore failed");
+                return;
+            }
+            Logger::Info("[Director] checkpoint restored");
+            ClearCreativeTimers(active_lobby->id);
+            OnTurnStarted(active_lobby);
+            return;
+        }
+        broadcaster_.SendError(context.socket, context.op_code,
+                               contract::ErrorCode::kInvalidPayload, request_identifier,
+                               "checkpoint needs mode save or load");
+        return;
+    }
+    if (op == "load_scene") {
+        if (!match::modload::IsDevContentAllowed()) {
+            Logger::Warn("director command dropped: scenes are dev-only");
+            broadcaster_.SendError(context.socket, context.op_code,
+                                   contract::ErrorCode::kInvalidPayload, request_identifier,
+                                   "scenes are dev-only");
+            return;
+        }
+        const json args = message.value("args", json::object());
+        // INFO: same non-object `args` guard as the script op above.
+        if (!args.is_object()) {
+            broadcaster_.SendError(context.socket, context.op_code,
+                                   contract::ErrorCode::kInvalidPayload, request_identifier,
+                                   "args must be an object");
+            return;
+        }
+        const std::string name = ws::GetOr<std::string>(args, "name", "");
+        const std::string scenes_dir = Env::Get("UNI_SCENES_DIR", "scenes");
+        std::ifstream scene_file(scenes_dir + "/" + name + ".json");
+        nlohmann::json scene = nlohmann::json::object();
+        bool scene_ok = scene_file.good();
+        if (scene_ok) {
+            try {
+                scene_file >> scene;
+            } catch (const nlohmann::json::exception&) {
+                scene_ok = false;
+            }
+        }
+        std::map<std::string, nlohmann::json> intents;
+        if (!scene_ok ||
+            !active_lobby->session->ApplyScene(scene, &intents)) {
+            broadcaster_.SendError(context.socket, context.op_code,
+                                   contract::ErrorCode::kInvalidPayload, request_identifier,
+                                   "unknown scene");
+            return;
+        }
+        active_lobby->session->SetSceneIntents(std::move(intents));
+        Logger::Info("[Director] scene loaded: ", name);
+        ClearCreativeTimers(active_lobby->id);
+        OnTurnStarted(active_lobby);
+        return;
+    }
+    if (op == "rename") {
+        if (!match::modload::IsDevContentAllowed()) {
+            Logger::Warn("director command dropped: rename is dev-only");
+            broadcaster_.SendError(context.socket, context.op_code,
+                                   contract::ErrorCode::kInvalidPayload, request_identifier,
+                                   "rename is dev-only");
+            return;
+        }
+        const json args = message.value("args", json::object());
+        // INFO: same non-object `args` guard as the script op above.
+        if (!args.is_object()) {
+            broadcaster_.SendError(context.socket, context.op_code,
+                                   contract::ErrorCode::kInvalidPayload, request_identifier,
+                                   "args must be an object");
+            return;
+        }
+        const std::string seat = ws::GetOr<std::string>(args, "seat", "");
+        const std::string to = ws::GetOr<std::string>(args, "to", "");
+        if (seat.empty() || to.empty()) {
+            Logger::Warn("director command dropped: rename needs seat and to names");
+            broadcaster_.SendError(context.socket, context.op_code,
+                                   contract::ErrorCode::kInvalidPayload, request_identifier,
+                                   "rename needs seat and to names");
+            return;
+        }
+        if (to.size() > static_cast<std::size_t>(contract::kUsernameMax)) {
+            Logger::Warn("director command dropped: rename name is too long");
+            broadcaster_.SendError(context.socket, context.op_code,
+                                   contract::ErrorCode::kInvalidPayload, request_identifier,
+                                   "name is too long");
+            return;
+        }
+        const LobbyMember* seat_member = active_lobby->FindMember(seat);
+        if (seat_member == nullptr || seat_member->is_spectator
+            || !active_lobby->session->Engine().FindPlayer(seat).has_value()) {
+            Logger::Warn("director command dropped: unknown rename seat");
+            broadcaster_.SendError(context.socket, context.op_code,
+                                   contract::ErrorCode::kInvalidPayload, request_identifier,
+                                   "unknown seat");
+            return;
+        }
+        if (active_lobby->FindMember(to) != nullptr
+            || active_lobby->session->Engine().FindPlayer(to).has_value()) {
+            Logger::Warn("director command dropped: rename name is already taken");
+            broadcaster_.SendError(context.socket, context.op_code,
+                                   contract::ErrorCode::kInvalidPayload, request_identifier,
+                                   "name is already taken");
+            return;
+        }
+        if (!active_lobby->session->RenameSeat(seat, to)) {
+            Logger::Warn("director command dropped: rename failed");
+            broadcaster_.SendError(context.socket, context.op_code,
+                                   contract::ErrorCode::kInvalidPayload, request_identifier,
+                                   "rename failed");
+            return;
+        }
+        // INFO: the engine seat moved; the lobby roster (username key, host,
+        //       spectator POV targets) follows the same rename.
+        if (LobbyMember* renamed = active_lobby->FindMember(seat)) {
+            renamed->username = to;
+        }
+        if (active_lobby->host == seat) active_lobby->host = to;
+        for (LobbyMember& viewer : active_lobby->members) {
+            if (viewer.viewed_username == seat) viewer.viewed_username = to;
+        }
+        Logger::Info("[Director] seat renamed: ", seat, " -> ", to);
+        BroadcastMatchState(active_lobby);
+        return;
+    }
+    if (op == "skin") {
+        if (!match::modload::IsDevContentAllowed()) {
+            Logger::Warn("director command dropped: skins are dev-only");
+            broadcaster_.SendError(context.socket, context.op_code,
+                                   contract::ErrorCode::kInvalidPayload, request_identifier,
+                                   "skins are dev-only");
+            return;
+        }
+        const json args = message.value("args", json::object());
+        // INFO: same non-object `args` guard as the script op above.
+        if (!args.is_object()) {
+            broadcaster_.SendError(context.socket, context.op_code,
+                                   contract::ErrorCode::kInvalidPayload, request_identifier,
+                                   "args must be an object");
+            return;
+        }
+        const std::string seat = ws::GetOr<std::string>(args, "seat", "");
+        const std::string skin = ws::GetOr<std::string>(args, "skin", "");
+        if (seat.empty() || skin.empty()) {
+            Logger::Warn("director command dropped: skin needs a seat and a skin");
+            broadcaster_.SendError(context.socket, context.op_code,
+                                   contract::ErrorCode::kInvalidPayload, request_identifier,
+                                   "skin needs a seat and a skin");
+            return;
+        }
+        const LobbyMember* seat_member = active_lobby->FindMember(seat);
+        if (seat_member == nullptr || seat_member->is_spectator
+            || !active_lobby->session->Engine().FindPlayer(seat).has_value()) {
+            Logger::Warn("director command dropped: unknown skin seat");
+            broadcaster_.SendError(context.socket, context.op_code,
+                                   contract::ErrorCode::kInvalidPayload, request_identifier,
+                                   "unknown seat");
+            return;
+        }
+        if (!match::server::MatchSession::IsValidSkinValue(skin)) {
+            Logger::Warn("director command dropped: unknown skin value");
+            broadcaster_.SendError(context.socket, context.op_code,
+                                   contract::ErrorCode::kInvalidPayload, request_identifier,
+                                   "unknown skin");
+            return;
+        }
+        if (!active_lobby->session->SetSeatSkin(seat, skin)) {
+            Logger::Warn("director command dropped: skin failed");
+            broadcaster_.SendError(context.socket, context.op_code,
+                                   contract::ErrorCode::kInvalidPayload, request_identifier,
+                                   "skin failed");
+            return;
+        }
+        Logger::Info("[Director] seat skin set: ", seat, " -> ", skin);
+        BroadcastMatchState(active_lobby);
+        return;
+    }
+    if (op == "flip") {
+        const json args = message.value("args", json::object());
+        // INFO: same non-object `args` guard as the script op above. Flip
+        //       works in prod: it only reflags an existing seat.
+        if (!args.is_object()) {
+            broadcaster_.SendError(context.socket, context.op_code,
+                                   contract::ErrorCode::kInvalidPayload, request_identifier,
+                                   "args must be an object");
+            return;
+        }
+        const std::string seat = ws::GetOr<std::string>(args, "seat", "");
+        const std::string to = ws::GetOr<std::string>(args, "to", "");
+        const bool to_bot = (to == "bot");
+        const bool to_human = (to == "human" || to == "player");
+        if (seat.empty() || (!to_bot && !to_human)) {
+            Logger::Warn("director command dropped: flip needs a seat and to bot or human");
+            broadcaster_.SendError(context.socket, context.op_code,
+                                   contract::ErrorCode::kInvalidPayload, request_identifier,
+                                   "flip needs a seat and to bot or human");
+            return;
+        }
+        LobbyMember* seat_member = active_lobby->FindMember(seat);
+        if (seat_member == nullptr || seat_member->is_spectator
+            || !active_lobby->session->Engine().FindPlayer(seat).has_value()) {
+            Logger::Warn("director command dropped: unknown flip seat");
+            broadcaster_.SendError(context.socket, context.op_code,
+                                   contract::ErrorCode::kInvalidPayload, request_identifier,
+                                   "unknown seat");
+            return;
+        }
+        if (to_bot) {
+            if (!active_lobby->session->HandSeatToBot(seat, seat)) {
+                Logger::Warn("director command dropped: flip to bot failed");
+                broadcaster_.SendError(context.socket, context.op_code,
+                                       contract::ErrorCode::kInvalidPayload, request_identifier,
+                                       "flip to bot failed");
+                return;
+            }
+            seat_member->is_bot = true;
+            seat_member->is_connected = false;
+            seat_member->socket = nullptr;
+        } else {
+            if (!active_lobby->session->RebindPlayer(seat, seat, nullptr)) {
+                Logger::Warn("director command dropped: flip to human failed");
+                broadcaster_.SendError(context.socket, context.op_code,
+                                       contract::ErrorCode::kInvalidPayload, request_identifier,
+                                       "flip to human failed");
+                return;
+            }
+            seat_member->is_bot = false;
+        }
+        Logger::Info("[Director] seat flipped: ", seat, " -> ", to);
+        BroadcastMatchState(active_lobby);
+        return;
+    }
     // INFO: P1 whitelist allows only the declared op names. Full op
     //       execution through OpRuntime requires a session-level store
     //       context and lands in a later pass. For now the command is
@@ -372,6 +716,12 @@ void MatchController::HandleDirectorCommand(WsContext context, const json& messa
     ClearTurnTimer(active_lobby->id);
     OnTurnStarted(active_lobby);
     BroadcastMatchState(active_lobby);
+}
+
+void MatchController::ClearCreativeTimers(uint32_t lobby_id) {
+    timer_service_.Cancel("turn_" + std::to_string(lobby_id));
+    timer_service_.Cancel("window_" + std::to_string(lobby_id));
+    timer_service_.Cancel("ready_" + std::to_string(lobby_id));
 }
 
 /**
@@ -652,6 +1002,9 @@ match::view::SnapshotOptions MatchController::BuildSnapshotOptions(
             member.viewed_username.empty() ? current_turn : member.viewed_username;
         options.spectator_counts[target]++;
     }
+    // INFO: the session owns the Creative skin overrides; the lobby just
+    //       carries them into the snapshot it builds.
+    options.skin_overrides = current_lobby->session->SkinOverrides();
     return options;
 }
 
@@ -756,6 +1109,23 @@ void MatchController::OnTurnStartedSession(Lobby* active_lobby) {
         BroadcastMatchState(active_lobby);
         return;
     }
+    if (paused_creative_) {
+        // INFO: director pause freezes the turn driver; no clock sync,
+        //       no bot scheduling, no timer arming while paused.
+        BroadcastMatchState(active_lobby);
+        return;
+    }
+    for (const auto& [seat, intents] : session.TakeSceneIntents()) {
+        const LobbyMember* member = active_lobby->FindMember(seat);
+        if (member == nullptr || !member->is_bot) {
+            Logger::Warn("scene intent dropped: scripts run on bot seats only");
+            continue;
+        }
+        for (const match::server::BotIntent& intent :
+             match::server::ParseBotIntents(intents)) {
+            (*script_queues_)[seat].push_back(intent);
+        }
+    }
 
     // INFO: the loading barrier gates the first turn clock; opening it calls
     //       back into this driver.
@@ -807,8 +1177,8 @@ void MatchController::OnTurnStartedSession(Lobby* active_lobby) {
             // INFO: a window responder that cannot act yet (a non-victim, or
             //       the victim inside the hold) must not starve the others.
             for (const std::string& actor : auto_actors) {
-                match::server::HeuristicBotPolicy policy(
-                    BotSeed(lobby_id, actor));
+                match::server::ScriptedBotPolicy policy(
+                    script_queues_, BotSeed(lobby_id, actor));
                 if (match::server::BotStep(*verified_lobby->session, policy,
                                            actor)) {
                     break;
@@ -847,8 +1217,8 @@ void MatchController::OnTurnStartedSession(Lobby* active_lobby) {
         //       the play/keep promise and risk an unintended win).
         if (!ResolveAfkHeldDraw(*verified_lobby->session, human_actor)) {
             Logger::Info("[MATCH] Bot playing for AFK player: ", human_actor);
-            match::server::HeuristicBotPolicy policy(
-                BotSeed(lobby_id, human_actor));
+            match::server::ScriptedBotPolicy policy(
+                script_queues_, BotSeed(lobby_id, human_actor));
             match::server::BotStep(*verified_lobby->session, policy,
                                    human_actor);
         }

@@ -286,6 +286,83 @@ const json* HeuristicBotPolicy::SchemaFor(const std::string& kind) const {
     return it == schemas_.end() ? nullptr : &it->second;
 }
 
+ScriptedBotPolicy::ScriptedBotPolicy(
+    std::shared_ptr<ScriptQueues> queues, uint64_t seed,
+    std::map<std::string, nlohmann::json> extra_schemas)
+    : queues_(std::move(queues)), fallback_(seed, std::move(extra_schemas)) {}
+
+std::vector<BotIntent> ParseBotIntents(const nlohmann::json& array) {
+    std::vector<BotIntent> intents;
+    if (!array.is_array()) return intents;
+    for (const json& item : array) {
+        if (!item.is_object()) continue;
+        // INFO: intents arrive over the wire: a present-but-mistyped scalar
+        //       makes value() throw (type_error.302), so every field is
+        //       type-checked and mistyped entries fall back to defaults.
+        BotIntent intent;
+        if (const auto it = item.find("type");
+            it != item.end() && it->is_string()) {
+            intent.type = it->get<std::string>();
+        }
+        if (const auto it = item.find("bits");
+            it != item.end() && it->is_number_unsigned()) {
+            intent.bits = it->get<uint32_t>();
+        }
+        if (const auto it = item.find("prompt_kind");
+            it != item.end() && it->is_string()) {
+            intent.prompt_kind = it->get<std::string>();
+        }
+        if (item.contains("value")) intent.value = item["value"];
+        if (const auto it = item.find("kind");
+            it != item.end() && it->is_string()) {
+            intent.kind = it->get<std::string>();
+        }
+        intents.push_back(std::move(intent));
+    }
+    return intents;
+}
+
+std::optional<uint32_t> ScriptedBotPolicy::ChoosePlay(const BotView& view) {
+    if (queues_ != nullptr) {
+        auto it = queues_->find(view.username);
+        if (it != queues_->end() && !it->second.empty() &&
+            it->second.front().type == "play") {
+            const uint32_t bits = it->second.front().bits;
+            it->second.pop_front();
+            return bits;
+        }
+    }
+    return fallback_.ChoosePlay(view);
+}
+
+json ScriptedBotPolicy::ChoosePrompt(const BotView& view) {
+    if (queues_ != nullptr) {
+        auto it = queues_->find(view.username);
+        if (it != queues_->end() && !it->second.empty() &&
+            it->second.front().type == "answer" &&
+            it->second.front().prompt_kind == view.prompt_kind) {
+            const json value = it->second.front().value;
+            it->second.pop_front();
+            return value;
+        }
+    }
+    return fallback_.ChoosePrompt(view);
+}
+
+std::vector<uint32_t> ScriptedBotPolicy::ChooseWindowResponses(
+    const BotView& view) {
+    if (queues_ != nullptr) {
+        auto it = queues_->find(view.username);
+        if (it != queues_->end() && !it->second.empty() &&
+            it->second.front().type == "play") {
+            const uint32_t bits = it->second.front().bits;
+            it->second.pop_front();
+            return {bits};
+        }
+    }
+    return fallback_.ChooseWindowResponses(view);
+}
+
 std::optional<uint32_t> HeuristicBotPolicy::ChoosePlay(const BotView& view) {
     // INFO: prefer a non-wild legal card so the turn resolves without a colour
     //       prompt; fall back to any legal card (a wild is always playable).

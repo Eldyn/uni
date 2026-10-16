@@ -13,6 +13,7 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
+#include <map>
 #include <memory>
 #include <optional>
 #include <string>
@@ -158,30 +159,70 @@ public:
      * Used for a mid-game bot hijack: renames the engine player's
      * `PlayerInfo.username`, moves its per-recipient event sink and prompt
      * bookkeeping to the new key, and updates the socket map. The seat, its
-     * hand and its turn state are untouched.
+     * hand and its turn state are untouched. A same-name call flips the
+     * seat to a human in place (the Creative flip op path).
      *
      * @param old_username Current engine username of the seat.
      * @param new_username Username to bind the seat to.
      * @param socket       New socket, or nullptr to leave the current binding.
-     * @return false when the old seat does not exist or the names match.
+     * @return false when the old seat does not exist or a name is empty.
      */
     bool RebindPlayer(const std::string& old_username,
                       const std::string& new_username,
                       AppWebSocket* socket);
 
     /**
+     * @brief Rename an engine seat, preserving its bot/connected flags.
+     *
+     * Unlike RebindPlayer (a bot hijack that always humanizes), this keeps
+     * `PlayerInfo.is_bot` / `connected` and moves the socket, stream, prompt
+     * and director/privacy/skin keying to the new name. Used by the Creative
+     * director rename op.
+     *
+     * @param old_username Current engine username of the seat.
+     * @param new_username Username to bind the seat to.
+     * @return false when either name is empty, the names match, the old seat
+     *         does not exist, or the new name is already taken.
+     */
+    bool RenameSeat(const std::string& old_username,
+                    const std::string& new_username);
+
+    /**
      * @brief Hand a departing human's engine seat to a named bot.
      *
      * Renames the seat like RebindPlayer, flags it as a bot and drops the
      * departing socket so the leaver stops receiving the match stream and
-     * cannot be re-seated by a username-keyed rejoin.
+     * cannot be re-seated by a username-keyed rejoin. A same-name call
+     * flips the seat to a bot in place (the Creative flip op path).
      *
      * @param old_username Departing human's engine username.
      * @param bot_name     Replacement bot username.
-     * @return false when the old seat does not exist or the names match.
+     * @return false when the old seat does not exist or a name is empty.
      */
     bool HandSeatToBot(const std::string& old_username,
                        const std::string& bot_name);
+
+    /**
+     * @brief Override the avatar strip a seat renders with.
+     *
+     * Display-only: never touches `PlayerInfo.is_bot` (turn logic reads
+     * that). The snapshot carries the override as the player entry's
+     * `skin`; the client picks the bot/player strip from it.
+     *
+     * @param username Seated engine username.
+     * @param skin     "bot" or "player".
+     * @return false when the seat is unknown or the value is invalid.
+     */
+    bool SetSeatSkin(const std::string& username, const std::string& skin);
+
+    /** @brief The skin override for `username`, or empty when none. */
+    std::string SeatSkin(const std::string& username) const;
+
+    /** @brief All seat -> ("bot"|"player") skin overrides. */
+    std::unordered_map<std::string, std::string> SkinOverrides() const;
+
+    /** @brief True for the two accepted skin override values. */
+    static bool IsValidSkinValue(const std::string& skin);
 
     /**
      * @brief Update the socket bound to a seated recipient (reconnect).
@@ -223,6 +264,41 @@ public:
      * @param enabled  True: spectators see card backs for this seat.
      */
     void SetSeatPrivacy(const std::string& username, bool enabled);
+
+    /** @brief Mark or clear a host Creative director for VIP x-ray. */
+    void SetDirector(const std::string& username, bool enabled);
+
+    /** @brief True when username has Creative x-ray. */
+    bool IsDirector(const std::string& username) const;
+
+    /** @brief Stack exact kinds on top of the draw pile, first kind drawn first. */
+    bool StackDrawPile(const std::vector<std::string>& kinds);
+
+    /** @brief Apply a Creative scene: exact hands, pile top, discard top. */
+    bool ApplyScene(const nlohmann::json& scene,
+                    std::map<std::string, nlohmann::json>* out_intents);
+
+    /** @brief Capture visible match state as a scene-equivalent checkpoint. */
+    nlohmann::json SaveCheckpoint();
+
+    /** @brief Restore a checkpoint captured by SaveCheckpoint. */
+    bool RestoreCheckpoint(const nlohmann::json& checkpoint,
+                           std::map<std::string, nlohmann::json>* out_intents);
+
+    /** @brief Store a checkpoint in the session slot. */
+    void StoreCheckpoint(nlohmann::json checkpoint);
+
+    /** @brief True when the session holds a stored checkpoint. */
+    bool HasCheckpoint() const;
+
+    /** @brief The stored checkpoint. */
+    const nlohmann::json& Checkpoint() const;
+
+    /** @brief Stage scene intents for the turn driver to queue. */
+    void SetSceneIntents(std::map<std::string, nlohmann::json> intents);
+
+    /** @brief Take and clear staged scene intents. */
+    std::map<std::string, nlohmann::json> TakeSceneIntents();
 
     /** @brief The spectator viewer with the current private seats. */
     match::view::Viewer SpectatorViewer() const;
@@ -423,6 +499,24 @@ private:
     const nlohmann::json* FindPromptSchema(const std::string& kind) const;
 
     /**
+     * @brief Move the per-recipient stream/prompt state to a new seat key.
+     *
+     * The renamed seat inherits its `seq` watermark and prompt dedupe; a
+     * missing entry is created empty so later lookups never insert.
+     */
+    void MoveSeatKeys(const std::string& old_username,
+                      const std::string& new_username);
+
+    /**
+     * @brief Copy `options` with this session's skin overrides merged in.
+     *
+     * The session is the source of truth for skins; controller-built options
+     * already carry them, so the merge is idempotent.
+     */
+    match::view::SnapshotOptions SnapshotOptionsWithSkins(
+        const match::view::SnapshotOptions& options) const;
+
+    /**
      * @brief True when `value` satisfies the supported schema subset.
      *
      * Supports the rendering vocabulary: `type` in string / boolean
@@ -504,6 +598,11 @@ private:
     SocketMap viewers_;
     /** Owners with Streamer/Privacy Mode on, without duplicate. */
     std::vector<std::string> private_seats_;
+    std::vector<std::string> directors_;
+    /** Seat -> ("bot"|"player") display-only avatar-strip overrides. */
+    std::unordered_map<std::string, std::string> skin_overrides_;
+    nlohmann::json checkpoint_ = nullptr;
+    std::map<std::string, nlohmann::json> scene_intents_;
     std::unordered_map<std::string, match::view::EventSink> sinks_;
     /** Per-spectator persistent stream (mirrors `sinks_` for viewers). */
     std::unordered_map<std::string, match::view::EventSink> viewer_sinks_;

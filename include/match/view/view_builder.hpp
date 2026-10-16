@@ -137,6 +137,13 @@ struct SnapshotOptions {
     int spectator_count = 0;
 
     /**
+     * Seat -> ("bot"|"player") display-only avatar-strip overrides, owned
+     * by the session (Creative director skin op). A present entry is
+     * carried on the player row as `skin`; `is_bot` is untouched.
+     */
+    std::unordered_map<std::string, std::string> skin_overrides;
+
+    /**
      * The retained client events for the play log. When set, the snapshot
      * gets `match_state.tail` (a warm-up snapshot for a late joiner or a
      * snapshot request). A snapshot for a live seat leaves it unset.

@@ -1,13 +1,16 @@
 <script lang="ts">
 	import { storeToast } from "$stores/toast.svelte";
+	import { director } from "$stores/director.svelte";
 	import ToastItem from "$components/common/ToastItem.svelte";
 </script>
 
-<div class="toast-container">
-	{#each storeToast.items as toast (toast.id)}
-		<ToastItem {toast} />
-	{/each}
-</div>
+{#if !$director.cleanView}
+	<div class="toast-container">
+		{#each storeToast.items as toast (toast.id)}
+			<ToastItem {toast} />
+		{/each}
+	</div>
+{/if}
 
 <style>
 	.toast-container {

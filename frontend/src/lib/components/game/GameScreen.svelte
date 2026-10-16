@@ -9,12 +9,22 @@
 	import CardDetailPopover from "./CardDetailPopover.svelte";
 	import PromptRenderer from "./prompts/PromptRenderer.svelte";
 	import FuseLine from "./FuseLine.svelte";
+	import DirectorPanel from "./DirectorPanel.svelte";
+	import { director, setCleanView } from "$stores/director.svelte";
 	import { storeGame } from "$stores/game.svelte";
 	import { createGameLayoutContext } from "./game-layout-context.svelte";
+	import { onDestroy } from "svelte";
 
 	createGameLayoutContext();
 
 	let matchEnded = $state(false);
+
+	// Clean view is a per-match capture mode: leaving the game screen must
+	// never leave the global chat dock hidden behind the body class with no
+	// panel left to toggle it back.
+	onDestroy(() => {
+		setCleanView(false);
+	});
 
 	$effect(() => {
 		if (storeGame.state?.is_over && !matchEnded) {
@@ -28,24 +38,31 @@
 <div class="game-screen">
 	<div class="ui-layer">
 		<GameEndPopup />
+		<DirectorPanel />
 
 		<div class="top-overlay">
 			<div class="game-controls">
-				<GameHud />
+				{#if !$director.cleanView}
+					<GameHud />
+				{/if}
 				<PromptRenderer />
 			</div>
 
-			<SpectatorBanner
-				eliminated={storeGame.state?.mode === "race" && storeGame.raceOutcome === "lose"}
-				finished={storeGame.state?.mode === "race" && storeGame.raceOutcome === "win"}
-			/>
+			{#if !$director.cleanView}
+				<SpectatorBanner
+					eliminated={storeGame.state?.mode === "race" && storeGame.raceOutcome === "lose"}
+					finished={storeGame.state?.mode === "race" && storeGame.raceOutcome === "win"}
+				/>
+			{/if}
 		</div>
 
-		<RaceOutcomeBanner />
+		{#if !$director.cleanView}
+			<RaceOutcomeBanner />
 
-		<RaceStandings />
+			<RaceStandings />
 
-		<CardDetailPopover />
+			<CardDetailPopover />
+		{/if}
 
 		<div class="game-board-container">
 			<GameBoard />

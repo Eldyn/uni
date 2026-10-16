@@ -27,6 +27,7 @@
 	import { storeNavigation } from "$stores/navigation.svelte";
 	import { storeRenderSettings } from "$stores/renderSettings.svelte";
 	import { storeSpectator } from "$stores/spectator.svelte";
+	import { director } from "$stores/director.svelte";
 	import { storeTableSpin, type HandMorph } from "$stores/tableSpin.svelte";
 	import { storeTurnSkip } from "$stores/turnSkip.svelte";
 	import { storeDirectionRing } from "$stores/directionRing.svelte";
@@ -171,7 +172,9 @@
 		storeGame.isSpectator ? storeTableSpin.renderPov : (storeGame.localPlayer?.username ?? null)
 	);
 	let mappedOpponents = $derived.by(() =>
-		rotatedOpponentsFor(storeGame.state?.players ?? [], povUsername).map((player) => ({ player }))
+		rotatedOpponentsFor(storeGame.state?.players ?? [], povUsername)
+			.filter((player) => !$director.hidePlayers.includes(player.username))
+			.map((player) => ({ player }))
 	);
 
 	// Single source of truth for the scene's camera/seat/pile geometry — Scene3D

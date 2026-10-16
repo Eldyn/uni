@@ -60,6 +60,7 @@ const RawPlayerSchema = z.object({
 	is_current: z.boolean().optional(),
 	card_count: z.number().int(),
 	is_bot: z.boolean(),
+	skin: z.string().optional(),
 	hand: z.array(RawCardSchema).optional(),
 	statuses: z.array(z.unknown()).optional(),
 	spectator_count: z.number().int().optional()
@@ -171,6 +172,9 @@ export interface GamePlayer {
 	hand?: Card[];
 	/** Indicates whether the player is a bot controlled by the server. */
 	is_bot: boolean;
+	/** Display-only avatar-strip override from the director skin op
+	 *  ("bot" | "player"). Absent unless the director set one. */
+	skin?: string;
 	/** How many connected spectators are watching THIS player's POV. Absent on
 	 *  older state payloads; treated as 0. */
 	spectator_count?: number;

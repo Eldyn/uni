@@ -1,0 +1,16 @@
+{
+  "seats": [
+    {
+      "username": "alice",
+      "hand": ["uni:blue_skip", "uni:blue_reverse"],
+      "intents": []
+    },
+    {
+      "username": "BotBob",
+      "hand": ["uni:wild"],
+      "intents": [{ "type": "pass" }]
+    }
+  ],
+  "pile_top": ["uni:blue_0", "uni:red_reverse"],
+  "discard_top": "uni:green_skip"
+}

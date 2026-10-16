@@ -5,7 +5,9 @@
 #include <nlohmann/json.hpp>
 
 #include <cstdint>
+#include <deque>
 #include <map>
+#include <memory>
 #include <optional>
 #include <string>
 #include <vector>
@@ -161,6 +163,59 @@ private:
 
     uint64_t seed_;
     std::map<std::string, nlohmann::json> schemas_;
+};
+
+/**
+ * @struct BotIntent
+ * @brief One queued scripted instruction for a bot seat.
+ *
+ * Types: "play" (play `bits`), "answer" (answer `prompt_kind` with
+ * `value`), "draw" (draw; the pile is rigged separately with the
+ * director "stack" operation), "pass" (decline / pass through).
+ */
+struct BotIntent {
+    std::string type = "pass";
+    uint32_t bits = 0;
+    std::string prompt_kind;
+    nlohmann::json value = nullptr;
+    std::string kind;
+
+    static BotIntent Play(uint32_t card_bits) {
+        BotIntent intent;
+        intent.type = "play";
+        intent.bits = card_bits;
+        return intent;
+    }
+};
+
+/** @brief Per-seat scripted intent queues, keyed by seat username. */
+using ScriptQueues =
+    std::map<std::string, std::deque<BotIntent>>;
+
+/** @brief Parse a director intents array into BotIntents. */
+std::vector<BotIntent> ParseBotIntents(const nlohmann::json& array);
+
+/**
+ * @class ScriptedBotPolicy
+ * @brief IBotPolicy that consumes per-seat intent queues first.
+ *
+ * Each decision consumes the seat's front intent when it matches the
+ * decision type; anything else (empty queue, mismatched type) falls
+ * back to a HeuristicBotPolicy with the same seed. Never mutates.
+ */
+class ScriptedBotPolicy : public IBotPolicy {
+public:
+    explicit ScriptedBotPolicy(
+        std::shared_ptr<ScriptQueues> queues, uint64_t seed,
+        std::map<std::string, nlohmann::json> extra_schemas = {});
+
+    std::optional<uint32_t> ChoosePlay(const BotView& view) override;
+    nlohmann::json ChoosePrompt(const BotView& view) override;
+    std::vector<uint32_t> ChooseWindowResponses(const BotView& view) override;
+
+private:
+    std::shared_ptr<ScriptQueues> queues_;
+    HeuristicBotPolicy fallback_;
 };
 
 /**

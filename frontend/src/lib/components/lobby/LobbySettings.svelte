@@ -44,6 +44,8 @@
 	let settings = $derived({
 		is_public: storeLobby.current?.settings.is_public ?? false,
 		ranked: storeLobby.current?.settings.ranked ?? true,
+		creative: storeLobby.current?.settings.creative ?? false,
+		scene: storeLobby.current?.settings.scene ?? "",
 		turn_time_limit_ms: storeLobby.current?.settings.turn_time_limit_ms ?? 15_000,
 
 		allow_bot_replacement: storeLobby.current?.settings.allow_bot_replacement ?? false,
@@ -95,7 +97,7 @@
 		)
 	);
 
-	function commit(key: SettingsKey, value: boolean | number) {
+	function commit(key: SettingsKey, value: boolean | number | string) {
 		if (!isHost) return;
 		storeLobby.updateSettings({ [key]: value });
 	}
@@ -142,6 +144,18 @@
 				disabled={!isHost}
 				oncommit={(v) => commit("quit_deletes_match", v)}
 			/>
+			{#if settings.creative}
+				<label class="scene-row">
+					<span>Scene file (dev only)</span>
+					<input
+						type="text"
+						value={settings.scene ?? ""}
+						disabled={!isHost}
+						placeholder="sample_opening"
+						onchange={(e) => commit("scene", e.currentTarget.value)}
+					/>
+				</label>
+			{/if}
 		</div>
 	</section>
 
@@ -166,7 +180,7 @@
 			<EnumSelector
 				label={m.lobby_settings_game_mode({}, { locale: storeI18n.locale })}
 				description={m.lobby_settings_game_mode_desc({}, { locale: storeI18n.locale })}
-				value={settings.mode ?? "standard"}
+				value={settings.creative ? "creative" : (settings.mode ?? "standard")}
 				disabled={!isHost}
 				options={[
 					{
@@ -178,9 +192,22 @@
 						value: "race",
 						label: m.lobby_mode_race({}, { locale: storeI18n.locale }),
 						description: m.lobby_mode_race_desc({}, { locale: storeI18n.locale })
+					},
+					{
+						value: "creative",
+						label: "Creative director mode",
+						description:
+							"Standard rules with host controls for clips. Forces unranked, no stats."
 					}
 				]}
-				oncommit={(v) => commit("mode", v as "standard" | "race")}
+				oncommit={(v) => {
+					if (!isHost) return;
+					if (v === "creative") {
+						storeLobby.updateSettings({ mode: "standard", creative: true });
+					} else {
+						storeLobby.updateSettings({ mode: v, creative: false });
+					}
+				}}
 			/>
 			{#if settings.mode === "race"}
 				<Slider
@@ -303,6 +330,13 @@
 		font-family: var(--tiny);
 		font-size: 13px;
 		color: var(--text);
+	}
+
+	.scene-row {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+		font-size: 13px;
 	}
 
 	.lobby-settings-panel {

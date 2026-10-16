@@ -71,6 +71,8 @@ void LobbySettings::Sanitize(int max_players_ceiling) {
 
     if (creative) {
         ranked = false;
+    } else {
+        scene.clear();
     }
 }
 

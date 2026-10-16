@@ -1185,3 +1185,143 @@ TEST_CASE("match session: an unknown recipient gets no snapshot") {
         fake, "stranger", match::view::SnapshotOptions{}));
     CHECK(fake.sent.empty());
 }
+
+TEST_CASE("match session: RenameSeat preserves flags and moves seat keying") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    std::unique_ptr<MatchInstance> engine = MakeEngine(content, 2, 42);
+    AppWebSocket* s0 = PlayerSocket(0);
+    AppWebSocket* s1 = PlayerSocket(1);
+    match::server::MatchSession session(
+        std::move(engine), std::move(content.mods),
+        {{"player0", s0}, {"player1", s1}});
+
+    // INFO: a human rename keeps the live socket and the human flags.
+    REQUIRE(session.RenameSeat("player0", "Alice"));
+    CHECK(session.Engine().FindPlayer("player0") == std::nullopt);
+    const std::optional<ecs::Entity> alice = session.Engine().FindPlayer("Alice");
+    REQUIRE(alice.has_value());
+    const ecs::PlayerInfo* alice_info =
+        session.Engine().Store().Get<ecs::PlayerInfo>(*alice);
+    REQUIRE(alice_info != nullptr);
+    CHECK_FALSE(alice_info->is_bot);
+    CHECK(alice_info->connected);
+    CHECK(session.Sockets().count("Alice") == 1);
+    CHECK(session.Sockets().at("Alice") == s0);
+    CHECK(session.Sockets().count("player0") == 0);
+
+    // INFO: a bot rename must preserve is_bot (RebindPlayer would clear it).
+    session.SetDirector("player1", true);
+    REQUIRE(session.HandSeatToBot("player1", "BotBob"));
+    REQUIRE(session.RenameSeat("BotBob", "BotZed"));
+    CHECK(session.Engine().FindPlayer("BotBob") == std::nullopt);
+    const std::optional<ecs::Entity> zed = session.Engine().FindPlayer("BotZed");
+    REQUIRE(zed.has_value());
+    const ecs::PlayerInfo* zed_info =
+        session.Engine().Store().Get<ecs::PlayerInfo>(*zed);
+    REQUIRE(zed_info != nullptr);
+    CHECK(zed_info->is_bot);
+    CHECK(session.Sockets().count("BotZed") == 1);
+    CHECK(session.Sockets().count("BotBob") == 0);
+    // INFO: director x-ray follows the seat, not the old name.
+    CHECK(session.IsDirector("BotZed"));
+    CHECK_FALSE(session.IsDirector("BotBob"));
+
+    // INFO: the stream/prompt bookkeeping moved: the new key answers, the
+    //       old key is unknown (Alice kept the live socket, so it answers).
+    FakeBroadcaster fake;
+    CHECK(session.HandleSnapshotRequest(
+        fake, "Alice", match::view::SnapshotOptions{}));
+    CHECK_FALSE(session.HandleSnapshotRequest(
+        fake, "player0", match::view::SnapshotOptions{}));
+
+    // INFO: rejects empty / same / duplicate / unknown seats.
+    CHECK_FALSE(session.RenameSeat("BotZed", "Alice"));
+    CHECK_FALSE(session.RenameSeat("BotZed", ""));
+    CHECK_FALSE(session.RenameSeat("", "BotNew"));
+    CHECK_FALSE(session.RenameSeat("BotZed", "BotZed"));
+    CHECK_FALSE(session.RenameSeat("Ghost", "BotNew"));
+    CHECK(session.Engine().FindPlayer("BotZed").has_value());
+}
+
+TEST_CASE("match session: SetSeatSkin stores display overrides and the "
+          "snapshot carries skin") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    std::unique_ptr<MatchInstance> engine = MakeEngine(content, 2, 42);
+    AppWebSocket* s0 = PlayerSocket(0);
+    AppWebSocket* s1 = PlayerSocket(1);
+    match::server::MatchSession session(
+        std::move(engine), std::move(content.mods),
+        {{"player0", s0}, {"player1", s1}});
+
+    CHECK(session.SetSeatSkin("player0", "player"));
+    CHECK(session.SetSeatSkin("player1", "bot"));
+    CHECK_FALSE(session.SetSeatSkin("player1", "alien"));
+    CHECK_FALSE(session.SetSeatSkin("player1", ""));
+    CHECK_FALSE(session.SetSeatSkin("Ghost", "bot"));
+    CHECK(session.SeatSkin("player0") == "player");
+    CHECK(session.SeatSkin("player1") == "bot");
+    CHECK(session.SeatSkin("Ghost").empty());
+
+    // INFO: the override follows a rename.
+    REQUIRE(session.RenameSeat("player0", "Alice"));
+    CHECK(session.SeatSkin("Alice") == "player");
+    CHECK(session.SeatSkin("player0").empty());
+
+    FakeBroadcaster fake;
+    session.BroadcastSnapshot(fake);
+    const std::vector<json> packets = PacketsFor(fake, s0);
+    const json* snapshot = FindPacket(packets, "match_state_updated");
+    REQUIRE(snapshot != nullptr);
+    const json* alice_row = PlayerRow(*snapshot, "Alice");
+    const json* other_row = PlayerRow(*snapshot, "player1");
+    REQUIRE(alice_row != nullptr);
+    REQUIRE(other_row != nullptr);
+    CHECK(alice_row->value("skin", std::string()) == "player");
+    CHECK(other_row->value("skin", std::string()) == "bot");
+    // INFO: display-only: a bot-strip override on a human seat never flips
+    //       the turn-logic flag it mirrors.
+    CHECK(other_row->value("is_bot", true) == false);
+    const std::optional<ecs::Entity> other =
+        session.Engine().FindPlayer("player1");
+    REQUIRE(other.has_value());
+    const ecs::PlayerInfo* info =
+        session.Engine().Store().Get<ecs::PlayerInfo>(*other);
+    REQUIRE(info != nullptr);
+    CHECK_FALSE(info->is_bot);
+}
+
+TEST_CASE("match session: same-seat HandSeatToBot and RebindPlayer flip the "
+          "bot flag in place") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    std::unique_ptr<MatchInstance> engine = MakeEngine(content, 2, 42);
+    AppWebSocket* s0 = PlayerSocket(0);
+    AppWebSocket* s1 = PlayerSocket(1);
+    match::server::MatchSession session(
+        std::move(engine), std::move(content.mods),
+        {{"player0", s0}, {"player1", s1}});
+
+    // INFO: to-bot keeps the seat name, drops the socket, flags the bot.
+    REQUIRE(session.HandSeatToBot("player0", "player0"));
+    const std::optional<ecs::Entity> seat0 = session.Engine().FindPlayer("player0");
+    REQUIRE(seat0.has_value());
+    const ecs::PlayerInfo* bot_info =
+        session.Engine().Store().Get<ecs::PlayerInfo>(*seat0);
+    REQUIRE(bot_info != nullptr);
+    CHECK(bot_info->is_bot);
+    CHECK(session.Sockets().at("player0") == nullptr);
+
+    // INFO: back to human keeps the seat (hand/turn state) and reconnects
+    //       the flags, the dedicated rename path's job is names only.
+    REQUIRE(session.RebindPlayer("player0", "player0", nullptr));
+    const ecs::PlayerInfo* human_info =
+        session.Engine().Store().Get<ecs::PlayerInfo>(*seat0);
+    REQUIRE(human_info != nullptr);
+    CHECK_FALSE(human_info->is_bot);
+    CHECK(human_info->connected);
+
+    CHECK_FALSE(session.HandSeatToBot("Ghost", "Ghost"));
+    CHECK_FALSE(session.RebindPlayer("Ghost", "Ghost", nullptr));
+}

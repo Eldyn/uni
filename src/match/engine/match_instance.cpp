@@ -2719,6 +2719,27 @@ std::optional<ecs::Entity> MatchInstance::TopDiscard() const {
     return discard->cards.back();
 }
 
+std::optional<uint32_t> MatchInstance::RegisterStackedCard(
+    ecs::Entity card, const std::string& kind_id) {
+    MatchRegistries& registries = assembly_->registries;
+    const auto pos = registries.kind_index.find(kind_id);
+    if (pos == registries.kind_index.end()) return std::nullopt;
+    uint32_t instance = 0;
+    for (const ecs::CompactCardV2& id : registries.card_ids) {
+        if (id.ModIndex() == pos->second.mod_index &&
+            id.KindIndex() == pos->second.kind_index) {
+            instance = std::max(instance, id.InstanceId() + 1);
+        }
+    }
+    const std::optional<ecs::CompactCardV2> compact =
+        ecs::MakeCompactCard(pos->second.mod_index, pos->second.kind_index,
+                             instance);
+    if (!compact.has_value()) return std::nullopt;
+    registries.AddCard(card, *compact);
+    registries.cards.push_back(card);
+    return compact->bits;
+}
+
 json MatchInstance::ExportState() const {
     if (assembly_ == nullptr) {
         return json{{"status", "finished"}, {"started", false}};

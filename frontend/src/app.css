@@ -933,3 +933,17 @@ code,
 		scroll-behavior: auto !important;
 	}
 }
+
+/* Director clean view (creative mode): the OBS frame must be a bare table.
+   The chat dock mounts at the app root, outside the game screen, and
+   ChatDock.svelte is protected — so the dock is hidden here, driven by the
+   body class the director store mirrors from cleanView. Unlayered (beats the
+   layered Tailwind `flex` display on the same elements regardless of order)
+   with !important so no component display rule can win. PromptRenderer,
+   GameBoard, and turn cues are untouched: the table, cards, and the
+   director's own actions stay visible. */
+body.director-clean-view .chat-launcher,
+body.director-clean-view .chat-panel,
+body.director-clean-view .director-panel {
+	display: none !important;
+}

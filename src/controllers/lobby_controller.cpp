@@ -1618,7 +1618,9 @@ void LobbyController::HandleUpdateSettings(WsContext ctx, const json& message) {
     }
     new_settings.Sanitize(absolute_max_lobby_members_);
 
-    if (lobby.session != nullptr && lobby.settings.creative != new_settings.creative) {
+    if (lobby.session != nullptr &&
+        (lobby.settings.creative != new_settings.creative ||
+         lobby.settings.scene != new_settings.scene)) {
         // WARN: creative lock drops late flips after session starts.
         broadcaster_.SendError(ctx.socket, ctx.op_code, contract::ErrorCode::kMatchAlreadyStarted,
                                request_id, "creative is locked after start");
@@ -1820,6 +1822,36 @@ void LobbyController::HandleStartGame(WsContext context, const nlohmann::json& m
     }
     if (lobby.settings.creative) {
         lobby.session->SetDirector(lobby.host, true);
+    }
+    if (lobby.settings.creative && !lobby.settings.scene.empty()) {
+        if (!match::modload::IsDevContentAllowed()) {
+            lobby.session.reset();
+            broadcaster_.SendError(context.socket, context.op_code,
+                                   contract::ErrorCode::kInvalidPayload, request_id,
+                                   "scenes are dev-only");
+            return;
+        }
+        const std::string scenes_dir = Env::Get("UNI_SCENES_DIR", "scenes");
+        std::ifstream scene_file(scenes_dir + "/" + lobby.settings.scene + ".json");
+        nlohmann::json scene = nlohmann::json::object();
+        bool scene_ok = scene_file.good();
+        if (scene_ok) {
+            try {
+                scene_file >> scene;
+            } catch (const nlohmann::json::exception&) {
+                scene_ok = false;
+            }
+        }
+        std::map<std::string, nlohmann::json> scene_intents;
+        if (!scene_ok ||
+            !lobby.session->ApplyScene(scene, &scene_intents)) {
+            lobby.session.reset();
+            broadcaster_.SendError(context.socket, context.op_code,
+                                   contract::ErrorCode::kInvalidPayload, request_id,
+                                   "unknown scene");
+            return;
+        }
+        lobby.session->SetSceneIntents(std::move(scene_intents));
     }
 
     for (auto& cb : on_game_started_) cb(&lobby);

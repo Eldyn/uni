@@ -1,7 +1,9 @@
 #include <match/server/match_session.hpp>
 
+#include <common/contract.hpp>
 #include <match/ecs/compact_card.hpp>
 #include <match/ecs/components.hpp>
+#include <match/ops/op_helpers.hpp>
 #include <match/view/defs_builder.hpp>
 #include <match/view/view_util.hpp>
 #include <match/view/wire.hpp>
@@ -137,8 +139,7 @@ bool MatchSession::ArmTurnTimer(int64_t duration_ms) {
 bool MatchSession::RebindPlayer(const std::string& old_username,
                                 const std::string& new_username,
                                 AppWebSocket* socket) {
-    if (old_username.empty() || new_username.empty() ||
-        old_username == new_username) {
+    if (old_username.empty() || new_username.empty()) {
         return false;
     }
 
@@ -148,6 +149,25 @@ bool MatchSession::RebindPlayer(const std::string& old_username,
     match::ecs::PlayerInfo* info =
         engine_->Store().Get<match::ecs::PlayerInfo>(*player);
     if (info == nullptr) return false;
+    if (old_username == new_username) {
+        // INFO: same-seat Creative flip back to human: no keys move (the
+        //       seat keeps its stream and prompt state); only the flags, and
+        //       the socket when the caller binds one, change.
+        info->is_bot = false;
+        info->connected = true;
+        if (socket != nullptr) sockets_[old_username] = socket;
+        sinks_.try_emplace(old_username);
+        prompt_signature_.try_emplace(old_username);
+        prompt_outcome_.try_emplace(old_username, "cancelled");
+        ready_barrier_.MarkReady(old_username);
+        return true;
+    }
+    if (engine_->FindPlayer(new_username).has_value()
+        || sockets_.contains(new_username)) {
+        // INFO: the target key is taken; refusing beats merging two seats'
+        //       sockets and streams into one map entry.
+        return false;
+    }
     ready_barrier_.Rename(old_username, new_username);
     info->username = new_username;
     info->is_bot = false;
@@ -161,25 +181,28 @@ bool MatchSession::RebindPlayer(const std::string& old_username,
     if (socket_it != sockets_.end()) sockets_.erase(socket_it);
     sockets_[new_username] = bound;
 
-    // INFO: move the per-recipient stream/prompt state to the new key so the
-    //       hijacker inherits the seat's `seq` watermark and prompt dedupe.
-    auto move_node = [&](auto& map) {
-        auto node = map.extract(old_username);
-        if (node.empty()) {
-            map.try_emplace(new_username);
-            return;
-        }
-        node.key() = new_username;
-        map.insert(std::move(node));
-    };
-    move_node(sinks_);
-    move_node(prompt_signature_);
-    move_node(prompt_outcome_);
+    MoveSeatKeys(old_username, new_username);
     return true;
 }
 
 bool MatchSession::HandSeatToBot(const std::string& old_username,
                                  const std::string& bot_name) {
+    if (old_username.empty() || bot_name.empty()) return false;
+    if (old_username == bot_name) {
+        // INFO: same-seat Creative flip to bot: the seat keeps its name,
+        //       hand and turn state; it just stops receiving the stream and
+        //       counts as ready like any bot seat.
+        const std::optional<match::ecs::Entity> same =
+            engine_->FindPlayer(old_username);
+        if (!same.has_value()) return false;
+        match::ecs::PlayerInfo* same_info =
+            engine_->Store().Get<match::ecs::PlayerInfo>(*same);
+        if (same_info == nullptr) return false;
+        same_info->is_bot = true;
+        sockets_[old_username] = nullptr;
+        ready_barrier_.MarkReady(old_username);
+        return true;
+    }
     if (!RebindPlayer(old_username, bot_name, nullptr)) return false;
 
     const std::optional<match::ecs::Entity> player =
@@ -192,6 +215,61 @@ bool MatchSession::HandSeatToBot(const std::string& old_username,
     sockets_[bot_name] = nullptr;
     ready_barrier_.MarkReady(bot_name);
     return true;
+}
+
+bool MatchSession::RenameSeat(const std::string& old_username,
+                              const std::string& new_username) {
+    if (old_username.empty() || new_username.empty()
+        || old_username == new_username) {
+        return false;
+    }
+    if (new_username.size() > contract::kUsernameMax) return false;
+    const std::optional<match::ecs::Entity> player =
+        engine_->FindPlayer(old_username);
+    if (!player.has_value()) return false;
+    if (engine_->FindPlayer(new_username).has_value()
+        || sockets_.contains(new_username)) {
+        return false;
+    }
+    match::ecs::PlayerInfo* info =
+        engine_->Store().Get<match::ecs::PlayerInfo>(*player);
+    if (info == nullptr) return false;
+    // INFO: a rename is display identity only: is_bot/connected stay as the
+    //       seat had them (a hijack that humanizes is RebindPlayer's job).
+    info->username = new_username;
+    ready_barrier_.Rename(old_username, new_username);
+    // INFO: socket, stream, prompt and display keying follow (MoveSeatKeys).
+
+    auto socket_it = sockets_.find(old_username);
+    AppWebSocket* bound =
+        socket_it != sockets_.end() ? socket_it->second : nullptr;
+    if (socket_it != sockets_.end()) sockets_.erase(socket_it);
+    sockets_[new_username] = bound;
+
+    MoveSeatKeys(old_username, new_username);
+    return true;
+}
+
+bool MatchSession::SetSeatSkin(const std::string& username,
+                               const std::string& skin) {
+    if (!IsValidSkinValue(skin)) return false;
+    if (!engine_->FindPlayer(username).has_value()) return false;
+    skin_overrides_[username] = skin;
+    return true;
+}
+
+std::string MatchSession::SeatSkin(const std::string& username) const {
+    const auto it = skin_overrides_.find(username);
+    return it == skin_overrides_.end() ? std::string() : it->second;
+}
+
+std::unordered_map<std::string, std::string> MatchSession::SkinOverrides()
+    const {
+    return skin_overrides_;
+}
+
+bool MatchSession::IsValidSkinValue(const std::string& skin) {
+    return skin == "bot" || skin == "player";
 }
 
 bool MatchSession::BindSocket(const std::string& username,
@@ -227,6 +305,213 @@ void MatchSession::SetSeatPrivacy(const std::string& username, bool enabled) {
     }
 }
 
+void MatchSession::SetDirector(const std::string& username, bool enabled) {
+    const auto pos = std::ranges::find(directors_, username);
+    if (enabled && pos == directors_.end()) directors_.push_back(username);
+    else if (!enabled && pos != directors_.end()) directors_.erase(pos);
+}
+
+bool MatchSession::IsDirector(const std::string& username) const {
+    return std::ranges::find(directors_, username) != directors_.end();
+}
+
+bool MatchSession::StackDrawPile(const std::vector<std::string>& kinds) {
+    if (kinds.empty()) return false;
+    ecs::EntityStore& store = engine_->Store();
+    const auto& registries = engine_->Registries();
+    for (auto it = kinds.rbegin(); it != kinds.rend(); ++it) {
+        const auto pos = registries.kind_index.find(*it);
+        if (pos == registries.kind_index.end()) return false;
+        const ecs::Entity card = store.Create();
+        ecs::CardIdentity identity;
+        identity.mod_index = pos->second.mod_index;
+        identity.kind_index = pos->second.kind_index;
+        identity.kind_id = *it;
+        store.Add(card, identity);
+        store.Add(card, ecs::InZone{ecs::ZoneRef{ecs::ZoneKind::kLimbo, ecs::Entity{}}, 0});
+        store.Add(card, ecs::FaceSpec{});
+        if (match::ops::MoveCardToZone(
+                store, card,
+                ecs::ZoneRef{ecs::ZoneKind::kDrawPile, ecs::Entity{}}) &&
+            engine_->RegisterStackedCard(card, *it).has_value()) {
+            continue;
+        }
+        store.Destroy(card);
+        return false;
+    }
+    return true;
+}
+
+bool MatchSession::ApplyScene(const nlohmann::json& scene,
+                              std::map<std::string, nlohmann::json>* out_intents) {
+    if (!scene.is_object() || !scene.contains("seats") ||
+        !scene["seats"].is_array()) {
+        return false;
+    }
+    ecs::EntityStore& store = engine_->Store();
+    const match::engine::MatchRegistries& registries = engine_->Registries();
+
+    struct SeatSetup {
+        ecs::Entity player;
+        std::string username;
+        std::vector<std::string> hand;
+        nlohmann::json intents = nlohmann::json::array();
+    };
+    std::vector<SeatSetup> setups;
+    for (const nlohmann::json& seat : scene["seats"]) {
+        if (!seat.is_object()) return false;
+        const std::string username = seat.value("username", std::string());
+        const std::optional<ecs::Entity> player = engine_->FindPlayer(username);
+        if (!player.has_value()) return false;
+        SeatSetup setup{*player, username, {}, nlohmann::json::array()};
+        if (seat.contains("hand")) {
+            if (!seat["hand"].is_array()) return false;
+            for (const nlohmann::json& kind : seat["hand"]) {
+                if (!kind.is_string()) return false;
+                if (!registries.FindKind(kind.get<std::string>()).has_value()) {
+                    return false;
+                }
+                setup.hand.push_back(kind.get<std::string>());
+            }
+        }
+        if (seat.contains("intents")) {
+            if (!seat["intents"].is_array()) return false;
+            setup.intents = seat["intents"];
+        }
+        setups.push_back(std::move(setup));
+    }
+
+    std::vector<std::string> pile_top;
+    if (scene.contains("pile_top")) {
+        if (!scene["pile_top"].is_array()) return false;
+        for (const nlohmann::json& kind : scene["pile_top"]) {
+            if (!kind.is_string()) return false;
+            if (!registries.FindKind(kind.get<std::string>()).has_value()) {
+                return false;
+            }
+            pile_top.push_back(kind.get<std::string>());
+        }
+    }
+    const std::string discard_top = scene.value("discard_top", std::string());
+    if (!discard_top.empty() &&
+        !registries.FindKind(discard_top).has_value()) {
+        return false;
+    }
+
+    // INFO: validation above rejects unknown seats and kinds, so the
+    //       application below cannot leave a half-built scene behind.
+    const ecs::ZoneRef draw_ref{ecs::ZoneKind::kDrawPile, ecs::Entity{}};
+    for (const SeatSetup& setup : setups) {
+        for (ecs::Entity card : match::ops::HandOf(store, setup.player)) {
+            match::ops::MoveCardToZone(store, card, draw_ref);
+        }
+    }
+    for (const SeatSetup& setup : setups) {
+        for (const std::string& kind : setup.hand) {
+            if (!StackDrawPile({kind})) return false;
+            const std::optional<ecs::Entity> top =
+                match::ops::DrawTop(store, registries.draw_pile);
+            if (!top.has_value()) return false;
+            match::ops::MoveCardToZone(
+                store, *top,
+                ecs::ZoneRef{ecs::ZoneKind::kHand, setup.player});
+        }
+        if (out_intents != nullptr && setup.intents.is_array() &&
+            !setup.intents.empty()) {
+            (*out_intents)[setup.username] = setup.intents;
+        }
+    }
+    if (!pile_top.empty() && !StackDrawPile(pile_top)) return false;
+    if (!discard_top.empty()) {
+        if (!StackDrawPile({discard_top})) return false;
+        const std::optional<ecs::Entity> top =
+            match::ops::DrawTop(store, registries.draw_pile);
+        if (!top.has_value()) return false;
+        const std::optional<ecs::Entity> pile =
+            match::ops::FindPile(store, ecs::PileKind::kDiscard);
+        if (!pile.has_value()) return false;
+        match::ops::MoveCardToZone(
+            store, *top,
+            ecs::ZoneRef{ecs::ZoneKind::kDiscardPile, ecs::Entity{}});
+    }
+    return true;
+}
+
+nlohmann::json MatchSession::SaveCheckpoint() {
+    ecs::EntityStore& store = engine_->Store();
+    nlohmann::json seats = nlohmann::json::array();
+    for (ecs::Entity player : match::ops::ActivePlayersBySeat(store)) {
+        const ecs::PlayerInfo* info = store.Get<ecs::PlayerInfo>(player);
+        if (info == nullptr) continue;
+        nlohmann::json hand = nlohmann::json::array();
+        for (ecs::Entity card : match::ops::HandOf(store, player)) {
+            const ecs::CardIdentity* identity =
+                store.Get<ecs::CardIdentity>(card);
+            if (identity != nullptr) hand.push_back(identity->kind_id);
+        }
+        seats.push_back({{"username", info->username}, {"hand", hand}});
+    }
+    nlohmann::json pile_top = nlohmann::json::array();
+    const std::optional<ecs::Entity> draw =
+        match::ops::FindPile(store, ecs::PileKind::kDraw);
+    if (draw.has_value()) {
+        const ecs::PileContents* contents =
+            store.Get<ecs::PileContents>(*draw);
+        if (contents != nullptr) {
+            for (auto it = contents->cards.rbegin();
+                 it != contents->cards.rend(); ++it) {
+                const ecs::CardIdentity* identity =
+                    store.Get<ecs::CardIdentity>(*it);
+                if (identity != nullptr) pile_top.push_back(identity->kind_id);
+            }
+        }
+    }
+    std::string discard_top;
+    const std::optional<ecs::Entity> discard =
+        match::ops::FindPile(store, ecs::PileKind::kDiscard);
+    if (discard.has_value()) {
+        const ecs::PileContents* contents =
+            store.Get<ecs::PileContents>(*discard);
+        if (contents != nullptr && !contents->cards.empty()) {
+            const ecs::CardIdentity* identity = store.Get<ecs::CardIdentity>(
+                contents->cards.back());
+            if (identity != nullptr) discard_top = identity->kind_id;
+        }
+    }
+    return {{"seats", seats},
+            {"pile_top", pile_top},
+            {"discard_top", discard_top}};
+}
+
+bool MatchSession::RestoreCheckpoint(
+    const nlohmann::json& checkpoint,
+    std::map<std::string, nlohmann::json>* out_intents) {
+    return ApplyScene(checkpoint, out_intents);
+}
+
+void MatchSession::StoreCheckpoint(nlohmann::json checkpoint) {
+    checkpoint_ = std::move(checkpoint);
+}
+
+bool MatchSession::HasCheckpoint() const {
+    return !checkpoint_.is_null();
+}
+
+const nlohmann::json& MatchSession::Checkpoint() const {
+    return checkpoint_;
+}
+
+void MatchSession::SetSceneIntents(
+    std::map<std::string, nlohmann::json> intents) {
+    scene_intents_ = std::move(intents);
+}
+
+std::map<std::string, nlohmann::json> MatchSession::TakeSceneIntents() {
+    std::map<std::string, nlohmann::json> intents;
+    intents.swap(scene_intents_);
+    return intents;
+}
+
 match::view::Viewer MatchSession::SpectatorViewer() const {
     return match::view::Viewer::Spectator(private_seats_);
 }
@@ -249,7 +534,7 @@ void MatchSession::SendSnapshot(IBroadcaster& broadcaster, AppWebSocket* socket,
                                 bool is_spectator) {
     if (socket == nullptr) return;
 
-    match::view::SnapshotOptions warm_up;
+    match::view::SnapshotOptions warm_up = SnapshotOptionsWithSkins({});
     warm_up.tail = &tail_;
     if (!is_spectator) {
         const auto it = sinks_.find(username);
@@ -259,7 +544,7 @@ void MatchSession::SendSnapshot(IBroadcaster& broadcaster, AppWebSocket* socket,
             EnsureDefs(broadcaster, socket, it->second);
             broadcaster.SendJson(
                 socket, builder_.BuildSnapshot(
-                            match::view::Viewer::Player(username), it->second,
+                            (IsDirector(username) ? match::view::Viewer::PlayerDirector(username) : match::view::Viewer::Player(username)), it->second,
                             warm_up));
             SendBarrierPacket(
                 broadcaster, socket, it->second,
@@ -309,9 +594,9 @@ bool MatchSession::HandleSnapshotRequest(
     match::view::EventSink& sink =
         is_seat ? sinks_.at(username) : viewer_sinks_.at(username);
     const match::view::Viewer viewer =
-        is_seat ? match::view::Viewer::Player(username)
+        is_seat ? (IsDirector(username) ? match::view::Viewer::PlayerDirector(username) : match::view::Viewer::Player(username))
                 : SpectatorViewer();
-    match::view::SnapshotOptions warm_up = options;
+    match::view::SnapshotOptions warm_up = SnapshotOptionsWithSkins(options);
     warm_up.tail = &tail_;
     broadcaster.SendJson(socket, builder_.BuildSnapshot(viewer, sink, warm_up));
     return true;
@@ -468,7 +753,7 @@ void MatchSession::EmitEvents(IBroadcaster& broadcaster) {
         for (const auto& [username, socket] : sockets_) {
             if (socket == nullptr) continue;
             std::optional<json> packet = builder_.Wrap(
-                events[cursor_], match::view::Viewer::Player(username),
+                events[cursor_], (IsDirector(username) ? match::view::Viewer::PlayerDirector(username) : match::view::Viewer::Player(username)),
                 sinks_.at(username));
             if (!packet.has_value()) continue;
             (*packet)["action"] = "match_event";
@@ -516,7 +801,7 @@ void MatchSession::EmitPendingPrompt(IBroadcaster& broadcaster) {
         //       the play and the answer cannot re-send the same prompt_opened.
         if (last == signature) continue;
         std::optional<json> packet = builder_.BuildPendingPrompt(
-            match::view::Viewer::Player(username), sinks_.at(username));
+            (IsDirector(username) ? match::view::Viewer::PlayerDirector(username) : match::view::Viewer::Player(username)), sinks_.at(username));
         if (!packet.has_value()) continue;
         // INFO: The engine op leaves `response_schema` to the session layer;
         //       attach the resolved kind schema so `prompt_opened` satisfies
@@ -578,13 +863,18 @@ void MatchSession::BroadcastSnapshot(IBroadcaster& broadcaster,
     //       match_over) keeps the non-droppable default and must never drop.
     std::string scratch;
     scratch.reserve(4096);
+    const match::view::SnapshotOptions merged =
+        SnapshotOptionsWithSkins(options);
     for (const auto& [username, socket] : sockets_) {
         if (socket == nullptr) continue;
         // INFO: a seat that was unreachable at start gets `defs` before its
         //       first snapshot after reconnecting.
         EnsureDefs(broadcaster, socket, sinks_.at(username));
         const json snapshot = builder_.BuildSnapshot(
-            match::view::Viewer::Player(username), sinks_.at(username), options);
+            IsDirector(username)
+                ? match::view::Viewer::PlayerDirector(username)
+                : match::view::Viewer::Player(username),
+            sinks_.at(username), merged);
         scratch = snapshot.dump();
         broadcaster.Send(socket, scratch, uWS::OpCode::TEXT, true, true);
     }
@@ -594,7 +884,7 @@ void MatchSession::BroadcastSnapshot(IBroadcaster& broadcaster,
         if (socket == nullptr) continue;
         EnsureDefs(broadcaster, socket, viewer_sinks_.at(username));
         const json snapshot = builder_.BuildSnapshot(
-            SpectatorViewer(), viewer_sinks_.at(username), options);
+            SpectatorViewer(), viewer_sinks_.at(username), merged);
         scratch = snapshot.dump();
         broadcaster.Send(socket, scratch, uWS::OpCode::TEXT, true, true);
     }
@@ -637,6 +927,43 @@ const nlohmann::json* MatchSession::FindPromptSchema(
     const auto it = prompt_schemas_.find(kind);
     if (it == prompt_schemas_.end()) return nullptr;
     return &it->second;
+}
+
+void MatchSession::MoveSeatKeys(const std::string& old_username,
+                                const std::string& new_username) {
+    // INFO: move the per-recipient stream/prompt state to the new key so the
+    //       renamed seat keeps its `seq` watermark and prompt dedupe.
+    auto move_node = [&](auto& map) {
+        auto node = map.extract(old_username);
+        if (node.empty()) {
+            map.try_emplace(new_username);
+            return;
+        }
+        node.key() = new_username;
+        map.insert(std::move(node));
+    };
+    move_node(sinks_);
+    move_node(prompt_signature_);
+    move_node(prompt_outcome_);
+    // INFO: seat-scoped display state follows the seat too, on every rename
+    //       path (hijack, bot handoff and director rename alike).
+    for (auto* list : {&directors_, &private_seats_}) {
+        const auto pos = std::ranges::find(*list, old_username);
+        if (pos != list->end()) *pos = new_username;
+    }
+    if (auto skin = skin_overrides_.extract(old_username); !skin.empty()) {
+        skin.key() = new_username;
+        skin_overrides_.insert(std::move(skin));
+    }
+}
+
+match::view::SnapshotOptions MatchSession::SnapshotOptionsWithSkins(
+    const match::view::SnapshotOptions& options) const {
+    match::view::SnapshotOptions merged = options;
+    for (const auto& [seat, skin] : skin_overrides_) {
+        merged.skin_overrides[seat] = skin;
+    }
+    return merged;
 }
 
 bool MatchSession::MatchesSchema(const nlohmann::json& value,
