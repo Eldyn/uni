@@ -6,7 +6,12 @@
 
 import { Howl } from "howler";
 import { SFX_CATALOG } from "$data/audioCatalogs";
-import { pickVariant, randomPitch, shouldThrottle } from "$lib/audio/audioLogic";
+import {
+	pickVariant,
+	playableAudioSource,
+	randomPitch,
+	shouldThrottle
+} from "$lib/audio/audioLogic";
 
 export class SfxPlayer {
 	#lastPlayedAt = new Map<string, number>();
@@ -39,7 +44,7 @@ export class SfxPlayer {
 
 		let src: string;
 		try {
-			src = pickVariant(def.variants);
+			src = playableAudioSource(pickVariant(def.variants));
 		} catch (error) {
 			console.warn(`SfxPlayer.playSfx: no variants available for "${id}"`, error);
 			return;

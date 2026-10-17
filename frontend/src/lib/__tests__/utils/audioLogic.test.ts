@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import {
 	isMobileDevice,
+	playableAudioSource,
 	pickVariant,
 	randomPitch,
 	resolveMusicForContext,
@@ -104,5 +105,19 @@ describe("audioLogic: isMobileDevice", () => {
 		expect(
 			isMobileDevice({ userAgent: "Mozilla/5.0 (X11; Linux x86_64)", touchPrimary: false })
 		).toBe(false);
+	});
+});
+
+describe("audioLogic: playableAudioSource", () => {
+	it("keeps the m4a path when the browser decodes AAC", () => {
+		expect(playableAudioSource("/a/play.m4a", () => "probably")).toBe("/a/play.m4a");
+	});
+
+	it("swaps to the ogg sibling when the browser cannot decode AAC", () => {
+		expect(playableAudioSource("/a/play.m4a", () => "")).toBe("/a/play.ogg");
+	});
+
+	it("leaves a path that is not m4a alone", () => {
+		expect(playableAudioSource("/a/play.ogg", () => "")).toBe("/a/play.ogg");
 	});
 });

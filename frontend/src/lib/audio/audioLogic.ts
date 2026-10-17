@@ -70,3 +70,21 @@ export function isMobileDevice(hints: { userAgent: string; touchPrimary: boolean
 		hints.userAgent
 	);
 }
+
+const AAC_MIME_TYPE = 'audio/mp4; codecs="mp4a.40.2"';
+
+/**
+ * @brief Picks the file the browser can decode for an `.m4a` catalog path.
+ *
+ * Some browsers (WebKitGTK on Linux, so Steam Deck) cannot decode AAC. When the
+ * probe reports no AAC support, the Ogg Opus file next to the `.m4a`
+ * (`scripts/transcode-audio.sh` makes it) is used instead. Any other path is
+ * returned as is.
+ */
+export function playableAudioSource(
+	src: string,
+	canPlayType: (type: string) => string = (type) => new Audio().canPlayType(type)
+): string {
+	if (!src.endsWith(".m4a")) return src;
+	return canPlayType(AAC_MIME_TYPE) === "" ? src.replace(/\.m4a$/, ".ogg") : src;
+}
