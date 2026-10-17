@@ -170,6 +170,7 @@
 				: undefined)}
 		highlight={handle.decoration?.highlight}
 		glint={handle.decoration?.glint}
+		onclick={handle.decoration?.onSelect}
 		oncontextmenu={(event) => handleContextMenu(handle, event)}
 		onpointerdown={(event) => handlePointerDown(handle, event)}
 	/>

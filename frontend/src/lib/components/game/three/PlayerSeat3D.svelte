@@ -511,8 +511,9 @@
 			: isDebtTarget
 				? { color: "#ff4a3a", pulse: true }
 				: undefined;
+		const onSelect = isValidTarget || isViewable ? handleSelect : undefined;
 		for (const key of registeredKeys) {
-			cardRegistry?.setDecoration(key, { highlight });
+			cardRegistry?.setDecoration(key, { highlight, onSelect });
 		}
 	});
 </script>

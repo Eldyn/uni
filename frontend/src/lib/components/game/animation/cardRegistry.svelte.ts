@@ -62,6 +62,8 @@ export interface CardDecoration {
 	highlight?: { color?: string; pulse?: boolean };
 	/** Sweeping shine on a hand card the local player can play right now. */
 	glint?: boolean;
+	/** Click on a ring card picks its seat (a prompt target or a spectator POV). */
+	onSelect?: (event: unknown) => void;
 }
 
 export interface CardMeta {
