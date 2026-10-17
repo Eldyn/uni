@@ -313,126 +313,150 @@ export function createMatchEventBeatController(deps: {
 				: undefined) as CardType | undefined
 		});
 
-		if (playedByMe) {
-			// INFO: consume any drop-play seed on the first local play, matching
-			//       or not — a seed only ever describes the very next local play,
-			//       so a stale one must not mis-seed a later card that recycles
-			//       the same id. A matching seed means the play was committed by
-			//       dropping the card on the pile, so fly from where it was
-			//       released rather than snapping back to its old hand slot.
-			const pendingDrag = deps.bus.pendingLocalDragPlay;
-			if (pendingDrag) deps.bus.setPendingLocalDragPlay(null);
-			const dragSeed =
-				pendingDrag && String(pendingDrag.id) === String(top.id) ? pendingDrag : null;
-			deps.cardRegistry.clearDecoration(String(top.id));
-			if (dragSeed) {
-				deps.cardRegistry.seedPose(String(top.id), {
-					x: dragSeed.x,
-					y: dragSeed.y,
-					z: dragSeed.z,
-					spinDeg: dragSeed.spinDeg,
-					flipDeg: dragSeed.flipDeg,
-					scale: dragSeed.scale,
-					turned: dragSeed.turned,
-					opacity: 1,
-					dragT: 0
+		// INFO: a card played right after the draw that brought it (a forced
+		//       play) starts its flight only when the draw flight has landed, so
+		//       the card is drawn first and played after. Seeding the play pose
+		//       now would overwrite the pose the draw flight is still using and
+		//       the card would show in the hand before it arrived there.
+		const drawInFlight = playedByMe
+			? localDrawFlightIds.size > 0
+			: [...opponentDrawFlightOwners.values()].includes(beat.player);
+		const seedPlayStart = (deferred: boolean): void => {
+			if (deferred) {
+				deps.cardRegistry.registerCardMeta(String(top.id), {
+					...cardMetaFrom(top),
+					wildColor: (state.active_type && state.active_type !== "white"
+						? state.active_type
+						: undefined) as CardType | undefined
 				});
-			} else if (heldPlayDrawnId === top.id) {
-				// INFO: a held play/keep draw is played from where it is parked —
-				//       on top of the draw pile — not from a hand slot it never
-				//       occupied. Without this the card sprouted at the hand and flew
-				//       from there. Seed exactly as parkHeldDrawCard left it so the
-				//       play beat flies draw-pile -> discard from the live pose.
-				heldPlayDrawnId = null;
-				const pileSize = Math.max((state.draw_pile_size ?? 0) + 1, 1);
-				const [sx, sy, sz] = drawPileTopPose(
-					placement,
-					pileSize,
-					storeRenderSettings.drawPileThickness,
-					deps.bus.getDrawPileHoverDipZ?.() ?? 0
-				);
-				deps.cardRegistry.seedPose(String(top.id), {
-					x: sx,
-					y: sy + DRAW_HOVER_LIFT,
-					z: sz,
-					spinDeg: 0,
+				if (playedByMe && deps.cardRegistry.getPose(String(top.id)) !== undefined) {
+					// INFO: the draw flight left the card in its hand slot: fly on from there.
+					deps.cardRegistry.clearDecoration(String(top.id));
+					return;
+				}
+			}
+			if (playedByMe) {
+				// INFO: consume any drop-play seed on the first local play, matching
+				//       or not — a seed only ever describes the very next local play,
+				//       so a stale one must not mis-seed a later card that recycles
+				//       the same id. A matching seed means the play was committed by
+				//       dropping the card on the pile, so fly from where it was
+				//       released rather than snapping back to its old hand slot.
+				const pendingDrag = deps.bus.pendingLocalDragPlay;
+				if (pendingDrag) deps.bus.setPendingLocalDragPlay(null);
+				const dragSeed =
+					pendingDrag && String(pendingDrag.id) === String(top.id) ? pendingDrag : null;
+				deps.cardRegistry.clearDecoration(String(top.id));
+				if (dragSeed) {
+					deps.cardRegistry.seedPose(String(top.id), {
+						x: dragSeed.x,
+						y: dragSeed.y,
+						z: dragSeed.z,
+						spinDeg: dragSeed.spinDeg,
+						flipDeg: dragSeed.flipDeg,
+						scale: dragSeed.scale,
+						turned: dragSeed.turned,
+						opacity: 1,
+						dragT: 0
+					});
+				} else if (heldPlayDrawnId === top.id) {
+					// INFO: a held play/keep draw is played from where it is parked —
+					//       on top of the draw pile — not from a hand slot it never
+					//       occupied. Without this the card sprouted at the hand and flew
+					//       from there. Seed exactly as parkHeldDrawCard left it so the
+					//       play beat flies draw-pile -> discard from the live pose.
+					heldPlayDrawnId = null;
+					const pileSize = Math.max((state.draw_pile_size ?? 0) + 1, 1);
+					const [sx, sy, sz] = drawPileTopPose(
+						placement,
+						pileSize,
+						storeRenderSettings.drawPileThickness,
+						deps.bus.getDrawPileHoverDipZ?.() ?? 0
+					);
+					deps.cardRegistry.seedPose(String(top.id), {
+						x: sx,
+						y: sy + DRAW_HOVER_LIFT,
+						z: sz,
+						spinDeg: 0,
+						flipDeg: 0,
+						scale: placement.drawPileScale,
+						turned: false,
+						opacity: 1
+					});
+				} else {
+					const [sx, sy, sz] = localCardAnchor(
+						top.id,
+						placement,
+						deps.bus.localHandSnapshot,
+						deps.bus.previousLocalHandSnapshot
+					);
+					deps.cardRegistry.seedPose(String(top.id), {
+						x: sx,
+						y: sy,
+						z: sz,
+						spinDeg: 0,
+						flipDeg: 0,
+						scale: placement.handScale,
+						turned: false,
+						opacity: 1
+					});
+				}
+			} else if (heldOpponentCards.has(beat.player) && deps.getOpponentFrontPose) {
+				// INFO: the opponent played the card waiting in front of their seat, so
+				//       it flies on from there. The played card stays hidden until the
+				//       parked stand-in has arrived, then takes its place; the play beat
+				//       is queued behind the parking flight, so the hand-off is seamless.
+				const held = heldOpponentCards.get(beat.player)!;
+				heldOpponentCards.delete(beat.player);
+				if (held.hidesArc) deps.bus.removeInFlightDraw(beat.player, 1);
+				const playedId = String(top.id);
+				const frontPose = deps.getOpponentFrontPose(beat.player);
+				deps.cardRegistry.clearDecoration(playedId);
+				deps.cardRegistry.setDecoration(playedId, { opacity: 0 });
+				void held.parked.then(() => {
+					deps.cardRegistry.removeEntry(held.cardId);
+					deps.cardRegistry.setDecoration(playedId, { opacity: undefined });
+				});
+				deps.cardRegistry.seedPose(playedId, {
+					x: frontPose.position[0],
+					y: frontPose.position[1],
+					z: frontPose.position[2],
+					spinDeg: frontPose.spinDeg,
 					flipDeg: 0,
-					scale: placement.drawPileScale,
-					turned: false,
+					scale: deps.getOpponentCardScale?.() ?? placement.centerScale,
+					turned: true,
 					opacity: 1
 				});
 			} else {
-				const [sx, sy, sz] = localCardAnchor(
-					top.id,
-					placement,
-					deps.bus.localHandSnapshot,
-					deps.bus.previousLocalHandSnapshot
-				);
+				const player = state.players?.find((p) => p.username === beat.player);
+				// INFO: from_zone_ordinal is a 0-based index into the PRE-play hand
+				// (the backend computes hand_index before MoveCardToZone), so the
+				// arc must be sized for the pre-play count = post-play card_count + 1
+				// — mirroring the watcher's prevCardCounts-based preCount.
+				const prePlayCount = Math.max(1, (player?.card_count ?? 0) + 1);
+				const slotIndex = beat.fromZoneOrdinal ?? 0;
+				const opponentPose = deps.getOpponentCardPose?.(beat.player, prePlayCount, slotIndex);
+				const [sx, sy, sz] = opponentPose
+					? opponentPose.position
+					: deps.getOpponentSeatAnchor(beat.player);
+				const seedSpin = opponentPose
+					? opponentPose.spinDeg
+					: (deps.getOpponentSeatRotationDeg?.(beat.player) ?? 0);
+
+				deps.cardRegistry.clearDecoration(String(top.id));
 				deps.cardRegistry.seedPose(String(top.id), {
 					x: sx,
 					y: sy,
 					z: sz,
-					spinDeg: 0,
+					spinDeg: seedSpin,
 					flipDeg: 0,
-					scale: placement.handScale,
-					turned: false,
+					scale: deps.getOpponentCardScale?.() ?? placement.centerScale,
+					turned: true,
 					opacity: 1
 				});
 			}
-		} else if (heldOpponentCards.has(beat.player) && deps.getOpponentFrontPose) {
-			// INFO: the opponent played the card waiting in front of their seat, so
-			//       it flies on from there. The played card stays hidden until the
-			//       parked stand-in has arrived, then takes its place; the play beat
-			//       is queued behind the parking flight, so the hand-off is seamless.
-			const held = heldOpponentCards.get(beat.player)!;
-			heldOpponentCards.delete(beat.player);
-			if (held.hidesArc) deps.bus.removeInFlightDraw(beat.player, 1);
-			const playedId = String(top.id);
-			const frontPose = deps.getOpponentFrontPose(beat.player);
-			deps.cardRegistry.clearDecoration(playedId);
-			deps.cardRegistry.setDecoration(playedId, { opacity: 0 });
-			void held.parked.then(() => {
-				deps.cardRegistry.removeEntry(held.cardId);
-				deps.cardRegistry.setDecoration(playedId, { opacity: undefined });
-			});
-			deps.cardRegistry.seedPose(playedId, {
-				x: frontPose.position[0],
-				y: frontPose.position[1],
-				z: frontPose.position[2],
-				spinDeg: frontPose.spinDeg,
-				flipDeg: 0,
-				scale: deps.getOpponentCardScale?.() ?? placement.centerScale,
-				turned: true,
-				opacity: 1
-			});
-		} else {
-			const player = state.players?.find((p) => p.username === beat.player);
-			// INFO: from_zone_ordinal is a 0-based index into the PRE-play hand
-			// (the backend computes hand_index before MoveCardToZone), so the
-			// arc must be sized for the pre-play count = post-play card_count + 1
-			// — mirroring the watcher's prevCardCounts-based preCount.
-			const prePlayCount = Math.max(1, (player?.card_count ?? 0) + 1);
-			const slotIndex = beat.fromZoneOrdinal ?? 0;
-			const opponentPose = deps.getOpponentCardPose?.(beat.player, prePlayCount, slotIndex);
-			const [sx, sy, sz] = opponentPose
-				? opponentPose.position
-				: deps.getOpponentSeatAnchor(beat.player);
-			const seedSpin = opponentPose
-				? opponentPose.spinDeg
-				: (deps.getOpponentSeatRotationDeg?.(beat.player) ?? 0);
-
-			deps.cardRegistry.clearDecoration(String(top.id));
-			deps.cardRegistry.seedPose(String(top.id), {
-				x: sx,
-				y: sy,
-				z: sz,
-				spinDeg: seedSpin,
-				flipDeg: 0,
-				scale: deps.getOpponentCardScale?.() ?? placement.centerScale,
-				turned: true,
-				opacity: 1
-			});
-		}
+		};
+		if (!drawInFlight) seedPlayStart(false);
 
 		lastLandingBaseDeg = landingBaseDeg;
 
@@ -494,7 +518,11 @@ export function createMatchEventBeatController(deps: {
 		if (!playedByMe) {
 			deps.bus.addInFlightPlay(beat.player);
 		}
-		const landed = deps.cardRegistry.enqueue([playBeat, shakeBeat], resolveCardTarget);
+		const landed = deps.cardRegistry.enqueue(
+			[playBeat, shakeBeat],
+			resolveCardTarget,
+			drawInFlight ? () => seedPlayStart(true) : undefined
+		);
 		lastLanding = landed;
 		landed.then(() => {
 			deps.bus.setDiscardTop(top, landingBaseDeg);
@@ -597,7 +625,12 @@ export function createMatchEventBeatController(deps: {
 		// reshuffle can make this approximate.
 		const preDrawSize = (state.draw_pile_size ?? 0) + beat.count;
 		for (const cardId of newIds) {
-			const card = localHand.find((c) => c.id === cardId);
+			// INFO: a card played at once (force play) is no longer in the hand, but
+			//       it is still drawn on screen before it is played: it is the
+			//       top card of the discard pile by now.
+			const card =
+				localHand.find((c) => c.id === cardId) ??
+				(state.top_card && state.top_card.id === cardId ? state.top_card : undefined);
 			if (!card) continue;
 			const idString = String(cardId);
 			localDrawFlightIds.add(idString);
@@ -998,7 +1031,10 @@ export function createMatchEventBeatController(deps: {
 		const opponentCardScale = deps.getOpponentCardScale?.() ?? placement.centerScale;
 		// INFO: the snapshot is post-draw, so the drawn count is added back for
 		// the PRE-draw hand layout and pile height the cards visually left from.
-		const preCount = Math.max(0, player.card_count - drawnCount);
+		const preCount = Math.max(
+			0,
+			(beat.handSizeAfter > 0 ? beat.handSizeAfter : player.card_count) - drawnCount
+		);
 		const preDrawSize = (state.draw_pile_size ?? 0) + drawnCount;
 
 		const isTurn = state.current_turn === beat.player;

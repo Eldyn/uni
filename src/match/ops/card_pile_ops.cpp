@@ -638,24 +638,24 @@ OpResult OpDrawUntilPlayable(ecs::EntityStore& store, const OpArgs& args,
         if (!store.IsAlive(target) || !store.Has<ecs::Hand>(target)) continue;
 
         int64_t drawn = 0;
-        json drawn_cards = json::array();
         for (std::size_t i = 0; i < bound; ++i) {
             const std::optional<ecs::Entity> card =
                 DrawOneCard(store, target, source_kind, nullptr,
                             "until_playable", ctx, events);
             if (!card.has_value()) break;
             ++drawn;
-            drawn_cards.push_back(EntityJson(*card));
+            // INFO: one event per card, in draw order, so every client shows
+            //       the draws one after the other at the normal draw speed
+            //       instead of as one burst.
+            events.push_back(MakeEvent(
+                "cards_drawn",
+                json{{"player", EntityJson(target)}, {"count", 1},
+                     {"source", std::string(PileToken(source_kind))},
+                     {"hand_size_after", HandSizeOf(store, target)},
+                     {"from_debt", false},
+                     {"cards", json::array({EntityJson(*card)})}}));
             if (DrawnCardPlayable(store, *card, ctx)) break;
         }
-
-        events.push_back(MakeEvent(
-            "cards_drawn",
-            json{{"player", EntityJson(target)}, {"count", drawn},
-                 {"source", std::string(PileToken(source_kind))},
-                 {"hand_size_after", HandSizeOf(store, target)},
-                 {"from_debt", false},
-                 {"cards", std::move(drawn_cards)}}));
         total_drawn += drawn;
     }
 

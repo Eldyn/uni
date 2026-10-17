@@ -687,6 +687,9 @@ private:
      */
     bool DrawnCardPlayable(ecs::Entity player, ecs::Entity card) const;
 
+    /** @brief Flags the latest `cards_drawn` event that lists `card` as held. */
+    void MarkHeldDraw(ecs::Entity card);
+
     /**
      * @brief The last card a `cards_drawn` event at or after `first_event`
      *        reports for `player`, or nullopt when none did.

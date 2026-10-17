@@ -475,27 +475,31 @@ bool MatchInstance::DrawCard(const std::string& username) {
             ecs::ZoneRef{ecs::ZoneKind::kHand, *player})) {
         return false;
     }
+    // INFO: the event of this draw goes out before the `after:draw` hooks run:
+    //       the card left the pile first, so every client sees the draws in the
+    //       order they happened (progressive's extra draws follow it). `held`
+    //       is settled below, once the hooks have run.
     const std::size_t events_before_hooks = events_.size();
+    Emit("cards_drawn", json{{"player", username},
+                             {"count", 1},
+                             {"source", "draw_pile"},
+                             {"held", false},
+                             {"hand_size_after", ops::HandSizeOf(store, *player)},
+                             {"from_debt", false},
+                             {"cards", json::array({EntityJson(*card)})}});
     After("draw", draw_data);
 
     // INFO: a playable voluntary draw is held for a play/keep choice. A mod
     //       that keeps drawing (progressive) hands the choice to the card it
     //       stopped on, so the held card is the last one drawn for the player.
-    //       `held` is flagged on the public event only when the hold sits on
-    //       the card of this event, so every client can park that card for the
-    //       choice even when a bot resolves it within the same step.
+    //       `held` is flagged on the public event of that card, so every
+    //       client can park it for the choice even when a bot resolves it
+    //       within the same step.
     const ecs::Entity held_candidate =
         LastCardDrawnSince(events_before_hooks, *player).value_or(*card);
     const bool holds_turn =
         !Paused() && DrawnCardPlayable(*player, held_candidate);
-    Emit("cards_drawn", json{{"player", username},
-                             {"count", 1},
-                             {"source", "draw_pile"},
-                             {"held", holds_turn && held_candidate == *card},
-                             {"hand_size_after",
-                              ops::HandSizeOf(store, *player)},
-                             {"from_debt", false},
-                             {"cards", json::array({EntityJson(*card)})}});
+    if (holds_turn) MarkHeldDraw(held_candidate);
 
     // INFO: An `after:draw` graph may request a forced play of the
     //       drawn card (legacy force_play); route it through the normal play
@@ -518,6 +522,24 @@ void MatchInstance::EmitDrawnCardKept(const PendingPlayDrawn& pending) {
     Emit("drawn_card_kept",
          json{{"player", PlayerUsername(assembly_->store, pending.player)},
               {"card", EntityJson(pending.card)}});
+}
+
+void MatchInstance::MarkHeldDraw(ecs::Entity card) {
+    const json wanted = EntityJson(card);
+    for (auto event = events_.rbegin(); event != events_.rend(); ++event) {
+        if ((*event).value("type", std::string()) != "cards_drawn") continue;
+        json& payload = (*event)["payload"];
+        if (!payload.is_object() || !payload.contains("cards")
+            || !payload["cards"].is_array()) {
+            continue;
+        }
+        for (const json& drawn : payload["cards"]) {
+            if (drawn == wanted) {
+                payload["held"] = true;
+                return;
+            }
+        }
+    }
 }
 
 std::optional<ecs::Entity> MatchInstance::LastCardDrawnSince(
