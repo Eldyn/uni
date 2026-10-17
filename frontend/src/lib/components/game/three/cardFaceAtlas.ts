@@ -13,6 +13,11 @@ import { assetOrigin, isAllowedAssetUrl } from "./assetTrust";
 import type { Card } from "$stores/game.svelte";
 import { assetUrl } from "$lib/utils/assetUrl";
 import type { FaceOverride } from "$components/game/affliction/overrideChannel";
+import {
+	PersistentFaceStore,
+	createIndexedDbFaceStoreBackend,
+	type StoredFace
+} from "./atlasFaceStore";
 
 export interface AtlasEntry {
 	page: number;
@@ -177,6 +182,35 @@ const cache = new Map<string, AtlasEntry>();
 const allocatedSlots: AllocatedSlot[] = [];
 const loadedArt = new Map<string, CanvasImageSource>();
 
+const FACE_LAYERS: FaceLayer[] = ["background", "value", "border"];
+
+/** What the atlas stores beside a face's pixels, to re-place them later. */
+export interface PersistedFaceMeta {
+	key: CardFaceKey;
+	layer?: FaceLayer;
+}
+
+let faceStore: PersistentFaceStore | null = null;
+let hydrationPromise: Promise<void> | null = null;
+
+function getFaceStore(): PersistentFaceStore {
+	// INFO: opened lazily; without IndexedDB (tests, SSR) the backend falls
+	// back to memory, so the seam stays inert instead of throwing.
+	faceStore ??= new PersistentFaceStore(createIndexedDbFaceStoreBackend());
+	return faceStore;
+}
+
+/**
+ * @brief Swaps the persistent face store (tests / optional DI).
+ *
+ * Also restarts hydration so the next `hydrateAtlasFaces` reads the new
+ * store instead of reusing the previous singleton promise.
+ */
+export function setAtlasFaceStore(store: PersistentFaceStore): void {
+	faceStore = store;
+	hydrationPromise = null;
+}
+
 let scratchCanvas: HTMLCanvasElement | null = null;
 let scratchCtx: CanvasRenderingContext2D | null = null;
 
@@ -335,6 +369,7 @@ export function getFaceTexture(key: CardFaceKey): AtlasEntry {
 	if (canBakeKey(key)) {
 		if (bakeSlot(slot)) {
 			ATLAS_PAGE_VERSION.value++;
+			persistSlot(slot);
 		}
 	}
 
@@ -381,6 +416,97 @@ function allocateSlot(
 	allocatedSlots.push(slot);
 
 	return { entry, slot };
+}
+
+/**
+ * @brief Paints stored pixels into an allocated slot.
+ *
+ * Returns false when the environment cannot paint (no 2D context) or the
+ * record's geometry no longer matches the slot; the slot then stays unbaked
+ * and `preloadCardArt` may still re-bake it from source art as a fallback.
+ */
+function paintSlot(slot: AllocatedSlot, row: StoredFace): boolean {
+	const ctx = pages[slot.page]?.ctx;
+	if (!ctx || typeof ImageData === "undefined") return false;
+	if (row.width !== CARD_PX_WIDTH || row.height !== CARD_PX_HEIGHT) return false;
+	let pixels: ImageData;
+	try {
+		pixels = new ImageData(new Uint8ClampedArray(row.data), row.width, row.height);
+	} catch {
+		// WARN: malformed pixel payload — fall back to a source-art bake.
+		return false;
+	}
+	ctx.putImageData(pixels, slot.drawX, slot.drawY);
+	pages[slot.page].texture.needsUpdate = true;
+	slot.baked = true;
+	return true;
+}
+
+/**
+ * @brief Fire-and-forget write-back of a freshly baked slot.
+ *
+ * INFO: pixels go out as raw RGBA rather than PNG — the simplest encoding
+ * that needs no compressor dependency, at ~10 KB per face.
+ */
+function persistSlot(slot: AllocatedSlot): void {
+	const ctx = pages[slot.page]?.ctx;
+	if (!ctx) return;
+	let data: Uint8Array;
+	try {
+		const pixels = ctx.getImageData(slot.drawX, slot.drawY, CARD_PX_WIDTH, CARD_PX_HEIGHT);
+		data = new Uint8Array(pixels.data);
+	} catch {
+		// WARN: unreadable canvas — this face stays memory-only.
+		return;
+	}
+	const meta: PersistedFaceMeta = { key: slot.key, layer: slot.layer };
+	getFaceStore()
+		.put({ hash: slot.hash, width: CARD_PX_WIDTH, height: CARD_PX_HEIGHT, data, meta })
+		.catch(() => {
+			// WARN: persistence is best effort; the in-memory bake stands.
+		});
+}
+
+/**
+ * @brief Re-materializes persisted faces into fresh atlas slots.
+ *
+ * Hydrated hashes land in the in-memory cache, so `getFaceTexture` serves
+ * them without re-baking. A record that cannot be painted keeps its slot
+ * unbaked and the source-art bake in `preloadCardArt` remains the fallback.
+ */
+export function hydrateAtlasFaces(): Promise<void> {
+	hydrationPromise ??= (async () => {
+		const rows = await getFaceStore().entries();
+		let painted = 0;
+		for (const row of rows) {
+			if (cache.has(row.hash)) continue;
+			const meta = row.meta as PersistedFaceMeta | undefined;
+			if (!meta?.key) continue;
+			const { slot } = allocateSlot(row.hash, meta.key, meta.layer);
+			if (paintSlot(slot, row)) painted++;
+		}
+		if (painted > 0) ATLAS_PAGE_VERSION.value++;
+	})().catch(() => {
+		// WARN: a failed read must not block load; the next preload retries.
+		hydrationPromise = null;
+	});
+	return hydrationPromise;
+}
+
+/**
+ * @brief Drops persisted faces whose hash the live card pool no longer makes.
+ *
+ * INFO: the atlas cannot know the card pool, so the defs/mod layer passes
+ * the live content hashes (faceKeyHash outputs) once a mod or art change
+ * resolves; layer variants of a live hash are kept with the composite one.
+ */
+export function pruneStaleAtlasFaces(liveHashes: Iterable<string>): Promise<number> {
+	const live = new Set<string>();
+	for (const hash of liveHashes) {
+		live.add(hash);
+		for (const layer of FACE_LAYERS) live.add(`${hash}:${layer}`);
+	}
+	return getFaceStore().prune(live);
 }
 
 function canBakeLayer(key: CardFaceKey, layer: FaceLayer): boolean {
@@ -445,6 +571,7 @@ export function getLayerTexture(layer: FaceLayer, key: CardFaceKey): AtlasEntry 
 	if (canBakeLayer(key, layer)) {
 		if (bakeLayerSlot(slot, layer)) {
 			ATLAS_PAGE_VERSION.value++;
+			persistSlot(slot);
 		}
 	}
 
@@ -504,6 +631,8 @@ let artLoadingPromise: Promise<void> | null = null;
  * Safe for concurrent and repeated calls via singleton promise caching.
  */
 export async function preloadCardArt(): Promise<void> {
+	await hydrateAtlasFaces();
+
 	if (!artLoadingPromise) {
 		artLoadingPromise = (async () => {
 			const loadPromises = STANDARD_ART_NAMES.map(async (name) => {
@@ -530,6 +659,7 @@ export async function preloadCardArt(): Promise<void> {
 		const baked = slot.layer ? bakeLayerSlot(slot, slot.layer) : bakeSlot(slot);
 		if (baked) {
 			newlyBaked++;
+			persistSlot(slot);
 		}
 	}
 
