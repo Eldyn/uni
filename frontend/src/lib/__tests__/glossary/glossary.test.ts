@@ -13,6 +13,29 @@ describe("namespaced glossary", () => {
 		expect(entry?.description).toContain("[k=vanilla:draw]");
 	});
 
+	it("resolves every rule mod entry in each locale", () => {
+		for (const locale of ["en", "de", "es", "it", "ja", "ko", "ru", "uk", "zh"]) {
+			for (const rule of [
+				"seven_zero",
+				"draw_stacking",
+				"force_play",
+				"jump_in",
+				"progressive",
+				"no_bluffing"
+			]) {
+				const entry = getGlossaryEntry(`vanilla:${rule}`, locale);
+				expect(entry?.title, `${rule} title in ${locale}`).toBeTruthy();
+				expect(entry?.description, `${rule} description in ${locale}`).toBeTruthy();
+			}
+		}
+	});
+
+	it("describes progressive as draw until playable, then choose", () => {
+		expect(getGlossaryEntry("vanilla:progressive", "en")?.description).toContain(
+			"choose whether to play it or keep it"
+		);
+	});
+
 	it("returns null for an unknown keyword", () => {
 		expect(getGlossaryEntry("vanilla:nope", "en")).toBeNull();
 		expect(getGlossaryEntry("nope", "en")).toBeNull();
