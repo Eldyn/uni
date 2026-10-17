@@ -1915,11 +1915,16 @@ bool MatchInstance::RespondWindow(const std::string& username,
     // INFO: `window_kind` is public; a lost response must not reveal the
     //       member kind of its hidden card, so it shows the group leader.
     //       A winning stack answers as the stacking member (the route half
-    //       reroutes to it), so the wire reports its kind; any other win
-    //       reports the owning member kind.
+    //       reroutes to it while the play's draw debt is pending), so the
+    //       wire reports that member's kind; any other win reports the
+    //       owning member kind.
     const std::string& window_kind_for_loser = window->kind;
+    const bool debt_pending =
+        last_play_.has_value() && last_play_->penalty_recorded;
     std::optional<std::size_t> stacker;
-    if (winning) stacker = StackingMember(*pending_window_, card);
+    if (winning && debt_pending) {
+        stacker = StackingMember(*pending_window_, card);
+    }
     const std::string& window_kind_for_winner =
         stacker.has_value()
             ? pending_window_->Member(*stacker).request.kind
