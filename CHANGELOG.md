@@ -13,6 +13,7 @@ version; each release below corresponds to a `vX.Y.Z` git tag.
 
 ### Fixed
 
+- **The "Select a target" banner no longer hides the opponents.** The banner sat over the avatar of the opponent at the top of the table, the part you click to pick a target. It now sits lower on the screen.
 - **The draw debt can be taken with one tap on the draw pile.** While a draw-stacking window is open and you hold the debt, the top card of the draw pile pulses white and one tap takes the debt. You no longer wait for the window timer to run out. A jump-in group keeps the offer back until its hold ends.
 - **A stack or jump-in response now sets the active color.** The winning response card of a window (a stacked +2/+4, a jump-in) moved to the discard pile but left the active color on the old one, so the table color and the top card disagreed. The response now sets the active color like a normal play; a wild with no color of its own keeps the previous color until its prompt answers.
 - **Effects now resolve before the win check.** A 7 or 0 played as the last card used to pass the empty hand on and let the receiver draw. The win check now runs after the effects, so the seat that receives the empty hand wins.
