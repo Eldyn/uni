@@ -26,8 +26,11 @@ export interface BindingRunnerDeps {
 	resolveCard?: CardResolver;
 }
 
-// INFO: the server remembers 512 (`EventSink::kCauseMemoryLimit`); the
-//       client remembers fewer.
+// INFO: the server keeps 512 recent causes
+//       (`EventSink::kCauseMemoryLimit`); the client keeps 64. Fewer is
+//       enough here: a cause chain never runs longer than the 16 chained
+//       mod events plus the root `card_played` the engine allows
+//       (`UNI_MOD_CAUSE_CHAIN_MAX`), far under this window.
 const REMEMBERED_EVENTS = 64;
 
 /**

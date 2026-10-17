@@ -84,6 +84,7 @@ version; each release below corresponds to a `vX.Y.Z` git tag.
 - **`placement_set` carries `finished`** — the field is additive and the packet marker stays 1. `finished` is true when the place ends the race for that seat.
 - **`window_responded` carries `window_kind` and `outcome`** — the fields are additive and the packet marker stays 1. `window_kind` is the kind of the window member that owns the response (`window->kind` for a pass). `outcome` is `winning`, `lost` or `pass`. A mod binding can read both fields. A lost response shows the group leader kind in `window_kind`, not the kind of its hidden card.
 - **Translated the standard mod log lines** (texts) — the four standard mods (`draw_stacking`, `jump_in`, `seven_zero`, `progressive`) now ship all nine locales, and `uni` gained the two `uni:log.stack_taken_*` keys in the eight non-English locales. The no-fallback test covers the four mods and each mod's key parity across locales. The ru/uk number forms match the shipped precedent; the keys flagged for native review are recorded in the follow-ups sweep report.
+- **The client cause memory comment names the server constant** — a comment on `REMEMBERED_EVENTS` (64) now names `EventSink::kCauseMemoryLimit` (512) and says why the client keeps far fewer: a cause chain caps at the 16 chained mod events plus the root `card_played` (`UNI_MOD_CAUSE_CHAIN_MAX`). Comment only, no value changed.
 
 ### Fixed
 
