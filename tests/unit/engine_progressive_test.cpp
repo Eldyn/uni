@@ -248,15 +248,16 @@ TEST_CASE("engine: progressive draw-until-playable runs via the op") {
     CHECK(engine->Store().Get<ecs::InZone>(*unplayable)->zone.kind
           == ecs::ZoneKind::kHand);
 
-    bool drew_two = false;
+    // INFO: the draws are reported one card at a time, in order.
+    int single_draws = 0;
     for (const json& event : engine->Events()) {
         if (event.value("type", std::string()) != "cards_drawn") continue;
         if (!event.contains("payload") || !event["payload"].is_object()) {
             continue;
         }
-        if (event["payload"].value("count", 0) == 2) drew_two = true;
+        if (event["payload"].value("count", 0) == 1) ++single_draws;
     }
-    CHECK(drew_two);
+    CHECK(single_draws == 2);
     CHECK_FALSE(engine->IsMatchOver());
 }
 
