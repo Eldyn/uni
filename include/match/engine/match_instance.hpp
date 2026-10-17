@@ -625,6 +625,13 @@ private:
      */
     bool DrawnCardPlayable(ecs::Entity player, ecs::Entity card) const;
 
+    /**
+     * @brief The last card a `cards_drawn` event at or after `first_event`
+     *        reports for `player`, or nullopt when none did.
+     */
+    std::optional<ecs::Entity> LastCardDrawnSince(std::size_t first_event,
+                                                  ecs::Entity player) const;
+
     /** @brief True when `card` satisfies the window's `respond_with`. */
     bool ResponseEligible(const nlohmann::json& respond_with,
                           const modload::PlayAttempt& attempt) const;

@@ -9,6 +9,11 @@ version; each release below corresponds to a `vX.Y.Z` git tag.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Progressive now lets you choose.** After the draw-until-playable stops on a playable card, you choose to play or keep it. The turn used to pass with the card unplayed. With Force Play on, the card is played at once.
+- **No Bluffing has a translated description** in every locale, without the "Rule-only mod" prefix. The Progressive description now matches the rule.
+
 ## [0.6.2] - 2026-10-17
 
 ### Fixed

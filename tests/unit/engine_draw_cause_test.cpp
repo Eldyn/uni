@@ -124,8 +124,10 @@ ecs::PileContents* Pile(ecs::EntityStore& store, ecs::PileKind kind) {
 }
 
 bool IsNumeric(const ecs::FaceSpec* face) {
+    // INFO: 0 and 7 are skipped: the seven_zero mod gives them hand-swap effects.
     return face != nullptr && face->color != "white" && face->label.size() == 1
-           && std::isdigit(static_cast<unsigned char>(face->label[0]));
+           && std::isdigit(static_cast<unsigned char>(face->label[0]))
+           && face->label != "0" && face->label != "7";
 }
 
 /**
@@ -231,6 +233,93 @@ TEST_CASE("engine: progressive keeps drawing without re-entering itself") {
     CHECK(HandSize(*engine, "player0") == 5 + 4);
     CHECK(ZoneOf(*engine, *playable) == ecs::ZoneKind::kHand);
     CHECK_FALSE(engine->Assembly().bus.IsDisarmed("progressive"));
+}
+
+namespace {
+
+/** @brief Assemble a two-player match with `mods` and a stacked draw pile. */
+struct ProgressiveFixture {
+    Content content;
+    std::unique_ptr<MatchInstance> engine;
+    std::optional<ecs::Entity> playable;
+
+    void Start(const std::vector<std::string>& mods,
+               std::size_t unplayable_count) {
+        REQUIRE(LoadContent(content));
+        DeckDef deck = content.classic;
+        deck.mods = mods;
+        AssemblyResult result =
+            MatchAssembler::Assemble(content.mods, deck, Players(2, 5, 7));
+        REQUIRE(result.ok());
+        playable = StackDrawPile(*result.assembly, unplayable_count);
+        REQUIRE(playable.has_value());
+        engine = std::make_unique<MatchInstance>(std::move(result.assembly));
+        REQUIRE(engine->GetCurrentPlayerUsername() == "player0");
+    }
+};
+
+}  // namespace
+
+TEST_CASE("engine: progressive holds the turn on the playable it stopped on") {
+    ProgressiveFixture f;
+    f.Start({"vanilla", "progressive"}, 3);
+
+    CHECK(f.engine->DrawCard("player0"));
+
+    // INFO: progressive drew until a playable card turned up; the player now
+    //       chooses to play or keep it, the turn does not pass.
+    CHECK(HandSize(*f.engine, "player0") == 5 + 4);
+    CHECK(f.engine->GetCurrentPlayerUsername() == "player0");
+    const std::optional<PendingPlayDrawn>& pending =
+        f.engine->PendingPlayDrawnState();
+    REQUIRE(pending.has_value());
+    CHECK(pending->card == *f.playable);
+
+    REQUIRE(f.engine->PlayCard("player0", *f.playable));
+    CHECK(ZoneOf(*f.engine, *f.playable) == ecs::ZoneKind::kDiscardPile);
+    CHECK(f.engine->GetCurrentPlayerUsername() == "player1");
+    CHECK_FALSE(f.engine->PendingPlayDrawnState().has_value());
+}
+
+TEST_CASE("engine: progressive keep leaves the playable card in hand") {
+    ProgressiveFixture f;
+    f.Start({"vanilla", "progressive"}, 3);
+
+    REQUIRE(f.engine->DrawCard("player0"));
+    REQUIRE(f.engine->PendingPlayDrawnState().has_value());
+
+    REQUIRE(f.engine->KeepDrawn("player0"));
+    CHECK(ZoneOf(*f.engine, *f.playable) == ecs::ZoneKind::kHand);
+    CHECK(HandSize(*f.engine, "player0") == 5 + 4);
+    CHECK(f.engine->GetCurrentPlayerUsername() == "player1");
+}
+
+TEST_CASE("engine: progressive with force play plays the playable it stopped on") {
+    const std::vector<std::vector<std::string>> orders = {
+        {"vanilla", "progressive", "force_play"},
+        {"vanilla", "force_play", "progressive"},
+        {"vanilla", "seven_zero", "draw_stacking", "force_play", "jump_in",
+         "progressive"}};
+    for (const std::vector<std::string>& mods : orders) {
+        CAPTURE(mods.back());
+        ProgressiveFixture f;
+        f.Start(mods, 3);
+
+        CHECK(f.engine->DrawCard("player0"));
+
+        // INFO: the three dead cards stay in hand (5 + 4 drawn - 1 played);
+        //       the playable one is forced out, and no further card is drawn.
+        CHECK(ZoneOf(*f.engine, *f.playable) == ecs::ZoneKind::kDiscardPile);
+        CHECK(HandSize(*f.engine, "player0") == 5 + 3);
+        CHECK_FALSE(f.engine->PendingPlayDrawnState().has_value());
+        // INFO: with jump_in active the play opens a jump-in window first, so
+        //       the turn passes only when that window closes.
+        const bool has_jump_in =
+            std::find(mods.begin(), mods.end(), "jump_in") != mods.end();
+        if (!has_jump_in) {
+            CHECK(f.engine->GetCurrentPlayerUsername() == "player1");
+        }
+    }
 }
 
 TEST_CASE("engine: force play ignores a card drawn by an effect") {

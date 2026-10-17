@@ -486,14 +486,6 @@ struct KnownGap {
  */
 const std::vector<KnownGap>& KnownGaps() {
     static const std::vector<KnownGap> gaps = {
-        {"progressive", "draw:Alice:until_playable",
-         "legacy pending_action kPlayDrawn pauses with Alice current (hand 4, "
-         "discard 1); the new engine's re-entrant after:draw -> "
-         "draw_until_playable path keeps drawing until the source is "
-         "exhausted, keeps the discard top as the active pile, and advances "
-         "to Bob, with no play-or-keep prompt"},
-        {"progressive", "input:Alice:keep",
-         "no new-engine analogue of the legacy kPlayDrawn keep/play input"},
         {"bot_turn", "bot:Bob",
          "legacy TakeBotTurn; the new engine exposes no bot-turn API, so the step "
          "is not replayed"},
@@ -552,7 +544,7 @@ void ReplayScenario(Content& content, const std::string& scenario,
 }
 
 /**
- * @brief progressive: assert the available draw outcome, record the gap.
+ * @brief progressive: the draw holds the playable card for play-or-keep.
  */
 void ReplayProgressive(Content& content) {
     Fixture fixture;
@@ -561,23 +553,24 @@ void ReplayProgressive(Content& content) {
     CheckFixtureState(*engine, fixture.load, fixture.usernames, "progressive",
                       "load");
 
-    /* INFO: step 1 - draw until playable. Known gap the engineE-GAP-003: the legacy
-     *       flow pauses on kPlayDrawn with Alice current (hand 4, discard 1);
-     *       the new engine's re-entrant after:draw -> draw_until_playable path
-     *       keeps drawing until the draw source is exhausted, keeps the
-     *       discard top as the active pile, and advances to Bob with no
-     *       play-or-keep prompt. The available outcome is asserted below. */
+    /* INFO: step 1 - draw until playable. Like the legacy flow, the draw
+     *       pauses with Alice current (hand 4, discard 1): the playable card
+     *       progressive stopped on is held for a play-or-keep choice. */
     REQUIRE(engine->DrawCard("Alice"));
     const json after_draw = engine->ExportState();
     CHECK(after_draw["players"][0]["card_count"] == 4);
     CHECK(after_draw["draw_pile_size"] == 0);
     CHECK(after_draw["discard_pile_size"] == 1);
     CHECK_FALSE(engine->PendingInput().has_value());
-    CHECK(after_draw["current_player"] == "Bob");
+    CHECK(after_draw["current_player"] == "Alice");
+    REQUIRE(engine->PendingPlayDrawnState().has_value());
 
-    /* INFO: step 2 - no keep/play prompt is parked, so the input is refused.
-     *       Known gap the engineE-GAP-004. */
-    CHECK_FALSE(engine->SubmitInput("Alice", json("keep")));
+    /* INFO: step 2 - keep ends the turn with the card still in hand (legacy
+     *       `input:Alice:keep`). */
+    REQUIRE(engine->KeepDrawn("Alice"));
+    const json after_keep = engine->ExportState();
+    CHECK(after_keep["current_player"] == "Bob");
+    CHECK(after_keep["players"][0]["card_count"] == 4);
 }
 
 /**
@@ -731,7 +724,7 @@ TEST_CASE("golden replay: bot_turn replays the available outcome") {
  */
 TEST_CASE("golden replay: known gaps are explicitly listed") {
     const std::vector<KnownGap>& gaps = KnownGaps();
-    CHECK(gaps.size() == 3);
+    CHECK(gaps.size() == 1);
     for (const KnownGap& gap : gaps) {
         MESSAGE("known gap: ", gap.scenario, " / ", gap.step, " - ",
                 gap.reason);
