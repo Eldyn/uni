@@ -10,7 +10,7 @@ import { Howl, Howler } from "howler";
 import { MUSIC_CATALOG, type MusicChannelDef, type MusicTrackDef } from "$data/audioCatalogs";
 import { playSyncedChannels } from "$lib/audio/multiChannelSync";
 import { assetUrl } from "$lib/utils/assetUrl";
-import { isMobileDevice } from "$lib/audio/audioLogic";
+import { isMobileDevice, pickPlayableSource } from "$lib/audio/audioLogic";
 
 const DEFAULT_CROSSFADE_MS = 500;
 
@@ -182,8 +182,9 @@ export class MusicPlayer {
 	// INFO: Runs fully synchronously (no await before #current is set), so it
 	//       doesn't need the operationId race guard #playMultiChannel does.
 	#playSingleTrackDef(def: Extract<MusicTrackDef, { kind: "single" }>, fadeMs: number): void {
+		const src = pickPlayableSource(def.src, (type: string) => new Audio().canPlayType(type));
 		const howl = new Howl({
-			src: [def.src],
+			src: [src],
 			loop: def.loop ?? false,
 			volume: 0,
 			html5: shouldStreamMusic()
@@ -225,8 +226,11 @@ export class MusicPlayer {
 
 		// INFO: Playlist entries always play non-looping regardless of the
 		//       nested def's own loop flag, the playlist owns advancing.
+		const playlistSrc = pickPlayableSource(trackDef.src, (type: string) =>
+			new Audio().canPlayType(type)
+		);
 		const howl = new Howl({
-			src: [trackDef.src],
+			src: [playlistSrc],
 			html5: shouldStreamMusic(),
 			loop: false,
 			volume: this.#volume,
@@ -253,7 +257,10 @@ export class MusicPlayer {
 
 		const channelBuffers = await Promise.all(
 			channelDefs.map(async (channelDef) => {
-				const response = await fetch(channelDef.src);
+				const channelSrc = pickPlayableSource(channelDef.src, (type: string) =>
+					new Audio().canPlayType(type)
+				);
+				const response = await fetch(channelSrc);
 				const arrayBuffer = await response.arrayBuffer();
 				const buffer = await Howler.ctx.decodeAudioData(arrayBuffer);
 				return { def: channelDef, buffer };

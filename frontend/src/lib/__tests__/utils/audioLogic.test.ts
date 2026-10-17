@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import {
 	isMobileDevice,
+	pickPlayableSource,
 	pickVariant,
 	randomPitch,
 	resolveMusicForContext,
@@ -104,5 +105,35 @@ describe("audioLogic: isMobileDevice", () => {
 		expect(
 			isMobileDevice({ userAgent: "Mozilla/5.0 (X11; Linux x86_64)", touchPrimary: false })
 		).toBe(false);
+	});
+});
+
+describe("audioLogic: pickPlayableSource", () => {
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	it("returns the only source when given a string", () => {
+		expect(pickPlayableSource("/a.m4a")).toBe("/a.m4a");
+	});
+
+	it("picks the first accepted format", () => {
+		const canPlayType = (type: string) => (type === "audio/ogg" ? "probably" : "");
+		expect(pickPlayableSource(["/a.m4a", "/a.ogg"], canPlayType)).toBe("/a.ogg");
+	});
+
+	it("falls back to the first source when none are accepted", () => {
+		const canPlayType = () => "";
+		expect(pickPlayableSource(["/a.m4a", "/a.ogg"], canPlayType)).toBe("/a.m4a");
+	});
+
+	it("picks an accepted source from a nested format list", () => {
+		const canPlayType = (type: string) => (type.includes("mp4") ? "probably" : "");
+		expect(pickPlayableSource([["/a.m4a", "/a.ogg"]], canPlayType)).toBe("/a.m4a");
+	});
+
+	it("accepts MIME-type entries directly", () => {
+		const canPlayType = (type: string) => (type === "audio/ogg" ? "probably" : "");
+		expect(pickPlayableSource(["audio/mp4", "audio/ogg"], canPlayType)).toBe("audio/ogg");
 	});
 });
