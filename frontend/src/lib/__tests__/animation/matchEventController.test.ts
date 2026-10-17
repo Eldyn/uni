@@ -85,6 +85,7 @@ function fakeRegistry() {
 		removeEntry: vi.fn(),
 		flushImmediately: vi.fn(),
 		releaseLanded: vi.fn(),
+		getPose: vi.fn(() => undefined),
 		enqueue: vi.fn().mockResolvedValue(undefined)
 	} as unknown as import("$components/game/animation/cardRegistry.svelte").CardRegistry;
 }
@@ -478,6 +479,189 @@ describe("createMatchEventBeatController", () => {
 		// It is the local player's turn, so the flight is not dimmed.
 		expect(h.cardRegistry.setDecoration).toHaveBeenCalledWith("7", { dimmed: false });
 		expect(h.cardRegistry.setDecoration).toHaveBeenCalledWith("9", { dimmed: false });
+	});
+
+	describe("a card played right after its own draw (force play)", () => {
+		/** "me" drew card 7 and played it at once: it is the top card, not in the hand. */
+		function forcedPlayState() {
+			return {
+				...baseState(),
+				current_turn: "bob",
+				draw_pile_size: 8,
+				top_card: { id: 7, type: "green", value: "3" },
+				players: [
+					{
+						username: "me",
+						card_count: 1,
+						is_bot: false,
+						hand: [{ id: 5, type: "blue", value: "1" }]
+					},
+					{ username: "bob", card_count: 3, is_bot: false, hand: [] }
+				]
+			} as never;
+		}
+
+		it("draws the card first and starts its play flight only when the draw has landed", () => {
+			storeAuth.username = "me";
+			storeGame.state = forcedPlayState();
+			const h = harness();
+
+			h.fire({
+				seq: 30,
+				kind: "draw",
+				player: "me",
+				count: 1,
+				sourcePile: "draw",
+				handSizeAfter: 2,
+				fromDebt: false,
+				cardIds: [7]
+			});
+			const seedsAfterDraw = (h.cardRegistry.seedPose as ReturnType<typeof vi.fn>).mock.calls
+				.length;
+			expect(seedsAfterDraw).toBe(1);
+			expect(h.cardRegistry.seedPose).toHaveBeenCalledWith(
+				"7",
+				expect.objectContaining({ turned: true })
+			);
+
+			h.fire({ seq: 31, kind: "play", player: "me", cardId: 7, auto: false });
+
+			// The play is queued behind the draw and must not touch the pose yet.
+			expect(h.cardRegistry.enqueue).toHaveBeenCalledTimes(2);
+			expect((h.cardRegistry.seedPose as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(
+				seedsAfterDraw
+			);
+			const beforePlay = (h.cardRegistry.enqueue as ReturnType<typeof vi.fn>).mock.calls[1]![2] as
+				(() => void) | undefined;
+			expect(typeof beforePlay).toBe("function");
+
+			// The draw landed in a hand slot: the play flies on from there.
+			(h.cardRegistry.getPose as ReturnType<typeof vi.fn>).mockReturnValue({ x: 1 });
+			beforePlay!();
+			expect((h.cardRegistry.seedPose as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(
+				seedsAfterDraw
+			);
+			expect(h.cardRegistry.registerCardMeta).toHaveBeenLastCalledWith(
+				"7",
+				expect.objectContaining({ type: "green", value: "3" })
+			);
+		});
+
+		it("seeds the play from the hand slot when the draw left no pose behind", () => {
+			storeAuth.username = "me";
+			storeGame.state = forcedPlayState();
+			const h = harness();
+
+			h.fire({
+				seq: 32,
+				kind: "draw",
+				player: "me",
+				count: 1,
+				sourcePile: "draw",
+				handSizeAfter: 2,
+				fromDebt: false,
+				cardIds: [7]
+			});
+			h.fire({ seq: 33, kind: "play", player: "me", cardId: 7, auto: false });
+			const seeds = (h.cardRegistry.seedPose as ReturnType<typeof vi.fn>).mock.calls.length;
+			const beforePlay = (h.cardRegistry.enqueue as ReturnType<typeof vi.fn>).mock
+				.calls[1]![2] as () => void;
+
+			beforePlay();
+
+			expect((h.cardRegistry.seedPose as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(
+				seeds + 1
+			);
+			expect(h.cardRegistry.seedPose).toHaveBeenLastCalledWith(
+				"7",
+				expect.objectContaining({ scale: 1 })
+			);
+		});
+
+		it("seeds a play at once when no draw of the player is in flight", () => {
+			storeAuth.username = "me";
+			storeGame.state = baseState();
+			const h = harness();
+
+			h.fire({ seq: 34, kind: "play", player: "me", cardId: 2, auto: false });
+
+			expect(h.cardRegistry.seedPose).toHaveBeenCalledTimes(1);
+			const third = (h.cardRegistry.enqueue as ReturnType<typeof vi.fn>).mock.calls[0]![2];
+			expect(third).toBeUndefined();
+		});
+
+		it("holds an opponent's play behind their draw flight too", () => {
+			storeAuth.username = "me";
+			storeGame.state = {
+				...baseState(),
+				current_turn: "me",
+				draw_pile_size: 9,
+				top_card: { id: 2, type: "red", value: "7" },
+				players: [
+					{ username: "me", card_count: 4, is_bot: false, hand: [] },
+					{ username: "bob", card_count: 3, is_bot: false, hand: [] }
+				]
+			} as never;
+			const h = harness();
+
+			h.fire({
+				seq: 35,
+				kind: "draw",
+				player: "bob",
+				count: 1,
+				sourcePile: "draw",
+				handSizeAfter: 4,
+				fromDebt: false,
+				cardIds: []
+			});
+			const seedsAfterDraw = (h.cardRegistry.seedPose as ReturnType<typeof vi.fn>).mock.calls
+				.length;
+			h.fire({ seq: 36, kind: "play", player: "bob", cardId: 2, auto: false, fromZoneOrdinal: 3 });
+
+			expect((h.cardRegistry.seedPose as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(
+				seedsAfterDraw
+			);
+			const beforePlay = (h.cardRegistry.enqueue as ReturnType<typeof vi.fn>).mock
+				.calls[1]![2] as () => void;
+			expect(typeof beforePlay).toBe("function");
+			beforePlay();
+			expect((h.cardRegistry.seedPose as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(
+				seedsAfterDraw + 1
+			);
+		});
+	});
+
+	it("places an opponent's draw by the hand size the event reports", () => {
+		storeAuth.username = "me";
+		// The snapshot is the end of a longer batch: bob holds 8 now, but this draw
+		// left his hand at 5.
+		storeGame.state = {
+			...baseState(),
+			current_turn: "bob",
+			draw_pile_size: 4,
+			players: [
+				{ username: "me", card_count: 4, is_bot: false, hand: [] },
+				{ username: "bob", card_count: 8, is_bot: false, hand: [] }
+			]
+		} as never;
+		const getOpponentCardPose = vi.fn(() => ({
+			position: [0, 0, 0] as [number, number, number],
+			spinDeg: 0
+		}));
+		const h = harness({ getOpponentCardPose });
+
+		h.fire({
+			seq: 37,
+			kind: "draw",
+			player: "bob",
+			count: 1,
+			sourcePile: "draw",
+			handSizeAfter: 5,
+			fromDebt: false,
+			cardIds: []
+		});
+
+		expect(getOpponentCardPose).toHaveBeenCalledWith("bob", 5, 4);
 	});
 
 	it("clears every pending local draw in the enqueue finally", async () => {
