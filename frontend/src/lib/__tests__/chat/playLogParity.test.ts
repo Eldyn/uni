@@ -115,7 +115,10 @@ function recallOf(
 	chain: { sequence: number; id: string; payload: Record<string, unknown>; cause?: number }[]
 ): CauseRecall {
 	const recent = new Map(
-		chain.map((event) => [event.sequence, { id: event.id, payload: event.payload, cause: event.cause }])
+		chain.map((event) => [
+			event.sequence,
+			{ id: event.id, payload: event.payload, cause: event.cause }
+		])
 	);
 	return (sequence: number) => recent.get(sequence);
 }
@@ -246,7 +249,7 @@ const drawCase = ({
 }: DrawShape): ParityCase => ({
 	name,
 	seat: "ann",
-	core: { kind: "draw", player: "ann", count, penalty: false, handSize },
+	core: { kind: "draw", player: "ann", count, handSize },
 	wire: {
 		id: "cards_drawn",
 		actor: "ann",
@@ -632,8 +635,7 @@ describe("shipped bindings: core behaviours the fixtures do not cover", () => {
 					sequence: 7,
 					context: {
 						"uni:wild_run": run,
-						"uni:last_wild_color":
-							run === 1 ? { last: "blue" } : { last: "blue", previous: "red" }
+						"uni:last_wild_color": run === 1 ? { last: "blue" } : { last: "blue", previous: "red" }
 					}
 				}),
 				causeEvent: autoPlayedCause()
