@@ -1150,6 +1150,37 @@ TEST_CASE("engine merge: a stack answer reports the stacking member kind") {
     CHECK((*answered)["payload"]["window_kind"] == "generic");
 }
 
+TEST_CASE("engine merge: a +2 jump-in reports the stacking member kind") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    for (const std::vector<std::string>& mods : kMergedLoadOrders) {
+        CAPTURE(mods);
+        FakeClock clock;
+        MergedTable table = SetUpMergedTable(content, mods, clock);
+        MatchInstance& engine = *table.engine;
+
+        // INFO: player2 jumps in with an identical red +2 - jump_in owns the
+        //       out-of-turn card - and the card stacks, so the close reroutes
+        //       to draw_stacking and the wire must name its kind, not jump_in.
+        REQUIRE(engine.PlayCard("player0", table.draw2));
+        REQUIRE(engine.WindowOpen());
+        REQUIRE(engine.RespondWindow("player2", table.identical2));
+
+        const json* answered = nullptr;
+        for (const json& event : engine.Events()) {
+            if (!event.is_object()) continue;
+            if (event.value("type", "") != "window_responded") continue;
+            if (event["payload"].value("player", "") != "player2") continue;
+            answered = &event;
+            break;
+        }
+        REQUIRE(answered != nullptr);
+        CHECK((*answered)["payload"]["outcome"] == "winning");
+        // INFO: draw_stacking declares no window kind: generic, not jump_in.
+        CHECK((*answered)["payload"]["window_kind"] == "generic");
+    }
+}
+
 TEST_CASE("engine merge: no responder runs every default once in order") {
     Content content;
     REQUIRE(LoadContent(content));
