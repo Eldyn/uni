@@ -13,6 +13,7 @@ version; each release below corresponds to a `vX.Y.Z` git tag.
 
 ### Fixed
 
+- **The cards of an opponent can be clicked to pick them as a target.** Only their avatar took the click before, so a click on the fan of cards did nothing. The cards now pick the same seat as the avatar, for a target prompt and for a spectator switching view.
 - **A +4 can answer a +2 stack, and a +2 a +4.** The stack gate now checks only that the answering card and the top card both carry the stackable tag, not that they have the same draw value. Before, the client dimmed a +4 held against a +2 stack even though the engine accepted it. A wild answering a stack keeps the previous color, because it has no color of its own until its prompt answers.
 - **The "Select a target" banner no longer hides the opponents.** The banner sat over the avatar of the opponent at the top of the table, the part you click to pick a target. It now sits lower on the screen.
 - **The draw debt can be taken with one tap on the draw pile.** While a draw-stacking window is open and you hold the debt, the top card of the draw pile pulses white and one tap takes the debt. You no longer wait for the window timer to run out. A jump-in group keeps the offer back until its hold ends.

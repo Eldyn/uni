@@ -498,8 +498,9 @@
 	// reads as the one about to be picked.
 	$effect(() => {
 		const highlight = targetHighlightActive ? { color: "#ffffff", pulse: true } : undefined;
+		const onSelect = isValidTarget || isViewable ? handleSelect : undefined;
 		for (const key of registeredKeys) {
-			cardRegistry?.setDecoration(key, { highlight });
+			cardRegistry?.setDecoration(key, { highlight, onSelect });
 		}
 	});
 </script>
