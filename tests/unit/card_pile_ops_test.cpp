@@ -904,12 +904,17 @@ TEST_CASE("card_pile_ops: draw_until_playable stops at the first playable") {
     CHECK(HandOf(h.store, player) == std::vector<Entity>{unplayable, playable});
     CHECK(PileOf(h.store, draw) == std::vector<Entity>{untouched});
     CHECK(result.value["drawn"] == 2);
-    REQUIRE(result.events.size() == 1);
-    CHECK(result.events[0]["type"] == "cards_drawn");
-    CHECK(result.events[0]["payload"]["count"] == 2);
-    CHECK(result.events[0]["payload"]["source"] == "draw");
-    REQUIRE(result.events[0]["payload"]["cards"].is_array());
-    CHECK(result.events[0]["payload"]["cards"].size() == 2);
+    // INFO: one event per drawn card, in draw order, so a client shows the
+    //       draws one after the other.
+    REQUIRE(result.events.size() == 2);
+    for (std::size_t i = 0; i < 2; ++i) {
+        CAPTURE(i);
+        CHECK(result.events[i]["type"] == "cards_drawn");
+        CHECK(result.events[i]["payload"]["count"] == 1);
+        CHECK(result.events[i]["payload"]["source"] == "draw");
+        REQUIRE(result.events[i]["payload"]["cards"].is_array());
+        CHECK(result.events[i]["payload"]["cards"].size() == 1);
+    }
 }
 
 TEST_CASE("card_pile_ops: draw_until_playable exhausts a dry pile") {
@@ -929,8 +934,9 @@ TEST_CASE("card_pile_ops: draw_until_playable exhausts a dry pile") {
     CHECK(HandOf(h.store, player).size() == 2);
     CHECK(PileOf(h.store, draw).empty());
     CHECK(result.value["drawn"] == 2);
-    REQUIRE(result.events.size() == 1);
-    CHECK(result.events[0]["payload"]["count"] == 2);
+    REQUIRE(result.events.size() == 2);
+    CHECK(result.events[0]["payload"]["count"] == 1);
+    CHECK(result.events[1]["payload"]["count"] == 1);
 }
 
 TEST_CASE("card_pile_ops: draw_until_playable reshuffles to reach one") {
@@ -954,11 +960,13 @@ TEST_CASE("card_pile_ops: draw_until_playable reshuffles to reach one") {
     CHECK(result.status == OpStatus::kResolved);
     CHECK(HandOf(h.store, player) == std::vector<Entity>{unplayable, playable});
     CHECK(result.value["drawn"] == 2);
-    REQUIRE(result.events.size() == 2);
-    CHECK(result.events[0]["type"] == "reshuffle");
-    CHECK(result.events[0]["payload"]["draw_size"] == 1);
-    CHECK(result.events[1]["type"] == "cards_drawn");
-    CHECK(result.events[1]["payload"]["count"] == 2);
+    REQUIRE(result.events.size() == 3);
+    CHECK(result.events[0]["type"] == "cards_drawn");
+    CHECK(result.events[0]["payload"]["count"] == 1);
+    CHECK(result.events[1]["type"] == "reshuffle");
+    CHECK(result.events[1]["payload"]["draw_size"] == 1);
+    CHECK(result.events[2]["type"] == "cards_drawn");
+    CHECK(result.events[2]["payload"]["count"] == 1);
 }
 
 TEST_CASE("card_pile_ops: draw_until_playable honors an explicit from pile") {
@@ -983,8 +991,9 @@ TEST_CASE("card_pile_ops: draw_until_playable honors an explicit from pile") {
     CHECK(HandOf(h.store, player) == std::vector<Entity>{unplayable, playable});
     CHECK(PileOf(h.store, draw) == std::vector<Entity>{untouched});
     CHECK(result.value["drawn"] == 2);
-    REQUIRE(result.events.size() == 1);
+    REQUIRE(result.events.size() == 2);
     CHECK(result.events[0]["payload"]["source"] == "discard");
+    CHECK(result.events[1]["payload"]["source"] == "discard");
 }
 
 TEST_CASE("card_pile_ops: draw_until_playable fail-safe targets and from") {

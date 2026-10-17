@@ -13,6 +13,8 @@ version; each release below corresponds to a `vX.Y.Z` git tag.
 
 - **Progressive now lets you choose.** After the draw-until-playable stops on a playable card, you choose to play or keep it. The turn used to pass with the card unplayed. With Force Play on, the card is played at once.
 - **No Bluffing has a translated description** in every locale, without the "Rule-only mod" prefix. The Progressive description now matches the rule.
+- **Progressive draws one card at a time.** Every card the draw-until-playable takes is its own event, so all players see the draws one after the other at the normal draw speed instead of as a burst, and the draws come in the order they happened.
+- **A forced play waits for its draw.** A card that Force Play plays right after drawing it is drawn first and flies to the pile only when the draw has landed, for the player and for every opponent. It no longer shows in the hand before it arrives.
 
 ## [0.6.2] - 2026-10-17
 

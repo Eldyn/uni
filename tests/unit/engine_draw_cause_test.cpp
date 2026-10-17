@@ -281,6 +281,32 @@ TEST_CASE("engine: progressive holds the turn on the playable it stopped on") {
     CHECK_FALSE(f.engine->PendingPlayDrawnState().has_value());
 }
 
+TEST_CASE("engine: progressive reports each draw as its own event, in order") {
+    ProgressiveFixture f;
+    f.Start({"vanilla", "progressive"}, 3);
+
+    REQUIRE(f.engine->DrawCard("player0"));
+
+    std::vector<json> draws;
+    for (const json& event : f.engine->Events()) {
+        if (event.value("type", std::string()) == "cards_drawn") {
+            draws.push_back(event["payload"]);
+        }
+    }
+    // INFO: the voluntary dead card, two more dead cards, then the playable
+    //       one: four events, one card each, the hold flagged on the last.
+    REQUIRE(draws.size() == 4);
+    for (std::size_t i = 0; i < draws.size(); ++i) {
+        CAPTURE(i);
+        CHECK(draws[i]["count"] == 1);
+        CHECK(draws[i]["cards"].size() == 1);
+        CHECK(draws[i].value("held", false) == (i == 3));
+    }
+    CHECK(draws[3]["cards"][0]
+          == json{{"index", f.playable->index},
+                  {"generation", f.playable->generation}});
+}
+
 TEST_CASE("engine: progressive keep leaves the playable card in hand") {
     ProgressiveFixture f;
     f.Start({"vanilla", "progressive"}, 3);
