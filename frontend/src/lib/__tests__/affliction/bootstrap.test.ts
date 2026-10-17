@@ -1,7 +1,17 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { flushSync } from "svelte";
 import { AfflictionStore } from "$stores/affliction.svelte";
 import { EntityRuntime } from "$components/game/entity/entityRuntime.svelte";
 import type { MatchEventSubscriber } from "$components/game/affliction/triggers";
+
+const storeAudioSpies = vi.hoisted(() => ({
+	startLoop: vi.fn(),
+	stopLoop: vi.fn()
+}));
+
+vi.mock("$stores/audio.svelte", () => ({
+	storeAudio: { startLoop: storeAudioSpies.startLoop, stopLoop: storeAudioSpies.stopLoop }
+}));
 
 /** A controllable stand-in for `storeGame.onMatchEvent`. */
 function fakeFeed(): {
@@ -42,6 +52,110 @@ function defsPayload() {
 		]
 	};
 }
+
+describe("AfflictionStore: audio.loop playback", () => {
+	beforeEach(() => {
+		storeAudioSpies.startLoop.mockClear();
+		storeAudioSpies.stopLoop.mockClear();
+	});
+
+	it("plays the composed audio.loop of an active presentation on its target", () => {
+		const store = new AfflictionStore();
+		const feed = fakeFeed();
+		store.bind(new EntityRuntime(), feed.subscribe);
+
+		feed.emit("defs", {
+			presentations: [
+				{
+					id: "test:hum",
+					target: "card:1",
+					modifiers: [{ kind: "audio.loop", clip: "mod:hum" }]
+				}
+			]
+		});
+		flushSync();
+
+		expect(storeAudioSpies.startLoop).toHaveBeenCalledWith("audio.loop@card:1", "mod:hum");
+	});
+
+	it("a loop modifier dropped by its target's exclusive owner never plays", () => {
+		const store = new AfflictionStore();
+		const feed = fakeFeed();
+		store.bind(new EntityRuntime(), feed.subscribe);
+
+		feed.emit("defs", {
+			presentations: [
+				{
+					id: "test:quiet",
+					target: "card:1",
+					priority: 1,
+					modifiers: [{ kind: "audio.loop", clip: "mod:quiet" }]
+				},
+				{
+					id: "test:loud",
+					target: "card:1",
+					priority: 5,
+					modifiers: [{ kind: "audio.loop", clip: "mod:loud" }]
+				}
+			]
+		});
+		flushSync();
+
+		expect(storeAudioSpies.startLoop).toHaveBeenCalledWith("audio.loop@card:1", "mod:loud");
+		expect(storeAudioSpies.startLoop).toHaveBeenCalledTimes(1);
+	});
+
+	it("stops the loop when its affliction expires", () => {
+		vi.useFakeTimers();
+		try {
+			const store = new AfflictionStore();
+			const feed = fakeFeed();
+			store.bind(new EntityRuntime(), feed.subscribe);
+
+			feed.emit("defs", {
+				presentations: [
+					{
+						id: "test:hum",
+						target: "card:1",
+						modifiers: [{ kind: "audio.loop", clip: "mod:hum" }],
+						triggers: [{ duration: 5 }]
+					}
+				]
+			});
+			flushSync();
+			expect(storeAudioSpies.startLoop).toHaveBeenCalledWith("audio.loop@card:1", "mod:hum");
+
+			storeAudioSpies.startLoop.mockClear();
+			vi.advanceTimersByTime(6000);
+			flushSync();
+
+			expect(storeAudioSpies.stopLoop).toHaveBeenCalledWith("audio.loop@card:1");
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("stops every running loop at match teardown (dispose)", () => {
+		const store = new AfflictionStore();
+		const feed = fakeFeed();
+		store.bind(new EntityRuntime(), feed.subscribe);
+
+		feed.emit("defs", {
+			presentations: [
+				{
+					id: "test:hum",
+					target: "card:1",
+					modifiers: [{ kind: "audio.loop", clip: "mod:hum" }]
+				}
+			]
+		});
+		flushSync();
+
+		store.dispose();
+
+		expect(storeAudioSpies.stopLoop).toHaveBeenCalledWith("audio.loop@card:1");
+	});
+});
 
 describe("AfflictionStore: defs bootstrap (ruling 2)", () => {
 	it("consumes defs.entities and defines them in the shared runtime", () => {

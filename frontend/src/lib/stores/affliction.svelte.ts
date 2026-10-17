@@ -18,7 +18,9 @@
  * `storeGame.state`), following the audio-store persistence shape.
  */
 
+import { untrack } from "svelte";
 import { AfflictionManager } from "$components/game/affliction/afflictionManager";
+import { kindTarget } from "$components/game/affliction/compose";
 import { OverrideChannel, type FaceOverride } from "$components/game/affliction/overrideChannel";
 import {
 	PresentationTriggers,
@@ -29,6 +31,7 @@ import {
 import { CosmeticRng } from "$components/game/affliction/cosmeticRng";
 import { STANDARD_TILE_VALUES } from "$components/game/three/cardFaceAtlas";
 import { EntityRuntime } from "$components/game/entity/entityRuntime.svelte";
+import { storeAudio } from "$stores/audio.svelte";
 import { storeFxBudget } from "$stores/fxBudget.svelte";
 
 const COSMETIC_SEED_KEY = "uni:fx:cosmetic-seed";
@@ -79,6 +82,18 @@ export class AfflictionStore {
 	#triggers = new PresentationTriggers(this.#manager);
 	#rng = new CosmeticRng(cosmeticSeed());
 	#channel = new OverrideChannel(this.#manager, undefined, (source) => this.#resolveSource(source));
+	// Caller-owned loop ids, keyed by the composition key `audio.loop@target`.
+	#audioLoops = new Map<string, string>();
+	// INFO: App-lifetime effect: it reads the manager revision and replays the
+	//       composed `audio.loop` map into storeAudio whenever a presentation
+	//       activates or expires. The dispose handle is intentionally unused,
+	//       mirroring storeAudio's own root effect.
+	#stopAudioSync = $effect.root(() => {
+		$effect(() => {
+			void this.#manager.revision;
+			this.#syncAudioLoops();
+		});
+	});
 	#unsubscribe: (() => void) | null = null;
 
 	get manager(): AfflictionManager {
@@ -146,6 +161,11 @@ export class AfflictionStore {
 	dispose(): void {
 		this.#triggers.dispose();
 		this.#manager.clear();
+		// INFO: A loop is owned by its composition key, so every entry can die
+		//       here; the sync effect never restarts them (the active list is
+		//       empty from this point until a rebind).
+		for (const loopId of [...this.#audioLoops.keys()]) storeAudio.stopLoop(loopId);
+		this.#audioLoops.clear();
 		this.#unsubscribe?.();
 		this.#unsubscribe = null;
 	}
@@ -154,6 +174,37 @@ export class AfflictionStore {
 		if (source !== "seeded-random-tile") return undefined;
 		const tile = this.#rng.pick([...STANDARD_TILE_VALUES]);
 		return tile === undefined ? undefined : { texture: tile };
+	}
+
+	/**
+	 * @brief Syncs storeAudio's loops with the composed `audio.loop` map:
+	 * the exclusive owner per target plays (`clip`), expiry/teardown stops it.
+	 * `untrack` keeps `sfxVolume` reads out of the effect so a volume change
+	 * retunes live loops without restarting them.
+	 */
+	#syncAudioLoops(): void {
+		const desired = new Map<string, string>();
+		for (const a of this.#manager.active) {
+			for (const m of a.modifiers ?? []) {
+				if (m?.kind !== "audio.loop") continue;
+				const key = kindTarget(m.kind, a.target);
+				if (this.#manager.resolve(key) !== m) continue;
+				if (typeof m.clip === "string" && m.clip !== "") desired.set(key, m.clip);
+			}
+		}
+
+		untrack(() => {
+			for (const [key, playing] of this.#audioLoops) {
+				if (desired.get(key) === playing) continue;
+				this.#audioLoops.delete(key);
+				storeAudio.stopLoop(key);
+			}
+			for (const [key, clip] of desired) {
+				if (this.#audioLoops.get(key) === clip) continue;
+				storeAudio.startLoop(key, clip);
+				this.#audioLoops.set(key, clip);
+			}
+		});
 	}
 
 	#defineEntity(runtime: EntityRuntime, raw: unknown): void {

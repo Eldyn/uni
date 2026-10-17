@@ -15,6 +15,9 @@ export class SfxPlayer {
 	// fine while the catalog stays small; revisit with an eviction policy if
 	// it grows large enough for the held decoded buffers to matter.
 	#howlCache = new Map<string, Howl>();
+	// One handle per caller-owned loop id; a loop id never holds a one-shot and
+	// a one-shot bypasses loop bookkeeping entirely.
+	#loops = new Map<string, { howl: Howl; soundId: number }>();
 	// Warn once per unknown id, not once per call, placeholder SFX ids are
 	// wired at real gameplay trigger points (e.g. every card animation) ahead
 	// of SFX_CATALOG having entries for them, so an unthrottled warning would
@@ -24,10 +27,7 @@ export class SfxPlayer {
 	playSfx(id: string, opts?: { pitch?: number; volume?: number }): void {
 		const def = SFX_CATALOG[id];
 		if (!def) {
-			if (!this.#warnedUnknownIds.has(id)) {
-				this.#warnedUnknownIds.add(id);
-				console.warn(`SfxPlayer.playSfx: unknown sfx id "${id}" (warning shown once)`);
-			}
+			this.#warnUnknownId(id);
 			return;
 		}
 
@@ -69,11 +69,69 @@ export class SfxPlayer {
 		this.#lastPlayedAt.set(id, now);
 	}
 
+	/**
+	 * @brief Starts (or, under a previously started `loopId`, replaces) a
+	 * looping sound instance. `volume` is the absolute Howler volume chosen by
+	 * the caller; loops never randomize pitch and never touch the one-shot
+	 * throttle/concurrency bookkeeping. Use `stopLoop` with the same `loopId`
+	 * to end it.
+	 */
+	startLoop(loopId: string, sfxId: string, volume: number): void {
+		const def = SFX_CATALOG[sfxId];
+		if (!def) {
+			this.#warnUnknownId(sfxId);
+			return;
+		}
+
+		let src: string;
+		try {
+			src = pickVariant(def.variants);
+		} catch (error) {
+			console.warn(`SfxPlayer.startLoop: no variants available for "${sfxId}"`, error);
+			return;
+		}
+
+		const howl = this.#getOrCreateHowl(src);
+		const soundId = howl.play();
+		// INFO: Howler returns -1 when the sound could not start (e.g. locked
+		//       context); keep the bookkeeping clean instead of looping a ghost
+		//       handle.
+		if (typeof soundId !== "number" || soundId < 0) return;
+
+		howl.loop(true, soundId);
+		howl.volume(volume, soundId);
+		this.#loops.set(loopId, { howl, soundId });
+	}
+
+	/** @brief Stops the loop started under `loopId`; unknown ids are a no-op. */
+	stopLoop(loopId: string): void {
+		const loop = this.#loops.get(loopId);
+		if (!loop) return;
+		this.#loops.delete(loopId);
+		// INFO: Unloop before stopping so the pooled sound slot goes back to the
+		//       non-looping behavior its Howl was created for.
+		loop.howl.loop(false, loop.soundId);
+		loop.howl.stop(loop.soundId);
+	}
+
+	/** @brief Retunes the volume of the loop started under `loopId`. */
+	setLoopVolume(loopId: string, volume: number): void {
+		const loop = this.#loops.get(loopId);
+		if (!loop) return;
+		loop.howl.volume(volume, loop.soundId);
+	}
+
 	#getOrCreateHowl(src: string): Howl {
 		const cached = this.#howlCache.get(src);
 		if (cached) return cached;
 		const howl = new Howl({ src: [src] });
 		this.#howlCache.set(src, howl);
 		return howl;
+	}
+
+	#warnUnknownId(id: string): void {
+		if (this.#warnedUnknownIds.has(id)) return;
+		this.#warnedUnknownIds.add(id);
+		console.warn(`SfxPlayer: unknown sfx id "${id}" (warning shown once)`);
 	}
 }

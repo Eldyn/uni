@@ -22,12 +22,20 @@ interface AudioSettings {
 	sfxVolume: number;
 }
 
+/** A caller-owned loop id's playback inputs, kept so later SFX volume moves
+ *  can retune the loop without restarting it. */
+interface LoopHandle {
+	clip: string;
+	gain: number;
+}
+
 class StoreAudio {
 	musicVolume = $state<number>(DEFAULT_MUSIC_VOLUME);
 	sfxVolume = $state<number>(DEFAULT_SFX_VOLUME);
 
 	#music = new MusicPlayer();
 	#sfx = new SfxPlayer();
+	#loops = new Map<string, LoopHandle>();
 	#initialized = false;
 	#musicReady = $state(false);
 	#musicStarted = false;
@@ -192,6 +200,38 @@ class StoreAudio {
 		}
 	}
 
+	/**
+	 * @brief Starts (or replaces) a looping SFX under a caller-owned
+	 * `loopId`. The loop plays at this store's `sfxVolume` scaled by the
+	 * clip's catalog volume and `opts.gain`; a fully muted loop is skipped
+	 * before its file is ever fetched (same mute gate as `playSfx` — raise
+	 * the volume before starting a loop that must be heard). `startLoop`
+	 * stops the previous loop under the same `loopId` first, so callers can
+	 * switch clips without leaking a voice.
+	 */
+	startLoop(loopId: string, clip: string, opts?: { gain?: number }): void {
+		try {
+			this.stopLoop(loopId);
+			const gain = opts?.gain ?? 1;
+			const volume = this.sfxVolume * (SFX_CATALOG[clip]?.volume ?? 1) * gain;
+			if (volume <= 0) return;
+			this.#sfx.startLoop(loopId, clip, volume);
+			this.#loops.set(loopId, { clip, gain });
+		} catch {
+			// INFO: Audio backend unavailable, silently drop the loop.
+		}
+	}
+
+	/** @brief Stops the loop bound to `loopId`; unknown ids are a no-op. */
+	stopLoop(loopId: string): void {
+		try {
+			this.#loops.delete(loopId);
+			this.#sfx.stopLoop(loopId);
+		} catch {
+			// INFO: Audio backend unavailable, nothing to stop.
+		}
+	}
+
 	setMusicVolume(v: number): void {
 		this.musicVolume = v;
 		try {
@@ -204,6 +244,17 @@ class StoreAudio {
 
 	setSfxVolume(v: number): void {
 		this.sfxVolume = v;
+		// INFO: Live loops are retuned in place rather than restarted, so a
+		//       mute (0) silences them and a later raise resumes audibility
+		//       without refetching or phase-jumping the loop.
+		try {
+			for (const [loopId, handle] of this.#loops) {
+				const volume = v * (SFX_CATALOG[handle.clip]?.volume ?? 1) * handle.gain;
+				this.#sfx.setLoopVolume(loopId, volume);
+			}
+		} catch {
+			// INFO: Playback backend unavailable, the setting still persists.
+		}
 		this.#persist();
 	}
 
