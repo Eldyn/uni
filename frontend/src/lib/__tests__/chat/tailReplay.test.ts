@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { replayTailToLog, type TailBindings, type TailEnvelope } from "../../chat/playLog/tailReplay";
+import {
+	replayTailToLog,
+	type TailBindings,
+	type TailEnvelope
+} from "../../chat/playLog/tailReplay";
 import type { LogLine } from "../../chat/playLog/logEvent";
 import { BindingRegistry, type Viewer } from "$lib/presentation/eventBindings";
 
@@ -172,6 +176,23 @@ const MOD_BINDINGS: TailBindings = {
 	getViewer: () => VIEWER
 };
 
+/** A binding on `window_responded` that logs a winning response only. */
+const RESPONSE_BINDING = {
+	id: "test:response_line",
+	def_hash: "0123456789abcdef",
+	"uni:format_version": "1.0.0",
+	"uni:binding": {
+		"uni:event": "window_responded",
+		"uni:select": "first",
+		"uni:cases": [
+			{
+				"uni:tests": [{ "uni:test": "equals", "uni:field": "outcome", "uni:value": "winning" }],
+				"uni:present": { "uni:log": { "uni:variants": ["test:responded"] } }
+			}
+		]
+	}
+};
+
 describe("replayTailToLog", () => {
 	it("turns a retained play into a play line", () => {
 		const lines = replay([
@@ -199,7 +220,14 @@ describe("replayTailToLog", () => {
 				},
 				"Ann"
 			),
-			envelope(1, "active_type_changed", { color: "blue", previous_color: "red" }, "Ann", undefined, 0)
+			envelope(
+				1,
+				"active_type_changed",
+				{ color: "blue", previous_color: "red" },
+				"Ann",
+				undefined,
+				0
+			)
 		]);
 		const play = lines.find((line) => line.key === "uni:log.play");
 		expect(play?.params).toMatchObject({ color: "blue" });
@@ -482,9 +510,7 @@ describe("replayTailToLog", () => {
 				envelope(0, "direction_changed", { direction: -1 }, "Ann", { "uni:reverse_run": 1 }),
 				envelope(1, "direction_changed", { direction: -1 }, "Ann", { "uni:reverse_run": 2 })
 			]);
-			expect(lines.map((line) => line.key)).toEqual([
-				expect.stringMatching(/^uni:log\.reverse/)
-			]);
+			expect(lines.map((line) => line.key)).toEqual([expect.stringMatching(/^uni:log\.reverse/)]);
 		});
 
 		it("posts no second elimination line for a repeat placement", () => {
@@ -514,5 +540,78 @@ describe("replayTailToLog", () => {
 			]);
 			expect(lines.map((line) => line.key)).toEqual([expect.stringMatching(/^uni:log\.win/)]);
 		});
+	});
+});
+
+/**
+ * A tail recorded before the server stamped `outcome` carries only a
+ * `passed` flag for a pass and nothing at all for a card response. The
+ * replay derives `outcome` the way the server's own default does, so an
+ * old response line still logs.
+ */
+describe("old replayed window responses", () => {
+	const RESPONSE_BINDINGS: TailBindings = {
+		registry: registryOf([RESPONSE_BINDING]),
+		getViewer: () => VIEWER
+	};
+
+	it("reads an event with no passed field as winning", () => {
+		const lines = replay(
+			[
+				envelope(
+					0,
+					"window_responded",
+					{ window_id: "1", target: "Ann", window_kind: "test" },
+					"Ann"
+				)
+			],
+			RESPONSE_BINDINGS
+		);
+		expect(lines.map((line) => line.key)).toEqual(["test:responded"]);
+	});
+
+	it("reads an event with passed as a pass, so it posts no line", () => {
+		const lines = replay(
+			[
+				envelope(
+					0,
+					"window_responded",
+					{ window_id: "1", target: "Ann", window_kind: "test", passed: true },
+					"Ann"
+				)
+			],
+			RESPONSE_BINDINGS
+		);
+		expect(lines).toEqual([]);
+	});
+
+	it("reads passed false as winning, like the server default does", () => {
+		const lines = replay(
+			[
+				envelope(
+					0,
+					"window_responded",
+					{ window_id: "1", target: "Ann", window_kind: "test", passed: false },
+					"Ann"
+				)
+			],
+			RESPONSE_BINDINGS
+		);
+		expect(lines.map((line) => line.key)).toEqual(["test:responded"]);
+	});
+
+	it("keeps an outcome the tail already stamps", () => {
+		const lines = replay(
+			[
+				envelope(
+					0,
+					"window_responded",
+					{ window_id: "1", target: "Ann", window_kind: "test", outcome: "pass" },
+					"Ann"
+				)
+			],
+			RESPONSE_BINDINGS
+		);
+		expect(lines).toEqual([]);
 	});
 });
