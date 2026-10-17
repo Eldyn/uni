@@ -1,0 +1,6 @@
+{
+  "reverse_deflection:deflect_1": "{name} 回了一句“不，你！” {victim}有麻烦了...",
+  "reverse_deflection:deflect_2": "{name} 打出逆转！回到 [c=red]{victim}[/c]，送上 {total} 张牌。",
+  "reverse_deflection:deflect_3": "原话奉还。[c=red]{victim}[/c] 现在欠 [fx=shake]{total}[/fx] 张牌。",
+  "reverse_deflection:deflect_heavy": "UNO 反转！[c=red]{victim}[/c] 欠 [fx=shake]{total}[/fx] 张牌。全桌慌了。"
+}

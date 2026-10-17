@@ -71,6 +71,7 @@ version; each release below corresponds to a `vX.Y.Z` git tag.
 - Creative P4: Scripted bot intents with heuristic fallback, draw pile stacking with registered wire identities.
 - Creative P5: Dev-only scenes applied at match start, in-session scene loading, checkpoint save and restore of visible state.
 - Creative fixes: host x-ray snapshot carries all hands, malformed director args rejected with specific errors, full clean view hides panel and chat, director console with transport/script/stack/seat/checkpoint/scene controls, seat rename/skin/flip, lobby Creative mode picker entry.
+- **Reverse Deflection speaks every shipped language** — the `reverse_deflection` mod's deflection lines now ship for all eight non-English locales: `mods/reverse_deflection/texts/{de,es,it,ja,ko,ru,uk,zh}.json` hold natural playful translations of the `en` lines with identical keys, placeholders and markup.
 
 ### Changed
 
