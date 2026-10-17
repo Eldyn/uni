@@ -9,6 +9,8 @@ version; each release below corresponds to a `vX.Y.Z` git tag.
 
 ## [Unreleased]
 
+## [0.6.3] - 2026-10-18
+
 ### Fixed
 
 - **Progressive now lets you choose.** After the draw-until-playable stops on a playable card, you choose to play or keep it. The turn used to pass with the card unplayed. With Force Play on, the card is played at once.
@@ -537,7 +539,8 @@ point:
 - WebSocket payload-size, idle-time, and backpressure bounds, malformed-frame
   guards, and path-traversal protection on static file serving.
 
-[unreleased]: https://github.com/Eldyn/uni/compare/v0.6.2...HEAD
+[unreleased]: https://github.com/Eldyn/uni/compare/v0.6.3...HEAD
+[0.6.3]: https://github.com/Eldyn/uni/compare/v0.6.2...v0.6.3
 [0.6.2]: https://github.com/Eldyn/uni/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/Eldyn/uni/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/Eldyn/uni/compare/v0.5.5...v0.6.0
