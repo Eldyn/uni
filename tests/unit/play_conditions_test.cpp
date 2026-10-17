@@ -282,34 +282,34 @@ TEST_CASE("play_conditions: plays_stack_response accepts mixed +2/+4") {
     //       so the response gate is the tag alone: a +4 answers a +2 top and
     //       a +2 answers a +4 top. Only a window response counts.
     PlayAttempt four_on_two =
-        Attempt("uni:white_wild4", false, "red", "uni:red_plus2");
+        Attempt("vanilla:white_wild4", false, "red", "vanilla:red_plus2");
     four_on_two.responding = true;
     CHECK(matcher(cond, four_on_two));
 
     PlayAttempt two_on_four =
-        Attempt("uni:blue_plus2", false, "red", "uni:white_wild4");
+        Attempt("vanilla:blue_plus2", false, "red", "vanilla:white_wild4");
     two_on_four.responding = true;
     CHECK(matcher(cond, two_on_four));
 
     PlayAttempt same_value =
-        Attempt("uni:red_plus2", false, "red", "uni:blue_plus2");
+        Attempt("vanilla:red_plus2", false, "red", "vanilla:blue_plus2");
     same_value.responding = true;
     CHECK(matcher(cond, same_value));
 
     // Not answering a window: false even with the tag.
     const PlayAttempt in_turn_play =
-        Attempt("uni:red_plus2", true, "red", "uni:blue_plus2");
+        Attempt("vanilla:red_plus2", true, "red", "vanilla:blue_plus2");
     CHECK_FALSE(matcher(cond, in_turn_play));
 
     // A response card without the tag: false.
     PlayAttempt untagged =
-        Attempt("uni:green_5", false, "green", "uni:blue_plus2");
+        Attempt("vanilla:green_5", false, "green", "vanilla:blue_plus2");
     untagged.responding = true;
     CHECK_FALSE(matcher(cond, untagged));
 
     // A top without the tag (an ordinary card): false.
     PlayAttempt untagged_top =
-        Attempt("uni:red_plus2", false, "red", "uni:green_5");
+        Attempt("vanilla:red_plus2", false, "red", "vanilla:green_5");
     untagged_top.responding = true;
     CHECK_FALSE(matcher(cond, untagged_top));
 }

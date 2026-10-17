@@ -492,7 +492,7 @@ TEST_CASE("engine draw_stacking: a +4 answers a +2 window") {
     REQUIRE(engine->PlayCard("player0", *draw2));
     REQUIRE(engine->WindowOpen());
     CHECK(DebtOf(*engine, player1) == 2);
-    CHECK(CountEvents(*engine, "window_opened") == 1);
+    CHECK(CountEvents(*engine, "window_open") == 1);
 
     // INFO: the victim answers the +2 with a +4. The winning response's own
     //       graph is not drained (CommitWinningPlay), so the wild prompt does
@@ -505,8 +505,8 @@ TEST_CASE("engine draw_stacking: a +4 answers a +2 window") {
     CHECK(DebtOf(*engine, player1) == 0);
     CHECK(DebtOf(*engine, player2) == 6);
     CHECK(engine->GetCurrentPlayerUsername() == "player1");
-    CHECK(CountEvents(*engine, "window_opened") == 2);
-    CHECK(CountEvents(*engine, "window_closed") == 1);
+    CHECK(CountEvents(*engine, "window_open") == 2);
+    CHECK(CountEvents(*engine, "window_close") == 1);
     // INFO: the stacked +4 never drains its wild prompt, so the previous
     //       colour stands - the next victim can still answer with a colour.
     CHECK(engine->Store().Get<ecs::ActiveTypeReq>(engine->Registries().match)
@@ -580,8 +580,8 @@ TEST_CASE("engine draw_stacking: a +2 answers a wild_draw4 window") {
     CHECK(DebtOf(*engine, player1) == 0);
     CHECK(DebtOf(*engine, player2) == 6);
     CHECK(engine->GetCurrentPlayerUsername() == "player1");
-    CHECK(CountEvents(*engine, "window_opened") == 2);
-    CHECK(CountEvents(*engine, "window_closed") == 1);
+    CHECK(CountEvents(*engine, "window_open") == 2);
+    CHECK(CountEvents(*engine, "window_close") == 1);
 }
 
 TEST_CASE("engine draw_stacking: wild_draw4 prompt then window is sequenced") {

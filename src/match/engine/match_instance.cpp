@@ -1211,7 +1211,13 @@ void MatchInstance::CommitWinningPlay(ecs::Entity player, ecs::Entity card,
               {"from_ordinal", ordinal.value_or(0)}});
     last_play_ =
         LastPlay{player, card, static_cast<uint32_t>(ordinal.value_or(0))};
-    AdoptPlayedColor(card, kind);
+    // INFO: a wild response never drains its own prompt here (see below), so
+    //       adopting its placeholder white would leave the table on a colour
+    //       no card can match. The previous colour stands; a prompt plays on
+    //       the turn (PlayCard) still adopts and its answer overrides.
+    if (!ops::CardHasTag(&assembly_->registries, kind, "wild")) {
+        AdoptPlayedColor(card, kind);
+    }
 
     // INFO: Each response appends its own N to the debt, which
     //       passes on to the seat after the responder.
