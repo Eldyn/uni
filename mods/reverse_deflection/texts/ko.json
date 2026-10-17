@@ -1,0 +1,6 @@
+{
+  "reverse_deflection:deflect_1": "{name}의 「아니, 너야!」 {victim}이(가) 곤란해졌다...",
+  "reverse_deflection:deflect_2": "{name}의 반전! [c=red]{victim}[/c]에게 {total}장으로 돌려준다.",
+  "reverse_deflection:deflect_3": "그 말 그대로 돌려준다. [c=red]{victim}[/c]이(가) 이제 [fx=shake]{total}[/fx]장 진다.",
+  "reverse_deflection:deflect_heavy": "우노 리버스! [c=red]{victim}[/c]이(가) [fx=shake]{total}[/fx]장 진다. 패닉."
+}

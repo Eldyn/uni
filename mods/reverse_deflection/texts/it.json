@@ -1,0 +1,6 @@
+{
+  "reverse_deflection:deflect_1": "{name} dice 'no, tu!'. {victim} e nei guai...",
+  "reverse_deflection:deflect_2": "{name} ribalta tutto! Si torna su [c=red]{victim}[/c] con {total} carte.",
+  "reverse_deflection:deflect_3": "Come non detto... anzi si. [c=red]{victim}[/c] deve ora [fx=shake]{total}[/fx] carte.",
+  "reverse_deflection:deflect_heavy": "Uno all inverso! [c=red]{victim}[/c] deve [fx=shake]{total}[/fx] carte. Panico."
+}

@@ -1,0 +1,6 @@
+{
+  "reverse_deflection:deflect_1": "{name}の「いいえ、あなた！」{victim}はピンチ…",
+  "reverse_deflection:deflect_2": "{name}が逆転！ [c=red]{victim}[/c]に{total}枚で返球。",
+  "reverse_deflection:deflect_3": "その言葉、お返しします。[c=red]{victim}[/c]は[fx=shake]{total}[/fx]枚背負い。",
+  "reverse_deflection:deflect_heavy": "ウノリバース！ [c=red]{victim}[/c]は[fx=shake]{total}[/fx]枚背負い。パニック。"
+}

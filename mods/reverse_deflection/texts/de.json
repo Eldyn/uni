@@ -1,0 +1,6 @@
+{
+  "reverse_deflection:deflect_1": "{name} sagt 'nein, du!'. {victim} steckt in der Klemme...",
+  "reverse_deflection:deflect_2": "{name} dreht zurueck! [c=red]{victim}[/c] kassiert {total} Karten.",
+  "reverse_deflection:deflect_3": "Zurueck an dich. [c=red]{victim}[/c] schuldet [fx=shake]{total}[/fx] Karten.",
+  "reverse_deflection:deflect_heavy": "Uno-Rueckwaerts! [c=red]{victim}[/c] schuldet [fx=shake]{total}[/fx] Karten. Panik."
+}

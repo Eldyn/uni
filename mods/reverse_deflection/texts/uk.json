@@ -1,0 +1,6 @@
+{
+  "reverse_deflection:deflect_1": "{name} кидає «ні, це ти!» {victim} у біді...",
+  "reverse_deflection:deflect_2": "{name} грає навпаки! Назад до [c=red]{victim}[/c] — {total} карт.",
+  "reverse_deflection:deflect_3": "Відповідним салютом. [c=red]{victim}[/c] тепер винен [fx=shake]{total}[/fx] карти.",
+  "reverse_deflection:deflect_heavy": "Уно-розворот! [c=red]{victim}[/c] тепер винен [fx=shake]{total}[/fx] карти. Паніка."
+}
