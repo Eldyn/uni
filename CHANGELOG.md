@@ -11,6 +11,7 @@ version; each release below corresponds to a `vX.Y.Z` git tag.
 
 ### Added
 
+- **Uniform ABI v1 (pure TS)** — `fx/uniformAbi.ts` pins the engine uniform names (`uTime`..`uOriginPosition`), the post names (`uResolution`, `uSceneColor`, `uIntensity`) and the mod block `uParams[8]`, with GLSL preludes, a zeroed three-style uniform block, an allocation-free in-place frame update and a clamping/padding `setParams`. Not wired anywhere yet.
 - **Mod graphics are now looping audio (`audio.loop`)** — storeAudio gets a loop channel; an active presentation's loop plays on its composition target and stops when the affliction expires or the match tears down, and it honors SFX volume and mute.
 - **Card-face atlas persistence** — baked faces persist behind the in-memory bake cache in an IndexedDB store keyed by the card-definition content hash: repeat sessions hydrate stored pixels instead of re-baking, stale hashes are pruned against the live card pool, and a byte cap evicts least-recently-used faces. In-memory backend fake for tests, no new dependencies.
 - **Audio plays on browsers without AAC.** Each `.m4a` has an Ogg Opus file beside it (`scripts/transcode-audio.sh` makes them), and the player swaps to it when the browser cannot decode AAC (WebKitGTK on Linux, Steam Deck).
