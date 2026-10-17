@@ -9,6 +9,8 @@ version; each release below corresponds to a `vX.Y.Z` git tag.
 
 ## [Unreleased]
 
+## [0.6.2] - 2026-10-17
+
 ### Fixed
 
 - **A stack or jump-in response now sets the active color.** The winning response card of a window (a stacked +2/+4, a jump-in) moved to the discard pile but left the active color on the old one, so the table color and the top card disagreed. The response now sets the active color like a normal play; a wild with no color of its own keeps the previous color until its prompt answers.
@@ -524,7 +526,8 @@ point:
 - WebSocket payload-size, idle-time, and backpressure bounds, malformed-frame
   guards, and path-traversal protection on static file serving.
 
-[unreleased]: https://github.com/Eldyn/uni/compare/v0.6.1...HEAD
+[unreleased]: https://github.com/Eldyn/uni/compare/v0.6.2...HEAD
+[0.6.2]: https://github.com/Eldyn/uni/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/Eldyn/uni/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/Eldyn/uni/compare/v0.5.5...v0.6.0
 [0.5.0]: https://github.com/Eldyn/uni/compare/v0.4.8...v0.5.0
