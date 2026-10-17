@@ -100,7 +100,7 @@ version; each release below corresponds to a `vX.Y.Z` git tag.
 - **The core play log path** — the play log is bindings only. The core rule engine (`logBuilder.ts`, `reactionRules.ts`, `reactionContext.ts`), the emitter (`playLogEmitter.ts`), its queue (`logQueue.ts`), the streak reader (`serverStreaks.ts`) and the client-side text helpers of the old path are deleted, together with their tests. The beat controller no longer turns beats into lines: it runs the presentation bindings of each client event and posts their lines straight to the chat store (`appendLocalLog`), so a line no longer waits for a card landing and no line is dropped by a flush. The repeat guards (same direction, a placed seat, the winner again, a repeated envelope) now live in the replay only, which still feeds the bindings for a late joiner and posts their lines alone. `resolveLogText` and its colour and card-name helpers move to `frontend/src/lib/presentation/logText.ts`; the `EventContext` type joins `LogLine` in `logEvent.ts`, because the beat map still carries the streak context. The tests that drove beats only to see a core log line are gone; the copy, the golden and the determinism tests now read the shipped bindings under `mods/uni/presentations/`. The `auto_play_wild` binding gains the `kind` param of the cause card, so an auto-played wild names its card instead of showing a raw placeholder, and only the `defs` and `match_start` content digests in the event stream goldens move.
 - **Client stack-penalty play-log guess** — the client no longer guesses the stack line from a +2 or +4 play and its debt toast. The `draw_stacking` mod now writes that line. The `uni:log.draw_stack` and `uni:log.draw_stack_heavy` texts are gone from the core texts. Non-English texts for the stack line stay out until the `draw_stacking` locale follow-up.
 
-## [0.6.2] - Unreleased
+## [0.6.2] - 2026-10-17
 
 ### Fixed
 
@@ -617,7 +617,8 @@ point:
 - WebSocket payload-size, idle-time, and backpressure bounds, malformed-frame
   guards, and path-traversal protection on static file serving.
 
-[unreleased]: https://github.com/Eldyn/uni/compare/v0.6.1...HEAD
+[unreleased]: https://github.com/Eldyn/uni/compare/v0.6.2...HEAD
+[0.6.2]: https://github.com/Eldyn/uni/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/Eldyn/uni/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/Eldyn/uni/compare/v0.5.5...v0.6.0
 [0.5.0]: https://github.com/Eldyn/uni/compare/v0.4.8...v0.5.0

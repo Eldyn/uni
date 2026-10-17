@@ -125,6 +125,28 @@ void AttachPassHandsSystem(MatchInstance& engine) {
                            });
 }
 
+/** @brief `swap_hands` with a chosen seat on every `after:play`, as the 7. */
+void AttachSwapHandsSystem(MatchInstance& engine) {
+    MatchAssembly& assembly = engine.Assembly();
+    ModSystem system;
+    system.mod_id = "test";
+    system.registration_index = 0;
+    system.hook = ecs::HookId{"play", ecs::HookPhase::kAfter};
+    system.source_id = "test:swap_hands_probe";
+    system.graph.nodes = json::array(
+        {json{{"id", "n1"},
+              {"op", "swap_hands"},
+              {"args", json{{"a", "@self"}, {"b", "@choose_player"}}}}});
+    system.graph.raw = json{{"nodes", system.graph.nodes}};
+    const std::size_t index = assembly.systems.size();
+    assembly.systems.push_back(std::move(system));
+    MatchAssembly* self = &engine.Assembly();
+    assembly.bus.Subscribe("test", 0, assembly.systems[index].hook,
+                           [self, index](ecs::HookPayload& payload) {
+                               self->RunSystem(index, payload);
+                           });
+}
+
 }  // namespace
 
 TEST_CASE("last card hand pass: the seat that receives the empty hand wins") {
@@ -168,4 +190,20 @@ TEST_CASE("hand pass with cards left: the match goes on") {
     REQUIRE(engine->PlayCard("player0", *last));
 
     CHECK(engine->GetWinner().empty());
+}
+
+TEST_CASE("last card hand swap: the chosen seat receives the empty hand and wins") {
+    std::unique_ptr<MatchInstance> engine = AssembleThreeSeats();
+    AttachSwapHandsSystem(*engine);
+
+    const ecs::Entity player0 = *engine->FindPlayer("player0");
+    const std::optional<ecs::Entity> last = FindKindCard(*engine, "base:last");
+    REQUIRE(last.has_value());
+    ForceHand(*engine, player0, {*last});
+
+    REQUIRE(engine->PlayCard("player0", *last));
+    REQUIRE(engine->PendingInput().has_value());
+    REQUIRE(engine->SubmitInput("player0", json("player2")));
+
+    CHECK(engine->GetWinner() == "player2");
 }
