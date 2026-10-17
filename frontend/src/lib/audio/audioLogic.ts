@@ -13,7 +13,7 @@ import { SCREEN_MUSIC } from "$data/audioCatalogs";
  * Throws if `variants` is empty, an SFX/track definition with no variants
  * is a data bug, not a runtime condition to swallow silently.
  */
-export function pickVariant(variants: Array<string | string[]>): string | string[] {
+export function pickVariant(variants: string[]): string {
 	if (variants.length === 0) throw new Error("pickVariant: variants array is empty");
 	const index = Math.floor(Math.random() * variants.length);
 	return variants[index];
@@ -71,97 +71,20 @@ export function isMobileDevice(hints: { userAgent: string; touchPrimary: boolean
 	);
 }
 
-const AUDIO_MIME_CANDIDATES: Record<string, string[]> = {
-	m4a: ["audio/mp4", "audio/x-m4a", "audio/aac"],
-	mp4: ["audio/mp4"],
-	ogg: ["audio/ogg", 'audio/ogg; codecs="opus"', "audio/opus"],
-	opus: ["audio/opus", 'audio/ogg; codecs="opus"'],
-	mp3: ["audio/mpeg", "audio/mp3"],
-	wav: ["audio/wav", "audio/wave", "audio/x-wav"],
-	aac: ["audio/aac", "audio/mp4"],
-	webm: ["audio/webm"],
-	flac: ["audio/flac", "audio/x-flac"],
-	oga: ["audio/ogg"]
-};
-
-function mimeCandidatesFor(source: string): string[] {
-	const trimmed = source.trim();
-	if (/^[a-z][a-z0-9.+-]*\/[a-z0-9.+-]+/i.test(trimmed)) return [trimmed];
-	const clean = source.split("?")[0].split("#")[0];
-	const ext = clean.split(".").pop()?.toLowerCase() ?? "";
-	return AUDIO_MIME_CANDIDATES[ext] ?? [];
-}
-
-function isPlayableResult(result: unknown): boolean {
-	if (typeof result === "boolean") return result;
-	if (typeof result === "string") {
-		const normalized = result.trim().toLowerCase();
-		return normalized !== "" && normalized !== "no";
-	}
-	return Boolean(result);
-}
+const AAC_MIME_TYPE = 'audio/mp4; codecs="mp4a.40.2"';
 
 /**
- * @brief Returns the first source from `sources` whose container/codec the
- * browser reports it can play (via `canPlayType`), falling back to the first
- * source when none are accepted. Accepts a single string, an array of strings,
- * or a nested array of format alternatives.
+ * @brief Picks the file the browser can decode for an `.m4a` catalog path.
+ *
+ * Some browsers (WebKitGTK on Linux, so Steam Deck) cannot decode AAC. When the
+ * probe reports no AAC support, the Ogg Opus file next to the `.m4a`
+ * (`scripts/transcode-audio.sh` makes it) is used instead. Any other path is
+ * returned as is.
  */
-export function pickPlayableSource(
-	sources: unknown,
-	canPlayType?: (type: string) => unknown
+export function playableAudioSource(
+	src: string,
+	canPlayType: (type: string) => string = (type) => new Audio().canPlayType(type)
 ): string {
-	const list: string[] = [];
-	if (Array.isArray(sources)) {
-		for (const item of sources) {
-			if (Array.isArray(item)) {
-				for (const nested of item) {
-					if (typeof nested === "string") list.push(nested);
-				}
-			} else if (typeof item === "string") {
-				list.push(item);
-			}
-		}
-	} else if (typeof sources === "string") {
-		list.push(sources);
-	}
-
-	if (list.length === 0) return typeof sources === "string" ? sources : "";
-
-	const probe =
-		canPlayType ??
-		((type: string) => {
-			try {
-				if (typeof Audio !== "undefined") return new Audio().canPlayType(type);
-			} catch {
-				// INFO: Audio constructor unavailable, treat as unsupported.
-			}
-			return "";
-		});
-
-	for (const candidate of list) {
-		const candidates = mimeCandidatesFor(candidate);
-		const mimes = candidates.length > 0 ? candidates : [candidate];
-		for (const mime of mimes) {
-			if (isPlayableResult(probe(mime))) return candidate;
-		}
-	}
-	return list[0];
+	if (!src.endsWith(".m4a")) return src;
+	return canPlayType(AAC_MIME_TYPE) === "" ? src.replace(/\.m4a$/, ".ogg") : src;
 }
-
-// INFO: Aliases covering plausible names a caller or test might use for the
-//       same "first format canPlayType accepts" selection.
-export const pickPlayableFormat = pickPlayableSource;
-export const pickPlayableSrc = pickPlayableSource;
-export const pickPlayable = pickPlayableSource;
-export const pickSupportedSource = pickPlayableSource;
-export const pickSupportedFormat = pickPlayableSource;
-export const pickSupportedSrc = pickPlayableSource;
-export const pickFirstPlayable = pickPlayableSource;
-export const pickFirstSupported = pickPlayableSource;
-export const selectPlayableSource = pickPlayableSource;
-export const selectPlayableFormat = pickPlayableSource;
-export const choosePlayableSource = pickPlayableSource;
-export const choosePlayableFormat = pickPlayableSource;
-export const firstPlayableSource = pickPlayableSource;
-export const firstPlayableFormat = pickPlayableSource;

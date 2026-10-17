@@ -10,7 +10,7 @@ import { assetUrl } from "$lib/utils/assetUrl";
 
 /** Static per-channel mix balance for a stem of a "multi" music track. */
 export interface MusicChannelDef {
-	src: string | string[];
+	src: string;
 	/** 0..1, default 1. */
 	volume?: number;
 	/** playbackRate multiplier, default 1. */
@@ -21,7 +21,7 @@ export interface MusicChannelDef {
 }
 
 export type MusicTrackDef =
-	| { id: string; kind: "single"; src: string | string[]; loop?: boolean }
+	| { id: string; kind: "single"; src: string; loop?: boolean }
 	| { id: string; kind: "multi"; channels: MusicChannelDef[]; loop?: boolean }
 	| {
 			id: string;
@@ -47,7 +47,7 @@ export type MusicDef = MusicTrackDef | PlaylistDef;
 export interface SfxDef {
 	id: string;
 	/** One chosen at random per play. */
-	variants: Array<string | string[]>;
+	variants: string[];
 	/** default [1,1], no variance. */
 	pitchRange?: [number, number];
 	volume?: number;
@@ -61,7 +61,7 @@ export const MUSIC_CATALOG: Record<string, MusicDef> = {
 	"music.fuzzsong": {
 		id: "music.fuzzsong",
 		kind: "single",
-		src: ["/assets/audio/music/fuzzsong/full.m4a", "/assets/audio/music/fuzzsong/full.ogg"],
+		src: "/assets/audio/music/fuzzsong/full.m4a",
 		loop: true
 	}
 	// The 9-channel stem version of this same song exists locally
@@ -79,21 +79,21 @@ const sfxPath = (fileName: string): string => assetUrl(`/assets/audio/sfx/${file
 export const SFX_CATALOG: Record<string, SfxDef> = {
 	"sfx.turn.start": {
 		id: "sfx.turn.start",
-		variants: [[sfxPath("turn-start.m4a"), sfxPath("turn-start.ogg")]],
+		variants: [sfxPath("turn-start.m4a")],
 		volume: 0.8,
 		minIntervalMs: 300
 	},
 	"sfx.action.play-card": {
 		id: "sfx.action.play-card",
-		variants: [[sfxPath("play.m4a"), sfxPath("play.ogg")]]
+		variants: [sfxPath("play.m4a")]
 	},
 	"sfx.action.draw-card": {
 		id: "sfx.action.draw-card",
-		variants: [[sfxPath("draw.m4a"), sfxPath("draw.ogg")]]
+		variants: [sfxPath("draw.m4a")]
 	},
 	"sfx.deal": {
 		id: "sfx.deal",
-		variants: [[sfxPath("draw.m4a"), sfxPath("draw.ogg")]],
+		variants: [sfxPath("draw.m4a")],
 		pitchRange: [0.95, 1.1],
 		volume: 0.3,
 		minIntervalMs: 90,
@@ -101,51 +101,51 @@ export const SFX_CATALOG: Record<string, SfxDef> = {
 	},
 	"sfx.invalid": {
 		id: "sfx.invalid",
-		variants: [[sfxPath("invalid.m4a"), sfxPath("invalid.ogg")]],
+		variants: [sfxPath("invalid.m4a")],
 		minIntervalMs: 150
 	},
 	"sfx.ui.tick": {
 		id: "sfx.ui.tick",
-		variants: [[sfxPath("tick.m4a"), sfxPath("tick.ogg")]],
+		variants: [sfxPath("tick.m4a")],
 		volume: 0.2
 	},
 	"sfx.ui.untick": {
 		id: "sfx.ui.untick",
-		variants: [[sfxPath("untick.m4a"), sfxPath("untick.ogg")]],
+		variants: [sfxPath("untick.m4a")],
 		volume: 0.2
 	},
 	"sfx.table.reverse": {
 		id: "sfx.table.reverse",
-		variants: [[sfxPath("reverse.m4a"), sfxPath("reverse.ogg")]],
+		variants: [sfxPath("reverse.m4a")],
 		volume: 0.4,
 		minIntervalMs: 200
 	},
 	"sfx.table.mat-color": {
 		id: "sfx.table.mat-color",
-		variants: [[sfxPath("mat-color.m4a"), sfxPath("mat-color.ogg")]],
+		variants: [sfxPath("mat-color.m4a")],
 		volume: 0.4,
 		minIntervalMs: 300
 	},
 	"sfx.hands.swap": {
 		id: "sfx.hands.swap",
-		variants: [[sfxPath("hands-swap.m4a"), sfxPath("hands-swap.ogg")]],
+		variants: [sfxPath("hands-swap.m4a")],
 		volume: 0.4,
 		minIntervalMs: 200
 	},
 	"sfx.hands.pass": {
 		id: "sfx.hands.pass",
-		variants: [[sfxPath("hands-pass.m4a"), sfxPath("hands-pass.ogg")]],
+		variants: [sfxPath("hands-pass.m4a")],
 		volume: 0.4,
 		minIntervalMs: 200
 	},
 	"sfx.match.victory": {
 		id: "sfx.match.victory",
-		variants: [[sfxPath("victory.m4a"), sfxPath("victory.ogg")]],
+		variants: [sfxPath("victory.m4a")],
 		volume: 0.5
 	},
 	"sfx.match.defeat": {
 		id: "sfx.match.defeat",
-		variants: [[sfxPath("defeat.m4a"), sfxPath("defeat.ogg")]],
+		variants: [sfxPath("defeat.m4a")],
 		volume: 0.12
 	}
 };
