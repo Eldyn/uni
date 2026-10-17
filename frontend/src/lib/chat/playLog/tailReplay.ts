@@ -45,6 +45,21 @@ function text(value: unknown): string | undefined {
 }
 
 /**
+ * The server stamps `outcome` on its `window_responded` events; a tail
+ * recorded before that field carries only a `passed` flag for a pass and
+ * nothing at all for a card response. The server's own default derives
+ * `pass` from a truthy `passed` and `winning` from no flag, and the replay
+ * repeats that default so an old response line still logs.
+ */
+function withDerivedOutcome(entry: TailEnvelope): TailEnvelope {
+	if (entry.id !== "window_responded" || entry.payload.outcome !== undefined) {
+		return entry;
+	}
+	const passed = entry.payload.passed === true;
+	return { ...entry, payload: { ...entry.payload, outcome: passed ? "pass" : "winning" } };
+}
+
+/**
  * The events a replay remembers for the bindings: what a `caused_by` test
  * reads of a cause and what a `uni:cause` param reads of the matched one.
  * This is the memory of the live runner (`bindingRunner.ts`), kept per replay
@@ -115,7 +130,7 @@ export function replayTailToLog(
 	 * no timer comes out of it.
 	 */
 	function runBindings(entry: TailEnvelope, active: TailBindings): void {
-		const event: ClientEvent = clientEventOf(entry);
+		const event: ClientEvent = clientEventOf(withDerivedOutcome(entry));
 		event.causeEvent = memory.causeOf(event.cause);
 		memory.remember(event);
 		const outputs = presentEvent(
