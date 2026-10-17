@@ -412,3 +412,103 @@ describe("createBindingRunner", () => {
 		});
 	});
 });
+
+describe("card bit boundaries", () => {
+	const bitsBinding = {
+		...binding,
+		"uni:binding": {
+			"uni:event": "my_mod:apple_eaten",
+			"uni:cases": [
+				{
+					"uni:present": {
+						"uni:log": {
+							"uni:variants": ["k"],
+							"uni:params": { kind: { "uni:field": "card", "uni:card_part": "kind" } }
+						}
+					}
+				}
+			]
+		}
+	};
+	const resolver = vi.fn((bits: number) => ({ kind: "my_mod:zap", color: "red" }));
+	const paramsOf = (card: number): Record<string, unknown> | undefined => {
+		const registry = new BindingRegistry();
+		registry.ingestDefs({ presentations: [bitsBinding] });
+		const postLine = vi.fn();
+		createBindingRunner({
+			registry,
+			getViewer: () => ({ seat: "ann" }),
+			enqueueBeats: vi.fn(),
+			playSound: vi.fn(),
+			postLine,
+			resolveCard: resolver
+		}).run({ ...live, payload: { card } });
+		return postLine.mock.lastCall?.[0]?.params;
+	};
+
+	it("decodes card bits 0", () => {
+		expect(paramsOf(0)).toEqual({ kind: "my_mod:zap" });
+		expect(resolver.mock.lastCall?.[0]).toBe(0);
+	});
+
+	it("decodes card bits 0xffffffff", () => {
+		expect(paramsOf(0xffffffff)).toEqual({ kind: "my_mod:zap" });
+		expect(resolver.mock.lastCall?.[0]).toBe(0xffffffff);
+	});
+});
+
+describe("an event with no actor", () => {
+	const actorBinding = {
+		...binding,
+		"uni:binding": {
+			"uni:event": "my_mod:apple_eaten",
+			"uni:select": "first",
+			"uni:cases": [
+				{
+					"uni:tests": [{ "uni:test": "equals", "uni:actor": true, "uni:value": "ann" }],
+					"uni:present": {
+						"uni:log": {
+							"uni:variants": ["named"],
+							"uni:params": { who: { "uni:actor": true } }
+						}
+					}
+				},
+				{
+					"uni:present": {
+						"uni:log": {
+							"uni:variants": ["defaulted"],
+							"uni:params": { who: { "uni:actor": true, "uni:default": "system" } }
+						}
+					}
+				}
+			]
+		}
+	};
+	type Posted = { key: string; params?: Record<string, unknown> };
+	function run(event: ClientEvent): { keys: string[]; params: Posted["params"] } {
+		const registry = new BindingRegistry();
+		registry.ingestDefs({ presentations: [actorBinding] });
+		const postLine = vi.fn();
+		createBindingRunner({
+			registry,
+			getViewer: () => ({ seat: "ann" }),
+			enqueueBeats: vi.fn(),
+			playSound: vi.fn(),
+			postLine
+		}).run(event);
+		const lines = postLine.mock.calls.map((call) => call[0] as Posted);
+		return { keys: lines.map((line) => line.key), params: lines[0]?.params };
+	}
+
+	it("holds no actor test and gives the default for an actor param", () => {
+		const { keys, params } = run({ ...live, actor: undefined });
+		expect(keys).toEqual(["defaulted"]);
+		expect(params).toEqual({ who: "system" });
+	});
+
+	it("holds the actor test and reads the actor param when one is on the event", () => {
+		const { keys, params } = run({ ...live, actor: "ann" });
+		expect(keys).toEqual(["named"]);
+		expect(params).toEqual({ who: "ann" });
+	});
+});
