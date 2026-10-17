@@ -9,8 +9,10 @@ const { FakeHowl } = vi.hoisted(() => {
 		#onceCallbacks = new Map<string, Map<number, () => void>>();
 
 		play = vi.fn(() => ++this.#soundIdCounter);
+		stop = vi.fn();
 		rate = vi.fn();
 		volume = vi.fn();
+		loop = vi.fn();
 
 		once = vi.fn((event: string, cb: () => void, id: number) => {
 			if (!this.#onceCallbacks.has(event)) this.#onceCallbacks.set(event, new Map());
@@ -198,5 +200,112 @@ describe("SfxPlayer", () => {
 		expect(howl.volume).toHaveBeenNthCalledWith(1, 0.5, 1);
 		expect(howl.rate).toHaveBeenNthCalledWith(2, 0.8, 2);
 		expect(howl.volume).toHaveBeenNthCalledWith(2, 0.3, 2);
+	});
+});
+
+describe("SfxPlayer: loop playback", () => {
+	beforeEach(() => {
+		FakeHowl.instances = [];
+	});
+
+	it("startLoop plays the clip looping at the requested volume, without pitch jitter", () => {
+		const player = new SfxPlayer();
+		vi.spyOn(Math, "random").mockReturnValue(0.99);
+
+		player.startLoop("loop.1", "sfx.click", 0.5);
+
+		const howl = FakeHowl.instances[0];
+		expect(howl.play).toHaveBeenCalledTimes(1);
+		expect(howl.loop).toHaveBeenCalledWith(true, 1);
+		expect(howl.volume).toHaveBeenCalledWith(0.5, 1);
+		expect(howl.rate).not.toHaveBeenCalled();
+	});
+
+	it("startLoop shares the cached Howl of a one-shot playing the same src", () => {
+		const player = new SfxPlayer();
+		vi.spyOn(Math, "random").mockReturnValue(0);
+
+		player.playSfx("sfx.click");
+		player.startLoop("loop.1", "sfx.click", 0.5);
+
+		expect(FakeHowl.instances).toHaveLength(1);
+	});
+
+	it("startLoop bypasses one-shot throttling and concurrency caps", () => {
+		const player = new SfxPlayer();
+
+		player.playSfx("sfx.capped");
+		player.playSfx("sfx.capped");
+		player.startLoop("loop.1", "sfx.capped", 1);
+		player.startLoop("loop.2", "sfx.capped", 1);
+
+		const howl = FakeHowl.instances[0];
+		expect(howl.play).toHaveBeenCalledTimes(4);
+	});
+
+	it("unknown id warns once and does not play", () => {
+		const player = new SfxPlayer();
+		const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+		player.startLoop("loop.1", "sfx.nope", 1);
+		player.startLoop("loop.2", "sfx.nope", 1);
+
+		expect(FakeHowl.instances).toHaveLength(0);
+		expect(warn).toHaveBeenCalledTimes(1);
+	});
+
+	it("empty variants list is a safe no-op with a warning", () => {
+		const player = new SfxPlayer();
+		const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+		expect(() => player.startLoop("loop.1", "sfx.empty", 1)).not.toThrow();
+		expect(FakeHowl.instances).toHaveLength(0);
+		expect(warn).toHaveBeenCalled();
+	});
+
+	it("stopLoop stops and unloops the running sound", () => {
+		const player = new SfxPlayer();
+
+		player.startLoop("loop.1", "sfx.click", 0.5);
+		player.stopLoop("loop.1");
+
+		const howl = FakeHowl.instances[0];
+		expect(howl.loop).toHaveBeenCalledWith(false, 1);
+		expect(howl.stop).toHaveBeenCalledWith(1);
+	});
+
+	it("stopping an unknown loop id is a no-op", () => {
+		const player = new SfxPlayer();
+
+		expect(() => player.stopLoop("loop.absent")).not.toThrow();
+	});
+
+	it("the loop handle is dropped on stop, a repeated stop plays nothing", () => {
+		const player = new SfxPlayer();
+
+		player.startLoop("loop.1", "sfx.click", 0.5);
+		player.stopLoop("loop.1");
+		const howl = FakeHowl.instances[0];
+		howl.stop.mockClear();
+
+		player.stopLoop("loop.1");
+
+		expect(howl.stop).not.toHaveBeenCalled();
+	});
+
+	it("setLoopVolume retunes the running loop on its own sound id", () => {
+		const player = new SfxPlayer();
+
+		player.startLoop("loop.1", "sfx.click", 0.5);
+		player.setLoopVolume("loop.1", 0.9);
+
+		const howl = FakeHowl.instances[0];
+		expect(howl.volume).toHaveBeenLastCalledWith(0.9, 1);
+	});
+
+	it("setLoopVolume on an unknown id is a no-op", () => {
+		const player = new SfxPlayer();
+
+		expect(() => player.setLoopVolume("loop.absent", 0.9)).not.toThrow();
 	});
 });

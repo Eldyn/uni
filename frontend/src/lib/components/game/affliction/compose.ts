@@ -54,10 +54,8 @@ export const KindModes: Record<string, MergeMode> = {
 	"material.param": "override",
 	"screen.effect": "additive",
 	"particles.emitter": "additive",
-	// DEFER(SP3): `audio.loop` composes (exclusive, single-owner per target) but
-	// no consumer drives it — storeAudio has no loop API. Playback is deferred
-	// to a later release. Composing it now keeps
-	// the kind table complete so a later consumer needs no engine change.
+	// `audio.loop` is target-exclusive: one owner per target, and the losing
+	// afflictions are rejected at activation (see `AfflictionManager.activate`).
 	"audio.loop": "exclusive"
 };
 

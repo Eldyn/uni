@@ -234,4 +234,66 @@ describe("storeAudio", () => {
 
 		expect(ctx.suspend).toHaveBeenCalledTimes(1);
 	});
+
+	it("startLoop forwards the sfxVolume-scaled volume (with opts.gain) to the player", async () => {
+		const { storeAudio } = await import("$stores/audio.svelte");
+		const { SfxPlayer } = await import("$lib/audio/sfxPlayer");
+		const start = vi.spyOn(SfxPlayer.prototype, "startLoop").mockImplementation(() => {});
+
+		storeAudio.setSfxVolume(0.4);
+		storeAudio.startLoop("loop.1", "sfx.whatever", { gain: 0.5 });
+
+		expect(start).toHaveBeenCalledWith("loop.1", "sfx.whatever", 0.2);
+	});
+
+	it("startLoop never starts playback below the mute threshold", async () => {
+		const { storeAudio } = await import("$stores/audio.svelte");
+		const { SfxPlayer } = await import("$lib/audio/sfxPlayer");
+		const start = vi.spyOn(SfxPlayer.prototype, "startLoop").mockImplementation(() => {});
+
+		storeAudio.setSfxVolume(0);
+		storeAudio.startLoop("loop.1", "sfx.whatever");
+
+		expect(start).not.toHaveBeenCalled();
+	});
+
+	it("startLoop stops the loop instance it replaces under the same id", async () => {
+		const { storeAudio } = await import("$stores/audio.svelte");
+		const { SfxPlayer } = await import("$lib/audio/sfxPlayer");
+		vi.spyOn(SfxPlayer.prototype, "startLoop").mockImplementation(() => {});
+		const stop = vi.spyOn(SfxPlayer.prototype, "stopLoop").mockImplementation(() => {});
+
+		storeAudio.startLoop("loop.1", "sfx.whatever");
+		storeAudio.startLoop("loop.1", "sfx.whatever");
+
+		expect(stop).toHaveBeenCalledWith("loop.1");
+	});
+
+	it("setSfxVolume retunes running loops, scaled by their stored gain", async () => {
+		const { storeAudio } = await import("$stores/audio.svelte");
+		const { SfxPlayer } = await import("$lib/audio/sfxPlayer");
+		vi.spyOn(SfxPlayer.prototype, "startLoop").mockImplementation(() => {});
+		const retune = vi.spyOn(SfxPlayer.prototype, "setLoopVolume").mockImplementation(() => {});
+
+		storeAudio.setSfxVolume(0.5);
+		storeAudio.startLoop("loop.1", "sfx.whatever", { gain: 0.5 });
+		storeAudio.setSfxVolume(0.8);
+
+		expect(retune).toHaveBeenCalledWith("loop.1", 0.4);
+	});
+
+	it("stopLoop stops the loop and volume moves no longer retune it", async () => {
+		const { storeAudio } = await import("$stores/audio.svelte");
+		const { SfxPlayer } = await import("$lib/audio/sfxPlayer");
+		vi.spyOn(SfxPlayer.prototype, "startLoop").mockImplementation(() => {});
+		vi.spyOn(SfxPlayer.prototype, "stopLoop").mockImplementation(() => {});
+		const retune = vi.spyOn(SfxPlayer.prototype, "setLoopVolume").mockImplementation(() => {});
+
+		storeAudio.startLoop("loop.1", "sfx.whatever");
+		storeAudio.stopLoop("loop.1");
+		retune.mockClear();
+		storeAudio.setSfxVolume(0.3);
+
+		expect(retune).not.toHaveBeenCalled();
+	});
 });
