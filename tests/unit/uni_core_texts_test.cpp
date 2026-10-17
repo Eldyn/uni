@@ -227,8 +227,8 @@ TEST_CASE("uni texts: the base glossary entries are the 15 explicit entries and 
     for (const auto& [id, source] : source_by_id) {
         if (source == "explicit") ++explicit_count;
     }
-    CHECK(explicit_count == 15);
-    CHECK(source_by_id.size() == 54 + 14);
+    CHECK(explicit_count == 16);
+    CHECK(source_by_id.size() == 54 + 15);
     CHECK(source_by_id.at("uni:wild") == "explicit");
     CHECK(source_by_id.at("uni:red_5") == "card");
 }
@@ -247,7 +247,7 @@ TEST_CASE("uni texts: the lobby text listing names the uni texts and the glossar
         CHECK(file.at("hash").get<std::string>().size() == 64);
         CHECK(file.at("size").get<std::size_t>() > 0);
     }
-    CHECK(uni->at("glossary").size() == 54 + 14);
+    CHECK(uni->at("glossary").size() == 54 + 15);
 }
 
 TEST_CASE("uni texts: the lobby text listing leaves out a mod with neither listing") {

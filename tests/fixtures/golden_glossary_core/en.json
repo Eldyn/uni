@@ -152,7 +152,7 @@
     "uni:progressive": {
       "id": "uni:progressive",
       "title": "Progressive",
-      "description": "Cards that match the top card's value can be chained together in the same [k=uni:turn]turn[/k].",
+      "description": "Draw from the deck until you find a playable card, then choose whether to play it or keep it.",
       "tags": [
         {
           "label": "Rule",

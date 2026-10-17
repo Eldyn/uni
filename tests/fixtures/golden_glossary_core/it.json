@@ -152,7 +152,7 @@
     "uni:progressive": {
       "id": "uni:progressive",
       "title": "Progressivo",
-      "description": "Le carte che corrispondono al valore della carta in cima possono essere concatenate nello stesso [k=uni:turn]turno[/k].",
+      "description": "Pesca dal mazzo finché trovi una carta giocabile, poi scegli se giocarla o tenerla.",
       "tags": [
         {
           "label": "Regola",

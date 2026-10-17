@@ -152,7 +152,7 @@
     "uni:progressive": {
       "id": "uni:progressive",
       "title": "プログレッシブ",
-      "description": "一番上のカードと数字が一致するカードを同じ[k=uni:turn]手番[/k]内で連続して出せます。",
+      "description": "出せるカードが出るまで山札から引き、そのカードを出すか持っておくかを選べます。",
       "tags": [
         {
           "label": "ルール",

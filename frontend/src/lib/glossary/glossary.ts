@@ -59,6 +59,7 @@ const UNI_TAG_KINDS: Record<string, GlossaryTagKind> = {
 	"uni:force_play": "rule",
 	"uni:jump_in": "rule",
 	"uni:progressive": "rule",
+	"uni:no_bluffing": "rule",
 	"uni:race": "rule"
 };
 

@@ -152,7 +152,7 @@
     "uni:progressive": {
       "id": "uni:progressive",
       "title": "Fortlaufend",
-      "description": "Karten mit demselben Wert wie die oberste Karte können im selben [k=uni:turn]Zug[/k] aneinandergehängt werden.",
+      "description": "Ziehe vom Stapel, bis du eine spielbare Karte findest, und entscheide dann, ob du sie spielst oder behältst.",
       "tags": [
         {
           "label": "Regel",

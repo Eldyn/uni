@@ -6,6 +6,7 @@
 	import ToggleChip from "$components/common/ToggleChip.svelte";
 	import { MAX_LOBBY_MEMBERS } from "$lib/generated/schemas";
 	import { DECKS, ruleIcon, ruleLabel } from "$lib/data/lobbyCatalogs";
+	import { getGlossaryEntry } from "$lib/glossary/glossary";
 	import { storeCatalog } from "$stores/catalog.svelte";
 	import { storeI18n } from "$stores/i18n.svelte";
 	import * as m from "$lib/paraglide/messages.js";
@@ -137,7 +138,8 @@
 				<ToggleChip
 					active={advRules[rule.id] ?? false}
 					icon={ruleIcon(rule.id)}
-					title={rule.description}
+					title={getGlossaryEntry(`uni:${rule.id}`, storeI18n.locale)?.description ??
+						rule.description}
 					onclick={() => (advRules = { ...advRules, [rule.id]: !advRules[rule.id] })}
 					>{ruleLabel(rule, storeI18n.locale)}</ToggleChip
 				>

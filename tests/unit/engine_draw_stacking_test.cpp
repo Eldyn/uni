@@ -14,7 +14,9 @@
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
+#include <algorithm>
 #include <memory>
+#include <random>
 #include <optional>
 #include <string>
 #include <utility>
@@ -1559,4 +1561,268 @@ TEST_CASE("engine draw_stacking: a +N is not playable on an unrelated card") {
     CHECK_FALSE(engine->PlayCard("player2", *yellow2));
     CHECK(HandSize(*engine, player1) == 1);
     CHECK(HandSize(*engine, player2) == 1);
+}
+
+namespace {
+
+ecs::PileContents* DrawPileOf(MatchInstance& engine) {
+    for (ecs::Entity entity : engine.Store().EntitiesWith<ecs::PileContents>()) {
+        ecs::PileContents* pile = engine.Store().Get<ecs::PileContents>(entity);
+        if (pile != nullptr && pile->kind == ecs::PileKind::kDraw) return pile;
+    }
+    return nullptr;
+}
+
+/** @brief Order the draw pile so `first` is drawn first, then the rest. */
+void StackDrawOrder(MatchInstance& engine,
+                    const std::vector<ecs::Entity>& first) {
+    ecs::PileContents* draw = DrawPileOf(engine);
+    REQUIRE(draw != nullptr);
+    std::vector<ecs::Entity> cards;
+    for (ecs::Entity card : draw->cards) {
+        if (std::find(first.begin(), first.end(), card) == first.end()) {
+            cards.push_back(card);
+        }
+    }
+    cards.insert(cards.end(), first.rbegin(), first.rend());
+    draw->cards = cards;
+    for (std::size_t i = 0; i < cards.size(); ++i) {
+        if (ecs::InZone* in = engine.Store().Get<ecs::InZone>(cards[i])) {
+            in->ordinal = static_cast<uint32_t>(i);
+        }
+    }
+}
+
+}  // namespace
+
+TEST_CASE("engine draw_stacking: a progressive or forced +2 leaves no stale debt") {
+    const std::vector<std::vector<std::string>> mod_sets = {
+        {"uni", "draw_stacking", "force_play", "progressive"},
+        {"uni", "draw_stacking", "force_play", "jump_in", "progressive"}};
+    for (const std::vector<std::string>& mods : mod_sets) {
+        for (const std::size_t dead_count : {std::size_t{0}, std::size_t{2}}) {
+            CAPTURE(mods.size());
+            CAPTURE(dead_count);
+            Content content;
+            REQUIRE(LoadContent(content));
+            FakeClock clock;
+            std::unique_ptr<MatchInstance> engine = Assemble(
+                content, mods, 3, 7, 42, FixedWindow(kStackingWindowMs),
+                clock.Fn());
+            const ecs::Entity player0 = *engine->FindPlayer("player0");
+            const ecs::Entity player1 = *engine->FindPlayer("player1");
+            const ecs::Entity player2 = *engine->FindPlayer("player2");
+
+            const std::optional<ecs::Entity> draw2 =
+                FindCard(*engine, "red", "+2");
+            REQUIRE(draw2.has_value());
+            std::vector<ecs::Entity> order;
+            for (const char* label : {"5", "6"}) {
+                if (order.size() == dead_count) break;
+                const std::optional<ecs::Entity> dead =
+                    FindCard(*engine, "blue", label);
+                REQUIRE(dead.has_value());
+                order.push_back(*dead);
+            }
+            order.push_back(*draw2);
+            const std::optional<ecs::Entity> filler =
+                FindCard(*engine, "green", "9");
+            REQUIRE(filler.has_value());
+            ForceHand(*engine, player0, {*filler});
+            StackDrawOrder(*engine, order);
+            engine->Store()
+                .Get<ecs::ActiveTypeReq>(engine->Registries().match)
+                ->type = "red";
+            ecs::PileContents* discard = nullptr;
+            for (ecs::Entity entity :
+                 engine->Store().EntitiesWith<ecs::PileContents>()) {
+                ecs::PileContents* pile =
+                    engine->Store().Get<ecs::PileContents>(entity);
+                if (pile != nullptr && pile->kind == ecs::PileKind::kDiscard) {
+                    discard = pile;
+                }
+            }
+            REQUIRE(discard != nullptr);
+            engine->Store().Get<ecs::FaceSpec>(discard->cards.back())->label =
+                "___";
+            const std::size_t victim_hand = HandSize(*engine, player1);
+
+            REQUIRE(engine->DrawCard("player0"));
+
+            // INFO: the +2 was drawn, then played; its debt sits on the victim
+            //       while the stack window is open.
+            CHECK(DebtOf(*engine, player1) == 2);
+            CHECK(DebtOf(*engine, player0) == 0);
+            CHECK(DebtOf(*engine, player2) == 0);
+
+            clock.now = kJumpInHoldMs;
+            for (const char* name : {"player0", "player1", "player2"}) {
+                if (engine->WindowOpen()) engine->PassWindow(name);
+            }
+
+            // INFO: once the window closes the debt is paid and gone for
+            //       every seat.
+            CHECK_FALSE(engine->WindowOpen());
+            CHECK(DebtOf(*engine, player0) == 0);
+            CHECK(DebtOf(*engine, player1) == 0);
+            CHECK(DebtOf(*engine, player2) == 0);
+            CHECK(HandSize(*engine, player1) == victim_hand + 2);
+        }
+    }
+}
+
+namespace {
+
+int64_t TotalDebt(MatchInstance& engine) {
+    int64_t total = 0;
+    for (ecs::Entity holder : engine.Store().EntitiesWith<ecs::PlayerInfo>()) {
+        total += DebtOf(engine, holder);
+    }
+    return total;
+}
+
+}  // namespace
+
+TEST_CASE("engine draw_stacking fuzz: debt never lingers once play settles") {
+    const std::vector<std::string> mods = {"uni", "seven_zero",
+                                           "draw_stacking", "force_play",
+                                           "jump_in", "progressive"};
+    int debt_windows = 0;
+    int finished_matches = 0;
+    for (uint64_t seed = 1; seed <= 300; ++seed) {
+        const int player_count = 2 + static_cast<int>(seed % 3);
+        std::vector<std::string> names;
+        for (int i = 0; i < player_count; ++i) {
+            names.push_back("player" + std::to_string(i));
+        }
+        Content content;
+        REQUIRE(LoadContent(content));
+        FakeClock clock;
+        std::unique_ptr<MatchInstance> engine = Assemble(
+            content, mods, player_count, 7, seed,
+            FixedWindow(kStackingWindowMs), clock.Fn());
+        std::mt19937_64 rng(seed);
+        std::string trail;
+        for (int step = 0; step < 500 && !engine->IsMatchOver(); ++step) {
+            const auto pick = [&](std::size_t n) { return rng() % n; };
+            // INFO: mostly small steps; now and then a jump past the window
+            //       and turn clocks so timeouts and lapsed turns run too.
+            constexpr int64_t kSteps[] = {500, 500, 500, 8000, 16000};
+            clock.now += kSteps[pick(5)];
+            engine->SyncClocks(15'000);
+            engine->Tick();
+            const std::string current = engine->GetCurrentPlayerUsername();
+            if (const std::optional<json> input = engine->PendingInput()) {
+                const std::string kind = input->value("kind", std::string());
+                bool answered = false;
+                if (kind == "choose_player") {
+                    for (const std::string& name : names) {
+                        if (name != current
+                            && engine->SubmitInput(current, name)) {
+                            answered = true;
+                            break;
+                        }
+                    }
+                } else if (kind == "choose_card") {
+                    answered = false;
+                } else {
+                    for (const char* color : {"red", "green", "blue"}) {
+                        if (engine->SubmitInput(current, color)) {
+                            answered = true;
+                            break;
+                        }
+                    }
+                }
+                if (!answered) clock.now += 20'000;
+                trail += "I";
+                continue;
+            }
+            if (engine->WindowOpen()) {
+                if (TotalDebt(*engine) > 0) ++debt_windows;
+                bool responded = false;
+                if (pick(3) == 0) {
+                    const std::string who = names[pick(names.size())];
+                    const ecs::Hand* hand = engine->Store().Get<ecs::Hand>(
+                        *engine->FindPlayer(who));
+                    if (hand != nullptr) {
+                        for (ecs::Entity card : std::vector<ecs::Entity>(hand->cards)) {
+                            if (engine->RespondWindow(who, card)) {
+                                responded = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+                if (!responded) {
+                    clock.now += kJumpInHoldMs;
+                    for (const std::string& name : names) {
+                        if (engine->WindowOpen()) engine->PassWindow(name);
+                    }
+                }
+                trail += "W";
+                continue;
+            }
+            if (engine->PendingPlayDrawnState().has_value()) {
+                if (pick(2) == 0) {
+                    engine->KeepDrawn(current);
+                } else {
+                    engine->PlayCard(
+                        current, engine->PendingPlayDrawnState()->card);
+                }
+                trail += "H";
+            } else {
+                const ecs::Hand* hand = engine->Store().Get<ecs::Hand>(
+                    *engine->FindPlayer(current));
+                bool played = false;
+                if (hand != nullptr) {
+                    std::vector<ecs::Entity> cards = hand->cards;
+                    std::shuffle(cards.begin(), cards.end(), rng);
+                    for (ecs::Entity card : cards) {
+                        if (engine->PlayCard(current, card)) {
+                            played = true;
+                            break;
+                        }
+                    }
+                }
+                if (!played) engine->DrawCard(current);
+                trail += played ? "P" : "D";
+            }
+            if (!engine->WindowOpen() && !engine->PendingInput().has_value()) {
+                std::string tail;
+                if (TotalDebt(*engine) != 0) {
+                    const std::vector<json>& all = engine->Events();
+                    const std::size_t from = all.size() > 40 ? all.size() - 40 : 0;
+                    for (std::size_t i = from; i < all.size(); ++i) {
+                        const json& e = all[i];
+                        tail += e.value("type", std::string());
+                        const json& pl = e.contains("payload") ? e["payload"] : json();
+                        if (pl.is_object()) {
+                            if (pl.contains("name")) tail += ":" + pl["name"].dump();
+                            if (pl.contains("status_kind")) tail += ":" + pl["status_kind"].dump();
+                            if (pl.contains("magnitude")) tail += "=" + pl["magnitude"].dump();
+                            if (pl.contains("player")) tail += "@" + pl["player"].dump();
+                            if (pl.contains("target")) tail += "->" + pl["target"].dump();
+                            if (pl.contains("kind")) tail += "/" + pl["kind"].dump();
+                            if (pl.contains("count")) tail += "#" + pl["count"].dump();
+                        }
+                        tail += " | ";
+                    }
+                    tail += " DEBT";
+                    for (const std::string& name : names) {
+                        tail += " " + name + "=" + std::to_string(DebtOf(
+                            *engine, *engine->FindPlayer(name)));
+                    }
+                    tail += " current=" + engine->GetCurrentPlayerUsername();
+                }
+                CAPTURE(seed);
+                CAPTURE(step);
+                CAPTURE(tail);
+                REQUIRE(TotalDebt(*engine) == 0);
+            }
+        }
+        if (engine->IsMatchOver()) ++finished_matches;
+    }
+    MESSAGE("debt windows seen: " << debt_windows << ", matches finished: "
+                                  << finished_matches);
+    CHECK(debt_windows > 20);
 }

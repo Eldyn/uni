@@ -475,16 +475,23 @@ bool MatchInstance::DrawCard(const std::string& username) {
             ecs::ZoneRef{ecs::ZoneKind::kHand, *player})) {
         return false;
     }
+    const std::size_t events_before_hooks = events_.size();
     After("draw", draw_data);
 
-    // INFO: a playable voluntary draw is held for a play/keep choice. Flagged
-    //       on the public event so every client can park the card for the
+    // INFO: a playable voluntary draw is held for a play/keep choice. A mod
+    //       that keeps drawing (progressive) hands the choice to the card it
+    //       stopped on, so the held card is the last one drawn for the player.
+    //       `held` is flagged on the public event only when the hold sits on
+    //       the card of this event, so every client can park that card for the
     //       choice even when a bot resolves it within the same step.
-    const bool holds_turn = !Paused() && DrawnCardPlayable(*player, *card);
+    const ecs::Entity held_candidate =
+        LastCardDrawnSince(events_before_hooks, *player).value_or(*card);
+    const bool holds_turn =
+        !Paused() && DrawnCardPlayable(*player, held_candidate);
     Emit("cards_drawn", json{{"player", username},
                              {"count", 1},
                              {"source", "draw_pile"},
-                             {"held", holds_turn},
+                             {"held", holds_turn && held_candidate == *card},
                              {"hand_size_after",
                               ops::HandSizeOf(store, *player)},
                              {"from_debt", false},
@@ -500,7 +507,7 @@ bool MatchInstance::DrawCard(const std::string& username) {
     // INFO:  - a playable voluntary draw holds the turn: the player chooses to
     //       play it or keep it, or the turn clock expires.
     if (holds_turn) {
-        awaiting_play_drawn_ = PendingPlayDrawn{*player, *card};
+        awaiting_play_drawn_ = PendingPlayDrawn{*player, held_candidate};
         return true;
     }
     AdvanceTurn();
@@ -511,6 +518,32 @@ void MatchInstance::EmitDrawnCardKept(const PendingPlayDrawn& pending) {
     Emit("drawn_card_kept",
          json{{"player", PlayerUsername(assembly_->store, pending.player)},
               {"card", EntityJson(pending.card)}});
+}
+
+std::optional<ecs::Entity> MatchInstance::LastCardDrawnSince(
+    std::size_t first_event, ecs::Entity player) const {
+    const std::string username = PlayerUsername(assembly_->store, player);
+    std::optional<ecs::Entity> last;
+    for (std::size_t i = first_event; i < events_.size(); ++i) {
+        const json& event = events_[i];
+        if (event.value("type", std::string()) != "cards_drawn") continue;
+        const json payload =
+            event.contains("payload") && event["payload"].is_object()
+                ? event["payload"]
+                : json::object();
+        const json& who = payload.contains("player") ? payload["player"] : json();
+        if (EntityFromJson(who) != std::optional<ecs::Entity>(player)) {
+            continue;
+        }
+        if (!payload.contains("cards") || !payload["cards"].is_array()
+            || payload["cards"].empty()) {
+            continue;
+        }
+        const std::optional<ecs::Entity> card =
+            EntityFromJson(payload["cards"].back());
+        if (card.has_value() && assembly_->store.IsAlive(*card)) last = card;
+    }
+    return last;
 }
 
 bool MatchInstance::KeepDrawn(const std::string& username) {

@@ -3,6 +3,6 @@
   "name": "No Bluffing",
   "version": "1.0.0",
   "api": "1",
-  "description": "Rule-only mod: +4 may only be played when you hold no card matching the current colour.",
+  "description": "+4 may only be played when you hold no card matching the current colour.",
   "author": "eldyn"
 }

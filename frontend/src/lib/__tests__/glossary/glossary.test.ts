@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { getGlossaryEntry, hasGlossaryKeyword } from "$lib/glossary/glossary";
 import { storeModGlossary } from "$lib/stores/modGlossary.svelte";
 import { storeModTexts } from "$lib/stores/modTexts.svelte";
-import { prepareCoreTexts } from "./coreTextsHarness";
+import { SHIPPED_LOCALES, prepareCoreTexts } from "./coreTextsHarness";
 
 describe("namespaced glossary", () => {
 	beforeEach(async () => {
@@ -23,6 +23,30 @@ describe("namespaced glossary", () => {
 	it("lets the glossary entry of wild replace the automatic entry of the wild card", () => {
 		expect(getGlossaryEntry("uni:wild", "en")?.description).toContain(
 			"The player chooses the active"
+		);
+	});
+
+	it("resolves every rule mod entry in each locale", async () => {
+		for (const locale of SHIPPED_LOCALES) {
+			await prepareCoreTexts(locale);
+			for (const rule of [
+				"seven_zero",
+				"draw_stacking",
+				"force_play",
+				"jump_in",
+				"progressive",
+				"no_bluffing"
+			]) {
+				const entry = getGlossaryEntry(`uni:${rule}`, locale);
+				expect(entry?.title, `${rule} title in ${locale}`).toBeTruthy();
+				expect(entry?.description, `${rule} description in ${locale}`).toBeTruthy();
+			}
+		}
+	});
+
+	it("describes progressive as draw until playable, then choose", () => {
+		expect(getGlossaryEntry("uni:progressive", "en")?.description).toContain(
+			"choose whether to play it or keep it"
 		);
 	});
 

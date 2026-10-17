@@ -152,7 +152,7 @@
     "uni:progressive": {
       "id": "uni:progressive",
       "title": "Progresivo",
-      "description": "Las cartas que coinciden con el valor de la carta superior se pueden encadenar en el mismo [k=uni:turn]turno[/k].",
+      "description": "Roba del mazo hasta encontrar una carta jugable y luego elige si la juegas o te la quedas.",
       "tags": [
         {
           "label": "Regla",

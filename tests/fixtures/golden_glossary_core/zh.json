@@ -152,7 +152,7 @@
     "uni:progressive": {
       "id": "uni:progressive",
       "title": "连击出牌",
-      "description": "与顶牌数值相同的牌可在同一[k=uni:turn]回合[/k]内连续打出。",
+      "description": "从牌堆抽牌直到抽到可出的牌，然后选择打出或保留。",
       "tags": [
         {
           "label": "规则",
