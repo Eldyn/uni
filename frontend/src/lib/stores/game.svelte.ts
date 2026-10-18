@@ -34,6 +34,8 @@ import { bindingOnlyBeat, mapMatchEventPacket, type MatchEventBeat } from "./mat
 import { bindingRegistry } from "$lib/presentation/eventBindings";
 import { storeModTexts } from "$lib/stores/modTexts.svelte";
 import { storeModGlossary } from "$lib/stores/modGlossary.svelte";
+import { parseLoadout } from "$lib/avatar/loadoutSchema";
+import type { Loadout } from "$lib/avatar/types";
 
 export const TYPE_MAP = TypeMap;
 
@@ -61,6 +63,7 @@ const RawPlayerSchema = z.object({
 	card_count: z.number().int(),
 	is_bot: z.boolean(),
 	skin: z.string().optional(),
+	loadout: z.unknown().optional(),
 	hand: z.array(RawCardSchema).optional(),
 	statuses: z.array(z.unknown()).optional(),
 	spectator_count: z.number().int().optional()
@@ -175,6 +178,8 @@ export interface GamePlayer {
 	/** Display-only avatar-strip override from the director skin op
 	 *  ("bot" | "player"). Absent unless the director set one. */
 	skin?: string;
+	/** The player's equipped loadout, or null when it is unknown (bots carry none). */
+	loadout?: Loadout | null;
 	/** How many connected spectators are watching THIS player's POV. Absent on
 	 *  older state payloads; treated as 0. */
 	spectator_count?: number;
@@ -815,6 +820,15 @@ class StoreGame implements SessionStore {
 			this.#resetMatchCounters();
 		});
 
+		ws.on(ServerAction.LoadoutChanged, (data) => {
+			if (!this.state) return;
+			const username = data.username;
+			if (typeof username !== "string") return;
+			const player = this.state.players.find((p) => p.username === username);
+			if (!player) return;
+			player.loadout = parseLoadout(data.loadout);
+		});
+
 		ws.on(ServerAction.MatchStateUpdated, (data: any) => {
 			this.#clearActionPending();
 			const parsed = RawGameStateSchema.safeParse(data.match_state);
@@ -860,6 +874,7 @@ class StoreGame implements SessionStore {
 					: undefined,
 				players: stateJson.players.map((p) => ({
 					...p,
+					loadout: parseLoadout(p.loadout),
 					hand: p.hand ? p.hand.map((card) => this.#parseCard(card)) : undefined
 				})),
 				pending_draws: context?.draw_debt ?? stateJson.pending_draws,
