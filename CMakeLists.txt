@@ -131,6 +131,10 @@ find_package(glaze REQUIRED)
 
 # --- Main Executable ---
 file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS "src/*.cpp")
+list(FILTER SOURCES EXCLUDE REGEX "src/match/expr/")
+file(GLOB UNI_EXPR_SOURCES CONFIGURE_DEPENDS "src/match/expr/*.cpp")
+add_library(uni_expr STATIC ${UNI_EXPR_SOURCES})
+target_include_directories(uni_expr PRIVATE include src "${CMAKE_BINARY_DIR}/generated")
 add_executable(uni_server ${SOURCES})
 
 # --- Fix for Winsock conflicts on Windows ---
@@ -154,6 +158,7 @@ target_link_libraries(uni_server PRIVATE
     SQLite::SQLite3
     jwt-cpp::jwt-cpp
     nlohmann_json::nlohmann_json
+    uni_expr
     CURL::libcurl
     glaze::glaze
 )
@@ -305,6 +310,7 @@ if(UNI_BUILD_TESTS)
         doctest::doctest
         Threads::Threads
         nlohmann_json::nlohmann_json
+        uni_expr
         uwebsockets::uwebsockets
         usockets::usockets
         libuv::uv_a
