@@ -20,10 +20,10 @@
 
 	const TILES = $derived<MenuTile[]>([
 		{
-			label: m.nav_leaderboard({}, { locale: storeI18n.locale }),
-			icon: "pixelart-icons-font-trophy",
+			label: m.nav_settings({}, { locale: storeI18n.locale }),
+			icon: "pixelart-icons-font-settings-cog",
 			disabled: false,
-			screen: "stats"
+			screen: "settings"
 		},
 		{
 			label: m.nav_wardrobe({}, { locale: storeI18n.locale }),
@@ -31,10 +31,10 @@
 			disabled: true
 		},
 		{
-			label: m.nav_settings({}, { locale: storeI18n.locale }),
-			icon: "pixelart-icons-font-settings-cog",
+			label: m.nav_leaderboard({}, { locale: storeI18n.locale }),
+			icon: "pixelart-icons-font-trophy",
 			disabled: false,
-			screen: "settings"
+			screen: "stats"
 		}
 	]);
 
@@ -157,7 +157,7 @@
 	.menu-grid {
 		display: grid;
 		grid-template-columns: repeat(3, var(--menu-tile-size));
-		gap: var(--space-2);
+		gap: 0;
 		--menu-tile-size: 4.5rem;
 	}
 
@@ -173,6 +173,7 @@
 		padding: var(--space-1);
 		background: var(--surface-deep);
 		border: 0;
+		border-radius: 0;
 		outline: 2px solid transparent;
 		outline-offset: -2px;
 		color: var(--text);

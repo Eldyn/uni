@@ -948,7 +948,11 @@ body.director-clean-view .director-panel {
 	display: none !important;
 }
 
-/* INFO: hide the chat launcher while the nav menu grid is open. */
-body[data-menu-open] .chat-launcher {
-	display: none;
+/* INFO: hide the chat launcher while the menu sheet is open. Only the
+   bottom-bar layout needs it; the rail popover does not reach the launcher.
+   The query is the exact complement of the rail one in NavBar.svelte. */
+@media (max-width: 767px) and (min-height: 600px) {
+	body[data-menu-open] .chat-launcher {
+		display: none;
+	}
 }
