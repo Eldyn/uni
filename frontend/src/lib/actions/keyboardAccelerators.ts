@@ -7,6 +7,7 @@ import { storeNavigation } from "$stores/navigation.svelte";
 import { storeModal } from "$stores/modal.svelte";
 import { storeLobby } from "$stores/lobby.svelte";
 import { storeGame } from "$stores/game.svelte";
+import { storeMenu } from "$stores/menu.svelte";
 import { chatStore } from "$stores/chat.svelte";
 import type { AppScreen } from "$stores/navigation.svelte";
 
@@ -39,8 +40,7 @@ const SCREEN_BY_ACCELERATOR: Partial<Record<AcceleratorId, AppScreen>> = {
 	browse: "lobbies",
 	decks: "decks",
 	shop: "shop",
-	profile: "profile",
-	menu: "settings"
+	profile: "profile"
 };
 
 /** Resolves a pressed (lowercased) key to a screen. */
@@ -88,6 +88,12 @@ function onKeydown(event: KeyboardEvent): void {
 
 	if (key === "c") {
 		chatStore.open();
+		return;
+	}
+
+	// Key 5 no longer goes to a screen: it toggles the Menu tile grid.
+	if (key === ACCELERATOR_KEYS.menu.toLowerCase()) {
+		storeMenu.toggle();
 		return;
 	}
 
