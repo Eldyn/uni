@@ -11,7 +11,24 @@ TEST_CASE("migrations: user_version advances to latest") {
     auto ver = Database::Get().QueryOne("PRAGMA user_version;", {});
     REQUIRE(ver.has_value());
     REQUIRE(ver->has_value());
-    CHECK(ver.value()->Get<int>("user_version") == 12);
+    CHECK(ver.value()->Get<int>("user_version") == 13);
+}
+
+TEST_CASE("migrations: v13 adds users.avatar_loadout as a nullable text column") {
+    auto applied = Database::Get().RunMigrations();
+    REQUIRE(applied.has_value());
+
+    auto cols = Database::Get().Query("PRAGMA table_info(users);", {});
+    REQUIRE(cols.has_value());
+
+    bool found = false;
+    for (const auto& row : *cols) {
+        if (row.Get<std::string>("name") != "avatar_loadout") continue;
+        found = true;
+        CHECK(row.Get<std::string>("type") == "TEXT");
+        CHECK(row.Get<int>("notnull") == 0);
+    }
+    CHECK(found);
 }
 
 TEST_CASE("migrations: expected tables exist") {

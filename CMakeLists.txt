@@ -219,6 +219,8 @@ if(UNI_BUILD_TESTS)
     add_executable(uni_tests
         ${TEST_SOURCES}
         src/avatar/catalogue.cpp
+        src/avatar/loadout.cpp
+        src/avatar/loadout_repository.cpp
         src/common/rate_limiter.cpp
         src/common/login_throttle.cpp
         src/common/lobby.cpp
@@ -276,6 +278,7 @@ if(UNI_BUILD_TESTS)
         src/controllers/auth_controller.cpp
         src/controllers/password_reset_controller.cpp
         src/controllers/stats_controller.cpp
+        src/controllers/avatar_controller.cpp
         src/controllers/friend_controller.cpp
         src/controllers/chat_controller.cpp
         src/services/auth_service.cpp

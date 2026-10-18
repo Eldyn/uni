@@ -16,6 +16,8 @@ import { storeNavigation } from "./navigation.svelte";
 import { storeToast } from "./toast.svelte";
 import { ClientAction, ServerAction, ws } from "./ws.svelte";
 import { storeI18n } from "./i18n.svelte";
+import { parseLoadout } from "$lib/avatar/loadoutSchema";
+import type { Loadout } from "$lib/avatar/types";
 import * as m from "$lib/paraglide/messages.js";
 
 /**
@@ -117,6 +119,8 @@ export interface LobbyMember {
 	is_ready: boolean;
 	/** True if this member is currently spectating rather than an active player. */
 	is_spectator?: boolean;
+	/** The member's equipped loadout, or null when it is unknown (bots carry none). */
+	loadout?: Loadout | null;
 }
 
 /**
@@ -169,7 +173,8 @@ const LobbyMemberSchema = z.looseObject({
 	is_connected: z.boolean(),
 	is_host: z.boolean(),
 	is_bot: z.boolean(),
-	is_ready: z.boolean()
+	is_ready: z.boolean(),
+	loadout: z.unknown().optional()
 });
 
 const LobbySchema = z.looseObject({
@@ -202,7 +207,16 @@ function parseLobby(raw: unknown): Lobby | null {
 		console.error("[lobby] Malformed lobby payload:", parsed.error.issues);
 		return null;
 	}
-	return parsed.data as unknown as Lobby;
+	const lobby = parsed.data as unknown as Lobby;
+	// INFO: members' loadouts are parsed separately so one malformed loadout
+	// resolves to null instead of rejecting the whole lobby payload.
+	return {
+		...lobby,
+		members: lobby.members.map((member) => ({
+			...member,
+			loadout: parseLoadout(member.loadout)
+		}))
+	};
 }
 
 /**
@@ -721,6 +735,14 @@ class StoreLobby implements SessionStore {
 						updatedLobby.members.length >= updatedLobby.settings.max_players ? "full" : "open";
 				}
 			}
+		});
+
+		ws.on(ServerAction.LoadoutChanged, (data) => {
+			const username = data.username;
+			if (typeof username !== "string") return;
+			const member = this.current?.members.find((m) => m.username === username);
+			if (!member) return;
+			member.loadout = parseLoadout(data.loadout);
 		});
 
 		const handleDisconnection = () => {

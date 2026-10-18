@@ -641,6 +641,7 @@ AssemblyResult MatchAssembler::Assemble(
         info.connected = spec.connected;
         info.is_bot = spec.is_bot;
         info.ready = spec.ready;
+        info.loadout = spec.loadout;
         store.Add(entity, std::move(info));
         store.Add(entity, ecs::Hand{});
         ecs::TurnState turn;

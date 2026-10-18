@@ -5,6 +5,9 @@
  */
 #include "common/lobby.hpp"
 #include "websocket_context.hpp"
+#include <avatar/catalogue.hpp>
+#include <avatar/loadout.hpp>
+#include <avatar/loadout_repository.hpp>
 #include <common/bot_names.hpp>
 #include <logger.hpp>
 #include <match/ecs/components.hpp>
@@ -21,6 +24,41 @@ namespace {
 constexpr char kCodeAlphabet[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 constexpr int  kCodeLen        = 6;
 constexpr int  kAlphabetLen    = 36;
+
+/** @brief Guests are the only identities whose name carries a '#'. */
+bool IsGuestUsername(const std::string& username) {
+    return username.starts_with("Guest#");
+}
+
+// INFO: identical to the avatar controller's per-session seed (FNV-1a,
+//       32-bit) so a guest's member payload matches `GET /avatar/loadout/me`.
+uint32_t GuestSeed(const std::string& username) {
+    uint32_t hash = 2166136261u;
+    for (const char raw : username) {
+        hash ^= static_cast<unsigned char>(raw);
+        hash *= 16777619u;
+    }
+    return hash;
+}
+
+/**
+ * @brief The look a joining member carries.
+ *
+ * A guest gets the stable per-session default; a registered account gets its
+ * saved loadout, or the default look (seed 0) when none was saved. Bots are
+ * assigned a null loadout by their creation site.
+ */
+nlohmann::json ResolveMemberLoadout(const std::string& username) {
+    const uni::avatar::Catalogue& catalogue = uni::avatar::Catalogue::Instance();
+    if (IsGuestUsername(username)) {
+        return uni::avatar::GuestLoadout(catalogue, GuestSeed(username));
+    }
+    const uni::avatar::LoadoutRepository repository;
+    if (std::optional<nlohmann::json> stored = repository.Get(username)) {
+        return *stored;
+    }
+    return uni::avatar::GuestLoadout(catalogue, 0);
+}
 }  // namespace
 
 // INFO: The move operations and destructor are defined here, where the
@@ -184,6 +222,8 @@ MemberRemovalResult Lobby::RemoveMember(const std::string& username, std::mt1993
         member_it->is_bot = true;
         member_it->is_connected = true;
         member_it->socket = nullptr;
+        // INFO: a bot has no avatar loadout; drop the leaver's public look.
+        member_it->loadout = nullptr;
         member_it->disconnected_at = std::chrono::steady_clock::time_point{};
 
         result.match_outcome = MemberRemovalOutcome::kPlayerReplacedByBot;
@@ -245,6 +285,7 @@ JoinResult Lobby::AddOrHijack(const std::string& username, AppWebSocket* socket)
             if (settings.bot_count > 0) settings.bot_count--;
             member.is_spectator = false;
             member.privacy_mode = user_privacy;
+            member.loadout = ResolveMemberLoadout(username);
             if (session) session->SetSeatPrivacy(username, user_privacy);
 
             result.outcome = JoinOutcome::kHijackedBot;
@@ -257,6 +298,7 @@ JoinResult Lobby::AddOrHijack(const std::string& username, AppWebSocket* socket)
         // When match in progress and no bot seat was hijacked, join as spectator!
         members.emplace_back(username, socket, true, false, -1, /*is_spectator=*/true,
                              user_privacy);
+        members.back().loadout = ResolveMemberLoadout(username);
         result.outcome = JoinOutcome::kJoinedAsSpectator;
         return result;
     }
@@ -265,6 +307,7 @@ JoinResult Lobby::AddOrHijack(const std::string& username, AppWebSocket* socket)
         int seat = NextFreeSeat();
         members.emplace_back(username, socket, true, false, seat, /*is_spectator=*/false,
                              user_privacy);
+        members.back().loadout = ResolveMemberLoadout(username);
 
         result.outcome = JoinOutcome::kJoinedEmptySlot;
         return result;
@@ -300,6 +343,7 @@ Lobby Lobby::Create(uint32_t id, const std::string& host, AppWebSocket* host_soc
     const bool host_privacy = host_data != nullptr && host_data->privacy_mode;
     lobby.members.emplace_back(host, host_socket, true, false, 0,
                                /*is_spectator=*/false, host_privacy);
+    lobby.members.back().loadout = ResolveMemberLoadout(host);
     lobby.settings.Sanitize(max_players_ceiling);
 
     return lobby;

@@ -97,6 +97,14 @@ class Catalogue {
     bool HasSwatch(const std::string& swatch_id) const;
 
     /**
+     * @brief Ids of every swatch in a `starter` palette, in catalogue order.
+     *
+     * Used to build the default look (the first id) and the guest default
+     * (`seed % size`).
+     */
+    std::vector<std::string> StarterSwatchIds() const;
+
+    /**
      * @brief The first starter item in `slot`, or `nullptr` when the slot is
      *        optional (or unknown).
      */

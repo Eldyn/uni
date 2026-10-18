@@ -521,6 +521,9 @@ json BuildPlayer(const ViewBuilder& builder,
     entry["username"] = username;
     entry["seat"] = info == nullptr ? 0u : info->seat;
     entry["is_bot"] = info != nullptr && info->is_bot;
+    // INFO: the public avatar loadout (spec 1D), frozen at match start. Null
+    //       for bots and for seats assembled without one.
+    entry["loadout"] = info == nullptr ? json(nullptr) : info->loadout;
     // INFO: display-only avatar-strip override (Creative skin op); turn
     //       logic keeps reading `is_bot`, never this.
     const auto skin = options.skin_overrides.find(username);

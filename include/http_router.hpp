@@ -20,7 +20,7 @@ using HttpHandler = std::function<void(AppResponse*, AppRequest*)>;
 
 /**
  * @class HttpRouter
- * @brief Handles the registration and routing of HTTP calls (GET, POST and middleware).
+ * @brief Handles the registration and routing of HTTP calls (GET, POST, PUT and middleware).
  * * The approach differs slightly from the ActionRouter because uWebSockets requires
  * HTTP routes to be registered explicitly directly on its native instance.
  */
@@ -46,6 +46,14 @@ public:
      * @return HttpRouter& Reference for chaining.
      */
     HttpRouter& Post(const std::string& path, HttpHandler handler);
+
+    /**
+     * @brief Registers a handler for a PUT route.
+     * @param path The URI path, must start with "/".
+     * @param handler The function to execute.
+     * @return HttpRouter& Reference for chaining.
+     */
+    HttpRouter& Put(const std::string& path, HttpHandler handler);
 
     /**
      * @brief Registers a middleware that is executed before any HTTP request.
@@ -76,7 +84,7 @@ public:
      * Intended for tests that want to drive a registered handler without a
      * live uWS request; it does not fake `AppRequest`/`AppResponse` and so
      * still requires real (or otherwise obtained) instances of both.
-     * @param method The HTTP method ("GET" or "POST").
+     * @param method The HTTP method ("GET", "POST" or "PUT").
      * @param path The exact, registered URI path.
      * @param res Pointer to the HTTP response passed through to the handler.
      * @param req Pointer to the HTTP request passed through to the handler.
@@ -91,7 +99,7 @@ private:
      * @brief Internal structure that temporarily stores the routes before loading.
      */
     struct Route {
-        std::string method;   /**< HTTP method ("GET" or "POST"). */
+        std::string method;   /**< HTTP method ("GET", "POST" or "PUT"). */
         std::string path;     /**< Registered URI path. */
         HttpHandler handler;  /**< Associated callback function. */
 

@@ -6,6 +6,7 @@
 #include <common/email_queue.hpp>
 #include <common/email_sender.hpp>
 #include <controllers/auth_controller.hpp>
+#include <controllers/avatar_controller.hpp>
 #include <controllers/password_reset_controller.hpp>
 #include <controllers/chat_controller.hpp>
 #include <controllers/friend_controller.hpp>
@@ -80,6 +81,14 @@ int main() {
 
         StatsController  stats(server.GetHTTPRouter());
         stats.SetOnlineCountProvider([&presence] { return presence.OnlineCount(); });
+        AvatarController avatar(server.GetHTTPRouter(),
+                                uni::avatar::Catalogue::Instance());
+        // INFO: A saved loadout reaches the saver's room as `loadout_changed`;
+        //       the controller resolves the room and no-ops when there is none.
+        avatar.on_saved = [&lobby](const std::string& username,
+                                   const json& loadout) {
+            lobby.BroadcastLoadoutChanged(username, loadout);
+        };
         MatchController  game(server.GetActionRouter(), server.GetBroadcaster(),
                               server.GetTimerService(), lobby);
         FriendController friends(server.GetActionRouter(), server.GetBroadcaster(), presence);

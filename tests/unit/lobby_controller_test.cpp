@@ -1,5 +1,6 @@
 #include <doctest/doctest.h>
 #include <action_router.hpp>
+#include <avatar/catalogue.hpp>
 #include <controllers/lobby_controller.hpp>
 #include <controllers/match_controller.hpp>
 #include <common/payloads.hpp>
@@ -124,6 +125,32 @@ static json promote_msg(const std::string& target, const std::string& req = "req
             {"username", target}};
 }
 
+/**
+ * @brief Load the process avatar catalogue once, cwd-independently.
+ *
+ * Production loads it at start-up; a lobby join resolves each member's default
+ * look through `Catalogue::Instance()`, so the fixture loads it here for the
+ * tests that build or join rooms.
+ */
+static void LoadAvatarCatalogueForTests() {
+    static const bool loaded = [] {
+        std::filesystem::path p(__FILE__);
+        while (!p.empty()) {
+            std::error_code ec;
+            const std::filesystem::path candidate = p / "avatar" / "catalogue.json";
+            if (std::filesystem::is_regular_file(candidate, ec)) {
+                uni::avatar::Catalogue::LoadGlobal(candidate.string());
+                return true;
+            }
+            const std::filesystem::path parent = p.parent_path();
+            if (parent == p) break;
+            p = parent;
+        }
+        return false;
+    }();
+    REQUIRE(loaded);
+}
+
 // ---------------------------------------------------------------------------
 // Fixture: fresh router/bus/timers/controller per test case.
 // ---------------------------------------------------------------------------
@@ -142,6 +169,7 @@ struct LobbyFixture {
     explicit LobbyFixture(std::string root = "")
         : mods_root(std::move(root)),
           lobby(router, bus, timers, presence, nullptr, mods_root) {
+        LoadAvatarCatalogueForTests();
         alice_sd.username = "alice";
         bob_sd.username   = "bob";
         alice_sock        = fake_sock(alice_sd);
@@ -2157,3 +2185,226 @@ TEST_CASE("payloads: ParsePayload enforces the contract limits") {
 }
 
 }  // TEST_SUITE("LobbyController::Hardening")
+
+TEST_SUITE("LobbyController::AvatarLoadouts") {
+
+namespace {
+
+/** @brief The member entry with `username` in a serialized member list. */
+const json* MemberJson(const json& members, const std::string& username) {
+    for (const json& member : members) {
+        if (member.value("username", std::string()) == username) return &member;
+    }
+    return nullptr;
+}
+
+/** @brief Store `loadout` as the account's saved row. */
+void StoreLoadout(const std::string& username, const json& loadout) {
+    InsertUser(username);
+    REQUIRE(Database::Get()
+                .Exec("UPDATE users SET avatar_loadout = ? WHERE username = ?;",
+                      {loadout.dump(), username})
+                .has_value());
+}
+
+/** @brief A minimal in-schema loadout for member payload tests. */
+json StoredLoadout(const std::string& skin) {
+    return json{{"shape", "uni:round"},
+                {"skin", skin},
+                {"slots", json{{"eyes", json{{"item", "uni:eyes_dot"},
+                                             {"colours", json::array()}}}}}};
+}
+
+/** @brief The last `match_state_updated` frame sent to `socket`. */
+json LastSnapshot(FakeBroadcaster& bus, AppWebSocket* socket) {
+    json found;
+    for (const SentFrame& frame : bus.sent) {
+        if (frame.to != socket) continue;
+        const json packet = json::parse(frame.payload);
+        if (packet.value("action", std::string()) == "match_state_updated") {
+            found = packet;
+        }
+    }
+    return found;
+}
+
+/** @brief The player row for `username` in a match snapshot. */
+const json* SnapshotSeat(const json& snapshot, const std::string& username) {
+    for (const json& entry : snapshot["match_state"]["players"]) {
+        if (entry.value("username", std::string()) == username) return &entry;
+    }
+    return nullptr;
+}
+
+}  // namespace
+
+TEST_CASE("MemberListJson includes the loadout object for a registered member") {
+    REQUIRE(Database::Get().RunMigrations().has_value());
+    const std::string alice = "avatar_payload_alice";
+    CleanupUsers({alice});
+    const json stored = StoredLoadout("basic:red");
+    StoreLoadout(alice, stored);
+
+    LobbyFixture f;
+    f.alice_sd.username = alice;
+    f.router.Dispatch(f.actx(), create_msg());
+
+    const json resp = json::parse(f.bus.FramesFor(f.alice_sock).back().payload);
+    const json* member = MemberJson(resp["lobby"]["members"], alice);
+    REQUIRE(member != nullptr);
+    REQUIRE(member->contains("loadout"));
+    CHECK((*member)["loadout"] == stored);
+
+    CleanupUsers({alice});
+}
+
+TEST_CASE("MemberListJson includes a valid guest loadout for a guest") {
+    LobbyFixture f;
+    f.alice_sd.username = "Guest#AVAT1";
+    f.router.Dispatch(f.actx(), create_msg());
+
+    const json resp = json::parse(f.bus.FramesFor(f.alice_sock).back().payload);
+    const json* member = MemberJson(resp["lobby"]["members"], "Guest#AVAT1");
+    REQUIRE(member != nullptr);
+    REQUIRE(member->contains("loadout"));
+    const json& loadout = (*member)["loadout"];
+    REQUIRE(loadout.is_object());
+    CHECK(loadout.contains("shape"));
+    CHECK(loadout.contains("skin"));
+    CHECK(loadout.contains("slots"));
+    CHECK(loadout["skin"].get<std::string>().starts_with("basic:"));
+}
+
+TEST_CASE("MemberListJson has a null loadout for a bot") {
+    LobbyFixture f;
+    f.alice_creates();
+    f.router.Dispatch(f.actx(), json{{"action", ws::ClientAction::kLobbyUpdateSettings},
+                                     {"request_id", "req-bot"},
+                                     {"bot_count", 1}});
+
+    REQUIRE(!f.bus.published.empty());
+    const json payload = json::parse(f.bus.published.back().second);
+    const json& members = payload["lobby"]["members"];
+    const json* bot = nullptr;
+    for (const json& member : members) {
+        if (member.value("is_bot", false)) bot = &member;
+    }
+    REQUIRE(bot != nullptr);
+    REQUIRE(bot->contains("loadout"));
+    CHECK((*bot)["loadout"].is_null());
+}
+
+TEST_CASE("a stored loadout with a removed item id is returned as stored") {
+    REQUIRE(Database::Get().RunMigrations().has_value());
+    const std::string alice = "avatar_payload_removed";
+    CleanupUsers({alice});
+    const json stored = json{
+        {"shape", "uni:round"},
+        {"skin", "basic:red"},
+        {"slots", json{{"eyes", json{{"item", "uni:gone"},
+                                     {"colours", json::array()}}}}}};
+    StoreLoadout(alice, stored);
+
+    LobbyFixture f;
+    f.alice_sd.username = alice;
+    f.router.Dispatch(f.actx(), create_msg());
+
+    const json resp = json::parse(f.bus.FramesFor(f.alice_sock).back().payload);
+    const json* member = MemberJson(resp["lobby"]["members"], alice);
+    REQUIRE(member != nullptr);
+    REQUIRE(member->contains("loadout"));
+    CHECK((*member)["loadout"] == stored);
+
+    CleanupUsers({alice});
+}
+
+TEST_CASE("game snapshot players carry the loadout") {
+    REQUIRE(Database::Get().RunMigrations().has_value());
+    const std::string alice = "avatar_snap_alice";
+    const std::string bob = "avatar_snap_bob";
+    CleanupUsers({alice, bob});
+    const json alice_loadout = StoredLoadout("basic:red");
+    const json bob_loadout = StoredLoadout("basic:blue");
+    StoreLoadout(alice, alice_loadout);
+    StoreLoadout(bob, bob_loadout);
+
+    LobbyFixture f{ProjectModsRoot()};
+    f.alice_sd.username = alice;
+    f.bob_sd.username = bob;
+    const std::string code = f.alice_creates();
+    f.bob_joins(code);
+    ReadyAndStart(f);
+
+    const json snapshot = LastSnapshot(f.bus, f.alice_sock);
+    REQUIRE_FALSE(snapshot.is_null());
+    const json* alice_seat = SnapshotSeat(snapshot, alice);
+    REQUIRE(alice_seat != nullptr);
+    REQUIRE(alice_seat->contains("loadout"));
+    CHECK((*alice_seat)["loadout"] == alice_loadout);
+    const json* bob_seat = SnapshotSeat(snapshot, bob);
+    REQUIRE(bob_seat != nullptr);
+    REQUIRE(bob_seat->contains("loadout"));
+    CHECK((*bob_seat)["loadout"] == bob_loadout);
+
+    CleanupUsers({alice, bob});
+}
+
+TEST_CASE("saving a loadout broadcasts loadout_changed to the room of the user") {
+    LobbyFixture f;
+    const std::string code = f.alice_creates();
+    f.bob_joins(code);
+    const json loadout = StoredLoadout("basic:red");
+
+    f.lobby.BroadcastLoadoutChanged("alice", loadout);
+
+    REQUIRE(f.bus.published.size() == 1);
+    CHECK(f.bus.published.back().first == "lobby_" + code);
+    const json payload = json::parse(f.bus.published.back().second);
+    CHECK(payload.value("action", std::string()) == "loadout_changed");
+    CHECK(payload.value("username", std::string()) == "alice");
+    REQUIRE(payload.contains("loadout"));
+    CHECK(payload["loadout"] == loadout);
+}
+
+TEST_CASE("no loadout_changed broadcast when the user is in no room") {
+    LobbyFixture f;
+
+    f.lobby.BroadcastLoadoutChanged("alice", StoredLoadout("basic:red"));
+
+    CHECK(f.bus.published.empty());
+}
+
+TEST_CASE("loadout_changed updates the member's stored loadout") {
+    LobbyFixture f;
+    const std::string code = f.alice_creates();
+    const json loadout = StoredLoadout("basic:blue");
+
+    f.lobby.BroadcastLoadoutChanged("alice", loadout);
+
+    Lobby* lobby = f.lobby.GetLobbyByCode(code);
+    REQUIRE(lobby != nullptr);
+    LobbyMember* member = lobby->FindMember("alice");
+    REQUIRE(member != nullptr);
+    CHECK(member->loadout == loadout);
+}
+
+TEST_CASE("loadout_changed reaches no room other than the user's") {
+    LobbyFixture f;
+    const std::string alice_code = f.alice_creates();
+
+    // A second, independent room owned by bob.
+    f.router.Dispatch(f.bctx(), create_msg(false, "req-bob"));
+    const json bob_resp =
+        json::parse(f.bus.FramesFor(f.bob_sock).back().payload);
+    const std::string bob_code =
+        bob_resp["lobby"]["invite_code"].get<std::string>();
+    f.bus.Clear();
+
+    f.lobby.BroadcastLoadoutChanged("alice", StoredLoadout("basic:red"));
+
+    REQUIRE(f.bus.published.size() == 1);
+    CHECK(f.bus.published.back().first == "lobby_" + alice_code);
+    CHECK(f.bus.published.back().first != "lobby_" + bob_code);
+}
+
+}  // TEST_SUITE("LobbyController::AvatarLoadouts")

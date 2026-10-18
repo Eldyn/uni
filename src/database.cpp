@@ -176,6 +176,9 @@ static constexpr Migration MIGRATIONS[] = {
     // DBs (v1 CREATE TABLE has no index) and on upgrades.
     { 12, "CREATE INDEX IF NOT EXISTS idx_player_stats_rank "
           "ON player_stats(total_wins DESC, total_losses ASC);" },
+    // Migration v13: per-account avatar loadout. JSON text; NULL means "never
+    // saved, use the catalogue default". One active loadout per account in 0.7.
+    { 13, "ALTER TABLE users ADD COLUMN avatar_loadout TEXT;" },
 };
 
 }  // namespace

@@ -153,6 +153,8 @@ struct PlayerInfo {
     bool connected = true;
     bool is_bot = false;
     bool ready = false;
+    /**< Public avatar loadout (spec 1D), frozen at assembly; null for bots. */
+    nlohmann::json loadout = nullptr;
 };
 
 // --- hand ------------------------------------------------------------------

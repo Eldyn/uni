@@ -151,6 +151,12 @@ struct LobbyMember {
     /**< True if this member has streamer/privacy mode enabled (hand hidden from spectators). */
     bool privacy_mode = false;
 
+    /**< Public avatar loadout (spec 1D), null for bots. Resolved once when the
+     *  member joins: the saved account row, or the default look when none is
+     *  saved; a guest gets the stable per-session look. Never re-read on a
+     *  broadcast, so a running match keeps the look it started with. */
+    nlohmann::json loadout = nullptr;
+
     /**< Username of the player this spectator is currently watching, or empty
      *  when the spectator has made no explicit choice (the server then
      *  attributes them to whoever's turn it is). Only meaningful while

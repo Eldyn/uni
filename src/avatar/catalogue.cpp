@@ -434,6 +434,15 @@ bool Catalogue::HasSwatch(const std::string& swatch_id) const {
     return false;
 }
 
+std::vector<std::string> Catalogue::StarterSwatchIds() const {
+    std::vector<std::string> ids;
+    for (const Palette& palette : palettes_) {
+        if (!palette.starter) continue;
+        for (const Swatch& swatch : palette.swatches) ids.push_back(swatch.id);
+    }
+    return ids;
+}
+
 const Item* Catalogue::SlotDefault(const std::string& slot) const {
     for (const Item& item : items_) {
         if (item.starter && item.slot == slot) return &item;
