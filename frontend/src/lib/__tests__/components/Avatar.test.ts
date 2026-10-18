@@ -18,4 +18,12 @@ describe("Avatar", () => {
 		expect(sprite.style.getPropertyValue("--sprite-img")).toContain("/assets/skins/red.gif");
 		expect(sprite.style.width).toBe("64px");
 	});
+
+	it("renders a 96 px avatar", () => {
+		const { container } = render(Avatar, { props: { size: 96 } });
+		const sprite = container.querySelector(".tinted-sprite") as HTMLElement;
+		expect(sprite).toBeTruthy();
+		expect(sprite.style.width).toBe("96px");
+		expect(sprite.style.height).toBe("96px");
+	});
 });
