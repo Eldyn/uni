@@ -66,6 +66,8 @@ struct MatchPlayerSpec {
     bool is_bot = false;
     bool connected = true;
     bool ready = false;
+    /**< Public avatar loadout (spec 1D), copied onto the player entity. */
+    nlohmann::json loadout = nullptr;
 };
 
 /**
