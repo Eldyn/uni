@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <system_error>
 #include <utility>
 #include <vector>
 
@@ -56,6 +57,7 @@ size_t CountNodes(const Node& node) {
 namespace {
 
 constexpr size_t kMaximumDepth = 64;
+constexpr size_t kMaximumParseNodes = 4096;
 constexpr int kUnaryBindingPower = 7;
 
 int BinaryBindingPower(std::string_view symbol) {
@@ -97,7 +99,9 @@ bool StartsExpression(const Token& token) {
 }
 
 // INFO: a Pratt parser. `depth_` bounds recursion so pathological input such as
-// ten thousand open parentheses fails instead of overflowing the stack.
+// ten thousand open parentheses fails instead of overflowing the stack, and
+// `node_count_` bounds the tree size so a flat chain such as `1 + 1 + 1...`
+// cannot build a left-nested tree deeper than the recursive cleanup can handle.
 class Parser {
 public:
     explicit Parser(const std::vector<Token>& tokens) : tokens_(tokens) {}
@@ -125,12 +129,24 @@ private:
 
     const Token& Peek() const { return tokens_[index_]; }
 
-    NodePtr MakeSimpleNode(NodeKind kind, const Token& token) {
+    // INFO: every node is built here so the count can be checked against
+    // `kMaximumParseNodes` while the tree grows; the error points at the token
+    // whose consumption produced the node.
+    NodePtr MakeNode(NodeKind kind, std::string text, size_t position) {
+        if (++node_count_ > kMaximumParseNodes) {
+            SetError(position, "expression is too large to parse (more than " +
+                                   std::to_string(kMaximumParseNodes) + " nodes)");
+            return nullptr;
+        }
         auto node = std::make_unique<Node>();
         node->kind = kind;
-        node->text = token.text;
-        node->position = token.position;
+        node->text = std::move(text);
+        node->position = position;
         return node;
+    }
+
+    NodePtr MakeSimpleNode(NodeKind kind, const Token& token) {
+        return MakeNode(kind, token.text, token.position);
     }
 
     NodePtr ParseBinary(int minimum_binding_power) {
@@ -144,6 +160,7 @@ private:
         }
         while (!error_ && Peek().kind == TokenKind::kOperator) {
             const std::string symbol = Peek().text;
+            const size_t operator_position = Peek().position;
             const int binding_power = BinaryBindingPower(symbol);
             if (binding_power == 0 || binding_power <= minimum_binding_power) {
                 break;
@@ -157,9 +174,10 @@ private:
             if (!right) {
                 return nullptr;
             }
-            auto node = std::make_unique<Node>();
-            node->kind = NodeKind::kBinary;
-            node->text = symbol;
+            NodePtr node = MakeNode(NodeKind::kBinary, symbol, operator_position);
+            if (!node) {
+                return nullptr;
+            }
             node->position = left->position;
             node->children.push_back(std::move(left));
             node->children.push_back(std::move(right));
@@ -183,10 +201,10 @@ private:
             if (!operand) {
                 return nullptr;
             }
-            auto node = std::make_unique<Node>();
-            node->kind = NodeKind::kUnary;
-            node->text = symbol;
-            node->position = position;
+            NodePtr node = MakeNode(NodeKind::kUnary, symbol, position);
+            if (!node) {
+                return nullptr;
+            }
             node->children.push_back(std::move(operand));
             return node;
         }
@@ -205,10 +223,12 @@ private:
                 return nullptr;
             }
             const std::string key = Peek().text;
+            const size_t key_position = Peek().position;
             ++index_;
-            auto node = std::make_unique<Node>();
-            node->kind = NodeKind::kProperty;
-            node->text = key;
+            NodePtr node = MakeNode(NodeKind::kProperty, key, key_position);
+            if (!node) {
+                return nullptr;
+            }
             node->position = base->position;
             node->children.push_back(std::move(base));
             base = std::move(node);
@@ -241,22 +261,40 @@ private:
         return nullptr;
     }
 
+    // INFO: the lexer already rejects out-of-range literals; the checks here are
+    // a defensive backstop so a conversion failure cannot silently become 0.
     NodePtr MakeNumberLiteral(const Token& token) {
-        auto node = MakeSimpleNode(NodeKind::kLiteral, token);
+        NodePtr node = MakeSimpleNode(NodeKind::kLiteral, token);
+        if (!node) {
+            return nullptr;
+        }
         if (token.text.find('.') != std::string::npos) {
             double value = 0.0;
-            std::from_chars(token.text.data(), token.text.data() + token.text.size(), value);
+            const std::from_chars_result conversion = std::from_chars(
+                token.text.data(), token.text.data() + token.text.size(), value);
+            if (conversion.ec != std::errc()) {
+                SetError(token.position, "number out of range");
+                return nullptr;
+            }
             node->literal = value;
         } else {
             int64_t value = 0;
-            std::from_chars(token.text.data(), token.text.data() + token.text.size(), value);
+            const std::from_chars_result conversion = std::from_chars(
+                token.text.data(), token.text.data() + token.text.size(), value);
+            if (conversion.ec != std::errc()) {
+                SetError(token.position, "number out of range");
+                return nullptr;
+            }
             node->literal = value;
         }
         return node;
     }
 
     NodePtr MakeStringLiteral(const Token& token) {
-        auto node = MakeSimpleNode(NodeKind::kLiteral, token);
+        NodePtr node = MakeSimpleNode(NodeKind::kLiteral, token);
+        if (!node) {
+            return nullptr;
+        }
         node->literal = token.text;
         return node;
     }
@@ -265,7 +303,10 @@ private:
         const Token token = Peek();
         ++index_;
         if (token.text == "true" || token.text == "false") {
-            auto node = MakeSimpleNode(NodeKind::kLiteral, token);
+            NodePtr node = MakeSimpleNode(NodeKind::kLiteral, token);
+            if (!node) {
+                return nullptr;
+            }
             node->literal = token.text == "true";
             return node;
         }
@@ -277,7 +318,10 @@ private:
 
     NodePtr ParseCall(const Token& name_token) {
         ++index_;
-        auto node = MakeSimpleNode(NodeKind::kCall, name_token);
+        NodePtr node = MakeSimpleNode(NodeKind::kCall, name_token);
+        if (!node) {
+            return nullptr;
+        }
         if (Peek().kind == TokenKind::kRightParen) {
             ++index_;
             return node;
@@ -305,7 +349,10 @@ private:
     NodePtr ParseSelector() {
         const Token token = Peek();
         ++index_;
-        auto node = MakeSimpleNode(NodeKind::kSelector, token);
+        NodePtr node = MakeSimpleNode(NodeKind::kSelector, token);
+        if (!node) {
+            return nullptr;
+        }
         if (Peek().kind == TokenKind::kLeftBracket) {
             ++index_;
             NodePtr filter = ParseBinary(0);
@@ -339,6 +386,7 @@ private:
     const std::vector<Token>& tokens_;
     size_t index_ = 0;
     size_t depth_ = 0;
+    size_t node_count_ = 0;
     std::optional<ParseError> error_;
 };
 
