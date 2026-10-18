@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <map>
 #include <optional>
+#include <set>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -185,27 +186,61 @@ std::string ExpectedMessage(Type expected, Type actual) {
     return "expected " + TypeName(expected) + ", got " + TypeName(actual);
 }
 
+std::set<std::string> Intersect(const std::set<std::string>& left,
+                                const std::set<std::string>& right) {
+    std::set<std::string> common;
+    for (const std::string& name : left) {
+        if (right.count(name) != 0) {
+            common.insert(name);
+        }
+    }
+    return common;
+}
+
+// INFO: the result of checking one node. `when_true` and `when_false` are the
+// variables a guard guarantees to be bound when the node evaluates to true or
+// false, so `&&`, `||`, `!` and `if` can narrow the branch that follows them.
+struct Narrowed {
+    Type type;
+    std::set<std::string> when_true;
+    std::set<std::string> when_false;
+};
+
 class Checker {
 public:
     Checker(const Schema& schema, std::optional<Type> expected, std::string_view file,
-            std::string_view pointer)
-        : schema_(schema), expected_(expected), file_(file), pointer_(pointer) {}
+            std::string_view pointer, const GuardState& initial)
+        : schema_(schema),
+          expected_(expected),
+          file_(file),
+          pointer_(pointer),
+          initial_(initial) {}
 
     std::optional<Type> CheckRoot(const Node& node) {
-        std::optional<Type> type = Check(node, Scope::kRoot, Type::kSeat);
-        if (!type || !expected_) {
-            return type;
-        }
-        if (!Accepts(*expected_, *type)) {
-            Error(ExpectedMessage(*expected_, *type));
+        const std::optional<Narrowed> checked =
+            Check(node, Scope::kRoot, Type::kSeat, initial_.bound);
+        if (!checked) {
             return std::nullopt;
         }
-        return type;
+        bound_when_true_ = checked->when_true;
+        bound_when_false_ = checked->when_false;
+        if (!expected_) {
+            return checked->type;
+        }
+        if (!Accepts(*expected_, checked->type)) {
+            Error(ExpectedMessage(*expected_, checked->type));
+            return std::nullopt;
+        }
+        return checked->type;
     }
 
     bool failed() const { return !diagnostics_.empty(); }
 
     std::vector<Diagnostic> TakeDiagnostics() { return std::move(diagnostics_); }
+
+    const std::set<std::string>& BoundWhenTrue() const { return bound_when_true_; }
+
+    const std::set<std::string>& BoundWhenFalse() const { return bound_when_false_; }
 
 private:
     void Error(std::string message, std::string suggestion = {}) {
@@ -213,30 +248,41 @@ private:
                                           std::move(message), std::move(suggestion)});
     }
 
-    std::optional<Type> Check(const Node& node, Scope scope, Type candidate) {
+    // INFO: a node that does not narrow anything keeps the guard it was given.
+    static std::optional<Narrowed> Plain(std::optional<Type> type,
+                                         const std::set<std::string>& bound) {
+        if (!type) {
+            return std::nullopt;
+        }
+        return Narrowed{*type, bound, bound};
+    }
+
+    std::optional<Narrowed> Check(const Node& node, Scope scope, Type candidate,
+                                  const std::set<std::string>& bound) {
         switch (node.kind) {
             case NodeKind::kLiteral:
-                return LiteralType(node);
+                return Plain(LiteralType(node), bound);
             case NodeKind::kSelector:
-                return CheckSelector(node);
+                return CheckSelector(node, bound);
             case NodeKind::kVariable:
-                return CheckVariable(node);
+                return CheckVariable(node, bound);
             case NodeKind::kProperty:
-                return CheckProperty(node, scope, candidate);
+                return CheckProperty(node, scope, candidate, bound);
             case NodeKind::kBareName:
-                return CheckBareName(node, scope, candidate);
+                return Plain(CheckBareName(node, scope, candidate), bound);
             case NodeKind::kUnary:
-                return CheckUnary(node, scope, candidate);
+                return CheckUnary(node, scope, candidate, bound);
             case NodeKind::kBinary:
-                return CheckBinary(node, scope, candidate);
+                return CheckBinary(node, scope, candidate, bound);
             case NodeKind::kCall:
-                return CheckCall(node, scope, candidate);
+                return CheckCall(node, scope, candidate, bound);
         }
         Error("unsupported expression");
         return std::nullopt;
     }
 
-    std::optional<Type> CheckCall(const Node& node, Scope scope, Type candidate) {
+    std::optional<Narrowed> CheckCall(const Node& node, Scope scope, Type candidate,
+                                      const std::set<std::string>& bound) {
         const FunctionInfo* function = FindFunction(node.text);
         if (function == nullptr) {
             Error("unknown function \"" + node.text + "\"",
@@ -249,228 +295,259 @@ private:
             Error(ArityMessage(*function, arity));
             return std::nullopt;
         }
-        return (this->*function->check)(node, scope, candidate);
+        return (this->*function->check)(node, scope, candidate, bound);
     }
 
-    std::optional<Type> CheckIf(const Node& node, Scope scope, Type candidate) {
-        const std::optional<Type> condition = Check(*node.children[0], scope, candidate);
+    std::optional<Narrowed> CheckIf(const Node& node, Scope scope, Type candidate,
+                                    const std::set<std::string>& bound) {
+        const std::optional<Narrowed> condition =
+            Check(*node.children[0], scope, candidate, bound);
         if (!condition) {
             return std::nullopt;
         }
-        if (*condition != Type::kBool) {
+        if (condition->type != Type::kBool) {
             Error("if needs a bool condition");
             return std::nullopt;
         }
-        const std::optional<Type> then_type = Check(*node.children[1], scope, candidate);
+        const std::optional<Narrowed> then_type =
+            Check(*node.children[1], scope, candidate, condition->when_true);
         if (!then_type) {
             return std::nullopt;
         }
-        const std::optional<Type> else_type = Check(*node.children[2], scope, candidate);
+        const std::optional<Narrowed> else_type =
+            Check(*node.children[2], scope, candidate, condition->when_false);
         if (!else_type) {
             return std::nullopt;
         }
-        if (IsNumber(*then_type) && IsNumber(*else_type)) {
-            return Widen(*then_type, *else_type);
+        Type type;
+        if (IsNumber(then_type->type) && IsNumber(else_type->type)) {
+            type = Widen(then_type->type, else_type->type);
+        } else if (then_type->type == else_type->type) {
+            type = then_type->type;
+        } else {
+            Error("if needs matching branch types");
+            return std::nullopt;
         }
-        if (*then_type == *else_type) {
-            return then_type;
-        }
-        Error("if needs matching branch types");
-        return std::nullopt;
+        return Narrowed{type, Intersect(then_type->when_true, else_type->when_true),
+                        Intersect(then_type->when_false, else_type->when_false)};
     }
 
-    std::optional<Type> CheckNumericArguments(const Node& node, Scope scope, Type candidate) {
+    std::optional<Narrowed> CheckNumericArguments(const Node& node, Scope scope, Type candidate,
+                                                  const std::set<std::string>& bound) {
         Type result = Type::kInt;
         for (const NodePtr& child : node.children) {
-            const std::optional<Type> type = Check(*child, scope, candidate);
+            const std::optional<Narrowed> type = Check(*child, scope, candidate, bound);
             if (!type) {
                 return std::nullopt;
             }
-            if (!IsNumber(*type)) {
+            if (!IsNumber(type->type)) {
                 Error(node.text + " needs numbers");
                 return std::nullopt;
             }
-            result = Widen(result, *type);
+            result = Widen(result, type->type);
         }
-        return result;
+        return Narrowed{result, bound, bound};
     }
 
-    std::optional<Type> CheckRounding(const Node& node, Scope scope, Type candidate) {
-        const std::optional<Type> type = Check(*node.children[0], scope, candidate);
+    std::optional<Narrowed> CheckRounding(const Node& node, Scope scope, Type candidate,
+                                          const std::set<std::string>& bound) {
+        const std::optional<Narrowed> type = Check(*node.children[0], scope, candidate, bound);
         if (!type) {
             return std::nullopt;
         }
-        if (!IsNumber(*type)) {
+        if (!IsNumber(type->type)) {
             Error(node.text + " needs a number");
             return std::nullopt;
         }
-        return Type::kInt;
+        return Narrowed{Type::kInt, bound, bound};
     }
 
-    std::optional<Type> CheckIntegerArguments(const Node& node, Scope scope, Type candidate) {
+    std::optional<Narrowed> CheckIntegerArguments(const Node& node, Scope scope, Type candidate,
+                                                  const std::set<std::string>& bound) {
         for (const NodePtr& child : node.children) {
-            const std::optional<Type> type = Check(*child, scope, candidate);
+            const std::optional<Narrowed> type = Check(*child, scope, candidate, bound);
             if (!type) {
                 return std::nullopt;
             }
-            if (*type != Type::kInt) {
+            if (type->type != Type::kInt) {
                 Error(node.text + " needs ints");
                 return std::nullopt;
             }
         }
-        return Type::kInt;
+        return Narrowed{Type::kInt, bound, bound};
     }
 
     // INFO: a set call shares its first argument, the set, and a condition that
     // runs per candidate; the candidate is the entity the set holds.
-    std::optional<Type> CheckSetCall(const Node& node, Scope scope, Type candidate) {
+    std::optional<Narrowed> CheckSetCall(const Node& node, Scope scope, Type candidate,
+                                         const std::set<std::string>& bound) {
         const std::string& name = node.text;
-        const std::optional<Type> set_type = Check(*node.children[0], scope, candidate);
+        const std::optional<Narrowed> set_type = Check(*node.children[0], scope, candidate, bound);
         if (!set_type) {
             return std::nullopt;
         }
-        if (!IsSet(*set_type)) {
+        if (!IsSet(set_type->type)) {
             Error(name + " needs a set");
             return std::nullopt;
         }
-        const Type entity = EntityOf(*set_type);
+        const Type entity = EntityOf(set_type->type);
         if (name == "count" || name == "any") {
-            if (!CheckOptionalCondition(node, 1, entity)) {
+            if (!CheckOptionalCondition(node, 1, entity, bound)) {
                 return std::nullopt;
             }
-            return name == "count" ? Type::kInt : Type::kBool;
+            return Narrowed{name == "count" ? Type::kInt : Type::kBool, bound, bound};
         }
         if (name == "all") {
             if (node.children.size() < 2) {
                 Error("all needs a condition");
                 return std::nullopt;
             }
-            if (!CheckOptionalCondition(node, 1, entity)) {
+            if (!CheckOptionalCondition(node, 1, entity, bound)) {
                 return std::nullopt;
             }
-            return Type::kBool;
+            return Narrowed{Type::kBool, bound, bound};
         }
         if (name == "sum") {
             // INFO: the value expression is checked in the candidate scope so a
             // bare name reads the candidate's property.
-            const std::optional<Type> value = Check(*node.children[1], Scope::kCandidate, entity);
+            const std::optional<Narrowed> value =
+                Check(*node.children[1], Scope::kCandidate, entity, bound);
             if (!value) {
                 return std::nullopt;
             }
-            if (!IsNumber(*value)) {
+            if (!IsNumber(value->type)) {
                 Error("sum needs a number expression");
                 return std::nullopt;
             }
-            return value;
+            return Narrowed{value->type, bound, bound};
         }
         return std::nullopt;
     }
 
-    bool CheckOptionalCondition(const Node& node, size_t index, Type entity) {
+    bool CheckOptionalCondition(const Node& node, size_t index, Type entity,
+                                const std::set<std::string>& bound) {
         if (node.children.size() <= index) {
             return true;
         }
-        return CheckCondition(*node.children[index], entity).has_value();
+        return CheckCondition(*node.children[index], entity, bound).has_value();
     }
 
-    std::optional<Type> CheckContains(const Node& node, Scope scope, Type candidate) {
-        const std::optional<Type> set_type = Check(*node.children[0], scope, candidate);
+    std::optional<Narrowed> CheckContains(const Node& node, Scope scope, Type candidate,
+                                          const std::set<std::string>& bound) {
+        const std::optional<Narrowed> set_type = Check(*node.children[0], scope, candidate, bound);
         if (!set_type) {
             return std::nullopt;
         }
-        if (!IsSet(*set_type)) {
+        if (!IsSet(set_type->type)) {
             Error("contains needs a set");
             return std::nullopt;
         }
-        const Type member_type = MemberOf(*set_type);
-        const std::optional<Type> member = Check(*node.children[1], scope, candidate);
+        const Type member_type = MemberOf(set_type->type);
+        const std::optional<Narrowed> member = Check(*node.children[1], scope, candidate, bound);
         if (!member) {
             return std::nullopt;
         }
-        if (*member != member_type) {
-            Error("contains needs a " + TypeName(member_type) + " for a " + TypeName(*set_type));
+        if (member->type != member_type) {
+            Error("contains needs a " + TypeName(member_type) + " for a " +
+                  TypeName(set_type->type));
             return std::nullopt;
         }
-        return Type::kBool;
+        return Narrowed{Type::kBool, bound, bound};
     }
 
-    std::optional<Type> CheckShares(const Node& node, Scope scope, Type candidate) {
+    std::optional<Narrowed> CheckShares(const Node& node, Scope scope, Type candidate,
+                                        const std::set<std::string>& bound) {
         for (const NodePtr& child : node.children) {
-            const std::optional<Type> type = Check(*child, scope, candidate);
+            const std::optional<Narrowed> type = Check(*child, scope, candidate, bound);
             if (!type) {
                 return std::nullopt;
             }
-            if (*type != Type::kMemberSet) {
+            if (type->type != Type::kMemberSet) {
                 Error("shares needs member sets");
                 return std::nullopt;
             }
         }
-        return Type::kBool;
+        return Narrowed{Type::kBool, bound, bound};
     }
 
-    std::optional<Type> CheckHasTag(const Node& node, Scope scope, Type candidate) {
-        const std::optional<Type> target = Check(*node.children[0], scope, candidate);
+    std::optional<Narrowed> CheckHasTag(const Node& node, Scope scope, Type candidate,
+                                        const std::set<std::string>& bound) {
+        const std::optional<Narrowed> target = Check(*node.children[0], scope, candidate, bound);
         if (!target) {
             return std::nullopt;
         }
-        if (*target != Type::kCard && *target != Type::kRule) {
+        if (target->type != Type::kCard && target->type != Type::kRule) {
             Error("has_tag needs a card or a rule");
             return std::nullopt;
         }
-        const std::optional<Type> tag = Check(*node.children[1], scope, candidate);
+        const std::optional<Narrowed> tag = Check(*node.children[1], scope, candidate, bound);
         if (!tag) {
             return std::nullopt;
         }
-        if (*tag != Type::kString) {
+        if (tag->type != Type::kString) {
             Error("has_tag needs a string tag");
             return std::nullopt;
         }
-        return Type::kBool;
+        return Narrowed{Type::kBool, bound, bound};
     }
 
-    std::optional<Type> CheckDefined(const Node& node, Scope scope, Type candidate) {
+    // INFO: `defined($x)` is the guard that binds `$x`; its argument is allowed
+    // to be unbound, and when the call is false the variable stays unbound.
+    std::optional<Narrowed> CheckDefined(const Node& node, Scope scope, Type candidate,
+                                         const std::set<std::string>& bound) {
         if (node.children[0]->kind != NodeKind::kVariable) {
             Error("defined needs a $variable");
             return std::nullopt;
         }
-        if (!Check(*node.children[0], scope, candidate)) {
+        if (!FindVariable(*node.children[0])) {
             return std::nullopt;
         }
-        return Type::kBool;
+        std::set<std::string> when_true = bound;
+        when_true.insert(node.children[0]->text);
+        return Narrowed{Type::kBool, std::move(when_true), bound};
     }
 
-    std::optional<Type> CheckDefault(const Node& node, Scope scope, Type candidate) {
+    // INFO: `default($x, value)` supplies the value for an unbound `$x`, so its
+    // first argument is read without the unbound-variable guard.
+    std::optional<Narrowed> CheckDefault(const Node& node, Scope scope, Type candidate,
+                                         const std::set<std::string>& bound) {
         if (node.children[0]->kind != NodeKind::kVariable) {
             Error("default needs a $variable");
             return std::nullopt;
         }
-        if (!Check(*node.children[0], scope, candidate)) {
+        if (!FindVariable(*node.children[0])) {
             return std::nullopt;
         }
-        return Check(*node.children[1], scope, candidate);
+        const std::optional<Narrowed> fallback = Check(*node.children[1], scope, candidate, bound);
+        if (!fallback) {
+            return std::nullopt;
+        }
+        return Narrowed{fallback->type, bound, bound};
     }
 
-    std::optional<Type> CheckStatusMagnitude(const Node& node, Scope scope, Type candidate) {
-        const std::optional<Type> seat = Check(*node.children[0], scope, candidate);
+    std::optional<Narrowed> CheckStatusMagnitude(const Node& node, Scope scope, Type candidate,
+                                                 const std::set<std::string>& bound) {
+        const std::optional<Narrowed> seat = Check(*node.children[0], scope, candidate, bound);
         if (!seat) {
             return std::nullopt;
         }
-        if (*seat != Type::kSeat) {
+        if (seat->type != Type::kSeat) {
             Error("status_magnitude needs a seat");
             return std::nullopt;
         }
-        const std::optional<Type> status = Check(*node.children[1], scope, candidate);
+        const std::optional<Narrowed> status = Check(*node.children[1], scope, candidate, bound);
         if (!status) {
             return std::nullopt;
         }
-        if (*status != Type::kString) {
+        if (status->type != Type::kString) {
             Error("status_magnitude needs a string status");
             return std::nullopt;
         }
-        return Type::kInt;
+        return Narrowed{Type::kInt, bound, bound};
     }
 
-    std::optional<Type> CheckSelector(const Node& node) {
+    std::optional<Narrowed> CheckSelector(const Node& node,
+                                          const std::set<std::string>& bound) {
         const std::optional<Type> type = SelectorType(node.text);
         if (!type) {
             Error("unknown selector @" + node.text,
@@ -478,55 +555,71 @@ private:
             return std::nullopt;
         }
         for (const NodePtr& filter : node.children) {
-            if (!CheckCondition(*filter, EntityOf(*type))) {
+            if (!CheckCondition(*filter, EntityOf(*type), bound)) {
                 return std::nullopt;
             }
         }
-        return type;
+        return Narrowed{*type, bound, bound};
     }
 
     // INFO: a filter and the condition argument of a set function are both
     // boolean predicates over the candidate, so they share one rule.
-    std::optional<Type> CheckCondition(const Node& node, Type candidate) {
-        const std::optional<Type> type = Check(node, Scope::kCandidate, candidate);
+    std::optional<Type> CheckCondition(const Node& node, Type candidate,
+                                       const std::set<std::string>& bound) {
+        const std::optional<Narrowed> type = Check(node, Scope::kCandidate, candidate, bound);
         if (!type) {
             return std::nullopt;
         }
-        if (*type != Type::kBool) {
-            Error("filter must be a boolean condition, got " + TypeName(*type));
+        if (type->type != Type::kBool) {
+            Error("filter must be a boolean condition, got " + TypeName(type->type));
             return std::nullopt;
         }
-        return type;
+        return type->type;
     }
 
-    std::optional<Type> CheckVariable(const Node& node) {
+    std::optional<VariableInfo> FindVariable(const Node& node) {
         const auto variable = schema_.variables.find(node.text);
         if (variable == schema_.variables.end()) {
             Error("unknown variable $" + node.text,
                   SuggestClosest(node.text, VariableNames(schema_)));
             return std::nullopt;
         }
-        return variable->second.type;
+        return variable->second;
     }
 
-    std::optional<Type> CheckProperty(const Node& node, Scope scope, Type candidate) {
-        const std::optional<Type> base = Check(*node.children[0], scope, candidate);
+    std::optional<Narrowed> CheckVariable(const Node& node,
+                                          const std::set<std::string>& bound) {
+        const std::optional<VariableInfo> variable = FindVariable(node);
+        if (!variable) {
+            return std::nullopt;
+        }
+        if (variable->optional && bound.count(node.text) == 0) {
+            Error("variable $" + node.text + " may be unbound; guard it with defined($" +
+                  node.text + ")");
+            return std::nullopt;
+        }
+        return Narrowed{variable->type, bound, bound};
+    }
+
+    std::optional<Narrowed> CheckProperty(const Node& node, Scope scope, Type candidate,
+                                          const std::set<std::string>& bound) {
+        const std::optional<Narrowed> base = Check(*node.children[0], scope, candidate, bound);
         if (!base) {
             return std::nullopt;
         }
-        if (IsSet(*base)) {
-            Error(SetReadMessage(*base));
+        if (IsSet(base->type)) {
+            Error(SetReadMessage(base->type));
             return std::nullopt;
         }
-        if (*base == Type::kRule) {
+        if (base->type == Type::kRule) {
             Error("cannot read properties of a rule");
             return std::nullopt;
         }
-        if (schema_.Properties(*base) == nullptr) {
-            Error("cannot read \"" + node.text + "\" on a value of type " + TypeName(*base));
+        if (schema_.Properties(base->type) == nullptr) {
+            Error("cannot read \"" + node.text + "\" on a value of type " + TypeName(base->type));
             return std::nullopt;
         }
-        return LookupProperty(*base, node.text);
+        return Plain(LookupProperty(base->type, node.text), bound);
     }
 
     std::optional<Type> LookupProperty(Type entity, const std::string& key) {
@@ -548,38 +641,44 @@ private:
         return LookupProperty(candidate, node.text);
     }
 
-    std::optional<Type> CheckUnary(const Node& node, Scope scope, Type candidate) {
-        const std::optional<Type> operand = Check(*node.children[0], scope, candidate);
+    std::optional<Narrowed> CheckUnary(const Node& node, Scope scope, Type candidate,
+                                       const std::set<std::string>& bound) {
+        const std::optional<Narrowed> operand = Check(*node.children[0], scope, candidate, bound);
         if (!operand) {
             return std::nullopt;
         }
         if (node.text == "-") {
-            if (!IsNumber(*operand)) {
+            if (!IsNumber(operand->type)) {
                 Error("operator - needs numbers");
                 return std::nullopt;
             }
-            return operand;
+            return Narrowed{operand->type, bound, bound};
         }
-        if (*operand != Type::kBool) {
+        if (operand->type != Type::kBool) {
             Error("operator ! needs a boolean");
             return std::nullopt;
         }
-        return Type::kBool;
+        // INFO: `!a` swaps the bindings that hold when it is true and false.
+        return Narrowed{Type::kBool, operand->when_false, operand->when_true};
     }
 
-    std::optional<Type> CheckBinary(const Node& node, Scope scope, Type candidate) {
-        const std::optional<Type> left = Check(*node.children[0], scope, candidate);
+    std::optional<Narrowed> CheckBinary(const Node& node, Scope scope, Type candidate,
+                                        const std::set<std::string>& bound) {
+        const std::string& symbol = node.text;
+        if (symbol == "&&" || symbol == "||") {
+            return CheckLogical(node, scope, candidate, bound, symbol == "&&");
+        }
+        const std::optional<Narrowed> left = Check(*node.children[0], scope, candidate, bound);
         if (!left) {
             return std::nullopt;
         }
-        const std::optional<Type> right = Check(*node.children[1], scope, candidate);
+        const std::optional<Narrowed> right = Check(*node.children[1], scope, candidate, bound);
         if (!right) {
             return std::nullopt;
         }
-        const std::string& symbol = node.text;
 
         if (symbol == "+" || symbol == "-" || symbol == "*" || symbol == "/") {
-            if (!IsNumber(*left) || !IsNumber(*right)) {
+            if (!IsNumber(left->type) || !IsNumber(right->type)) {
                 Error("operator " + symbol + " needs numbers");
                 return std::nullopt;
             }
@@ -587,10 +686,10 @@ private:
                 Error("division by zero");
                 return std::nullopt;
             }
-            return Widen(*left, *right);
+            return Narrowed{Widen(left->type, right->type), bound, bound};
         }
         if (symbol == "%") {
-            if (*left != Type::kInt || *right != Type::kInt) {
+            if (left->type != Type::kInt || right->type != Type::kInt) {
                 Error("operator % needs ints");
                 return std::nullopt;
             }
@@ -598,38 +697,63 @@ private:
                 Error("division by zero");
                 return std::nullopt;
             }
-            return Type::kInt;
+            return Narrowed{Type::kInt, bound, bound};
         }
         if (symbol == "==" || symbol == "!=") {
             // INFO: numbers compare across int and float, so only a difference
             // between two other types is a mismatch.
-            if (*left != *right && (!IsNumber(*left) || !IsNumber(*right))) {
-                Error("operator " + symbol + " cannot compare " + TypeName(*left) +
-                      " with " + TypeName(*right));
+            if (left->type != right->type &&
+                (!IsNumber(left->type) || !IsNumber(right->type))) {
+                Error("operator " + symbol + " cannot compare " + TypeName(left->type) +
+                      " with " + TypeName(right->type));
                 return std::nullopt;
             }
-            return Type::kBool;
+            return Narrowed{Type::kBool, bound, bound};
         }
         if (symbol == "<" || symbol == "<=" || symbol == ">" || symbol == ">=") {
-            if (!IsNumber(*left) || !IsNumber(*right)) {
-                if (IsSet(*left) || IsSet(*right)) {
+            if (!IsNumber(left->type) || !IsNumber(right->type)) {
+                if (IsSet(left->type) || IsSet(right->type)) {
                     Error("operator " + symbol + " needs numbers");
                 } else {
-                    Error("cannot compare " + TypeName(*left) + " with " + TypeName(*right));
+                    Error("cannot compare " + TypeName(left->type) + " with " +
+                          TypeName(right->type));
                 }
                 return std::nullopt;
             }
-            return Type::kBool;
-        }
-        if (symbol == "&&" || symbol == "||") {
-            if (*left != Type::kBool || *right != Type::kBool) {
-                Error("operator " + symbol + " needs booleans");
-                return std::nullopt;
-            }
-            return Type::kBool;
+            return Narrowed{Type::kBool, bound, bound};
         }
         Error("unsupported operator " + symbol);
         return std::nullopt;
+    }
+
+    // INFO: `a && b` checks `b` with the variables `a` binds when true; `a || b`
+    // checks `b` with the variables `a` binds when false, so `!defined($x) || ...`
+    // binds `$x` for `b`.
+    std::optional<Narrowed> CheckLogical(const Node& node, Scope scope, Type candidate,
+                                         const std::set<std::string>& bound, bool is_and) {
+        const std::optional<Narrowed> left = Check(*node.children[0], scope, candidate, bound);
+        if (!left) {
+            return std::nullopt;
+        }
+        if (left->type != Type::kBool) {
+            Error("operator " + node.text + " needs booleans");
+            return std::nullopt;
+        }
+        const std::set<std::string>& branch = is_and ? left->when_true : left->when_false;
+        const std::optional<Narrowed> right = Check(*node.children[1], scope, candidate, branch);
+        if (!right) {
+            return std::nullopt;
+        }
+        if (right->type != Type::kBool) {
+            Error("operator " + node.text + " needs booleans");
+            return std::nullopt;
+        }
+        if (is_and) {
+            return Narrowed{Type::kBool, right->when_true,
+                            Intersect(left->when_false, right->when_false)};
+        }
+        return Narrowed{Type::kBool, Intersect(left->when_true, right->when_true),
+                        right->when_false};
     }
 
     // INFO: the closed function table; each entry dispatches to a Checker
@@ -642,7 +766,8 @@ private:
         std::string_view name;
         size_t minimum_arguments;
         std::optional<size_t> maximum_arguments;
-        std::optional<Type> (Checker::*check)(const Node&, Scope, Type);
+        std::optional<Narrowed> (Checker::*check)(const Node&, Scope, Type,
+                                                  const std::set<std::string>&);
     };
 
     static const std::vector<FunctionInfo>& Functions() {
@@ -710,6 +835,9 @@ private:
     std::optional<Type> expected_;
     std::string_view file_;
     std::string_view pointer_;
+    GuardState initial_;
+    std::set<std::string> bound_when_true_;
+    std::set<std::string> bound_when_false_;
     std::vector<Diagnostic> diagnostics_;
 };
 
@@ -718,6 +846,12 @@ private:
 CheckResult CheckExpression(std::string_view source, const Schema& schema,
                             std::optional<Type> expected, std::string_view file,
                             std::string_view pointer) {
+    return CheckExpression(source, schema, expected, file, pointer, GuardState{});
+}
+
+CheckResult CheckExpression(std::string_view source, const Schema& schema,
+                            std::optional<Type> expected, std::string_view file,
+                            std::string_view pointer, const GuardState& initial) {
     CheckResult result;
     const ParseResult parsed = ParseExpression(source);
     if (parsed.error) {
@@ -735,10 +869,12 @@ CheckResult CheckExpression(std::string_view source, const Schema& schema,
         return result;
     }
 
-    Checker checker(schema, expected, file, pointer);
+    Checker checker(schema, expected, file, pointer, initial);
     const std::optional<Type> type = checker.CheckRoot(*parsed.root);
     result.type = type;
     result.diagnostics = checker.TakeDiagnostics();
+    result.bound_when_true = checker.BoundWhenTrue();
+    result.bound_when_false = checker.BoundWhenFalse();
     return result;
 }
 

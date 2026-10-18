@@ -153,7 +153,7 @@ TEST_CASE("a_bare_name_in_a_filter_must_be_a_candidate_property") {
 }
 
 TEST_CASE("reading_a_property_of_a_member_set_is_an_error") {
-    CHECK(Mentions(Check("$choice.color"),
+    CHECK(Mentions(Check("@match.uni:active_color.color"),
                    "reading a property of a member set is not allowed; use count(), "
                    "any(), all(), sum(), contains() or shares()"));
 }
@@ -297,7 +297,8 @@ TEST_CASE("membership_and_numeric_functions_accept_their_kinds") {
     REQUIRE(seats.diagnostics.empty());
     CHECK(seats.type == Type::kBool);
 
-    const CheckResult colors = Check("contains($choice, @match.uni:active_color)");
+    const CheckResult colors =
+        Check("contains(default($choice, @match.uni:active_color), @match.uni:active_color)");
     REQUIRE(colors.diagnostics.empty());
     CHECK(colors.type == Type::kBool);
 
@@ -324,6 +325,46 @@ TEST_CASE("membership_and_numeric_functions_accept_their_kinds") {
     const CheckResult rounded = Check("round(@next.hand_size)");
     REQUIRE(rounded.diagnostics.empty());
     CHECK(rounded.type == Type::kInt);
+}
+
+}  // TEST_SUITE
+
+TEST_SUITE("expr guards") {
+
+TEST_CASE("an_unguarded_optional_variable_is_an_error") {
+    CHECK(Mentions(Check("$responder.hand_size"),
+                   "variable $responder may be unbound; guard it with defined($responder)"));
+}
+
+TEST_CASE("a_short_circuit_guard_binds_its_variable") {
+    const CheckResult conjunction = Check("defined($responder) && $responder.hand_size > 0");
+    REQUIRE(conjunction.diagnostics.empty());
+
+    const CheckResult disjunction = Check("!defined($responder) || $responder.hand_size > 0");
+    REQUIRE(disjunction.diagnostics.empty());
+}
+
+TEST_CASE("a_true_branch_binds_only_within_the_operator_that_guards_it") {
+    CHECK(Mentions(Check("defined($responder) || $responder.hand_size > 0"),
+                   "variable $responder may be unbound; guard it with defined($responder)"));
+}
+
+TEST_CASE("if_guards_its_branches_from_its_condition") {
+    const CheckResult result = Check("if(defined($responder), $responder.hand_size, 0)");
+    REQUIRE(result.diagnostics.empty());
+    CHECK(result.type == Type::kInt);
+}
+
+TEST_CASE("default_accepts_an_optional_variable") {
+    const CheckResult result = Check("default($responder, @self).hand_size");
+    REQUIRE(result.diagnostics.empty());
+    CHECK(result.type == Type::kInt);
+}
+
+TEST_CASE("an_always_defined_variable_needs_no_guard") {
+    const CheckResult result = Check("$played.color");
+    REQUIRE(result.diagnostics.empty());
+    CHECK(result.type == Type::kMemberSet);
 }
 
 }  // TEST_SUITE

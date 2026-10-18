@@ -2,6 +2,8 @@
 
 #include <cstddef>
 #include <optional>
+#include <set>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -10,10 +12,18 @@
 
 namespace match::expr {
 
+// INFO: the variables a guard has already bound. A leaf in a condition tree is
+// checked with the bindings its earlier siblings guarantee.
+struct GuardState {
+    std::set<std::string> bound;
+};
+
 struct CheckResult {
     std::optional<Type> type;
     std::vector<Diagnostic> diagnostics;
     size_t node_count = 0;
+    std::set<std::string> bound_when_true;
+    std::set<std::string> bound_when_false;
 };
 
 // INFO: parses `source` and type-checks it against `schema`; a parse error
@@ -24,5 +34,12 @@ struct CheckResult {
 CheckResult CheckExpression(std::string_view source, const Schema& schema,
                             std::optional<Type> expected, std::string_view file,
                             std::string_view pointer);
+
+// INFO: like the overload above, but starts from the variables `initial` has
+// already bound; the returned `bound_when_true`/`bound_when_false` carry the
+// bindings the expression guarantees for the sibling that follows it.
+CheckResult CheckExpression(std::string_view source, const Schema& schema,
+                            std::optional<Type> expected, std::string_view file,
+                            std::string_view pointer, const GuardState& initial);
 
 }  // namespace match::expr
