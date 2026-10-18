@@ -21,6 +21,7 @@ import { initKeyboardAccelerators } from "$lib/actions/keyboardAccelerators";
 import { storeModal } from "$stores/modal.svelte";
 import { storeLobby } from "$stores/lobby.svelte";
 import { storeGame } from "$stores/game.svelte";
+import { storeMenu } from "$stores/menu.svelte";
 
 function press(key: string, target: EventTarget = document.body) {
 	const event = new KeyboardEvent("keydown", { key, bubbles: true });
@@ -33,6 +34,7 @@ describe("keyboard accelerators", () => {
 
 	beforeEach(() => {
 		vi.clearAllMocks();
+		storeMenu.close();
 		storeModal.isAnyOpen = false;
 		storeLobby.isInLobby = false;
 		storeGame.state = null;
@@ -55,9 +57,13 @@ describe("keyboard accelerators", () => {
 		expect(gotoMock).toHaveBeenCalledWith("lobbies");
 	});
 
-	it("5 navigates to the settings screen", () => {
+	it("5 toggles the menu grid", () => {
 		press("5");
-		expect(gotoMock).toHaveBeenCalledWith("settings");
+		expect(storeMenu.isOpen).toBe(true);
+		expect(gotoMock).not.toHaveBeenCalledWith("settings");
+
+		press("5");
+		expect(storeMenu.isOpen).toBe(false);
 	});
 
 	it("C opens chat", () => {

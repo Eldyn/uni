@@ -11,6 +11,7 @@ version; each release below corresponds to a `vX.Y.Z` git tag.
 
 ### Added
 
+- **Menu opens a tile grid with Leaderboard, Wardrobe and Settings** — the Menu item in the sidebar and bottom bar no longer links to Settings; it opens a three-tile grid (Wardrobe disabled behind a "Soon" badge), the `5` accelerator toggles it, and Escape or an outside click closes it.
 - **Uniform ABI v1 (pure TS)** — `fx/uniformAbi.ts` pins the engine uniform names (`uTime`..`uOriginPosition`), the post names (`uResolution`, `uSceneColor`, `uIntensity`) and the mod block `uParams[8]`, with GLSL preludes, a zeroed three-style uniform block, an allocation-free in-place frame update and a clamping/padding `setParams`. Not wired anywhere yet.
 - **Mod graphics are now looping audio (`audio.loop`)** — storeAudio gets a loop channel; an active presentation's loop plays on its composition target and stops when the affliction expires or the match tears down, and it honors SFX volume and mute.
 - **Card-face atlas persistence** — baked faces persist behind the in-memory bake cache in an IndexedDB store keyed by the card-definition content hash: repeat sessions hydrate stored pixels instead of re-baking, stale hashes are pruned against the live card pool, and a byte cap evicts least-recently-used faces. In-memory backend fake for tests, no new dependencies.
