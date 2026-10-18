@@ -34,6 +34,20 @@ public:
     AvatarController(HttpRouter& router, const uni::avatar::Catalogue& catalogue);
 
     /**
+     * @brief Constructor of the AvatarController over injected ownership.
+     *
+     * The production server passes the database-backed `EconomyService` so a
+     * saved loadout may equip anything the account owns; tests and callers
+     * with no economy keep the starters-only default.
+     * @param router The central HTTP router of the application.
+     * @param catalogue The process catalogue, used to validate a save and to
+     *        build the default and guest looks.
+     * @param ownership Who owns which item and swatch, per account.
+     */
+    AvatarController(HttpRouter& router, const uni::avatar::Catalogue& catalogue,
+                     const uni::avatar::IOwnership& ownership);
+
+    /**
      * @brief Called after a successful save with the username and the saved
      *        loadout. Empty unless the owner wires it; the lobby binds it to
      *        broadcast `loadout_changed`.
@@ -42,6 +56,9 @@ public:
                        const nlohmann::json& loadout)> on_saved;
 
 private:
+    /** @brief Register the GET and PUT routes on `router`. */
+    void RegisterRoutes(HttpRouter& router);
+
     /**
      * @brief Handler for the GET route `/avatar/loadout/me`.
      * Returns the saved loadout, the default look when nothing was saved, or
@@ -58,6 +75,9 @@ private:
     void HandlePutMe(AppResponse* res, AppRequest* req);
 
     const uni::avatar::Catalogue& catalogue_;
-    uni::avatar::StarterOwnership ownership_;
+    /** Starters-only ownership, the fallback when none is injected. */
+    uni::avatar::StarterOwnership fallback_ownership_;
+    /** The ownership the loadout rules check; never dangling. */
+    const uni::avatar::IOwnership& ownership_;
     uni::avatar::LoadoutRepository repository_;
 };

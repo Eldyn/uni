@@ -7,12 +7,15 @@
 #include <common/email_sender.hpp>
 #include <controllers/auth_controller.hpp>
 #include <controllers/avatar_controller.hpp>
+#include <controllers/economy_controller.hpp>
 #include <controllers/password_reset_controller.hpp>
 #include <controllers/chat_controller.hpp>
 #include <controllers/friend_controller.hpp>
 #include <controllers/lobby_controller.hpp>
 #include <controllers/match_controller.hpp>
 #include <controllers/stats_controller.hpp>
+#include <database.hpp>
+#include <economy/economy_service.hpp>
 #include <logger.hpp>
 #include <nlohmann/json.hpp>
 #include <nlohmann/json_fwd.hpp>
@@ -60,9 +63,14 @@ int main() {
         AuthController   auth(server.GetHTTPRouter(), email_queue);
         PasswordResetController password_reset(server.GetHTTPRouter(), email_queue);
         PresenceRegistry presence;
+        // INFO: One ledger service owns the cash balance, the buys and the
+        //       database-backed ownership the loadout rules and the shop use.
+        uni::economy::EconomyService economy(Database::Get(),
+                                             uni::avatar::Catalogue::Instance());
         LobbyController  lobby(server.GetActionRouter(), server.GetBroadcaster(),
                                server.GetTimerService(), presence,
                                &server.GetHTTPRouter());
+        lobby.SetEconomyService(&economy);
         ChatController   chat(server.GetActionRouter(), server.GetBroadcaster(), presence, -1,
                               ChatController::kUnsetHistoryLimit, &lobby);
 
@@ -82,13 +90,14 @@ int main() {
         StatsController  stats(server.GetHTTPRouter());
         stats.SetOnlineCountProvider([&presence] { return presence.OnlineCount(); });
         AvatarController avatar(server.GetHTTPRouter(),
-                                uni::avatar::Catalogue::Instance());
+                                uni::avatar::Catalogue::Instance(), economy);
         // INFO: A saved loadout reaches the saver's room as `loadout_changed`;
         //       the controller resolves the room and no-ops when there is none.
         avatar.on_saved = [&lobby](const std::string& username,
                                    const json& loadout) {
             lobby.BroadcastLoadoutChanged(username, loadout);
         };
+        EconomyController economy_controller(server.GetHTTPRouter(), economy);
         MatchController  game(server.GetActionRouter(), server.GetBroadcaster(),
                               server.GetTimerService(), lobby);
         FriendController friends(server.GetActionRouter(), server.GetBroadcaster(), presence);
