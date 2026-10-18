@@ -1,0 +1,29 @@
+#pragma once
+
+#include <cstdint>
+#include <optional>
+#include <string_view>
+#include <vector>
+
+#include <match/expr/value.hpp>
+
+namespace match::expr {
+
+// INFO: the runtime side of an expression: which entities the selectors
+// resolve to, what properties and variables hold, and the seeded match RNG.
+// An empty selector result means "none"; a runtime error skips the step, it
+// never returns a silent default.
+class EvalContext {
+public:
+    virtual ~EvalContext() = default;
+
+    virtual std::vector<EntityRef> ResolveSelector(std::string_view name) const = 0;
+    virtual std::optional<Value> ReadProperty(EntityRef entity, std::string_view key) const = 0;
+    virtual bool WriteProperty(EntityRef entity, std::string_view key, const Value& value) = 0;
+    virtual std::optional<Value> GetVariable(std::string_view name) const = 0;
+    virtual bool HasTag(EntityRef entity, std::string_view tag) const = 0;
+    virtual int64_t Random(int64_t low, int64_t high) = 0;
+    virtual int64_t StatusMagnitude(EntityRef seat, std::string_view status) const = 0;
+};
+
+}  // namespace match::expr
