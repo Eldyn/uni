@@ -12,24 +12,24 @@
 #include <match/expr/parser.hpp>
 
 namespace match::expr {
-namespace {
 
-constexpr size_t kMaximumNodes = 256;
-
-// INFO: the source spelling of an assignment operator, used in diagnostics.
-std::string_view AssignmentSymbol(AssignOp op) {
+std::string_view AssignmentOperatorSymbol(AssignOp op) {
     switch (op) {
         case AssignOp::kSet:
             return "=";
         case AssignOp::kAdd:
-            return "+=";
+            return "+";
         case AssignOp::kSubtract:
-            return "-=";
+            return "-";
         case AssignOp::kMultiply:
-            return "*=";
+            return "*";
     }
     return "=";
 }
+
+namespace {
+
+constexpr size_t kMaximumNodes = 256;
 
 // INFO: inside `[ ]` and inside the condition argument of a set function a bare
 // name is a property of the candidate; the candidate entity is only meaningful
@@ -229,8 +229,10 @@ public:
             return TakeDiagnostics();
         }
         if (assignment.op != AssignOp::kSet && !IsNumber(*property)) {
-            Error("operator " + std::string(AssignmentSymbol(assignment.op)) +
-                  " needs a number property");
+            // INFO: only a compound operator reaches here; it reads with a
+            // trailing '='.
+            Error("operator " + std::string(AssignmentOperatorSymbol(assignment.op)) +
+                  "= needs a number property");
             return TakeDiagnostics();
         }
         const std::optional<Narrowed> value =

@@ -5,6 +5,8 @@
 #include <match/expr/parser.hpp>
 
 #include <cstdint>
+#include <limits>
+#include <map>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -24,14 +26,36 @@ using match::expr::Diagnostic;
 using match::expr::EntityRef;
 using match::expr::EvalError;
 using match::expr::ParseAssignment;
+using match::expr::Schema;
 using match::expr::Type;
 using match::expr::Value;
 
 constexpr std::string_view kFile = "mods/a/rules/x.json";
 constexpr std::string_view kPointer = "/rule/steps/0/set";
 
+// INFO: the shared test schema plus the writable properties the assignment
+// tests need: a float (an int widens to it), non-number properties and a card
+// member slot.
+Schema MakeSchema() {
+    Schema schema = match::expr::testing::MakeTestSchema();
+    schema.seat_properties["seat:score"] = Type::kFloat;
+    schema.seat_properties["seat:ready"] = Type::kBool;
+    schema.seat_properties["seat:nickname"] = Type::kString;
+    schema.card_slots["uni:marker"] = Type::kMemberSet;
+    return schema;
+}
+
 std::vector<Diagnostic> Check(std::string_view source) {
-    return CheckAssignment(source, match::expr::testing::MakeTestSchema(), kFile, kPointer);
+    return CheckAssignment(source, MakeSchema(), kFile, kPointer);
+}
+
+// INFO: an expression whose value holds exactly `repetitions * 2 + 1` nodes.
+std::string RepeatedAddition(size_t repetitions) {
+    std::string source = "1";
+    for (size_t index = 0; index < repetitions; ++index) {
+        source += " + 1";
+    }
+    return source;
 }
 
 std::string FirstMessage(const std::vector<Diagnostic>& diagnostics) {
@@ -47,21 +71,46 @@ Assignment Parse(std::string_view source) {
 }
 
 // INFO: the shared FakeContext has no match numeric property, so the `+=`
-// case stores its current value and its result here.
+// case stores its current value and its result here. The per-seat maps give a
+// writable integer and float property so a later seat can fail a computation.
 class AssignmentContext : public match::expr::testing::FakeContext {
 public:
     int64_t growth = 2;
+    std::map<EntityRef, int64_t> counters;
+    std::map<EntityRef, double> multipliers;
+    bool refuse_writes = false;
 
     std::optional<Value> ReadProperty(EntityRef entity, std::string_view key) const override {
         if (entity.kind == Type::kMatch && key == "tree:growth") {
             return Value(growth);
         }
+        if (key == "seat:counter") {
+            const auto found = counters.find(entity);
+            if (found != counters.end()) {
+                return Value(found->second);
+            }
+        }
+        if (key == "seat:multiplier") {
+            const auto found = multipliers.find(entity);
+            if (found != multipliers.end()) {
+                return Value(found->second);
+            }
+        }
         return FakeContext::ReadProperty(entity, key);
     }
 
     bool WriteProperty(EntityRef entity, std::string_view key, const Value& value) override {
+        if (refuse_writes) {
+            return false;
+        }
         if (entity.kind == Type::kMatch && key == "tree:growth") {
             growth = std::get<int64_t>(value);
+        }
+        if (key == "seat:counter" && std::holds_alternative<int64_t>(value)) {
+            counters[entity] = std::get<int64_t>(value);
+        }
+        if (key == "seat:multiplier" && std::holds_alternative<double>(value)) {
+            multipliers[entity] = std::get<double>(value);
         }
         return FakeContext::WriteProperty(entity, key, value);
     }
@@ -119,6 +168,73 @@ TEST_CASE("an_empty_target_reports_empty_selector_and_writes_nothing") {
 TEST_CASE("collect_written_keys_is_the_target_property_once") {
     const Assignment assignment = Parse("@others[hand_size > 3].axe:stunned = true");
     CHECK(CollectWrittenKeys(assignment) == std::vector<std::string>{"axe:stunned"});
+}
+
+TEST_CASE("an_int_is_accepted_where_a_float_property_is_expected") {
+    CHECK(Check("@next.seat:score = 1").empty());
+}
+
+TEST_CASE("compound_assignment_rejects_a_non_number_property") {
+    CHECK(FirstMessage(Check("@next.seat:ready *= 1")) == "operator *= needs a number property");
+    CHECK(FirstMessage(Check("@next.seat:nickname *= 1")) ==
+          "operator *= needs a number property");
+    CHECK(FirstMessage(Check("@self.hand.uni:marker *= 1")) ==
+          "operator *= needs a number property");
+}
+
+TEST_CASE("an_unknown_property_reports_a_suggestion") {
+    const std::vector<Diagnostic> diagnostics = Check("@next.axe:stuned = true");
+    CHECK(FirstMessage(diagnostics) == "unknown property \"axe:stuned\" on seat");
+    CHECK(diagnostics.front().suggestion == "axe:stunned");
+}
+
+TEST_CASE("a_value_that_reads_an_unguarded_optional_variable_errors") {
+    CHECK(FirstMessage(Check("@next.axe:stunned = $responder.hand_size > 0")) ==
+          "variable $responder may be unbound; guard it with defined($responder)");
+}
+
+TEST_CASE("a_defined_guard_allows_the_optional_variable") {
+    CHECK(Check("@next.axe:stunned = if(defined($responder), $responder.hand_size > 0, false)")
+              .empty());
+}
+
+TEST_CASE("an_assignment_over_the_node_budget_is_an_error") {
+    const std::vector<Diagnostic> diagnostics =
+        Check("@match.tree:growth = " + RepeatedAddition(128));
+    CHECK(FirstMessage(diagnostics).find("the limit is 256") != std::string::npos);
+}
+
+TEST_CASE("a_later_seat_overflow_reports_an_error_and_writes_nothing") {
+    AssignmentContext context;
+    context.counters[AssignmentContext::kAna] = 1;
+    context.counters[AssignmentContext::kBo] = std::numeric_limits<int64_t>::max();
+    context.counters[AssignmentContext::kCy] = 1;
+    const Assignment assignment = Parse("@others.seat:counter += 1");
+    const std::optional<EvalError> error = ApplyAssignment(assignment, context);
+    REQUIRE(error.has_value());
+    CHECK(error->code == "integer_overflow");
+    CHECK(context.write_log.empty());
+}
+
+TEST_CASE("a_later_seat_float_overflow_reports_an_error_and_writes_nothing") {
+    AssignmentContext context;
+    context.multipliers[AssignmentContext::kAna] = 1.0;
+    context.multipliers[AssignmentContext::kBo] = std::numeric_limits<double>::max();
+    context.multipliers[AssignmentContext::kCy] = 1.0;
+    const Assignment assignment = Parse("@others.seat:multiplier *= 2.0");
+    const std::optional<EvalError> error = ApplyAssignment(assignment, context);
+    REQUIRE(error.has_value());
+    CHECK(error->code == "float_overflow");
+    CHECK(context.write_log.empty());
+}
+
+TEST_CASE("a_refused_write_reports_write_failed") {
+    AssignmentContext context;
+    context.refuse_writes = true;
+    const Assignment assignment = Parse("@next.axe:stunned = true");
+    const std::optional<EvalError> error = ApplyAssignment(assignment, context);
+    REQUIRE(error.has_value());
+    CHECK(error->code == "write_failed");
 }
 
 }  // TEST_SUITE

@@ -15,7 +15,7 @@ namespace match::expr {
 // INFO: a runtime error; `code` is stable so the mod logs and the verifier can
 // match on it. The codes are: division_by_zero, not_a_number, integer_overflow,
 // float_overflow, empty_selector, unbound_variable, unknown_property,
-// invalid_range, type_mismatch.
+// invalid_range, type_mismatch, write_failed.
 struct EvalError {
     std::string code;
     std::string message;
@@ -29,12 +29,15 @@ EvalResult Evaluate(const Node& root, EvalContext& context);
 
 // INFO: applies `assignment` to `context`. For `+= -= *=` it reads the
 // current value, applies the operator, then writes the result to every entity
-// the target selects. An empty selector is `empty_selector` and writes
-// nothing.
+// the target selects. Every new value is computed before any write, so an error
+// on any entity stops the step with no partial writes. An empty selector is
+// `empty_selector` and writes nothing. A `WriteProperty` that returns false is
+// `write_failed`; because the writes cannot be undone, a context must not fail
+// a write it accepted in `ReadProperty`.
 std::optional<EvalError> ApplyAssignment(const Assignment& assignment, EvalContext& context);
 
-// INFO: the property keys an assignment writes, deduplicated. A target with a
-// filter still writes a single property of its candidates.
+// INFO: the property key an assignment writes. A target with a filter still
+// writes a single property of its candidates.
 std::vector<std::string> CollectWrittenKeys(const Assignment& assignment);
 
 }  // namespace match::expr

@@ -8,9 +8,15 @@
 #include <vector>
 
 #include <match/expr/diagnostic.hpp>
+#include <match/expr/parser.hpp>
 #include <match/expr/types.hpp>
 
 namespace match::expr {
+
+// INFO: the binary operator an assignment applies, shared by the checker and
+// the evaluator. A compound operator is displayed in a diagnostic with a
+// trailing '='; kSet has no binary operator and returns "=".
+std::string_view AssignmentOperatorSymbol(AssignOp op);
 
 // INFO: the variables a guard has already bound. A leaf in a condition tree is
 // checked with the bindings its earlier siblings guarantee.

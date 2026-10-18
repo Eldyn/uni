@@ -9,6 +9,8 @@
 #include <variant>
 #include <vector>
 
+#include <match/expr/checker.hpp>
+
 namespace match::expr {
 namespace {
 
@@ -924,9 +926,14 @@ std::optional<EvalError> ApplyAssignment(const Assignment& assignment, EvalConte
     }
     const Value value = std::get<Value>(value_result);
     const std::string& key = target.text;
+    const std::string symbol(AssignmentOperatorSymbol(assignment.op));
+    // INFO: pass one computes every new value without writing, so an error on
+    // any entity stops the step with no partial writes.
+    std::vector<std::pair<EntityRef, Value>> pending;
+    pending.reserve(entities.size());
     for (const EntityRef entity : entities) {
         if (assignment.op == AssignOp::kSet) {
-            context.WriteProperty(entity, key, value);
+            pending.emplace_back(entity, value);
             continue;
         }
         const std::optional<Value> current = context.ReadProperty(entity, key);
@@ -934,19 +941,25 @@ std::optional<EvalError> ApplyAssignment(const Assignment& assignment, EvalConte
             return EvalError{"unknown_property",
                              "unknown property \"" + key + "\" on " + TypeName(entity.kind)};
         }
-        const std::string symbol = assignment.op == AssignOp::kAdd ? "+"
-                                   : assignment.op == AssignOp::kSubtract ? "-" : "*";
         const EvalResult combined = ApplyBinary(symbol, *current, value);
         if (std::holds_alternative<EvalError>(combined)) {
             return std::get<EvalError>(combined);
         }
-        context.WriteProperty(entity, key, std::get<Value>(combined));
+        pending.emplace_back(entity, std::get<Value>(combined));
+    }
+    // INFO: pass two writes the computed values. A context must not fail a
+    // write it accepted in ReadProperty, so a refusal is still an error.
+    for (const auto& [entity, new_value] : pending) {
+        if (!context.WriteProperty(entity, key, new_value)) {
+            return EvalError{"write_failed", "the context refused a write to \"" + key + "\""};
+        }
     }
     return std::nullopt;
 }
 
 std::vector<std::string> CollectWrittenKeys(const Assignment& assignment) {
     std::vector<std::string> keys;
+    // INFO: the checker guarantees a property target, so this is the one key.
     if (assignment.target->kind == NodeKind::kProperty) {
         keys.push_back(assignment.target->text);
     }
