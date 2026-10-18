@@ -4,6 +4,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include <cstdint>
 #include <filesystem>
 #include <stdexcept>
 #include <string>
@@ -252,6 +253,60 @@ TEST_CASE("avatar catalogue: IsStarterSwatch follows the palette starter flag") 
     CHECK_FALSE(catalogue.IsStarterSwatch("uni:neon:hot"));
     CHECK_FALSE(catalogue.HasSwatch("uni:nope"));
     CHECK_FALSE(catalogue.IsStarterSwatch("uni:nope"));
+}
+
+TEST_CASE("avatar catalogue: PriceOf returns catalogue prices") {
+    const Catalogue catalogue = Catalogue::Parse(ValidDoc());
+
+    CHECK(catalogue.PriceOf("uni:hat_cap") == 80);
+    CHECK(catalogue.PriceOf("uni:neon") == 250);
+    CHECK_FALSE(catalogue.PriceOf("uni:nope").has_value());
+    CHECK_FALSE(catalogue.PriceOf("").has_value());
+}
+
+TEST_CASE("avatar catalogue: IsBuyable follows starter, flags and the window") {
+    /* 2026-05-01T00:00:00Z and 2026-06-01T00:00:00Z, the window used below. */
+    constexpr std::int64_t kWindowStart = 1777593600;
+    constexpr std::int64_t kWindowEnd = 1780272000;
+
+    SUBCASE("a starter is not buyable") {
+        const Catalogue catalogue = Catalogue::Parse(ValidDoc());
+        CHECK_FALSE(catalogue.IsBuyable("uni:eyes_dot", kWindowStart));
+    }
+    SUBCASE("a hidden item is not buyable") {
+        json doc = ValidDoc();
+        ItemAt(doc, "uni:hat_cap")["hidden"] = true;
+        CHECK_FALSE(Catalogue::Parse(doc).IsBuyable("uni:hat_cap", kWindowStart));
+    }
+    SUBCASE("an unlisted item is not buyable") {
+        json doc = ValidDoc();
+        ItemAt(doc, "uni:hat_cap")["unlisted"] = true;
+        CHECK_FALSE(Catalogue::Parse(doc).IsBuyable("uni:hat_cap", kWindowStart));
+    }
+    SUBCASE("before available_from it is not buyable") {
+        json doc = ValidDoc();
+        ItemAt(doc, "uni:hat_cap")["available_from"] = "2026-05-01T00:00:00Z";
+        CHECK_FALSE(
+            Catalogue::Parse(doc).IsBuyable("uni:hat_cap", kWindowStart - 1));
+    }
+    SUBCASE("after available_until it is not buyable") {
+        json doc = ValidDoc();
+        ItemAt(doc, "uni:hat_cap")["available_until"] = "2026-06-01T00:00:00Z";
+        CHECK_FALSE(
+            Catalogue::Parse(doc).IsBuyable("uni:hat_cap", kWindowEnd + 1));
+    }
+    SUBCASE("inside the window it is buyable") {
+        json doc = ValidDoc();
+        ItemAt(doc, "uni:hat_cap")["available_from"] = "2026-05-01T00:00:00Z";
+        ItemAt(doc, "uni:hat_cap")["available_until"] = "2026-06-01T00:00:00Z";
+        const Catalogue catalogue = Catalogue::Parse(doc);
+        CHECK(catalogue.IsBuyable("uni:hat_cap", kWindowStart));
+        CHECK(catalogue.IsBuyable("uni:hat_cap", kWindowEnd));
+    }
+    SUBCASE("an unknown id is not buyable") {
+        const Catalogue catalogue = Catalogue::Parse(ValidDoc());
+        CHECK_FALSE(catalogue.IsBuyable("uni:nope", kWindowStart));
+    }
 }
 
 TEST_CASE("avatar catalogue: the real avatar/catalogue.json loads") {

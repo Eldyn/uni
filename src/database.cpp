@@ -179,6 +179,29 @@ static constexpr Migration MIGRATIONS[] = {
     // Migration v13: per-account avatar loadout. JSON text; NULL means "never
     // saved, use the catalogue default". One active loadout per account in 0.7.
     { 13, "ALTER TABLE users ADD COLUMN avatar_loadout TEXT;" },
+    // Migration v14: cash ledger and item ownership. The ledger is append-only;
+    // `users.cash_balance` is the cached sum and changes only alongside a ledger
+    // row. UNIQUE(user_id, source, ref) makes every earn/spend idempotent, and
+    // the ownership primary key makes a grant or purchase once per item.
+    { 14, R"sql(
+        CREATE TABLE IF NOT EXISTS cash_ledger (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id    INTEGER NOT NULL REFERENCES users(id),
+            amount     INTEGER NOT NULL,
+            source     TEXT    NOT NULL,
+            ref        TEXT    NOT NULL,
+            created_at INTEGER NOT NULL,
+            UNIQUE(user_id, source, ref)
+        );
+        CREATE TABLE IF NOT EXISTS item_ownership (
+            user_id     INTEGER NOT NULL REFERENCES users(id),
+            item_id     TEXT    NOT NULL,
+            source      TEXT    NOT NULL,
+            acquired_at INTEGER NOT NULL,
+            PRIMARY KEY(user_id, item_id)
+        );
+        ALTER TABLE users ADD COLUMN cash_balance INTEGER NOT NULL DEFAULT 0;
+    )sql" },
 };
 
 }  // namespace

@@ -11,7 +11,7 @@ TEST_CASE("migrations: user_version advances to latest") {
     auto ver = Database::Get().QueryOne("PRAGMA user_version;", {});
     REQUIRE(ver.has_value());
     REQUIRE(ver->has_value());
-    CHECK(ver.value()->Get<int>("user_version") == 13);
+    CHECK(ver.value()->Get<int>("user_version") == 14);
 }
 
 TEST_CASE("migrations: v13 adds users.avatar_loadout as a nullable text column") {
@@ -194,6 +194,60 @@ TEST_CASE("TransactionGuard: nested BEGIN fails and Ok() reflects it") {
 
     auto outer_commit = outer.Commit();
     CHECK(outer_commit.has_value());
+}
+
+TEST_CASE("database: migration 14 adds the economy tables") {
+    auto applied = Database::Get().RunMigrations();
+    REQUIRE(applied.has_value());
+
+    auto ver = Database::Get().QueryOne("PRAGMA user_version;", {});
+    REQUIRE(ver.has_value());
+    REQUIRE(ver->has_value());
+    CHECK(ver.value()->Get<int>("user_version") == 14);
+
+    auto cols = Database::Get().Query("PRAGMA table_info(users);", {});
+    REQUIRE(cols.has_value());
+    bool found_cash_balance = false;
+    for (const auto& row : *cols) {
+        if (row.Get<std::string>("name") != "cash_balance") continue;
+        found_cash_balance = true;
+        CHECK(row.Get<std::string>("type") == "INTEGER");
+        CHECK(row.Get<int>("notnull") == 1);
+        CHECK(row.GetOr<std::string>("dflt_value", "") == "0");
+    }
+    CHECK(found_cash_balance);
+
+    for (const char* table : {"cash_ledger", "item_ownership"}) {
+        auto rows = Database::Get().Query(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?;",
+            {std::string(table)});
+        REQUIRE(rows.has_value());
+        CHECK(rows->size() == 1);
+    }
+
+    auto insert_user = Database::Get().Exec(
+        "INSERT INTO users (username, pass_hash, salt, email) VALUES (?, ?, ?, ?);",
+        {std::string("migration14_user"), std::string("hash"), std::string("salt"),
+         std::string("migration14@example.test")});
+    REQUIRE(insert_user.has_value());
+
+    auto user = Database::Get().QueryOne(
+        "SELECT id FROM users WHERE username = ?;", {std::string("migration14_user")});
+    REQUIRE(user.has_value());
+    REQUIRE(user->has_value());
+    const int user_id = user.value()->Get<int>("id");
+
+    auto first = Database::Get().Exec(
+        "INSERT INTO cash_ledger (user_id, amount, source, ref, created_at) "
+        "VALUES (?, ?, ?, ?, ?);",
+        {user_id, 20, std::string("match_base"), std::string("migration14-match"), 0});
+    REQUIRE(first.has_value());
+
+    auto duplicate = Database::Get().Exec(
+        "INSERT INTO cash_ledger (user_id, amount, source, ref, created_at) "
+        "VALUES (?, ?, ?, ?, ?);",
+        {user_id, 20, std::string("match_base"), std::string("migration14-match"), 0});
+    CHECK_FALSE(duplicate.has_value());
 }
 
 TEST_CASE("DbRow: Get/GetOr/Has round-trip through a real query") {

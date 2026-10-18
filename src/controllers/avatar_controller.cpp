@@ -75,7 +75,20 @@ void WriteError(AppResponse* res, const char* status, const std::string& code,
 
 AvatarController::AvatarController(HttpRouter& router,
                                    const uni::avatar::Catalogue& catalogue)
-    : catalogue_(catalogue), ownership_(catalogue) {
+    : catalogue_(catalogue), fallback_ownership_(catalogue),
+      ownership_(fallback_ownership_) {
+    RegisterRoutes(router);
+}
+
+AvatarController::AvatarController(HttpRouter& router,
+                                   const uni::avatar::Catalogue& catalogue,
+                                   const uni::avatar::IOwnership& ownership)
+    : catalogue_(catalogue), fallback_ownership_(catalogue),
+      ownership_(ownership) {
+    RegisterRoutes(router);
+}
+
+void AvatarController::RegisterRoutes(HttpRouter& router) {
     router.Get("/avatar/loadout/me", [this](AppResponse* res, AppRequest* req) {
         HandleGetMe(res, req);
     });
