@@ -8,6 +8,7 @@
 #include <nlohmann/json_fwd.hpp>
 
 #include <match/expr/diagnostic.hpp>
+#include <match/expr/evaluator.hpp>
 #include <match/expr/types.hpp>
 
 namespace match::expr {
@@ -39,5 +40,10 @@ ConditionParseResult ParseCondition(const json& value, std::string_view file,
 // Evaluating the tree is the evaluator's job.
 std::vector<Diagnostic> CheckCondition(const Condition& condition, const Schema& schema,
                                        std::string_view file, std::string_view pointer);
+
+// INFO: evaluates a condition tree against a context. all_of is AND, any_of is
+// OR, none_of is NOT OR; leaves short-circuit left to right. A leaf error is
+// returned as the error.
+EvalResult EvaluateCondition(const Condition& condition, EvalContext& context);
 
 }  // namespace match::expr

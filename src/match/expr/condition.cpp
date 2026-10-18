@@ -12,6 +12,8 @@
 #include <nlohmann/json.hpp>
 
 #include <match/expr/checker.hpp>
+#include <match/expr/evaluator.hpp>
+#include <match/expr/parser.hpp>
 
 namespace match::expr {
 namespace {
@@ -258,6 +260,66 @@ std::vector<Diagnostic> CheckCondition(const Condition& condition, const Schema&
     ConditionChecker checker(schema, file, diagnostics);
     checker.Check(condition, std::string(pointer));
     return diagnostics;
+}
+
+EvalResult EvaluateCondition(const Condition& condition, EvalContext& context) {
+    if (condition.kind == Condition::Kind::kExpression) {
+        const ParseResult parsed = ParseExpression(condition.source);
+        if (parsed.error.has_value() || !parsed.root) {
+            return EvalError{"type_mismatch", "condition failed to parse"};
+        }
+        return Evaluate(*parsed.root, context);
+    }
+    if (condition.kind == Condition::Kind::kAllOf) {
+        for (const Condition& child : condition.children) {
+            const EvalResult result = EvaluateCondition(child, context);
+            if (std::holds_alternative<EvalError>(result)) {
+                return result;
+            }
+            const Value* value = std::get_if<Value>(&result);
+            const bool* flag = value ? std::get_if<bool>(value) : nullptr;
+            if (flag == nullptr) {
+                return EvalError{"type_mismatch", "condition must be bool"};
+            }
+            if (!*flag) {
+                return Value(false);
+            }
+        }
+        return Value(true);
+    }
+    if (condition.kind == Condition::Kind::kAnyOf) {
+        for (const Condition& child : condition.children) {
+            const EvalResult result = EvaluateCondition(child, context);
+            if (std::holds_alternative<EvalError>(result)) {
+                return result;
+            }
+            const Value* value = std::get_if<Value>(&result);
+            const bool* flag = value ? std::get_if<bool>(value) : nullptr;
+            if (flag == nullptr) {
+                return EvalError{"type_mismatch", "condition must be bool"};
+            }
+            if (*flag) {
+                return Value(true);
+            }
+        }
+        return Value(false);
+    }
+    // kNoneOf: NOT OR.
+    for (const Condition& child : condition.children) {
+        const EvalResult result = EvaluateCondition(child, context);
+        if (std::holds_alternative<EvalError>(result)) {
+            return result;
+        }
+        const Value* value = std::get_if<Value>(&result);
+        const bool* flag = value ? std::get_if<bool>(value) : nullptr;
+        if (flag == nullptr) {
+            return EvalError{"type_mismatch", "condition must be bool"};
+        }
+        if (*flag) {
+            return Value(false);
+        }
+    }
+    return Value(true);
 }
 
 }  // namespace match::expr
