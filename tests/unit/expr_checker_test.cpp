@@ -117,4 +117,81 @@ TEST_CASE("node_budget_is_256_nodes") {
     CHECK(at_budget.node_count == 255);
 }
 
+TEST_CASE("a_parse_error_leaves_the_node_count_at_zero") {
+    CHECK(Check("1 +").node_count == 0);
+    CHECK(Check("").node_count == 0);
+}
+
+TEST_CASE("an_int_is_accepted_where_a_float_is_expected") {
+    const CheckResult result = Check("1", Type::kFloat);
+    REQUIRE(result.diagnostics.empty());
+    CHECK(result.type == Type::kInt);
+}
+
+TEST_CASE("expected_bool_rejects_an_int") {
+    CHECK(Mentions(Check("1", Type::kBool), "expected bool, got int"));
+}
+
+TEST_CASE("modulo_by_zero_is_an_error") {
+    CHECK(Mentions(Check("5 % 0"), "division by zero"));
+}
+
+TEST_CASE("equality_between_different_types_is_an_error") {
+    CHECK(Mentions(Check("1 == 'a'"), "operator == cannot compare int with string"));
+}
+
+TEST_CASE("an_unknown_selector_is_reported") {
+    CHECK(Mentions(Check("@nope"), "unknown selector @nope"));
+
+    const CheckResult near_miss = Check("@nex");
+    REQUIRE_FALSE(near_miss.diagnostics.empty());
+    CHECK(near_miss.diagnostics.front().suggestion == "next");
+}
+
+TEST_CASE("a_bare_name_in_a_filter_must_be_a_candidate_property") {
+    CHECK(Mentions(Check("@all[nope]"), "unknown property \"nope\" on seat"));
+}
+
+TEST_CASE("reading_a_property_of_a_member_set_is_an_error") {
+    CHECK(Mentions(Check("$choice.color"),
+                   "reading a property of a member set is not allowed; use count(), "
+                   "any(), all(), sum(), contains() or shares()"));
+}
+
+TEST_CASE("a_rule_has_no_properties") {
+    CHECK(Mentions(Check("$rule.turn"), "cannot read properties of a rule"));
+}
+
+TEST_CASE("selectors_have_their_documented_types") {
+    const CheckResult others = Check("@others");
+    REQUIRE(others.diagnostics.empty());
+    CHECK(others.type == Type::kSeatSet);
+
+    const CheckResult random_seat = Check("@rand");
+    REQUIRE(random_seat.diagnostics.empty());
+    CHECK(random_seat.type == Type::kSeat);
+}
+
+TEST_CASE("unary_operators_need_their_operand_type") {
+    CHECK(Mentions(Check("-'a'"), "operator - needs numbers"));
+    CHECK(Mentions(Check("!1"), "operator ! needs a boolean"));
+}
+
+TEST_CASE("a_property_read_needs_an_entity") {
+    CHECK(Mentions(Check("1.hand_size"), "cannot read \"hand_size\" on a value of type int"));
+}
+
+TEST_CASE("logical_operators_need_booleans") {
+    CHECK(Mentions(Check("'a' && 1"), "operator && needs booleans"));
+    CHECK(Mentions(Check("1 && 2"), "operator && needs booleans"));
+    CHECK(Mentions(Check("@all && true"), "operator && needs booleans"));
+    CHECK(Mentions(Check("'a' || 1"), "operator || needs booleans"));
+}
+
+TEST_CASE("a_filter_must_be_a_boolean_condition") {
+    CHECK(Mentions(Check("@all[hand_size + 1]"),
+                   "filter must be a boolean condition, got int"));
+    CHECK(Mentions(Check("@all['x']"), "filter must be a boolean condition, got string"));
+}
+
 }  // TEST_SUITE

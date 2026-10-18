@@ -35,6 +35,7 @@ inline Schema MakeTestSchema() {
         {"played", VariableInfo{Type::kCard, false}},
         {"responder", VariableInfo{Type::kSeat, true}},
         {"choice", VariableInfo{Type::kMemberSet, true}},
+        {"rule", VariableInfo{Type::kRule, false}},
     };
     return schema;
 }

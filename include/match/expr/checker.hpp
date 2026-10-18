@@ -13,7 +13,7 @@ namespace match::expr {
 struct CheckResult {
     std::optional<Type> type;
     std::vector<Diagnostic> diagnostics;
-    size_t node_count;
+    size_t node_count = 0;
 };
 
 // INFO: parses `source` and type-checks it against `schema`; a parse error

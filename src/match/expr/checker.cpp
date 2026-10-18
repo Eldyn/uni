@@ -28,19 +28,6 @@ bool IsSet(Type type) {
     return type == Type::kSeatSet || type == Type::kCardSet || type == Type::kMemberSet;
 }
 
-bool IsEntity(Type type) {
-    switch (type) {
-        case Type::kSeat:
-        case Type::kCard:
-        case Type::kMatch:
-        case Type::kSettings:
-        case Type::kRule:
-            return true;
-        default:
-            return false;
-    }
-}
-
 Type EntityOf(Type type) {
     if (type == Type::kSeatSet) {
         return Type::kSeat;
@@ -92,7 +79,8 @@ std::string SetReadMessage(Type set_type) {
         return "selects many cards; use count(), any(), all(), sum() or a single-card "
                "selector";
     }
-    return "is a set of members; use count(), any(), all(), sum(), contains() or shares()";
+    return "reading a property of a member set is not allowed; use count(), any(), all(), "
+           "sum(), contains() or shares()";
 }
 
 std::optional<Type> SelectorType(std::string_view selector) {
@@ -113,28 +101,19 @@ std::optional<Type> SelectorType(std::string_view selector) {
 }
 
 const std::vector<std::string>& SelectorNames() {
-    static const std::vector<std::string> names = {"self",  "next", "prev",  "all",
-                                                   "others", "rand", "rand_all", "match",
-                                                   "settings"};
+    static const std::vector<std::string> names = {"self",    "next",    "prev",
+                                                   "rand_all", "rand",    "all",
+                                                   "others",  "match",   "settings"};
     return names;
-}
-
-const std::map<std::string, Type>& PropertyMap(const Schema& schema, Type entity) {
-    switch (entity) {
-        case Type::kCard:
-            return schema.card_properties;
-        case Type::kMatch:
-            return schema.match_properties;
-        case Type::kSettings:
-            return schema.settings;
-        default:
-            return schema.seat_properties;
-    }
 }
 
 std::vector<std::string> PropertyNames(const Schema& schema, Type entity) {
     std::vector<std::string> names;
-    for (const auto& entry : PropertyMap(schema, entity)) {
+    const std::map<std::string, Type>* properties = schema.Properties(entity);
+    if (properties == nullptr) {
+        return names;
+    }
+    for (const auto& entry : *properties) {
         names.push_back(entry.first);
     }
     if (entity == Type::kCard) {
@@ -258,9 +237,23 @@ private:
             return std::nullopt;
         }
         for (const NodePtr& filter : node.children) {
-            if (!Check(*filter, Scope::kCandidate, EntityOf(*type))) {
+            if (!CheckCondition(*filter, EntityOf(*type))) {
                 return std::nullopt;
             }
+        }
+        return type;
+    }
+
+    // INFO: a filter and the condition argument of a set function are both
+    // boolean predicates over the candidate, so they share one rule.
+    std::optional<Type> CheckCondition(const Node& node, Type candidate) {
+        const std::optional<Type> type = Check(node, Scope::kCandidate, candidate);
+        if (!type) {
+            return std::nullopt;
+        }
+        if (*type != Type::kBool) {
+            Error("filter must be a boolean condition, got " + TypeName(*type));
+            return std::nullopt;
         }
         return type;
     }
@@ -284,7 +277,11 @@ private:
             Error(SetReadMessage(*base));
             return std::nullopt;
         }
-        if (!IsEntity(*base)) {
+        if (*base == Type::kRule) {
+            Error("cannot read properties of a rule");
+            return std::nullopt;
+        }
+        if (schema_.Properties(*base) == nullptr) {
             Error("cannot read \"" + node.text + "\" on a value of type " + TypeName(*base));
             return std::nullopt;
         }
@@ -363,12 +360,12 @@ private:
             return Type::kInt;
         }
         if (symbol == "==" || symbol == "!=") {
-            if (!IsNumber(*left) || !IsNumber(*right)) {
-                if (*left != *right) {
-                    Error("operator " + symbol + " cannot compare " + TypeName(*left) +
-                          " with " + TypeName(*right));
-                    return std::nullopt;
-                }
+            // INFO: numbers compare across int and float, so only a difference
+            // between two other types is a mismatch.
+            if (*left != *right && (!IsNumber(*left) || !IsNumber(*right))) {
+                Error("operator " + symbol + " cannot compare " + TypeName(*left) +
+                      " with " + TypeName(*right));
+                return std::nullopt;
             }
             return Type::kBool;
         }
@@ -384,6 +381,10 @@ private:
             return Type::kBool;
         }
         if (symbol == "&&" || symbol == "||") {
+            if (*left != Type::kBool || *right != Type::kBool) {
+                Error("operator " + symbol + " needs booleans");
+                return std::nullopt;
+            }
             return Type::kBool;
         }
         Error("unsupported operator " + symbol);
