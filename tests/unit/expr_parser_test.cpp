@@ -156,3 +156,45 @@ TEST_CASE("out_of_range_number_is_rejected") {
 }
 
 }  // TEST_SUITE
+
+TEST_SUITE("expr assignment") {
+
+TEST_CASE("set_namespaced_property_to_boolean") {
+    const auto result = match::expr::ParseAssignment("@next.axe:stunned = true");
+    REQUIRE_FALSE(result.error.has_value());
+    REQUIRE(result.assignment.has_value());
+    CHECK(match::expr::DebugString(*result.assignment->target) ==
+          "(prop (select next) axe:stunned)");
+    CHECK(result.assignment->op == match::expr::AssignOp::kSet);
+    CHECK(match::expr::DebugString(*result.assignment->value) == "true");
+}
+
+TEST_CASE("add_to_property") {
+    const auto result = match::expr::ParseAssignment("@match.tree:growth += 1");
+    REQUIRE_FALSE(result.error.has_value());
+    REQUIRE(result.assignment.has_value());
+    CHECK(match::expr::DebugString(*result.assignment->target) ==
+          "(prop (select match) tree:growth)");
+    CHECK(result.assignment->op == match::expr::AssignOp::kAdd);
+    CHECK(match::expr::DebugString(*result.assignment->value) == "1");
+}
+
+TEST_CASE("variable_target_is_rejected") {
+    const auto result = match::expr::ParseAssignment("$x = 1");
+    REQUIRE(result.error.has_value());
+    CHECK(result.error->message == "cannot assign to a variable; variables are immutable");
+}
+
+TEST_CASE("non_property_target_is_rejected") {
+    const auto result = match::expr::ParseAssignment("1 = 2");
+    REQUIRE(result.error.has_value());
+    CHECK(result.error->message == "an assignment target must be a property");
+}
+
+TEST_CASE("missing_assignment_operator_is_rejected") {
+    const auto result = match::expr::ParseAssignment("@next.hand_size");
+    REQUIRE(result.error.has_value());
+    CHECK(result.error->message == "expected an assignment operator (=, +=, -=, *=)");
+}
+
+}  // TEST_SUITE

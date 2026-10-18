@@ -82,6 +82,25 @@ int BinaryBindingPower(std::string_view symbol) {
     return 0;
 }
 
+std::optional<AssignOp> AssignmentOperator(const Token& token) {
+    if (token.kind != TokenKind::kOperator) {
+        return std::nullopt;
+    }
+    if (token.text == "=") {
+        return AssignOp::kSet;
+    }
+    if (token.text == "+=") {
+        return AssignOp::kAdd;
+    }
+    if (token.text == "-=") {
+        return AssignOp::kSubtract;
+    }
+    if (token.text == "*=") {
+        return AssignOp::kMultiply;
+    }
+    return std::nullopt;
+}
+
 bool StartsExpression(const Token& token) {
     switch (token.kind) {
         case TokenKind::kNumber:
@@ -119,6 +138,49 @@ public:
     }
 
     const std::optional<ParseError>& error() const { return error_; }
+
+    // INFO: parses `target op value`; unlike Parse the input need not end after
+    // the target, because the assignment operator and value follow it.
+    AssignmentResult ParseAssignment() {
+        AssignmentResult result;
+        NodePtr target = ParseBinary(0);
+        if (error_) {
+            result.error = error_;
+            return result;
+        }
+        if (target->kind == NodeKind::kVariable) {
+            result.error = ParseError{
+                target->position, "cannot assign to a variable; variables are immutable"};
+            return result;
+        }
+        if (target->kind != NodeKind::kProperty) {
+            result.error =
+                ParseError{target->position, "an assignment target must be a property"};
+            return result;
+        }
+        const std::optional<AssignOp> op = AssignmentOperator(Peek());
+        if (!op) {
+            result.error = ParseError{
+                Peek().position, "expected an assignment operator (=, +=, -=, *=)"};
+            return result;
+        }
+        ++index_;
+        NodePtr value = ParseBinary(0);
+        if (error_) {
+            result.error = error_;
+            return result;
+        }
+        if (Peek().kind != TokenKind::kEnd) {
+            result.error = ParseError{Peek().position, "unexpected token"};
+            return result;
+        }
+        Assignment assignment;
+        assignment.target = std::move(target);
+        assignment.op = *op;
+        assignment.value = std::move(value);
+        result.assignment = std::move(assignment);
+        return result;
+    }
 
 private:
     void SetError(size_t position, std::string message) {
@@ -406,6 +468,17 @@ ParseResult ParseExpression(std::string_view source) {
         result.root = nullptr;
     }
     return result;
+}
+
+AssignmentResult ParseAssignment(std::string_view source) {
+    LexResult lexed = Lex(source);
+    if (lexed.error) {
+        AssignmentResult result;
+        result.error = std::move(lexed.error);
+        return result;
+    }
+    Parser parser(lexed.tokens);
+    return parser.ParseAssignment();
 }
 
 }  // namespace match::expr
