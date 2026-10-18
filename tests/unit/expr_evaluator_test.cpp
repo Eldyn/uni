@@ -1,6 +1,9 @@
 #include <doctest/doctest.h>
 
+#include <match/expr/condition.hpp>
 #include <match/expr/evaluator.hpp>
+
+#include <nlohmann/json.hpp>
 
 #include <cstdint>
 #include <limits>
@@ -11,11 +14,17 @@
 
 namespace {
 
+using match::expr::ConditionParseResult;
+using match::expr::EntityRef;
 using match::expr::EvalError;
 using match::expr::EvalResult;
 using match::expr::Evaluate;
+using match::expr::EvaluateCondition;
+using match::expr::ParseCondition;
 using match::expr::ParseExpression;
+using match::expr::Type;
 using match::expr::Value;
+using nlohmann::json;
 
 Value ValueOf(std::string_view source, match::expr::testing::FakeContext& context) {
     const match::expr::ParseResult parsed = ParseExpression(source);
@@ -172,6 +181,104 @@ TEST_CASE("large_int_comparison_is_exact") {
     match::expr::testing::FakeContext context;
     CHECK(std::get<bool>(ValueOf("9007199254740993 == 9007199254740992", context)) == false);
     CHECK(std::get<bool>(ValueOf("9007199254740992 < 9007199254740993", context)) == true);
+}
+
+}  // TEST_SUITE
+
+namespace {
+
+EvalResult ConditionOf(const json& value, match::expr::testing::FakeContext& context) {
+    const ConditionParseResult parsed = ParseCondition(value, "test", "/when");
+    REQUIRE(parsed.condition.has_value());
+    return EvaluateCondition(*parsed.condition, context);
+}
+
+Value ConditionValueOf(const json& value, match::expr::testing::FakeContext& context) {
+    const EvalResult result = ConditionOf(value, context);
+    REQUIRE(std::holds_alternative<Value>(result));
+    return std::get<Value>(result);
+}
+
+}  // namespace
+
+TEST_SUITE("expr sets") {
+
+TEST_CASE("set_functions_over_the_four_seats") {
+    match::expr::testing::FakeContext context;
+    CHECK(std::get<int64_t>(ValueOf("count(@all[hand_size > 3])", context)) == 2);
+    CHECK(std::get<int64_t>(ValueOf("count(@others, hand_size == 1)", context)) == 0);
+    CHECK(std::get<bool>(ValueOf("any(@all, hand_size == 1)", context)) == true);
+    CHECK(std::get<bool>(ValueOf("all(@all, hand_size > 0)", context)) == true);
+    CHECK(std::get<int64_t>(ValueOf("sum(@all, hand_size)", context)) == 12);
+}
+
+TEST_CASE("member_sets_share_and_compare_as_sets") {
+    match::expr::testing::FakeContext context;
+    context.variables["played"] = Value{context.played_card};
+    const std::string shares_source = "shares($played.color, @match.uni:active_color)";
+    const std::string equal_source = "$played.color == @match.uni:active_color";
+    CHECK(std::get<bool>(ValueOf(shares_source, context)) == true);
+    CHECK(std::get<bool>(ValueOf(equal_source, context)) == false);
+    context.match_colors = {"uni:red", "uni:blue"};
+    CHECK(std::get<bool>(ValueOf(equal_source, context)) == true);
+    context.match_colors = {"uni:green"};
+    CHECK(std::get<bool>(ValueOf(shares_source, context)) == false);
+}
+
+TEST_CASE("contains_and_has_tag_follow_the_context") {
+    match::expr::testing::FakeContext context;
+    context.variables["played"] = Value{context.played_card};
+    CHECK(std::get<bool>(ValueOf("contains(@self.hand, $played)", context)) == true);
+    CHECK(std::get<bool>(ValueOf("has_tag($played, 'uni:wild')", context)) == true);
+    CHECK(std::get<bool>(ValueOf("has_tag($played, 'uni:calm')", context)) == false);
+    context.hand_cards = {EntityRef{Type::kCard, 7}};
+    CHECK(std::get<bool>(ValueOf("contains(@self.hand, $played)", context)) == false);
+}
+
+TEST_CASE("status_magnitude_random_and_rand_selector") {
+    match::expr::testing::FakeContext context;
+    context.status_magnitudes["uni:draw_debt"] = 3;
+    CHECK(std::get<int64_t>(ValueOf("status_magnitude(@next, 'uni:draw_debt')", context)) == 3);
+    context.random_queue.push_back(4);
+    CHECK(std::get<int64_t>(ValueOf("random(1, 6)", context)) == 4);
+    context.rand_entity = match::expr::testing::FakeContext::kBo;
+    CHECK(std::get<EntityRef>(ValueOf("@rand", context)) ==
+          match::expr::testing::FakeContext::kBo);
+}
+
+TEST_CASE("evaluate_condition_groups_combine_and_short_circuit") {
+    match::expr::testing::FakeContext context;
+    const json guarded = json::parse(
+        R"json({"all_of":["defined($responder)","$responder.hand_size > 0"]})json");
+    CHECK(std::get<bool>(ConditionValueOf(guarded, context)) == false);
+    const json none_of = json::parse(R"json({"none_of":["false","false"]})json");
+    CHECK(std::get<bool>(ConditionValueOf(none_of, context)) == true);
+    const json any_of = json::parse(R"json({"any_of":["false","true"]})json");
+    CHECK(std::get<bool>(ConditionValueOf(any_of, context)) == true);
+}
+
+TEST_CASE("runtime_errors_in_set_functions") {
+    match::expr::testing::FakeContext context;
+    CHECK(ErrorOf("count(@all[hand_size > $missing])", context).code == "unbound_variable");
+
+    match::expr::testing::FakeContext empty;
+    empty.unbound_next = true;
+    CHECK(std::get<int64_t>(ValueOf("sum(@next, hand_size)", empty)) == 0);
+    CHECK(std::get<bool>(ValueOf("any(@next, hand_size > 0)", empty)) == false);
+    CHECK(std::get<bool>(ValueOf("all(@next, hand_size > 0)", empty)) == true);
+    CHECK(ErrorOf("sum(@all, @next.hand_size)", empty).code == "empty_selector");
+}
+
+TEST_CASE("condition_leaf_errors_are_returned_and_groups_short_circuit") {
+    match::expr::testing::FakeContext context;
+    const EvalResult leaf = ConditionOf(json("$missing"), context);
+    REQUIRE(std::holds_alternative<EvalError>(leaf));
+    CHECK(std::get<EvalError>(leaf).code == "unbound_variable");
+
+    const json all_of = json::parse(R"json({"all_of":["false","$missing"]})json");
+    CHECK(std::get<bool>(ConditionValueOf(all_of, context)) == false);
+    const json any_of = json::parse(R"json({"any_of":["true","$missing"]})json");
+    CHECK(std::get<bool>(ConditionValueOf(any_of, context)) == true);
 }
 
 }  // TEST_SUITE
