@@ -36,6 +36,14 @@ vi.mock("$lib/stores/stats.svelte", () => ({
 	}
 }));
 
+const { fetchMine } = vi.hoisted(() => ({ fetchMine: vi.fn().mockResolvedValue(undefined) }));
+vi.mock("$stores/avatar.svelte", () => ({
+	storeAvatar: {
+		loadout: null,
+		fetchMine
+	}
+}));
+
 vi.mock("$stores/verify.svelte", () => ({
 	storeVerify: {
 		isSending: false,
@@ -79,6 +87,7 @@ describe("ProfileScreen", () => {
 		(storeStats as { myStats: unknown }).myStats = null;
 		render(ProfileScreen);
 		expect(fetchMe).toHaveBeenCalled();
+		expect(fetchMine).toHaveBeenCalled();
 	});
 
 	it("guest does not call fetchMe and shows the register call to action", async () => {
@@ -88,6 +97,7 @@ describe("ProfileScreen", () => {
 		render(ProfileScreen);
 
 		expect(fetchMe).not.toHaveBeenCalled();
+		expect(fetchMine).not.toHaveBeenCalled();
 		expect(screen.getByText(/register to track stats/i)).toBeInTheDocument();
 
 		await fireEvent.click(screen.getByRole("button", { name: "Register" }));

@@ -16,7 +16,7 @@ function makeStats(overrides: Partial<PlayerStats> = {}): PlayerStats {
 }
 
 function makeProfile(stats: PlayerStats | null) {
-	return { username: "eldyn", avatar: "", stats };
+	return { username: "eldyn", loadout: null, stats };
 }
 
 describe("ProfileView", () => {
@@ -90,7 +90,7 @@ describe("ProfileView", () => {
 		const onRegister = vi.fn();
 		render(ProfileView, {
 			props: {
-				profile: { username: "Guest#12345", avatar: "", stats: null },
+				profile: { username: "Guest#12345", loadout: null, stats: null },
 				isOwn: false,
 				status: "guest",
 				onRegister

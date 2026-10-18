@@ -8,6 +8,7 @@
 	import { storeNavigation } from "$stores/navigation.svelte";
 	import { storeAuth } from "$stores/auth.svelte";
 	import { storeStats } from "$stores/stats.svelte";
+	import { storeAvatar } from "$stores/avatar.svelte";
 	import ProfileView from "$components/profile/ProfileView.svelte";
 	import ProfileAccount from "$components/profile/ProfileAccount.svelte";
 	import ProfileLogout from "$components/profile/ProfileLogout.svelte";
@@ -24,7 +25,9 @@
 	}
 
 	onMount(() => {
-		if (storeAuth.isLoggedIn && !storeStats.myStats) {
+		if (!storeAuth.isLoggedIn) return;
+		storeAvatar.fetchMine();
+		if (!storeStats.myStats) {
 			loadStats();
 		}
 	});
@@ -39,7 +42,7 @@
 
 	const profile = $derived({
 		username: storeAuth.username,
-		avatar: storeAuth.avatar,
+		loadout: storeAvatar.loadout,
 		stats: storeStats.myStats
 	});
 </script>
