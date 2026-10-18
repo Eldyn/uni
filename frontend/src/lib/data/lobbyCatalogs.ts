@@ -46,17 +46,6 @@ export function ruleLabel(rule: RuleDefinition, locale: Locale): string {
 /** TODO: mocked, the backend has no deck concept yet. */
 export const DECKS = ["Default", "Classic", "Speed", "Chaos", "Starter"];
 
-export const AVATAR_COLORS = [
-	"#0493de",
-	"#018d41",
-	"#dc251c",
-	"#fcf604",
-	"#c084fc",
-	"#ff9f43",
-	"#00d2d3",
-	"#ee5253"
-];
-
 export type SortKey = "fullest" | "emptiest";
 
 /** `filled` drives the 4-slot player preview shown in the sort control.

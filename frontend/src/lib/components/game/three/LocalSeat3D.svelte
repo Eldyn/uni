@@ -1,6 +1,7 @@
 <!-- The local player's avatar, rendered as a 3D mesh directly on the table plane
      (y = -0.005) so it always renders under cards (y >= 0) rather than floating
-     in an HTML overlay above the WebGL canvas. Animated with base_player_strip.png. -->
+     in an HTML overlay above the WebGL canvas. Animated from the baked avatar
+     strip (see avatarTexture.ts). -->
 <script lang="ts">
 	import { T, useTask } from "@threlte/core";
 	import { Color, type Texture } from "three";

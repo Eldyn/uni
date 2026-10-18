@@ -74,16 +74,11 @@ export interface BoardPlacement {
 // size" is true by construction instead of by two constants agreeing.
 export const LOCAL_AVATAR_WORLD = 0.78;
 
-// base_player.gif is a 96x96 canvas, but the figure only fills part of it, and
-// by how much drifts as the idle animation plays — coalescing every frame and
-// measuring each one's own opaque bbox (`magick base_player.gif -coalesce ...
-// -alpha extract -threshold 10% -format %@`) gives top offsets from 14 to 18px
-// and heights from 66 to 68px. The 96x96 CSS mask-size the avatar CSS uses
-// zooms in to crop out the padding a fixed 96/70 (see AVATAR_MASK_ZOOM_PERCENT
-// there), keeping rows [14, 84] — the union every frame's figure sits inside —
-// which is also where this fraction comes from: 68 (the tallest frame) over 70
-// (that crop window), not over the full 96. Every avatar size on the board
-// describes the FIGURE at that crop, never the frame: sizing by the frame
+// An avatar frame is a 96x96 canvas, but the figure only fills part of it, and
+// by how much drifts as the idle animation plays — measuring each frame's own
+// opaque bbox gives top offsets from 14 to 18px and heights from 66 to 68px.
+// The board sizes describe the FIGURE, never the frame: 68 (the tallest frame)
+// over the 70px window it sits in, not over the full 96. Sizing by the frame
 // leaves the built-in padding showing as dead space around the icon, which
 // is both why the icon used to float short of the felt (LOCAL_AVATAR_WORLD)
 // and why the padding read as visible empty space around every opponent's.

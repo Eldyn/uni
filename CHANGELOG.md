@@ -82,6 +82,7 @@ version; each release below corresponds to a `vX.Y.Z` git tag.
 - Creative P5: Dev-only scenes applied at match start, in-session scene loading, checkpoint save and restore of visible state.
 - Creative fixes: host x-ray snapshot carries all hands, malformed director args rejected with specific errors, full clean view hides panel and chat, director console with transport/script/stack/seat/checkpoint/scene controls, seat rename/skin/flip, lobby Creative mode picker entry.
 - **Reverse Deflection speaks every shipped language** — the `reverse_deflection` mod's deflection lines now ship for all eight non-English locales: `mods/reverse_deflection/texts/{de,es,it,ja,ko,ru,uk,zh}.json` hold natural playful translations of the `en` lines with identical keys, placeholders and markup.
+- **Avatars render from the baked strip** — `Avatar`, `AvatarSprite` and `useBakedAvatar` draw a loadout's baked 5-frame PNG as a CSS `steps(5)` sprite whose shared negative `animation-delay` keeps every avatar on the same frame, the 3D seats turn the same pixels into a shared-UV `CanvasTexture`, bots keep the gray robot strip, a missing or failed loadout falls back to the default look, and the avatar paths no longer use GIFs or `TintedSprite`.
 
 ### Changed
 

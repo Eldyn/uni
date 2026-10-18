@@ -236,7 +236,7 @@
 		}
 	}
 
-	/* The crown gif is authored on the same 96x96 canvas as base_player.gif, so
+	/* The crown gif is authored on the same 96x96 canvas as an avatar frame, so
 	   the sprite and the crown render at the identical size in this frame and
 	   overlap exactly (crown on the head). Overlay sprites must match the user
 	   sprite's size, not exceed it — otherwise the crown appears to float. */
