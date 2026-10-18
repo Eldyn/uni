@@ -1,5 +1,6 @@
 #pragma once
 
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -20,6 +21,10 @@ struct Condition {
     Kind kind = Kind::kExpression;
     std::string source;
     std::vector<Condition> children;
+    // INFO: a leaf's parsed expression, built once by ParseCondition so that
+    // EvaluateCondition never re-parses. A leaf that fails to parse is rejected
+    // by ParseCondition, so a stored value is always usable.
+    std::shared_ptr<const Node> expression;
 };
 
 struct ConditionParseResult {

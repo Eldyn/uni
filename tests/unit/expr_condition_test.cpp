@@ -49,7 +49,15 @@ TEST_CASE("a_leaf_string_is_an_expression_condition") {
     REQUIRE(parsed.condition.has_value());
     CHECK(parsed.condition->kind == Condition::Kind::kExpression);
     CHECK(parsed.condition->source == "defined($responder)");
+    CHECK(parsed.condition->expression != nullptr);
     CHECK(parsed.diagnostics.empty());
+}
+
+TEST_CASE("a_leaf_expression_that_does_not_parse_is_rejected") {
+    const ConditionParseResult parsed = Parse(json("1 +"));
+    CHECK_FALSE(parsed.condition.has_value());
+    REQUIRE_FALSE(parsed.diagnostics.empty());
+    CHECK(FirstPointer(parsed.diagnostics) == "/when");
 }
 
 TEST_CASE("an_all_of_parses_to_one_child_per_entry") {

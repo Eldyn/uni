@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cstddef>
+#include <memory>
 #include <optional>
 #include <set>
 #include <string>
@@ -117,7 +118,16 @@ private:
     std::optional<Condition> ParseNode(const json& value, const std::string& pointer,
                                        size_t depth) {
         if (value.is_string()) {
-            return Condition{Condition::Kind::kExpression, value.get<std::string>(), {}};
+            const std::string source = value.get<std::string>();
+            ParseResult parsed = ParseExpression(source);
+            if (parsed.error.has_value() || !parsed.root) {
+                Error(pointer, parsed.error.has_value() ? parsed.error->message
+                                                        : "condition expression is empty");
+                return std::nullopt;
+            }
+            Condition condition{Condition::Kind::kExpression, source, {}};
+            condition.expression = std::shared_ptr<const Node>(std::move(parsed.root));
+            return condition;
         }
         if (!value.is_object()) {
             Error(pointer, "condition leaves are expression strings");
@@ -246,6 +256,19 @@ private:
     std::vector<Diagnostic>& diagnostics_;
 };
 
+// INFO: a group child must yield a bool; an error passes through and any other
+// value is a type_mismatch.
+EvalResult ExpectConditionBool(EvalResult result) {
+    if (std::holds_alternative<EvalError>(result)) {
+        return result;
+    }
+    const bool* flag = std::get_if<bool>(&std::get<Value>(result));
+    if (flag == nullptr) {
+        return EvalError{"type_mismatch", "condition must be bool"};
+    }
+    return Value(*flag);
+}
+
 }  // namespace
 
 ConditionParseResult ParseCondition(const json& value, std::string_view file,
@@ -264,24 +287,20 @@ std::vector<Diagnostic> CheckCondition(const Condition& condition, const Schema&
 
 EvalResult EvaluateCondition(const Condition& condition, EvalContext& context) {
     if (condition.kind == Condition::Kind::kExpression) {
-        const ParseResult parsed = ParseExpression(condition.source);
-        if (parsed.error.has_value() || !parsed.root) {
-            return EvalError{"type_mismatch", "condition failed to parse"};
+        // INFO: ParseCondition rejects a leaf that does not parse, so the stored
+        // expression is always present and EvaluateCondition never re-parses.
+        if (!condition.expression) {
+            return EvalError{"type_mismatch", "condition leaf is not parsed"};
         }
-        return Evaluate(*parsed.root, context);
+        return Evaluate(*condition.expression, context);
     }
     if (condition.kind == Condition::Kind::kAllOf) {
         for (const Condition& child : condition.children) {
-            const EvalResult result = EvaluateCondition(child, context);
+            const EvalResult result = ExpectConditionBool(EvaluateCondition(child, context));
             if (std::holds_alternative<EvalError>(result)) {
                 return result;
             }
-            const Value* value = std::get_if<Value>(&result);
-            const bool* flag = value ? std::get_if<bool>(value) : nullptr;
-            if (flag == nullptr) {
-                return EvalError{"type_mismatch", "condition must be bool"};
-            }
-            if (!*flag) {
+            if (!std::get<bool>(std::get<Value>(result))) {
                 return Value(false);
             }
         }
@@ -289,16 +308,11 @@ EvalResult EvaluateCondition(const Condition& condition, EvalContext& context) {
     }
     if (condition.kind == Condition::Kind::kAnyOf) {
         for (const Condition& child : condition.children) {
-            const EvalResult result = EvaluateCondition(child, context);
+            const EvalResult result = ExpectConditionBool(EvaluateCondition(child, context));
             if (std::holds_alternative<EvalError>(result)) {
                 return result;
             }
-            const Value* value = std::get_if<Value>(&result);
-            const bool* flag = value ? std::get_if<bool>(value) : nullptr;
-            if (flag == nullptr) {
-                return EvalError{"type_mismatch", "condition must be bool"};
-            }
-            if (*flag) {
+            if (std::get<bool>(std::get<Value>(result))) {
                 return Value(true);
             }
         }
@@ -306,16 +320,11 @@ EvalResult EvaluateCondition(const Condition& condition, EvalContext& context) {
     }
     // kNoneOf: NOT OR.
     for (const Condition& child : condition.children) {
-        const EvalResult result = EvaluateCondition(child, context);
+        const EvalResult result = ExpectConditionBool(EvaluateCondition(child, context));
         if (std::holds_alternative<EvalError>(result)) {
             return result;
         }
-        const Value* value = std::get_if<Value>(&result);
-        const bool* flag = value ? std::get_if<bool>(value) : nullptr;
-        if (flag == nullptr) {
-            return EvalError{"type_mismatch", "condition must be bool"};
-        }
-        if (*flag) {
+        if (std::get<bool>(std::get<Value>(result))) {
             return Value(false);
         }
     }

@@ -105,8 +105,22 @@ EvalResult VariableValue(const Node& node, EvalContext& context) {
     return *variable;
 }
 
-EvalResult SelectorValue(const Node& node, EvalContext& context,
-                        std::optional<EntityRef> candidate) {
+// INFO: a per-candidate predicate. A leaf error is returned as-is; a
+// non-boolean result reports the caller's `mismatch_message`.
+EvalResult EvaluatePredicate(const Node& predicate, EvalContext& context, EntityRef entity,
+                             const std::string& mismatch_message) {
+    const EvalResult result = EvaluateNode(predicate, context, entity);
+    if (std::holds_alternative<EvalError>(result)) {
+        return result;
+    }
+    const bool* flag = std::get_if<bool>(&std::get<Value>(result));
+    if (flag == nullptr) {
+        return Fail("type_mismatch", mismatch_message);
+    }
+    return Value(*flag);
+}
+
+EvalResult SelectorValue(const Node& node, EvalContext& context) {
     const std::vector<EntityRef> resolved = context.ResolveSelector(node.text);
     if (node.children.empty()) {
         if (resolved.size() == 1) {
@@ -118,37 +132,20 @@ EvalResult SelectorValue(const Node& node, EvalContext& context,
     }
     // INFO: a filter runs once per candidate; a bare name reads the candidate's
     // property, while other selectors keep their outer meaning.
-    if (resolved.size() <= 1) {
-        if (resolved.empty()) {
-            return Value(resolved);
-        }
-        const EvalResult filter_result =
-            EvaluateNode(*node.children[0], context, resolved.front());
-        if (std::holds_alternative<EvalError>(filter_result)) {
-            return filter_result;
-        }
-        const bool* flag = std::get_if<bool>(&std::get<Value>(filter_result));
-        if (flag == nullptr) {
-            return Fail("type_mismatch", "filter on @" + node.text + " must be a boolean");
-        }
-        if (*flag) {
-            return Value(resolved.front());
-        }
-        return Value(std::vector<EntityRef>{});
-    }
     std::vector<EntityRef> result;
     for (const EntityRef entity : resolved) {
-        const EvalResult filter_result = EvaluateNode(*node.children[0], context, entity);
-        if (std::holds_alternative<EvalError>(filter_result)) {
-            return filter_result;
+        const EvalResult predicate =
+            EvaluatePredicate(*node.children[0], context, entity,
+                              "filter on @" + node.text + " must be a boolean");
+        if (std::holds_alternative<EvalError>(predicate)) {
+            return predicate;
         }
-        const bool* flag = std::get_if<bool>(&std::get<Value>(filter_result));
-        if (flag == nullptr) {
-            return Fail("type_mismatch", "filter on @" + node.text + " must be a boolean");
-        }
-        if (*flag) {
+        if (std::get<bool>(std::get<Value>(predicate))) {
             result.push_back(entity);
         }
+    }
+    if (resolved.size() == 1 && result.size() == 1) {
+        return Value(result.front());
     }
     return Value(result);
 }
@@ -156,6 +153,28 @@ EvalResult SelectorValue(const Node& node, EvalContext& context,
 EvalResult ReadEntityProperty(EntityRef entity, const std::string& key) {
     return Fail("unknown_property",
                 "unknown property \"" + key + "\" on " + TypeName(entity.kind));
+}
+
+// INFO: a single-entity argument must yield exactly one entity. An empty
+// selector reports empty_selector; several entities and any other value report
+// the caller's `mismatch_message`.
+EvalResult ExpectSingleEntity(const Value& value, const Node& node,
+                              const std::string& mismatch_message) {
+    if (const EntityRef* entity = std::get_if<EntityRef>(&value)) {
+        return Value(*entity);
+    }
+    if (const std::vector<EntityRef>* entities = std::get_if<std::vector<EntityRef>>(&value)) {
+        if (entities->empty()) {
+            const std::string name =
+                node.kind == NodeKind::kSelector ? "@" + node.text : "the selector";
+            return Fail("empty_selector", name + " selects no seats");
+        }
+        if (entities->size() > 1) {
+            return Fail("type_mismatch", mismatch_message);
+        }
+        return Value(entities->front());
+    }
+    return Fail("type_mismatch", mismatch_message);
 }
 
 EvalResult PropertyValue(const Node& node, EvalContext& context,
@@ -166,30 +185,22 @@ EvalResult PropertyValue(const Node& node, EvalContext& context,
     }
     const Value value = std::get<Value>(base);
     const std::string& key = node.text;
-    std::optional<EntityRef> entity;
-    if (const EntityRef* found = std::get_if<EntityRef>(&value)) {
-        entity = *found;
-    } else if (const std::vector<EntityRef>* set = std::get_if<std::vector<EntityRef>>(&value)) {
-        if (set->empty()) {
-            const std::string name =
-                node.children[0]->kind == NodeKind::kSelector
-                    ? "@" + node.children[0]->text
-                    : "the selector";
-            return Fail("empty_selector", name + " selects no seats");
-        }
-        if (set->size() > 1) {
-            return Fail("type_mismatch",
-                        "reading a property of a seat set; use count(), any(), all(), "
-                        "sum() or a single-seat selector");
-        }
-        entity = set->front();
-    } else {
+    if (!std::holds_alternative<EntityRef>(value) &&
+        !std::holds_alternative<std::vector<EntityRef>>(value)) {
         return Fail("type_mismatch", "cannot read \"" + key + "\" on a value of type " +
-                                      ValueName(value));
+                                       ValueName(value));
     }
-    const std::optional<Value> property = context.ReadProperty(*entity, key);
+    const EvalResult single = ExpectSingleEntity(
+        value, *node.children[0],
+        "reading a property of a seat set; use count(), any(), all(), sum() or a "
+        "single-seat selector");
+    if (std::holds_alternative<EvalError>(single)) {
+        return single;
+    }
+    const EntityRef entity = std::get<EntityRef>(std::get<Value>(single));
+    const std::optional<Value> property = context.ReadProperty(entity, key);
     if (!property.has_value()) {
-        return ReadEntityProperty(*entity, key);
+        return ReadEntityProperty(entity, key);
     }
     return *property;
 }
@@ -387,17 +398,114 @@ EvalResult BinaryValue(const Node& node, EvalContext& context,
                        std::get<Value>(right_result));
 }
 
-bool IsKnownFunction(std::string_view name) {
-    static const std::vector<std::string_view> names = {
-        "min",   "max",    "clamp", "abs",   "floor", "ceil",  "round", "count",
-        "any",   "all",    "sum",   "contains", "shares", "has_tag", "status_magnitude",
-        "random"};
-    for (const std::string_view known : names) {
-        if (name == known) {
-            return true;
+// INFO: count, any, all and sum share the first argument, a seat set. A member
+// set is not a seat set here, so the function rejects it up front.
+EvalResult EvaluateSetFunction(const std::string& name, const Node& node, EvalContext& context,
+                              std::optional<EntityRef> candidate) {
+    if (node.children.empty()) {
+        return Fail("type_mismatch", name + " needs a set");
+    }
+    const EvalResult set_result = EvaluateNode(*node.children[0], context, candidate);
+    if (std::holds_alternative<EvalError>(set_result)) {
+        return set_result;
+    }
+    const Value set_value = std::get<Value>(set_result);
+    std::vector<EntityRef> entities;
+    const std::vector<EntityRef>* seats = std::get_if<std::vector<EntityRef>>(&set_value);
+    if (const EntityRef* entity = std::get_if<EntityRef>(&set_value)) {
+        entities.push_back(*entity);
+    } else if (seats != nullptr) {
+        entities = *seats;
+    } else {
+        return Fail("type_mismatch", name + " needs a set");
+    }
+
+    if (name == "count") {
+        if (node.children.size() == 1) {
+            return Value(static_cast<int64_t>(entities.size()));
+        }
+        int64_t matches = 0;
+        for (const EntityRef entity : entities) {
+            const EvalResult predicate = EvaluatePredicate(*node.children[1], context, entity,
+                                                           name + " condition must be bool");
+            if (std::holds_alternative<EvalError>(predicate)) {
+                return predicate;
+            }
+            if (std::get<bool>(std::get<Value>(predicate))) {
+                ++matches;
+            }
+        }
+        return Value(matches);
+    }
+    if (name == "any") {
+        if (node.children.size() == 1) {
+            return Value(!entities.empty());
+        }
+        for (const EntityRef entity : entities) {
+            const EvalResult predicate = EvaluatePredicate(*node.children[1], context, entity,
+                                                           name + " condition must be bool");
+            if (std::holds_alternative<EvalError>(predicate)) {
+                return predicate;
+            }
+            if (std::get<bool>(std::get<Value>(predicate))) {
+                return Value(true);
+            }
+        }
+        return Value(false);
+    }
+    if (name == "all") {
+        if (node.children.size() < 2) {
+            return Fail("type_mismatch", "all needs a condition");
+        }
+        for (const EntityRef entity : entities) {
+            const EvalResult predicate = EvaluatePredicate(*node.children[1], context, entity,
+                                                           name + " condition must be bool");
+            if (std::holds_alternative<EvalError>(predicate)) {
+                return predicate;
+            }
+            if (!std::get<bool>(std::get<Value>(predicate))) {
+                return Value(false);
+            }
+        }
+        // INFO: an empty set is vacuously true.
+        return Value(true);
+    }
+    // INFO: sum accumulates ints exactly and widens to float on the first float.
+    if (node.children.size() < 2) {
+        return Fail("type_mismatch", "sum needs a value expression");
+    }
+    bool is_float = false;
+    int64_t int_sum = 0;
+    double float_sum = 0.0;
+    for (const EntityRef entity : entities) {
+        const EvalResult value_result = EvaluateNode(*node.children[1], context, entity);
+        if (std::holds_alternative<EvalError>(value_result)) {
+            return value_result;
+        }
+        const Value value = std::get<Value>(value_result);
+        if (!IsNumber(value)) {
+            return Fail("type_mismatch", "sum needs a number expression");
+        }
+        if (IsFloat(value)) {
+            if (!is_float) {
+                float_sum = static_cast<double>(int_sum);
+                is_float = true;
+            }
+            float_sum += AsFloat(value);
+        } else if (is_float) {
+            float_sum += static_cast<double>(std::get<int64_t>(value));
+        } else {
+            const std::optional<int64_t> added = Plus(int_sum, std::get<int64_t>(value));
+            if (!added.has_value()) {
+                return Fail("integer_overflow", "integer overflow");
+            }
+            int_sum = *added;
         }
     }
-    return false;
+    if (is_float) {
+        return CheckedFloat(float_sum);
+    }
+    return Value(int_sum);
 }
 
 EvalResult CallValue(const Node& node, EvalContext& context,
@@ -445,8 +553,8 @@ EvalResult CallValue(const Node& node, EvalContext& context,
         if (std::holds_alternative<EvalError>(result)) {
             return result;
         }
-        for (size_t i = 1; i < node.children.size(); ++i) {
-            const EvalResult next = EvaluateNode(*node.children[i], context, candidate);
+        for (size_t index = 1; index < node.children.size(); ++index) {
+            const EvalResult next = EvaluateNode(*node.children[index], context, candidate);
             if (std::holds_alternative<EvalError>(next)) {
                 return next;
             }
@@ -455,18 +563,25 @@ EvalResult CallValue(const Node& node, EvalContext& context,
             if (!IsNumber(left_value) || !IsNumber(right_value)) {
                 return Fail("type_mismatch", name + " needs numbers");
             }
+            const bool mixed = IsFloat(left_value) || IsFloat(right_value);
             bool choose_right = false;
-            if (IsFloat(left_value) || IsFloat(right_value)) {
-                const double l = AsFloat(left_value);
-                const double r = AsFloat(right_value);
-                choose_right = (name == "min") ? (r < l) : (r > l);
+            if (mixed) {
+                const double left_float = AsFloat(left_value);
+                const double right_float = AsFloat(right_value);
+                choose_right = (name == "min") ? (right_float < left_float)
+                                                : (right_float > left_float);
             } else {
-                const int64_t l = std::get<int64_t>(left_value);
-                const int64_t r = std::get<int64_t>(right_value);
-                choose_right = (name == "min") ? (r < l) : (r > l);
+                const int64_t left_int = std::get<int64_t>(left_value);
+                const int64_t right_int = std::get<int64_t>(right_value);
+                choose_right = (name == "min") ? (right_int < left_int)
+                                                : (right_int > left_int);
             }
             if (choose_right) {
                 result = next;
+            }
+            // INFO: the checker widens a mixture to float, so the result follows.
+            if (mixed) {
+                result = Value(AsFloat(std::get<Value>(result)));
             }
         }
         return std::get<Value>(result);
@@ -476,49 +591,65 @@ EvalResult CallValue(const Node& node, EvalContext& context,
             return Fail("type_mismatch", "clamp takes 3 arguments, got " +
                                             std::to_string(node.children.size()));
         }
-        EvalResult a = EvaluateNode(*node.children[0], context, candidate);
-        if (std::holds_alternative<EvalError>(a)) return a;
-        EvalResult lo = EvaluateNode(*node.children[1], context, candidate);
-        if (std::holds_alternative<EvalError>(lo)) return lo;
-        EvalResult hi = EvaluateNode(*node.children[2], context, candidate);
-        if (std::holds_alternative<EvalError>(hi)) return hi;
-        const Value av = std::get<Value>(a);
-        const Value lov = std::get<Value>(lo);
-        const Value hiv = std::get<Value>(hi);
-        if (!IsNumber(av) || !IsNumber(lov) || !IsNumber(hiv)) {
+        const EvalResult value_result = EvaluateNode(*node.children[0], context, candidate);
+        if (std::holds_alternative<EvalError>(value_result)) {
+            return value_result;
+        }
+        const EvalResult low_result = EvaluateNode(*node.children[1], context, candidate);
+        if (std::holds_alternative<EvalError>(low_result)) {
+            return low_result;
+        }
+        const EvalResult high_result = EvaluateNode(*node.children[2], context, candidate);
+        if (std::holds_alternative<EvalError>(high_result)) {
+            return high_result;
+        }
+        const Value value = std::get<Value>(value_result);
+        const Value low = std::get<Value>(low_result);
+        const Value high = std::get<Value>(high_result);
+        if (!IsNumber(value) || !IsNumber(low) || !IsNumber(high)) {
             return Fail("type_mismatch", "clamp needs numbers");
         }
-        if (IsFloat(av) || IsFloat(lov) || IsFloat(hiv)) {
-            double v = AsFloat(av);
-            const double l = AsFloat(lov);
-            const double h = AsFloat(hiv);
-            if (v < l) v = l;
-            if (v > h) v = h;
-            return CheckedFloat(v);
+        if (IsFloat(value) || IsFloat(low) || IsFloat(high)) {
+            double clamped = AsFloat(value);
+            const double low_float = AsFloat(low);
+            const double high_float = AsFloat(high);
+            if (clamped < low_float) {
+                clamped = low_float;
+            }
+            if (clamped > high_float) {
+                clamped = high_float;
+            }
+            return CheckedFloat(clamped);
         }
-        int64_t v = std::get<int64_t>(av);
-        const int64_t l = std::get<int64_t>(lov);
-        const int64_t h = std::get<int64_t>(hiv);
-        if (v < l) v = l;
-        if (v > h) v = h;
-        return Value(v);
+        int64_t clamped = std::get<int64_t>(value);
+        const int64_t low_int = std::get<int64_t>(low);
+        const int64_t high_int = std::get<int64_t>(high);
+        if (clamped < low_int) {
+            clamped = low_int;
+        }
+        if (clamped > high_int) {
+            clamped = high_int;
+        }
+        return Value(clamped);
     }
     if (name == "abs") {
         if (node.children.size() != 1) {
             return Fail("type_mismatch", "abs takes 1 argument, got " +
                                             std::to_string(node.children.size()));
         }
-        const EvalResult r = EvaluateNode(*node.children[0], context, candidate);
-        if (std::holds_alternative<EvalError>(r)) return r;
-        const Value v = std::get<Value>(r);
-        if (const int64_t* n = std::get_if<int64_t>(&v)) {
-            if (*n == std::numeric_limits<int64_t>::min()) {
+        const EvalResult operand_result = EvaluateNode(*node.children[0], context, candidate);
+        if (std::holds_alternative<EvalError>(operand_result)) {
+            return operand_result;
+        }
+        const Value operand = std::get<Value>(operand_result);
+        if (const int64_t* number = std::get_if<int64_t>(&operand)) {
+            if (*number == std::numeric_limits<int64_t>::min()) {
                 return Fail("integer_overflow", "integer overflow");
             }
-            return Value(*n < 0 ? -*n : *n);
+            return Value(*number < 0 ? -*number : *number);
         }
-        if (const double* n = std::get_if<double>(&v)) {
-            return CheckedFloat(std::fabs(*n));
+        if (const double* number = std::get_if<double>(&operand)) {
+            return CheckedFloat(std::fabs(*number));
         }
         return Fail("type_mismatch", "abs needs numbers");
     }
@@ -527,20 +658,26 @@ EvalResult CallValue(const Node& node, EvalContext& context,
             return Fail("type_mismatch", name + " takes 1 argument, got " +
                                             std::to_string(node.children.size()));
         }
-        const EvalResult r = EvaluateNode(*node.children[0], context, candidate);
-        if (std::holds_alternative<EvalError>(r)) return r;
-        const Value v = std::get<Value>(r);
-        if (const int64_t* n = std::get_if<int64_t>(&v)) {
-            return Value(*n);
+        const EvalResult operand_result = EvaluateNode(*node.children[0], context, candidate);
+        if (std::holds_alternative<EvalError>(operand_result)) {
+            return operand_result;
         }
-        if (const double* n = std::get_if<double>(&v)) {
-            double result = 0;
-            if (name == "floor") result = std::floor(*n);
-            else if (name == "ceil") result = std::ceil(*n);
-            else result = std::round(*n);
-            // INFO: converting double to int64; large values are out of range.
-            if (result < static_cast<double>(std::numeric_limits<int64_t>::min()) ||
-                result > static_cast<double>(std::numeric_limits<int64_t>::max())) {
+        const Value operand = std::get<Value>(operand_result);
+        if (const int64_t* number = std::get_if<int64_t>(&operand)) {
+            return Value(*number);
+        }
+        if (const double* number = std::get_if<double>(&operand)) {
+            double result = 0.0;
+            if (name == "floor") {
+                result = std::floor(*number);
+            } else if (name == "ceil") {
+                result = std::ceil(*number);
+            } else {
+                result = std::round(*number);
+            }
+            // INFO: a double outside [INT64_MIN, 2^63) cannot be an int64; the
+            // upper bound is exclusive because 2^63 itself is out of range.
+            if (!(result >= -9223372036854775808.0 && result < 9223372036854775808.0)) {
                 return Fail("integer_overflow", "integer overflow");
             }
             return Value(static_cast<int64_t>(result));
@@ -549,143 +686,7 @@ EvalResult CallValue(const Node& node, EvalContext& context,
     }
 
     if (name == "count" || name == "any" || name == "all" || name == "sum") {
-        if (node.children.empty()) {
-            return Fail("type_mismatch", name + " needs a set");
-        }
-        const EvalResult set_result = EvaluateNode(*node.children[0], context, candidate);
-        if (std::holds_alternative<EvalError>(set_result)) {
-            return set_result;
-        }
-        const Value set_value = std::get<Value>(set_result);
-        // INFO: collect candidate entities.
-        std::vector<EntityRef> entities;
-        bool is_member_set = std::holds_alternative<std::set<std::string>>(set_value);
-        if (const EntityRef* e = std::get_if<EntityRef>(&set_value)) {
-            entities.push_back(*e);
-        } else if (const std::vector<EntityRef>* v = std::get_if<std::vector<EntityRef>>(&set_value)) {
-            entities = *v;
-        } else if (!is_member_set) {
-            return Fail("type_mismatch", name + " needs a set");
-        }
-
-        if (name == "count") {
-            if (node.children.size() == 1) {
-                if (is_member_set) {
-                    return Value(static_cast<int64_t>(std::get<std::set<std::string>>(set_value).size()));
-                }
-                return Value(static_cast<int64_t>(entities.size()));
-            }
-            // condition
-            int64_t cnt = 0;
-            for (const EntityRef entity : entities) {
-                const EvalResult cond = EvaluateNode(*node.children[1], context, entity);
-                if (std::holds_alternative<EvalError>(cond)) {
-                    return cond;
-                }
-                const bool* flag = std::get_if<bool>(&std::get<Value>(cond));
-                if (flag == nullptr) {
-                    return Fail("type_mismatch", name + " condition must be bool");
-                }
-                if (*flag) {
-                    ++cnt;
-                }
-            }
-            // INFO: member sets with a condition are not supported; checker rejects them.
-            if (is_member_set) {
-                return Fail("type_mismatch", name + " needs a set");
-            }
-            return Value(cnt);
-        }
-        if (name == "any") {
-            if (node.children.size() == 1) {
-                if (is_member_set) {
-                    return Value(!std::get<std::set<std::string>>(set_value).empty());
-                }
-                return Value(!entities.empty());
-            }
-            for (const EntityRef entity : entities) {
-                const EvalResult cond = EvaluateNode(*node.children[1], context, entity);
-                if (std::holds_alternative<EvalError>(cond)) {
-                    return cond;
-                }
-                const bool* flag = std::get_if<bool>(&std::get<Value>(cond));
-                if (flag == nullptr) {
-                    return Fail("type_mismatch", name + " condition must be bool");
-                }
-                if (*flag) {
-                    return Value(true);
-                }
-            }
-            if (is_member_set) {
-                return Fail("type_mismatch", name + " needs a set");
-            }
-            return Value(false);
-        }
-        if (name == "all") {
-            if (node.children.size() < 2) {
-                return Fail("type_mismatch", "all needs a condition");
-            }
-            if (entities.empty() && !is_member_set) {
-                // INFO: vacuous truth for empty set.
-                return Value(true);
-            }
-            for (const EntityRef entity : entities) {
-                const EvalResult cond = EvaluateNode(*node.children[1], context, entity);
-                if (std::holds_alternative<EvalError>(cond)) {
-                    return cond;
-                }
-                const bool* flag = std::get_if<bool>(&std::get<Value>(cond));
-                if (flag == nullptr) {
-                    return Fail("type_mismatch", name + " condition must be bool");
-                }
-                if (!*flag) {
-                    return Value(false);
-                }
-            }
-            return Value(true);
-        }
-        if (name == "sum") {
-            if (node.children.size() < 2) {
-                return Fail("type_mismatch", "sum needs a value expression");
-            }
-            bool is_float = false;
-            int64_t int_sum = 0;
-            double float_sum = 0.0;
-            bool has_any = false;
-            for (const EntityRef entity : entities) {
-                const EvalResult val = EvaluateNode(*node.children[1], context, entity);
-                if (std::holds_alternative<EvalError>(val)) {
-                    return val;
-                }
-                const Value v = std::get<Value>(val);
-                if (!IsNumber(v)) {
-                    return Fail("type_mismatch", "sum needs a number expression");
-                }
-                if (IsFloat(v)) {
-                    if (!is_float) {
-                        float_sum = static_cast<double>(int_sum);
-                        is_float = true;
-                    }
-                    float_sum += AsFloat(v);
-                } else {
-                    if (is_float) {
-                        float_sum += static_cast<double>(std::get<int64_t>(v));
-                    } else {
-                        const std::optional<int64_t> added =
-                            Plus(int_sum, std::get<int64_t>(v));
-                        if (!added.has_value()) {
-                            return Fail("integer_overflow", "integer overflow");
-                        }
-                        int_sum = *added;
-                    }
-                }
-                has_any = true;
-            }
-            if (is_float) {
-                return CheckedFloat(float_sum);
-            }
-            return Value(int_sum);
-        }
+        return EvaluateSetFunction(name, node, context, candidate);
     }
 
     if (name == "contains") {
@@ -694,37 +695,44 @@ EvalResult CallValue(const Node& node, EvalContext& context,
                                             std::to_string(node.children.size()));
         }
         const EvalResult set_result = EvaluateNode(*node.children[0], context, candidate);
-        if (std::holds_alternative<EvalError>(set_result)) return set_result;
+        if (std::holds_alternative<EvalError>(set_result)) {
+            return set_result;
+        }
         const EvalResult member_result = EvaluateNode(*node.children[1], context, candidate);
-        if (std::holds_alternative<EvalError>(member_result)) return member_result;
+        if (std::holds_alternative<EvalError>(member_result)) {
+            return member_result;
+        }
         const Value set_value = std::get<Value>(set_result);
         const Value member_value = std::get<Value>(member_result);
-        if (const std::vector<EntityRef>* v = std::get_if<std::vector<EntityRef>>(&set_value)) {
-            const EntityRef* m = std::get_if<EntityRef>(&member_value);
-            if (m == nullptr) {
-                return Fail("type_mismatch", "contains needs an entity");
+        if (const std::vector<EntityRef>* members =
+                std::get_if<std::vector<EntityRef>>(&set_value)) {
+            const EvalResult single = ExpectSingleEntity(member_value, *node.children[1],
+                                                         "contains needs an entity");
+            if (std::holds_alternative<EvalError>(single)) {
+                return single;
             }
-            for (const EntityRef e : *v) {
-                if (e == *m) return Value(true);
+            const EntityRef wanted = std::get<EntityRef>(std::get<Value>(single));
+            for (const EntityRef entity : *members) {
+                if (entity == wanted) {
+                    return Value(true);
+                }
             }
             return Value(false);
         }
-        if (const EntityRef* e = std::get_if<EntityRef>(&set_value)) {
-            const EntityRef* m = std::get_if<EntityRef>(&member_value);
-            if (m == nullptr || *e != *m) {
-                // INFO: single entity contains itself only when equal.
+        if (const EntityRef* entity = std::get_if<EntityRef>(&set_value)) {
+            const EvalResult single = ExpectSingleEntity(member_value, *node.children[1],
+                                                         "contains needs an entity");
+            if (std::holds_alternative<EvalError>(single)) {
+                return single;
             }
-            if (m != nullptr) {
-                return Value(*e == *m);
-            }
-            return Fail("type_mismatch", "contains needs an entity");
+            return Value(*entity == std::get<EntityRef>(std::get<Value>(single)));
         }
-        if (const std::set<std::string>* s = std::get_if<std::set<std::string>>(&set_value)) {
-            const std::string* m = std::get_if<std::string>(&member_value);
-            if (m == nullptr) {
+        if (const std::set<std::string>* members = std::get_if<std::set<std::string>>(&set_value)) {
+            const std::string* member = std::get_if<std::string>(&member_value);
+            if (member == nullptr) {
                 return Fail("type_mismatch", "contains needs a member");
             }
-            return Value(s->count(*m) > 0);
+            return Value(members->count(*member) > 0);
         }
         return Fail("type_mismatch", "contains needs a set");
     }
@@ -734,19 +742,23 @@ EvalResult CallValue(const Node& node, EvalContext& context,
             return Fail("type_mismatch", "shares takes 2 arguments, got " +
                                             std::to_string(node.children.size()));
         }
-        const EvalResult a = EvaluateNode(*node.children[0], context, candidate);
-        if (std::holds_alternative<EvalError>(a)) return a;
-        const EvalResult b = EvaluateNode(*node.children[1], context, candidate);
-        if (std::holds_alternative<EvalError>(b)) return b;
-        const Value av = std::get<Value>(a);
-        const Value bv = std::get<Value>(b);
-        const std::set<std::string>* as = std::get_if<std::set<std::string>>(&av);
-        const std::set<std::string>* bs = std::get_if<std::set<std::string>>(&bv);
-        if (as == nullptr || bs == nullptr) {
+        const EvalResult left_result = EvaluateNode(*node.children[0], context, candidate);
+        if (std::holds_alternative<EvalError>(left_result)) {
+            return left_result;
+        }
+        const EvalResult right_result = EvaluateNode(*node.children[1], context, candidate);
+        if (std::holds_alternative<EvalError>(right_result)) {
+            return right_result;
+        }
+        const Value left = std::get<Value>(left_result);
+        const Value right = std::get<Value>(right_result);
+        const std::set<std::string>* left_members = std::get_if<std::set<std::string>>(&left);
+        const std::set<std::string>* right_members = std::get_if<std::set<std::string>>(&right);
+        if (left_members == nullptr || right_members == nullptr) {
             return Fail("type_mismatch", "shares needs member sets");
         }
-        for (const std::string& m : *as) {
-            if (bs->count(m) > 0) {
+        for (const std::string& member : *left_members) {
+            if (right_members->count(member) > 0) {
                 return Value(true);
             }
         }
@@ -758,18 +770,27 @@ EvalResult CallValue(const Node& node, EvalContext& context,
             return Fail("type_mismatch", "has_tag takes 2 arguments, got " +
                                             std::to_string(node.children.size()));
         }
-        const EvalResult target = EvaluateNode(*node.children[0], context, candidate);
-        if (std::holds_alternative<EvalError>(target)) return target;
-        const EvalResult tag = EvaluateNode(*node.children[1], context, candidate);
-        if (std::holds_alternative<EvalError>(tag)) return tag;
-        const Value tv = std::get<Value>(target);
-        const Value tg = std::get<Value>(tag);
-        const EntityRef* entity = std::get_if<EntityRef>(&tv);
-        const std::string* tag_str = std::get_if<std::string>(&tg);
-        if (entity == nullptr || tag_str == nullptr) {
+        const EvalResult target_result = EvaluateNode(*node.children[0], context, candidate);
+        if (std::holds_alternative<EvalError>(target_result)) {
+            return target_result;
+        }
+        const EvalResult tag_result = EvaluateNode(*node.children[1], context, candidate);
+        if (std::holds_alternative<EvalError>(tag_result)) {
+            return tag_result;
+        }
+        const Value target = std::get<Value>(target_result);
+        const Value tag = std::get<Value>(tag_result);
+        const std::string* tag_name = std::get_if<std::string>(&tag);
+        if (tag_name == nullptr) {
             return Fail("type_mismatch", "has_tag needs a card or a rule");
         }
-        return Value(context.HasTag(*entity, *tag_str));
+        const EvalResult entity_result =
+            ExpectSingleEntity(target, *node.children[0], "has_tag needs a card or a rule");
+        if (std::holds_alternative<EvalError>(entity_result)) {
+            return entity_result;
+        }
+        const EntityRef entity = std::get<EntityRef>(std::get<Value>(entity_result));
+        return Value(context.HasTag(entity, *tag_name));
     }
 
     if (name == "status_magnitude") {
@@ -777,18 +798,27 @@ EvalResult CallValue(const Node& node, EvalContext& context,
             return Fail("type_mismatch", "status_magnitude takes 2 arguments, got " +
                                             std::to_string(node.children.size()));
         }
-        const EvalResult seat = EvaluateNode(*node.children[0], context, candidate);
-        if (std::holds_alternative<EvalError>(seat)) return seat;
-        const EvalResult status = EvaluateNode(*node.children[1], context, candidate);
-        if (std::holds_alternative<EvalError>(status)) return status;
-        const Value sv = std::get<Value>(seat);
-        const Value st = std::get<Value>(status);
-        const EntityRef* entity = std::get_if<EntityRef>(&sv);
-        const std::string* status_str = std::get_if<std::string>(&st);
-        if (entity == nullptr || status_str == nullptr) {
+        const EvalResult seat_result = EvaluateNode(*node.children[0], context, candidate);
+        if (std::holds_alternative<EvalError>(seat_result)) {
+            return seat_result;
+        }
+        const EvalResult status_result = EvaluateNode(*node.children[1], context, candidate);
+        if (std::holds_alternative<EvalError>(status_result)) {
+            return status_result;
+        }
+        const Value seat = std::get<Value>(seat_result);
+        const Value status = std::get<Value>(status_result);
+        const std::string* status_name = std::get_if<std::string>(&status);
+        if (status_name == nullptr) {
             return Fail("type_mismatch", "status_magnitude needs a seat");
         }
-        return Value(context.StatusMagnitude(*entity, *status_str));
+        const EvalResult entity_result =
+            ExpectSingleEntity(seat, *node.children[0], "status_magnitude needs a seat");
+        if (std::holds_alternative<EvalError>(entity_result)) {
+            return entity_result;
+        }
+        const EntityRef entity = std::get<EntityRef>(std::get<Value>(entity_result));
+        return Value(context.StatusMagnitude(entity, *status_name));
     }
 
     if (name == "random") {
@@ -796,24 +826,29 @@ EvalResult CallValue(const Node& node, EvalContext& context,
             return Fail("type_mismatch", "random takes 2 arguments, got " +
                                             std::to_string(node.children.size()));
         }
-        const EvalResult lo = EvaluateNode(*node.children[0], context, candidate);
-        if (std::holds_alternative<EvalError>(lo)) return lo;
-        const EvalResult hi = EvaluateNode(*node.children[1], context, candidate);
-        if (std::holds_alternative<EvalError>(hi)) return hi;
-        const Value lv = std::get<Value>(lo);
-        const Value hv = std::get<Value>(hi);
-        const int64_t* l = std::get_if<int64_t>(&lv);
-        const int64_t* h = std::get_if<int64_t>(&hv);
-        if (l == nullptr || h == nullptr) {
+        const EvalResult low_result = EvaluateNode(*node.children[0], context, candidate);
+        if (std::holds_alternative<EvalError>(low_result)) {
+            return low_result;
+        }
+        const EvalResult high_result = EvaluateNode(*node.children[1], context, candidate);
+        if (std::holds_alternative<EvalError>(high_result)) {
+            return high_result;
+        }
+        const Value low_value = std::get<Value>(low_result);
+        const Value high_value = std::get<Value>(high_result);
+        const int64_t* low = std::get_if<int64_t>(&low_value);
+        const int64_t* high = std::get_if<int64_t>(&high_value);
+        if (low == nullptr || high == nullptr) {
             return Fail("type_mismatch", "random needs ints");
         }
-        return Value(context.Random(*l, *h));
+        // INFO: an empty range is a runtime error; the context RNG never runs.
+        if (*low > *high) {
+            return Fail("invalid_range", "random needs a low bound not above its high bound");
+        }
+        return Value(context.Random(*low, *high));
     }
 
-    if (!IsKnownFunction(name)) {
-        return Fail("type_mismatch", "unknown function \"" + name + "\"");
-    }
-    return Fail("type_mismatch", "function \"" + name + "\" is not evaluated yet");
+    return Fail("type_mismatch", "unknown function \"" + name + "\"");
 }
 
 EvalResult EvaluateNode(const Node& node, EvalContext& context,
@@ -822,7 +857,7 @@ EvalResult EvaluateNode(const Node& node, EvalContext& context,
         case NodeKind::kLiteral:
             return LiteralValue(node);
         case NodeKind::kSelector:
-            return SelectorValue(node, context, candidate);
+            return SelectorValue(node, context);
         case NodeKind::kVariable:
             return VariableValue(node, context);
         case NodeKind::kProperty:

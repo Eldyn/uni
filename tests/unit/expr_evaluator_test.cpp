@@ -183,6 +183,45 @@ TEST_CASE("large_int_comparison_is_exact") {
     CHECK(std::get<bool>(ValueOf("9007199254740992 < 9007199254740993", context)) == true);
 }
 
+TEST_CASE("min_max_and_clamp_follow_the_checker_numeric_type") {
+    match::expr::testing::FakeContext context;
+    CHECK(std::get<int64_t>(ValueOf("min(3, 2)", context)) == 2);
+    CHECK(std::get<int64_t>(ValueOf("max(3, 2)", context)) == 3);
+    CHECK(std::get<int64_t>(ValueOf("min(3, 1, 2)", context)) == 1);
+    CHECK(std::get<double>(ValueOf("min(1, 2.0)", context)) == 1.0);
+    CHECK(std::get<double>(ValueOf("max(1, 2.0)", context)) == 2.0);
+    CHECK(std::get<double>(ValueOf("min(2.0, 1)", context)) == 1.0);
+    CHECK(std::get<int64_t>(ValueOf("clamp(2, 1, 3)", context)) == 2);
+    CHECK(std::get<int64_t>(ValueOf("clamp(5, 1, 3)", context)) == 3);
+    CHECK(std::get<int64_t>(ValueOf("clamp(0, 1, 3)", context)) == 1);
+    CHECK(std::get<double>(ValueOf("clamp(5, 1, 3.0)", context)) == 3.0);
+    CHECK(std::get<double>(ValueOf("clamp(0, 1.0, 3)", context)) == 1.0);
+}
+
+TEST_CASE("abs_floor_ceil_and_round_cover_ints_floats_and_overflow") {
+    match::expr::testing::FakeContext context;
+    CHECK(std::get<int64_t>(ValueOf("abs(-5)", context)) == 5);
+    CHECK(std::get<int64_t>(ValueOf("abs(5)", context)) == 5);
+    CHECK(std::get<double>(ValueOf("abs(-5.5)", context)) == 5.5);
+    CHECK(ErrorOf("abs(-9223372036854775807 - 1)", context).code == "integer_overflow");
+    CHECK(std::get<int64_t>(ValueOf("floor(2.7)", context)) == 2);
+    CHECK(std::get<int64_t>(ValueOf("floor(-2.1)", context)) == -3);
+    CHECK(std::get<int64_t>(ValueOf("ceil(2.1)", context)) == 3);
+    CHECK(std::get<int64_t>(ValueOf("ceil(-2.9)", context)) == -2);
+    CHECK(std::get<int64_t>(ValueOf("round(2.5)", context)) == 3);
+    CHECK(std::get<int64_t>(ValueOf("round(-2.5)", context)) == -3);
+    CHECK(std::get<int64_t>(ValueOf("floor(7)", context)) == 7);
+}
+
+TEST_CASE("float_to_int_conversion_bounds_are_checked") {
+    match::expr::testing::FakeContext context;
+    CHECK(ErrorOf("floor(9223372036854775808.0)", context).code == "integer_overflow");
+    CHECK(std::get<int64_t>(ValueOf("floor(-9223372036854775808.0)", context)) ==
+          std::numeric_limits<int64_t>::min());
+    CHECK(std::get<int64_t>(ValueOf("ceil(-9223372036854775809.0)", context)) ==
+          std::numeric_limits<int64_t>::min());
+}
+
 }  // TEST_SUITE
 
 namespace {
@@ -279,6 +318,50 @@ TEST_CASE("condition_leaf_errors_are_returned_and_groups_short_circuit") {
     CHECK(std::get<bool>(ConditionValueOf(all_of, context)) == false);
     const json any_of = json::parse(R"json({"any_of":["true","$missing"]})json");
     CHECK(std::get<bool>(ConditionValueOf(any_of, context)) == true);
+}
+
+TEST_CASE("member_sets_are_rejected_by_the_seat_set_functions") {
+    match::expr::testing::FakeContext context;
+    context.variables["colors"] = Value{std::set<std::string>{"uni:red"}};
+    CHECK(ErrorOf("count($colors)", context).code == "type_mismatch");
+    CHECK(ErrorOf("any($colors)", context).code == "type_mismatch");
+    CHECK(ErrorOf("all($colors, true)", context).code == "type_mismatch");
+    CHECK(ErrorOf("sum($colors, 1)", context).code == "type_mismatch");
+}
+
+TEST_CASE("an_empty_selector_as_a_single_entity_argument_is_reported") {
+    match::expr::testing::FakeContext context;
+    context.unbound_next = true;
+    CHECK(ErrorOf("status_magnitude(@next, 'uni:draw_debt')", context).code == "empty_selector");
+    CHECK(ErrorOf("has_tag(@next, 'uni:wild')", context).code == "empty_selector");
+    CHECK(ErrorOf("contains(@self.hand, @next)", context).code == "empty_selector");
+}
+
+TEST_CASE("a_filter_keeps_self_and_nested_filters_correct") {
+    match::expr::testing::FakeContext context;
+    CHECK(std::get<int64_t>(ValueOf("count(@all[hand_size > @self.hand_size])", context)) == 3);
+    const std::string nested_source = "count(@all[hand_size > count(@all[hand_size < 3])])";
+    CHECK(std::get<int64_t>(ValueOf(nested_source, context)) == 2);
+}
+
+TEST_CASE("a_filter_on_an_empty_selector_is_an_empty_set") {
+    match::expr::testing::FakeContext context;
+    context.unbound_next = true;
+    CHECK(std::get<int64_t>(ValueOf("count(@next[hand_size > 0])", context)) == 0);
+}
+
+TEST_CASE("random_rejects_an_empty_range") {
+    match::expr::testing::FakeContext context;
+    context.random_queue.push_back(4);
+    CHECK(ErrorOf("random(6, 1)", context).code == "invalid_range");
+    CHECK(context.random_queue.size() == 1);
+}
+
+TEST_CASE("random_draws_one_value_per_call") {
+    match::expr::testing::FakeContext context;
+    context.random_queue.push_back(4);
+    context.random_queue.push_back(2);
+    CHECK(std::get<int64_t>(ValueOf("random(1, 6) + random(1, 6)", context)) == 6);
 }
 
 }  // TEST_SUITE

@@ -12,7 +12,8 @@ namespace match::expr {
 
 // INFO: a runtime error; `code` is stable so the mod logs and the verifier can
 // match on it. The codes are: division_by_zero, not_a_number, integer_overflow,
-// float_overflow, empty_selector, unbound_variable, unknown_property, type_mismatch.
+// float_overflow, empty_selector, unbound_variable, unknown_property,
+// invalid_range, type_mismatch.
 struct EvalError {
     std::string code;
     std::string message;
