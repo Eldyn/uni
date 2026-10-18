@@ -158,7 +158,7 @@
 		display: grid;
 		grid-template-columns: repeat(3, var(--menu-tile-size));
 		gap: 0;
-		--menu-tile-size: 4.5rem;
+		--menu-tile-size: 5rem;
 	}
 
 	.menu-tile {
@@ -174,15 +174,17 @@
 		background: var(--surface-deep);
 		border: 0;
 		border-radius: 0;
-		outline: 2px solid transparent;
-		outline-offset: -2px;
+		/* INFO: the global button rule notches every corner; tiles are square. */
+		clip-path: none;
+		outline: none;
 		color: var(--text);
 		cursor: pointer;
 		transition: color 0.12s ease;
 	}
 	.menu-tile:hover,
 	.menu-tile:focus-visible {
-		outline-color: var(--accent);
+		outline: none;
+		box-shadow: inset 0 0 0 2px var(--accent);
 		color: var(--text-h);
 	}
 	.menu-tile[aria-disabled="true"] {
@@ -193,9 +195,9 @@
 	.menu-tile-label {
 		min-width: 0;
 		text-align: center;
-		overflow-wrap: anywhere;
+		overflow-wrap: break-word;
 		line-height: 1.1;
-		font-size: var(--text-xs, 0.7rem);
+		font-size: 0.65rem;
 	}
 
 	.menu-tile-badge {
