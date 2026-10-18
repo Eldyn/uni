@@ -2,6 +2,8 @@
 
 #include <nlohmann/json_fwd.hpp>
 
+#include <cstdint>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -31,7 +33,11 @@ struct Item {
     std::string id;
     std::string slot;
     int regions = 0;
+    std::string rarity;
+    int price = 0;
     bool starter = false;
+    bool hidden = false;
+    bool unlisted = false;
     std::string available_from;
     std::string available_until;
     std::vector<std::string> shapes;
@@ -47,6 +53,7 @@ struct Swatch {
 struct Palette {
     std::string id;
     std::vector<Swatch> swatches;
+    int price = 0;
     bool starter = false;
 };
 
@@ -95,6 +102,21 @@ class Catalogue {
 
     /** @brief True when `swatch_id` exists in any palette. */
     bool HasSwatch(const std::string& swatch_id) const;
+
+    /**
+     * @brief True when `item_id` can be bought at `now_unix`.
+     *
+     * False for starters, hidden or unlisted items, items outside their
+     * `available_from` / `available_until` window, and unknown ids.
+     */
+    bool IsBuyable(const std::string& item_id, std::int64_t now_unix) const;
+
+    /**
+     * @brief The catalogue price of an item or a palette.
+     *
+     * `std::nullopt` when `id` is neither, so a removed entry has no price.
+     */
+    std::optional<int> PriceOf(const std::string& id) const;
 
     /**
      * @brief Ids of every swatch in a `starter` palette, in catalogue order.

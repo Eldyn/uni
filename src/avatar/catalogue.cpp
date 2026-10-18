@@ -9,6 +9,7 @@
 #include <cctype>
 #include <cstddef>
 #include <cstdint>
+#include <ctime>
 #include <fstream>
 #include <stdexcept>
 #include <string>
@@ -118,8 +119,8 @@ bool BoolField(const json& node, const char* key, const std::string& where) {
 }
 
 /** @brief Quantity fields: an integer that is not negative. */
-void RequireNonNegativeInt(const json& node, const char* key,
-                           const std::string& where) {
+int NonNegativeIntField(const json& node, const char* key,
+                        const std::string& where) {
     const json& value = RequireField(node, key, where);
     if (!value.is_number_integer()) {
         Reject(where + " '" + key + "' must be an integer");
@@ -127,6 +128,7 @@ void RequireNonNegativeInt(const json& node, const char* key,
     if (value.get<std::int64_t>() < 0) {
         Reject(where + " '" + key + "' must not be negative");
     }
+    return value.get<int>();
 }
 
 /** @brief Validates `asset` and returns its `kind` ("strip" or "still"). */
@@ -185,7 +187,7 @@ std::vector<Palette> ParsePalettes(const json& doc) {
         Palette palette;
         palette.id = StringField(node, "id", where);
         (void)StringField(node, "name", where);
-        RequireNonNegativeInt(node, "price", where);
+        palette.price = NonNegativeIntField(node, "price", where);
         palette.starter = BoolField(node, "starter", where);
 
         const json& swatches = RequireField(node, "swatches", where);
@@ -257,7 +259,8 @@ std::vector<Item> ParseItems(const json& doc) {
         if (!Contains(Rarities(), rarity)) {
             Reject(where + ".rarity '" + rarity + "' is not a rarity");
         }
-        RequireNonNegativeInt(node, "price", where);
+        item.rarity = rarity;
+        item.price = NonNegativeIntField(node, "price", where);
 
         const auto socket_node = node.find("socket");
         const bool has_socket = socket_node != node.end()
@@ -287,8 +290,8 @@ std::vector<Item> ParseItems(const json& doc) {
         }
 
         item.starter = BoolField(node, "starter", where);
-        (void)BoolField(node, "hidden", where);
-        (void)BoolField(node, "unlisted", where);
+        item.hidden = BoolField(node, "hidden", where);
+        item.unlisted = BoolField(node, "unlisted", where);
         item.available_from = OptionalStringField(node, "available_from", where);
         item.available_until = OptionalStringField(node, "available_until", where);
         if (!item.available_from.empty() && !item.available_until.empty()
@@ -337,6 +340,21 @@ struct GlobalStorage {
 GlobalStorage& Global() {
     static GlobalStorage storage;
     return storage;
+}
+
+/**
+ * @brief `now_unix` as `YYYY-MM-DDTHH:MM:SSZ`, the form the catalogue uses.
+ *
+ * The date window is compared as text, the same way parse-time validation
+ * rejects an inverted window, so both sides share one format.
+ */
+std::string ToIso8601Utc(std::int64_t now_unix) {
+    const std::time_t seconds = static_cast<std::time_t>(now_unix);
+    std::tm utc{};
+    gmtime_r(&seconds, &utc);
+    char buffer[21];
+    std::strftime(buffer, sizeof(buffer), "%Y-%m-%dT%H:%M:%SZ", &utc);
+    return buffer;
 }
 
 }  // namespace
@@ -432,6 +450,31 @@ bool Catalogue::HasSwatch(const std::string& swatch_id) const {
         }
     }
     return false;
+}
+
+bool Catalogue::IsBuyable(const std::string& item_id,
+                          std::int64_t now_unix) const {
+    const Item* item = FindItem(item_id);
+    if (item == nullptr || item->starter || item->hidden || item->unlisted) {
+        return false;
+    }
+    const std::string now = ToIso8601Utc(now_unix);
+    if (!item->available_from.empty() && now < item->available_from) {
+        return false;
+    }
+    if (!item->available_until.empty() && now > item->available_until) {
+        return false;
+    }
+    return true;
+}
+
+std::optional<int> Catalogue::PriceOf(const std::string& id) const {
+    const Item* item = FindItem(id);
+    if (item != nullptr) return item->price;
+    for (const Palette& palette : palettes_) {
+        if (palette.id == id) return palette.price;
+    }
+    return std::nullopt;
 }
 
 std::vector<std::string> Catalogue::StarterSwatchIds() const {
