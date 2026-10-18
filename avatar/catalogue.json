@@ -1,0 +1,38 @@
+{
+	"version": 1,
+	"shape_sockets": {},
+	"palettes": [],
+	"items": [
+		{
+			"id": "uni:round",
+			"slot": "shape",
+			"name": "Round",
+			"asset": { "kind": "strip", "path": "shapes/uni_round.png" },
+			"regions": 1,
+			"rarity": "common",
+			"price": 0,
+			"starter": true
+		},
+		{
+			"id": "uni:eyes_dot",
+			"slot": "eyes",
+			"name": "Dot",
+			"asset": { "kind": "strip", "path": "eyes/uni_eyes_dot.png" },
+			"regions": 1,
+			"rarity": "common",
+			"price": 0,
+			"starter": true
+		},
+		{
+			"id": "uni:mouth_smile",
+			"slot": "mouth",
+			"name": "Smile",
+			"asset": { "kind": "strip", "path": "mouth/uni_mouth_smile.png" },
+			"regions": 1,
+			"rarity": "common",
+			"price": 0,
+			"starter": true
+		}
+	],
+	"featured": []
+}
