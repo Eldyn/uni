@@ -138,3 +138,42 @@ describe("GameEndPopup race outcome", () => {
 		expect(document.activeElement).toBe(screen.getByRole("button", { name: "Back to Lobby" }));
 	});
 });
+
+const AVATAR_SELECTOR = ".avatar-sprite, .avatar-placeholder";
+const AVATAR_GIF = /base_player\.gif|bot_animated\.gif/;
+const BOT_STRIP = "/assets/bot_animated_strip.png";
+
+describe("GameEndPopup avatars", () => {
+	afterEach(() => {
+		document.body.innerHTML = "";
+	});
+
+	it("renders winner avatars through Avatar", () => {
+		mockAuth.username = "Alice";
+		setEndState({ mode: "standard", placements: ["Alice", "Bob"] });
+
+		render(GameEndPopup);
+
+		expect(document.body.querySelector(AVATAR_SELECTOR)).toBeTruthy();
+	});
+
+	it("renders a bot winner with the bot strip", () => {
+		mockAuth.username = "Alice";
+		setEndState({ mode: "standard", placements: ["Alice", "Bob"] });
+		mockGame.state.players = [{ username: "Alice", is_bot: true }];
+
+		render(GameEndPopup);
+
+		const bot = document.body.querySelector(".avatar-sprite") as HTMLElement;
+		expect(bot.style.getPropertyValue("background-image")).toContain(BOT_STRIP);
+	});
+
+	it("references no avatar gif", () => {
+		mockAuth.username = "Alice";
+		setEndState({ mode: "race", raceTarget: 3, placements: ["Alice", "Bob", "Cara"] });
+
+		render(GameEndPopup);
+
+		expect(document.body.innerHTML).not.toMatch(AVATAR_GIF);
+	});
+});

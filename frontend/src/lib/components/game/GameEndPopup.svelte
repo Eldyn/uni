@@ -1,14 +1,14 @@
 <script lang="ts">
 	import TextEffects from "$components/common/TextEffects.svelte";
 	import Modal from "$lib/components/common/Modal.svelte";
-	import TintedSprite from "$lib/components/common/TintedSprite.svelte";
+	import Avatar from "$lib/components/common/Avatar.svelte";
 	import GameInterruptedPopup from "./popup/GameInterruptedPopup.svelte";
 	import { storeGame } from "$stores/game.svelte";
 	import { storeLobby } from "$stores/lobby.svelte";
 	import { storeAuth } from "$stores/auth.svelte";
 	import { storeAudio } from "$stores/audio.svelte";
-	import { BOT_COLOR, playerColorFor } from "$lib/palette";
 	import { storeI18n } from "$stores/i18n.svelte";
+	import type { Loadout } from "$lib/avatar/types";
 	import * as m from "$lib/paraglide/messages.js";
 
 	let isInterrupted = $derived(storeGame.state?.is_over && !storeGame.state?.winner);
@@ -35,10 +35,14 @@
 		return idx !== -1 ? (storeGame.state?.players?.[idx]?.is_bot ?? false) : false;
 	}
 
-	function colorForRankedName(name: string): string {
-		const idx = storeGame.state?.players?.findIndex((p) => p.username === name) ?? -1;
-		const isBot = idx !== -1 ? (storeGame.state?.players?.[idx]?.is_bot ?? false) : false;
-		return isBot ? BOT_COLOR : playerColorFor(idx);
+	/** The loadout behind a ranked name, from the lobby roster first (the match
+	 *  roster is erased as players finish, same reason as isBotFor), then the
+	 *  match roster. Null when unknown, which renders the default look. */
+	function loadoutFor(name: string): Loadout | null {
+		const member = storeLobby.current?.members.find((m) => m.username === name);
+		if (member) return member.loadout ?? null;
+		const player = storeGame.state?.players?.find((p) => p.username === name);
+		return player?.loadout ?? null;
 	}
 
 	const MAX_PODIUM_SIZE = 3;
@@ -69,21 +73,7 @@
 </script>
 
 {#snippet avatarSprite(name: string, size: 48 | 96)}
-	{#if isBotFor(name)}
-		<img
-			class="avatar-img"
-			src="/assets/bot_animated.gif"
-			alt=""
-			style="width: {size}px; height: {size}px;"
-		/>
-	{:else}
-		<TintedSprite
-			src="/assets/base_player.gif"
-			color={colorForRankedName(name)}
-			fit="contain"
-			{size}
-		/>
-	{/if}
+	<Avatar loadout={loadoutFor(name)} bot={isBotFor(name)} {size} />
 {/snippet}
 
 {#if storeGame.state?.is_over}
@@ -257,13 +247,8 @@
 		animation: float 2.2s ease-in-out infinite;
 	}
 
-	/* Bots render the bot sprite directly (it carries its own colours); humans
-	   render a tinted silhouette. Both fill the same box as the crown overlay. */
-	.avatar-img {
-		display: block;
-		object-fit: contain;
-		image-rendering: pixelated;
-	}
+	/* Bots render the bot strip; every human bakes their loadout. Both fill the
+	   same 96px box as the crown overlay. */
 	.crown {
 		position: absolute;
 		inset: 0;

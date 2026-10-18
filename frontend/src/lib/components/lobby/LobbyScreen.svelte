@@ -13,6 +13,7 @@
 
 	import LobbySettings from "./LobbySettings.svelte";
 	import Modal from "$components/common/Modal.svelte";
+	import Avatar from "$components/common/Avatar.svelte";
 	import TintedSprite from "$components/common/TintedSprite.svelte";
 	import TextEffects from "$components/common/TextEffects.svelte";
 
@@ -373,11 +374,7 @@
 							/>
 
 							<div class="absolute inset-[14%]">
-								{#if member.is_bot}
-									<img src="/assets/bot_animated.gif" alt="" class="h-full w-full object-contain" />
-								{:else}
-									<TintedSprite src="/assets/base_player.gif" {color} fit="contain" />
-								{/if}
+								<Avatar loadout={member.loadout} bot={member.is_bot} size={96} />
 
 								<!-- Deco layer: sits on the seat's face art, sized to match it
 								     exactly. Host's crown lives here so future cosmetics can
@@ -762,6 +759,42 @@
 	.seat-card :global(.tinted-sprite) {
 		width: 100% !important;
 		height: 100% !important;
+	}
+
+	/* The seat avatar ships fixed integer steps while the cutout scales with
+	   the card. INFO: render it as a square as wide as the cutout and centre
+	   it — the same box the contained crown gif occupies, so the two stay
+	   aligned. background-size 500% makes the strip five frames wide and
+	   steps(5, jump-none) walks the five frames across the 0 -> 100% sweep.
+	   Only the name and timing are overridden, so AvatarSprite's shared
+	   negative delay (cross-avatar sync) and duration are kept. */
+	.seat-card :global(.avatar-sprite),
+	.seat-card :global(.avatar-placeholder) {
+		position: absolute;
+		top: 50%;
+		left: 0;
+		width: 100% !important;
+		height: auto !important;
+		aspect-ratio: 1 / 1;
+		transform: translateY(-50%);
+		background-size: 500% 100% !important;
+		animation-name: seat-avatar-bob !important;
+		animation-timing-function: steps(5, jump-none) !important;
+	}
+
+	@keyframes seat-avatar-bob {
+		from {
+			background-position-x: 0;
+		}
+		to {
+			background-position-x: 100%;
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.seat-card :global(.avatar-sprite) {
+			animation: none !important;
+		}
 	}
 
 	/* Lobby name, rendered into the primary TopBar on desktop and the secondary

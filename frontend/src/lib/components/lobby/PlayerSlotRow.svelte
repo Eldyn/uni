@@ -1,13 +1,8 @@
 <!-- Row of player/bot/empty slot sprites, shared by lobby cards and the
-     sort-order preview. `labeled` adds tooltips + screen-reader text, and
-     also switches the human sprite colour: real lobby cards (labeled=true)
-     randomise it per player, purely decorative with no identity to preserve
-     between polls; the unlabeled sort-order preview is UI chrome, not real
-     players, so it stays theme-adaptive (--text-h: near-white in dark mode,
-     near-black in light mode) instead of picking a random accent colour. -->
+     sort-order preview. `labeled` adds tooltips + screen-reader text. Humans
+     and bots render the shared Avatar; bots keep the gray robot strip. -->
 <script lang="ts">
-	import TintedSprite from "$components/common/TintedSprite.svelte";
-	import { AVATAR_COLORS } from "$lib/data/lobbyCatalogs";
+	import Avatar from "$components/common/Avatar.svelte";
 
 	let {
 		humans = 0,
@@ -24,26 +19,19 @@
 		gapClass?: string;
 		labeled?: boolean;
 	} = $props();
-
-	const randomColor = (): string => AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)];
-
-	const humanColor = (): string => (labeled ? randomColor() : "var(--text-h)");
 </script>
 
 <div class="flex items-center {gapClass}">
 	{#each Array(humans) as _}
 		<div class={sizeClass} title={labeled ? "Player" : undefined}>
 			{#if labeled}<span class="sr-only">Player</span>{/if}
-			<TintedSprite src="/assets/base_player.gif" color={humanColor()} fit="contain" size={16} />
+			<Avatar size={16} />
 		</div>
 	{/each}
 	{#each Array(bots) as _}
 		<div class={sizeClass} title={labeled ? "Bot" : undefined}>
-			<img
-				src="/assets/bot_animated.gif"
-				alt={labeled ? "Bot" : ""}
-				class="h-full w-full object-contain"
-			/>
+			{#if labeled}<span class="sr-only">Bot</span>{/if}
+			<Avatar bot size={16} />
 		</div>
 	{/each}
 	{#each Array(empty) as _}
