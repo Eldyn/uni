@@ -894,4 +894,63 @@ EvalResult Evaluate(const Node& root, EvalContext& context) {
     return EvaluateNode(root, context, std::nullopt);
 }
 
+std::optional<EvalError> ApplyAssignment(const Assignment& assignment, EvalContext& context) {
+    const Node& target = *assignment.target;
+    const EvalResult resolved = EvaluateNode(*target.children[0], context);
+    if (std::holds_alternative<EvalError>(resolved)) {
+        return std::get<EvalError>(resolved);
+    }
+    std::vector<EntityRef> entities;
+    const Value& resolved_value = std::get<Value>(resolved);
+    if (const EntityRef* entity = std::get_if<EntityRef>(&resolved_value)) {
+        entities.push_back(*entity);
+    } else if (const std::vector<EntityRef>* seats =
+                   std::get_if<std::vector<EntityRef>>(&resolved_value)) {
+        entities = *seats;
+    } else {
+        return EvalError{"type_mismatch", "an assignment target must select entities"};
+    }
+    if (entities.empty()) {
+        const std::string name = target.children[0]->kind == NodeKind::kSelector
+                                     ? "@" + target.children[0]->text
+                                     : "the selector";
+        return EvalError{"empty_selector", name + " selects no seats"};
+    }
+    // INFO: the value expression runs once, whatever the target; the write is
+    // repeated per entity.
+    const EvalResult value_result = EvaluateNode(*assignment.value, context);
+    if (std::holds_alternative<EvalError>(value_result)) {
+        return std::get<EvalError>(value_result);
+    }
+    const Value value = std::get<Value>(value_result);
+    const std::string& key = target.text;
+    for (const EntityRef entity : entities) {
+        if (assignment.op == AssignOp::kSet) {
+            context.WriteProperty(entity, key, value);
+            continue;
+        }
+        const std::optional<Value> current = context.ReadProperty(entity, key);
+        if (!current.has_value()) {
+            return EvalError{"unknown_property",
+                             "unknown property \"" + key + "\" on " + TypeName(entity.kind)};
+        }
+        const std::string symbol = assignment.op == AssignOp::kAdd ? "+"
+                                   : assignment.op == AssignOp::kSubtract ? "-" : "*";
+        const EvalResult combined = ApplyBinary(symbol, *current, value);
+        if (std::holds_alternative<EvalError>(combined)) {
+            return std::get<EvalError>(combined);
+        }
+        context.WriteProperty(entity, key, std::get<Value>(combined));
+    }
+    return std::nullopt;
+}
+
+std::vector<std::string> CollectWrittenKeys(const Assignment& assignment) {
+    std::vector<std::string> keys;
+    if (assignment.target->kind == NodeKind::kProperty) {
+        keys.push_back(assignment.target->text);
+    }
+    return keys;
+}
+
 }  // namespace match::expr

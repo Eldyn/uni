@@ -1,7 +1,9 @@
 #pragma once
 
+#include <optional>
 #include <string>
 #include <variant>
+#include <vector>
 
 #include <match/expr/ast.hpp>
 #include <match/expr/context.hpp>
@@ -24,5 +26,15 @@ using EvalResult = std::variant<Value, EvalError>;
 // INFO: evaluates `root` against `context`. Set selectors, filters and the set
 // functions land in a later task; until then they report type_mismatch.
 EvalResult Evaluate(const Node& root, EvalContext& context);
+
+// INFO: applies `assignment` to `context`. For `+= -= *=` it reads the
+// current value, applies the operator, then writes the result to every entity
+// the target selects. An empty selector is `empty_selector` and writes
+// nothing.
+std::optional<EvalError> ApplyAssignment(const Assignment& assignment, EvalContext& context);
+
+// INFO: the property keys an assignment writes, deduplicated. A target with a
+// filter still writes a single property of its candidates.
+std::vector<std::string> CollectWrittenKeys(const Assignment& assignment);
 
 }  // namespace match::expr

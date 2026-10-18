@@ -16,6 +16,21 @@ namespace {
 
 constexpr size_t kMaximumNodes = 256;
 
+// INFO: the source spelling of an assignment operator, used in diagnostics.
+std::string_view AssignmentSymbol(AssignOp op) {
+    switch (op) {
+        case AssignOp::kSet:
+            return "=";
+        case AssignOp::kAdd:
+            return "+=";
+        case AssignOp::kSubtract:
+            return "-=";
+        case AssignOp::kMultiply:
+            return "*=";
+    }
+    return "=";
+}
+
 // INFO: inside `[ ]` and inside the condition argument of a set function a bare
 // name is a property of the candidate; the candidate entity is only meaningful
 // in that scope.
@@ -206,6 +221,29 @@ public:
 
     bool failed() const { return !diagnostics_.empty(); }
 
+    // INFO: checks one assignment: the target must be a writable property and
+    // the value must fit its declared type.
+    std::vector<Diagnostic> CheckAssignment(const Assignment& assignment) {
+        const std::optional<Type> property = CheckAssignmentTarget(*assignment.target);
+        if (!property) {
+            return TakeDiagnostics();
+        }
+        if (assignment.op != AssignOp::kSet && !IsNumber(*property)) {
+            Error("operator " + std::string(AssignmentSymbol(assignment.op)) +
+                  " needs a number property");
+            return TakeDiagnostics();
+        }
+        const std::optional<Narrowed> value =
+            Check(*assignment.value, Scope::kRoot, Type::kSeat, initial_.bound);
+        if (!value) {
+            return TakeDiagnostics();
+        }
+        if (!Accepts(*property, value->type)) {
+            Error(ExpectedMessage(*property, value->type));
+        }
+        return TakeDiagnostics();
+    }
+
     std::vector<Diagnostic> TakeDiagnostics() { return std::move(diagnostics_); }
 
     const std::set<std::string>& BoundWhenTrue() const { return bound_when_true_; }
@@ -225,6 +263,36 @@ private:
             return std::nullopt;
         }
         return Narrowed{*type, bound, bound};
+    }
+
+    // INFO: a set-valued selector is writable, so the target's base may be a
+    // set; every member changes. A property without a namespace is built-in
+    // and read-only.
+    std::optional<Type> CheckAssignmentTarget(const Node& target) {
+        const std::optional<Narrowed> base =
+            Check(*target.children[0], Scope::kRoot, Type::kSeat, initial_.bound);
+        if (!base) {
+            return std::nullopt;
+        }
+        Type entity = base->type;
+        if (IsSet(entity)) {
+            entity = EntityOf(entity);
+        }
+        if (schema_.Properties(entity) == nullptr) {
+            Error("cannot assign to a property of a value of type " + TypeName(base->type));
+            return std::nullopt;
+        }
+        const std::optional<Type> type = schema_.PropertyType(entity, target.text);
+        if (!type) {
+            Error("unknown property \"" + target.text + "\" on " + TypeName(entity),
+                  SuggestClosest(target.text, PropertyNames(schema_, entity)));
+            return std::nullopt;
+        }
+        if (target.text.find(':') == std::string::npos) {
+            Error("built-in property " + target.text + " is read-only");
+            return std::nullopt;
+        }
+        return type;
     }
 
     std::optional<Narrowed> Check(const Node& node, Scope scope, Type candidate,
@@ -876,6 +944,24 @@ CheckResult CheckExpression(std::string_view source, const Schema& schema,
     result.bound_when_true = checker.BoundWhenTrue();
     result.bound_when_false = checker.BoundWhenFalse();
     return result;
+}
+
+std::vector<Diagnostic> CheckAssignment(std::string_view source, const Schema& schema,
+                                        std::string_view file, std::string_view pointer) {
+    const AssignmentResult parsed = ParseAssignment(source);
+    if (parsed.error) {
+        return {Diagnostic{std::string(file), std::string(pointer), parsed.error->message, ""}};
+    }
+    const size_t node_count =
+        CountNodes(*parsed.assignment->target) + CountNodes(*parsed.assignment->value);
+    if (node_count > kMaximumNodes) {
+        return {Diagnostic{std::string(file), std::string(pointer),
+                           "expression has " + std::to_string(node_count) +
+                               " nodes; the limit is " + std::to_string(kMaximumNodes),
+                           ""}};
+    }
+    Checker checker(schema, std::nullopt, file, pointer, GuardState{});
+    return checker.CheckAssignment(*parsed.assignment);
 }
 
 }  // namespace match::expr

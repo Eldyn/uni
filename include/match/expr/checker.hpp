@@ -42,4 +42,11 @@ CheckResult CheckExpression(std::string_view source, const Schema& schema,
                             std::optional<Type> expected, std::string_view file,
                             std::string_view pointer, const GuardState& initial);
 
+// INFO: parses `source` as an assignment and checks it against `schema`. The
+// target must be a writable property; a property without a namespace is
+// built-in and read-only, and a set-valued selector writes to every member.
+// The value must fit the declared type of the property.
+std::vector<Diagnostic> CheckAssignment(std::string_view source, const Schema& schema,
+                                        std::string_view file, std::string_view pointer);
+
 }  // namespace match::expr
