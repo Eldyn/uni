@@ -223,6 +223,8 @@
 	"profile_guest_register": "Registrati",
 	"profile_stats_error": "Impossibile caricare le statistiche.",
 	"profile_retry": "Riprova",
+	"profile_email_verified": "Email verificata",
+	"profile_email_unverified": "Email non verificata",
 	"decks_coming_soon": "Crea e condividi i tuoi mazzi personalizzati. Prossimamente.",
 	"shop_coming_soon": "Cosmetici e skin per la tua carta giocatore. Prossimamente.",
 	"lobby_settings_tooltip": "Impostazioni lobby",

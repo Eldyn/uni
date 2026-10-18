@@ -223,6 +223,8 @@
 	"profile_guest_register": "注册",
 	"profile_stats_error": "无法加载统计数据。",
 	"profile_retry": "重试",
+	"profile_email_verified": "邮箱已验证",
+	"profile_email_unverified": "邮箱未验证",
 	"decks_coming_soon": "创建并分享你自己的卡组。敬请期待。",
 	"shop_coming_soon": "为你的玩家卡片提供的外观与皮肤。敬请期待。",
 	"lobby_settings_tooltip": "大厅设置",

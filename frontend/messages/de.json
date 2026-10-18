@@ -223,6 +223,8 @@
 	"profile_guest_register": "Registrieren",
 	"profile_stats_error": "Statistiken konnten nicht geladen werden.",
 	"profile_retry": "Erneut versuchen",
+	"profile_email_verified": "E-Mail bestätigt",
+	"profile_email_unverified": "E-Mail nicht bestätigt",
 	"decks_coming_soon": "Erstelle und teile deine eigenen Kartensets. Demnächst verfügbar.",
 	"shop_coming_soon": "Kosmetik und Skins für deine Spielerkarte. Demnächst verfügbar.",
 	"lobby_settings_tooltip": "Lobby-Einstellungen",

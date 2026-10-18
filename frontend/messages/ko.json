@@ -223,6 +223,8 @@
 	"profile_guest_register": "가입",
 	"profile_stats_error": "통계를 불러오지 못했습니다.",
 	"profile_retry": "다시 시도",
+	"profile_email_verified": "이메일 인증 완료",
+	"profile_email_unverified": "이메일 미인증",
 	"decks_coming_soon": "나만의 카드 세트를 만들고 공유하세요. 곧 출시됩니다.",
 	"shop_coming_soon": "플레이어 카드를 위한 코스메틱과 스킨. 곧 출시됩니다.",
 	"lobby_settings_tooltip": "로비 설정",

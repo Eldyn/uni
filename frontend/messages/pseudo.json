@@ -223,6 +223,8 @@
 	"profile_guest_register": "[Régîstér ~~~~~~~~~~]",
 	"profile_stats_error": "[Cöüld ñöt löåd thé stäts ~~~~~~~~~~~~~~~~~~~~~~~~]",
 	"profile_retry": "[Rétry ~~~~~~~~~]",
+	"profile_email_verified": "[Émäîl vérîfîéd ~~~~~~~~~~~~~~~~]",
+	"profile_email_unverified": "[Émäîl ñöt vérîfîéd ~~~~~~~~~~~~~~~~~~~~~~]",
 	"decks_coming_soon": "[Büîld åñd cömplétély shåré ýöür véry öwñ cård séts, éxåctly. Cömîñg réål sööñ.]",
 	"shop_coming_soon": "[Cösmétîcs åñd fåñcy skîñs för ýöür véry öwñ pläýér cård, éxåctly. Cömîñg réål sööñ.]",
 	"lobby_settings_tooltip": "[Löbby séttîñgs héré]",

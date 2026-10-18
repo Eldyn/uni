@@ -223,6 +223,8 @@
 	"profile_guest_register": "Регистрация",
 	"profile_stats_error": "Не удалось загрузить статистику.",
 	"profile_retry": "Повторить",
+	"profile_email_verified": "Email подтверждён",
+	"profile_email_unverified": "Email не подтверждён",
 	"decks_coming_soon": "Собирайте и делитесь своими наборами карт. Скоро.",
 	"shop_coming_soon": "Косметика и скины для вашей карты игрока. Скоро.",
 	"lobby_settings_tooltip": "Настройки лобби",

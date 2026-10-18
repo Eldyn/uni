@@ -223,6 +223,8 @@
 	"profile_guest_register": "Register",
 	"profile_stats_error": "Could not load stats.",
 	"profile_retry": "Retry",
+	"profile_email_verified": "Email verified",
+	"profile_email_unverified": "Email not verified",
 	"decks_coming_soon": "Build and share your own card sets. Coming soon.",
 	"shop_coming_soon": "Cosmetics and skins for your player card. Coming soon.",
 	"lobby_settings_tooltip": "Lobby settings",

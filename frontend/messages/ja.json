@@ -223,6 +223,8 @@
 	"profile_guest_register": "登録",
 	"profile_stats_error": "統計を読み込めませんでした。",
 	"profile_retry": "再試行",
+	"profile_email_verified": "メールアドレス確認済み",
+	"profile_email_unverified": "メールアドレス未確認",
 	"decks_coming_soon": "自分だけのカードセットを作成・共有しよう。近日公開。",
 	"shop_coming_soon": "プレイヤーカード用のコスメティックとスキン。近日公開。",
 	"lobby_settings_tooltip": "ロビー設定",
