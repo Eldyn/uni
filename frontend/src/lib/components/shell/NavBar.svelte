@@ -59,6 +59,12 @@
 
 	let menuButton = $state<HTMLButtonElement>();
 
+	// INFO: the chat launcher is fixed bottom-right and would cover the grid.
+	$effect(() => {
+		document.body.toggleAttribute("data-menu-open", storeMenu.isOpen);
+		return () => document.body.removeAttribute("data-menu-open");
+	});
+
 	function handleMenuKeydown(event: KeyboardEvent) {
 		if (event.key !== "Escape") return;
 		storeMenu.close();
@@ -191,11 +197,10 @@
 	.menu-grid-popover {
 		--menu-sheet-bottom: calc(var(--navbar-height, 56px) + var(--space-2));
 		position: fixed;
-		left: var(--space-2);
 		right: var(--space-2);
 		bottom: var(--menu-sheet-bottom);
 		z-index: 100;
-		padding: var(--space-3);
+		padding: var(--space-2);
 		background: var(--bg);
 		border: 2px solid var(--border);
 	}
@@ -286,8 +291,6 @@
 			right: auto;
 			bottom: 0;
 			margin-left: var(--space-2);
-			/* About three 96px tiles plus their gaps and this box's chrome. */
-			width: 20rem;
 		}
 		.shell-navbar-item[aria-current="page"]::after {
 			inset: var(--space-2) auto var(--space-2) 0;

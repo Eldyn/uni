@@ -947,3 +947,8 @@ body.director-clean-view .chat-panel,
 body.director-clean-view .director-panel {
 	display: none !important;
 }
+
+/* INFO: hide the chat launcher while the nav menu grid is open. */
+body[data-menu-open] .chat-launcher {
+	display: none;
+}

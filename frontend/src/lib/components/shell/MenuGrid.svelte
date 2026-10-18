@@ -136,14 +136,14 @@
 		<button
 			type="button"
 			role="menuitem"
-			class="menu-tile pixel-bordered"
+			class="menu-tile font-tiny"
 			aria-disabled={tile.disabled ? "true" : undefined}
 			tabindex={index === focused && !tile.disabled ? 0 : -1}
 			bind:this={tileEls[index]}
 			onfocus={() => (focused = index)}
 			onclick={() => go(tile)}
 		>
-			<i class="pia {tile.icon} text-2xl leading-none" aria-hidden="true"></i>
+			<i class="pia {tile.icon} text-xl leading-none" aria-hidden="true"></i>
 			<span class="menu-tile-label">{tile.label}</span>
 			{#if tile.disabled}
 				<span class="menu-tile-badge">{SOON_LABEL}</span>
@@ -153,32 +153,35 @@
 </div>
 
 <style>
+	/* INFO: each tile is about one nav-bar button: a small filled square. */
 	.menu-grid {
 		display: grid;
-		grid-template-columns: repeat(3, minmax(0, 1fr));
-		gap: var(--space-3);
+		grid-template-columns: repeat(3, var(--menu-tile-size));
+		gap: var(--space-2);
+		--menu-tile-size: 4.5rem;
 	}
 
 	.menu-tile {
-		--pc-border: var(--border);
-		--pc-fill: var(--surface-deep);
 		display: flex;
 		flex-direction: column;
 		align-items: center;
 		justify-content: center;
 		gap: var(--space-1);
-		/* Shrinkable, so a long pseudo-locale label wraps instead of
-		   widening its grid column. */
+		width: var(--menu-tile-size);
+		aspect-ratio: 1;
 		min-width: 0;
-		min-height: 88px;
-		padding: var(--space-2);
+		padding: var(--space-1);
+		background: var(--surface-deep);
+		border: 0;
+		outline: 2px solid transparent;
+		outline-offset: -2px;
 		color: var(--text);
 		cursor: pointer;
 		transition: color 0.12s ease;
 	}
 	.menu-tile:hover,
 	.menu-tile:focus-visible {
-		--pc-border: var(--accent);
+		outline-color: var(--accent);
 		color: var(--text-h);
 	}
 	.menu-tile[aria-disabled="true"] {
@@ -191,13 +194,13 @@
 		text-align: center;
 		overflow-wrap: anywhere;
 		line-height: 1.1;
-		font-size: var(--text-small);
+		font-size: var(--text-xs, 0.7rem);
 	}
 
 	.menu-tile-badge {
-		border: 1px solid var(--border);
 		padding: 0 var(--space-1);
 		color: var(--accent);
-		font-size: 0.65rem;
+		font-size: 0.6rem;
+		line-height: 1.1;
 	}
 </style>
