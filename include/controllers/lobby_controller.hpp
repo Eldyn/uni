@@ -20,6 +20,10 @@
 #include <websocket_context.hpp>
 #include <nlohmann/json.hpp>
 
+namespace uni::economy {
+class EconomyService;
+}
+
 /**
  * @file lobby_controller.hpp
  * @brief Definition of the controller for managing Lobbies. Handles all the I/O between
@@ -254,6 +258,17 @@ public:
     void BroadcastLoadoutChanged(const std::string& username,
                                  const nlohmann::json& loadout);
 
+    /**
+     * @brief Injects the economy service used to pay out at match end.
+     *
+     * Left null by unit tests and by a server with the economy disabled; a
+     * null pointer makes `RecordMatchResult` skip the payout.
+     * @param economy The ledger service, or nullptr to disable payouts.
+     */
+    void SetEconomyService(uni::economy::EconomyService* economy) {
+        economy_ = economy;
+    }
+
 private:
     /** Mods scan plus asset index shared by the public HTTP routes. */
     struct ModsSnapshot {
@@ -479,6 +494,8 @@ private:
     IBroadcaster&  broadcaster_;    /**< Transport layer for all sends/publishes. */
     ITimerService& timer_service_;  /**< Timer service for the eviction clock. */
     PresenceRegistry& presence_;    /**< Connection registry; also indexes username -> lobby ID. */
+    /**< Ledger service used to pay out at match end; null disables payouts. */
+    uni::economy::EconomyService* economy_ = nullptr;
     /**< Mods folder scanned to resolve deck snapshots (env: UNI_MODS_DIR). */
     std::string mods_root_;
     std::mutex mods_snapshot_mutex_;

@@ -222,6 +222,7 @@ if(UNI_BUILD_TESTS)
         src/avatar/loadout.cpp
         src/avatar/loadout_repository.cpp
         src/economy/economy_service.cpp
+        src/economy/payout.cpp
         src/common/rate_limiter.cpp
         src/common/login_throttle.cpp
         src/common/lobby.cpp

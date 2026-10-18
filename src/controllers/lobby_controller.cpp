@@ -18,11 +18,13 @@
 #include <match/engine/match_assembler.hpp>
 #include <match/server/match_session.hpp>
 #include <match/server/stats_gate.hpp>
+#include <economy/payout.hpp>
 #include <services/auth_service.hpp>
 #include <services/stats_service.hpp>
 #include <logger.hpp>
 #include <algorithm>
 #include <chrono>
+#include <ctime>
 #include <fstream>
 #include <iterator>
 #include <optional>
@@ -515,6 +517,24 @@ void LobbyController::RecordMatchResult(Lobby& lobby,
         return {};
         });
         try { fut2.get(); } catch (const std::exception& e) { Logger::Error("[Lobby DB Error] ", e.what()); }
+        // INFO: payouts run after the match rows are committed. The ledger
+        //       service opens its own transaction, so this must not nest
+        //       inside the txn above. A null economy pointer (tests) skips it.
+        if (economy_ != nullptr && !lobby.match_id.empty()) {
+            uni::economy::PayoutInput payout;
+            payout.match_id = lobby.match_id;
+            payout.creative = lobby.settings.creative;
+            payout.winner = winner;
+            payout.now = static_cast<std::int64_t>(std::time(nullptr));
+            for (const auto& player : state.value("players", json::array())) {
+                const std::string username =
+                    player.value("username", std::string());
+                if (username.empty()) continue;
+                payout.participants.push_back(uni::economy::PayoutParticipant{
+                    username, player.value("is_bot", false), false});
+            }
+            uni::economy::PayMatch(*economy_, payout);
+        }
         // Choice (c): the user-stats cache is process-wide/static on
         // StatsService, so this temporary instance invalidates the same
         // entries read by the long-lived StatsController instance.
