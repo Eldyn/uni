@@ -2,6 +2,8 @@
 
 #include <avatar/catalogue.hpp>
 #include <avatar/loadout.hpp>
+#include <avatar/loadout_repository.hpp>
+#include <database.hpp>
 
 #include <nlohmann/json.hpp>
 
@@ -20,6 +22,7 @@ using uni::avatar::Catalogue;
 using uni::avatar::GuestLoadout;
 using uni::avatar::IOwnership;
 using uni::avatar::LoadoutError;
+using uni::avatar::LoadoutRepository;
 using uni::avatar::StarterOwnership;
 using uni::avatar::ValidateLoadout;
 
@@ -169,6 +172,30 @@ void CheckRejected(const std::optional<LoadoutError>& error,
     CHECK(error->code == code);
     CHECK_FALSE(error->detail.empty());
 }
+
+/** @brief The username the repository cases insert and read back. */
+const char* kRepoUser = "avatar_loadout_test_alice";
+
+/** @brief Drop every row the repository cases own, everywhere they run. */
+void CleanupRepoRows() {
+    auto result = Database::Get().Exec(
+        "DELETE FROM users WHERE username LIKE 'avatar_loadout_test_%';");
+    REQUIRE(result.has_value());
+}
+
+/** @brief A migrated DB with one registered user and no saved loadout. */
+struct RepoFixture {
+    RepoFixture() {
+        REQUIRE(Database::Get().RunMigrations().has_value());
+        CleanupRepoRows();
+        auto res = Database::Get().Exec(
+            "INSERT INTO users (username, pass_hash, salt, email, "
+            "email_verified, created_at) VALUES (?, 'hash', 'salt', ?, 1, 0);",
+            {std::string(kRepoUser), "avatar_loadout_test_alice@example.com"});
+        REQUIRE(res.has_value());
+    }
+    ~RepoFixture() { CleanupRepoRows(); }
+};
 
 }  // namespace
 
@@ -374,4 +401,53 @@ TEST_CASE("avatar loadout: GuestLoadout is stable for one seed and varies over s
     CHECK(GuestLoadout(catalogue, 7) == GuestLoadout(catalogue, 7));
     CHECK(GuestLoadout(catalogue, 0)["skin"] != GuestLoadout(catalogue, 1)["skin"]);
     CHECK(GuestLoadout(catalogue, 4)["skin"] == GuestLoadout(catalogue, 0)["skin"]);
+}
+
+TEST_CASE("avatar loadout repository: Get is nullopt for a new user") {
+    RepoFixture fixture;
+    LoadoutRepository repo;
+
+    CHECK_FALSE(repo.Get(kRepoUser).has_value());
+}
+
+TEST_CASE("avatar loadout repository: Save then Get round-trips") {
+    RepoFixture fixture;
+    LoadoutRepository repo;
+
+    const json loadout = Loadout("uni:round", "basic:red");
+    CHECK(repo.Save(kRepoUser, loadout));
+    CHECK(repo.Get(kRepoUser) == loadout);
+}
+
+TEST_CASE("avatar loadout repository: Save returns false for an unknown user") {
+    RepoFixture fixture;
+    LoadoutRepository repo;
+
+    CHECK_FALSE(repo.Save("avatar_loadout_test_nobody",
+                          Loadout("uni:round", "basic:red")));
+}
+
+TEST_CASE("avatar loadout repository: Get is nullopt for corrupt JSON text") {
+    RepoFixture fixture;
+    LoadoutRepository repo;
+
+    auto res = Database::Get().Exec(
+        "UPDATE users SET avatar_loadout = ? WHERE username = ?;",
+        {std::string("{not json"), std::string(kRepoUser)});
+    REQUIRE(res.has_value());
+
+    CHECK_FALSE(repo.Get(kRepoUser).has_value());
+}
+
+TEST_CASE("avatar loadout repository: Save overwrites the previous loadout") {
+    RepoFixture fixture;
+    LoadoutRepository repo;
+
+    REQUIRE(repo.Save(kRepoUser, Loadout("uni:round", "basic:red")));
+
+    json second = Loadout("uni:tall", "basic:blue");
+    second["slots"]["mouth"] = Choice("uni:mouth_smile");
+    REQUIRE(repo.Save(kRepoUser, second));
+
+    CHECK(repo.Get(kRepoUser) == second);
 }

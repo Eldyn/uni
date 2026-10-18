@@ -220,6 +220,7 @@ if(UNI_BUILD_TESTS)
         ${TEST_SOURCES}
         src/avatar/catalogue.cpp
         src/avatar/loadout.cpp
+        src/avatar/loadout_repository.cpp
         src/common/rate_limiter.cpp
         src/common/login_throttle.cpp
         src/common/lobby.cpp
