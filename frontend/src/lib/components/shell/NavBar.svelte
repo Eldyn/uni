@@ -200,7 +200,8 @@
 		right: var(--space-2);
 		bottom: var(--menu-sheet-bottom);
 		z-index: 100;
-		padding: var(--space-2);
+		padding: 0;
+		border-radius: 0;
 		background: var(--bg);
 		border: 2px solid var(--border);
 	}

@@ -24,7 +24,7 @@ beforeEach(() => {
 });
 
 describe("MenuGrid", () => {
-	it("renders three tiles named Leaderboard, Wardrobe, Settings", () => {
+	it("renders three tiles named Settings, Wardrobe, Leaderboard", () => {
 		render(MenuGrid);
 
 		expect(screen.getAllByRole("menuitem")).toHaveLength(3);
@@ -80,52 +80,52 @@ describe("MenuGrid", () => {
 		render(MenuGrid);
 		await tick();
 
-		expect(leaderboard()).toHaveFocus();
+		expect(settings()).toHaveFocus();
 	});
 
 	it("arrow right and left move focus between enabled tiles and wrap", async () => {
 		render(MenuGrid);
 		await tick();
 
-		await fireEvent.keyDown(leaderboard(), { key: "ArrowRight" });
-		expect(settings()).toHaveFocus();
-		expect(wardrobe()).not.toHaveFocus();
-
 		await fireEvent.keyDown(settings(), { key: "ArrowRight" });
 		expect(leaderboard()).toHaveFocus();
+		expect(wardrobe()).not.toHaveFocus();
 
-		await fireEvent.keyDown(leaderboard(), { key: "ArrowLeft" });
+		await fireEvent.keyDown(leaderboard(), { key: "ArrowRight" });
 		expect(settings()).toHaveFocus();
+
+		await fireEvent.keyDown(settings(), { key: "ArrowLeft" });
+		expect(leaderboard()).toHaveFocus();
 	});
 
 	it("arrow down and up move focus by one row of 3 columns and stay put when no tile exists there", async () => {
 		render(MenuGrid);
 		await tick();
 
-		await fireEvent.keyDown(leaderboard(), { key: "ArrowDown" });
-		expect(leaderboard()).toHaveFocus();
-
-		await fireEvent.keyDown(leaderboard(), { key: "ArrowUp" });
-		expect(leaderboard()).toHaveFocus();
-
-		await fireEvent.keyDown(leaderboard(), { key: "End" });
-		expect(settings()).toHaveFocus();
-
 		await fireEvent.keyDown(settings(), { key: "ArrowDown" });
 		expect(settings()).toHaveFocus();
 
 		await fireEvent.keyDown(settings(), { key: "ArrowUp" });
 		expect(settings()).toHaveFocus();
+
+		await fireEvent.keyDown(settings(), { key: "End" });
+		expect(leaderboard()).toHaveFocus();
+
+		await fireEvent.keyDown(leaderboard(), { key: "ArrowDown" });
+		expect(leaderboard()).toHaveFocus();
+
+		await fireEvent.keyDown(leaderboard(), { key: "ArrowUp" });
+		expect(leaderboard()).toHaveFocus();
 	});
 
 	it("home and end focus the first and last enabled tile", async () => {
 		render(MenuGrid);
 		await tick();
 
-		await fireEvent.keyDown(settings(), { key: "Home" });
+		await fireEvent.keyDown(settings(), { key: "End" });
 		expect(leaderboard()).toHaveFocus();
 
-		await fireEvent.keyDown(leaderboard(), { key: "End" });
+		await fireEvent.keyDown(leaderboard(), { key: "Home" });
 		expect(settings()).toHaveFocus();
 	});
 
@@ -134,7 +134,6 @@ describe("MenuGrid", () => {
 		render(MenuGrid);
 		await tick();
 
-		await fireEvent.keyDown(settings(), { key: "End" });
 		await fireEvent.keyDown(settings(), { key: "Enter" });
 
 		expect(goto).toHaveBeenCalledWith("settings");
