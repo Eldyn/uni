@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
-import { render } from "@testing-library/svelte";
+import { render, screen } from "@testing-library/svelte";
 
-const { mockGameState, mockAuth } = vi.hoisted(() => ({
+const { mockGameState, mockAuth, mockLobbySettings } = vi.hoisted(() => ({
 	mockGameState: {
 		localPlayer: null as { username: string } | null,
 		keepDrawn: vi.fn(),
@@ -28,6 +28,10 @@ const { mockGameState, mockAuth } = vi.hoisted(() => ({
 	},
 	mockAuth: {
 		username: ""
+	},
+	mockLobbySettings: { ranked: false, creative: false } as {
+		ranked: boolean;
+		creative: boolean;
 	}
 }));
 
@@ -42,7 +46,7 @@ vi.mock("$stores/auth.svelte", () => ({
 vi.mock("$stores/lobby.svelte", () => ({
 	storeLobby: {
 		leave: vi.fn(),
-		current: { settings: { ranked: false } }
+		current: { settings: mockLobbySettings }
 	}
 }));
 
@@ -69,5 +73,15 @@ describe("GameHud", () => {
 
 		mockGameState.placements = [];
 		mockGameState.state.mode = "standard";
+	});
+
+	it("labels a creative match as Creative", () => {
+		mockLobbySettings.creative = true;
+
+		render(GameHud);
+
+		expect(screen.getByText("Creative")).not.toBeNull();
+
+		mockLobbySettings.creative = false;
 	});
 });
