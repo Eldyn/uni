@@ -219,6 +219,7 @@ if(UNI_BUILD_TESTS)
     add_executable(uni_tests
         ${TEST_SOURCES}
         src/avatar/catalogue.cpp
+        src/avatar/loadout.cpp
         src/common/rate_limiter.cpp
         src/common/login_throttle.cpp
         src/common/lobby.cpp
