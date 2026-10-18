@@ -1,7 +1,7 @@
 <script lang="ts">
 	import TintedSprite from "./TintedSprite.svelte";
 
-	type AvatarSize = 16 | 32 | 48 | 64;
+	type AvatarSize = 16 | 32 | 48 | 64 | 96;
 
 	const FALLBACK_SRC = "/assets/base_player.gif";
 

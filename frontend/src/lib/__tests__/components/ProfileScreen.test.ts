@@ -6,8 +6,15 @@ import { storeNavigation } from "$lib/stores/navigation.svelte";
 import { storeVerify } from "$stores/verify.svelte";
 import ProfileScreen from "$components/profile/ProfileScreen.svelte";
 
+const defaultStats = { username: "eldyn", total_wins: 12, total_losses: 8, rank: 3 };
+
 vi.mock("$lib/stores/navigation.svelte", () => ({
-	storeNavigation: { goto: vi.fn(), openSettings: vi.fn(), activeVerifyCode: null }
+	storeNavigation: {
+		goto: vi.fn(),
+		gotoAuth: vi.fn(),
+		openSettings: vi.fn(),
+		activeVerifyCode: null
+	}
 }));
 vi.mock("$lib/stores/auth.svelte", () => ({
 	storeAuth: {
@@ -15,6 +22,7 @@ vi.mock("$lib/stores/auth.svelte", () => ({
 		avatar: "",
 		isLoggedIn: true,
 		emailVerified: false,
+		logout: vi.fn().mockResolvedValue(undefined),
 		onLoggedOut: vi.fn()
 	}
 }));
@@ -43,9 +51,11 @@ vi.mock("$stores/verify.svelte", () => ({
 
 describe("ProfileScreen", () => {
 	beforeEach(() => {
-		storeNavigation.activeVerifyCode = null;
-		vi.mocked(storeVerify).confirmCode.mockReset();
-		vi.mocked(storeVerify).confirmCode.mockResolvedValue(true);
+		vi.clearAllMocks();
+		vi.mocked(storeAuth).isLoggedIn = true;
+		vi.mocked(storeAuth).emailVerified = false;
+		(storeStats as { myStats: unknown }).myStats = { ...defaultStats };
+		(storeStats as { isLoading: boolean }).isLoading = false;
 	});
 
 	it("shows the player's username and a stat summary", () => {
@@ -54,142 +64,56 @@ describe("ProfileScreen", () => {
 		expect(screen.getByText(/12/)).toBeInTheDocument();
 	});
 
-	it("offers entry points to detailed stats and settings", () => {
+	it("offers a Leaderboard entry point and no Settings button", async () => {
 		render(ProfileScreen);
-		expect(screen.getByRole("button", { name: /leaderboard|detailed stats/i })).toBeInTheDocument();
-		expect(screen.getByRole("button", { name: /settings/i })).toBeInTheDocument();
+
+		const leaderboard = screen.getByRole("button", { name: /leaderboard|detailed stats/i });
+		expect(leaderboard).toBeInTheDocument();
+		expect(screen.queryByRole("button", { name: /settings/i })).not.toBeInTheDocument();
+
+		await fireEvent.click(leaderboard);
+		expect(storeNavigation.goto).toHaveBeenCalledWith("stats");
 	});
 
 	it("fetches stats on mount when they haven't loaded yet", () => {
-		fetchMe.mockClear();
 		(storeStats as { myStats: unknown }).myStats = null;
 		render(ProfileScreen);
 		expect(fetchMe).toHaveBeenCalled();
-		(storeStats as { myStats: unknown }).myStats = {
-			username: "eldyn",
-			total_wins: 12,
-			total_losses: 8,
-			rank: 3
-		};
 	});
 
-	it("shows VERIFY button for unverified logged-in accounts", () => {
-		vi.mocked(storeAuth).isLoggedIn = true;
-		vi.mocked(storeAuth).emailVerified = false;
-		render(ProfileScreen);
-		expect(screen.getByRole("button", { name: /verify/i })).toBeInTheDocument();
-	});
-
-	it("hides VERIFY button for verified accounts and guests", () => {
-		vi.mocked(storeAuth).isLoggedIn = true;
-		vi.mocked(storeAuth).emailVerified = true;
-		const { unmount } = render(ProfileScreen);
-		expect(screen.queryByRole("button", { name: /verify/i })).not.toBeInTheDocument();
-		unmount();
-
+	it("guest does not call fetchMe and shows the register call to action", async () => {
 		vi.mocked(storeAuth).isLoggedIn = false;
-		vi.mocked(storeAuth).emailVerified = false;
+		(storeStats as { myStats: unknown }).myStats = null;
+
 		render(ProfileScreen);
-		expect(screen.queryByRole("button", { name: /verify/i })).not.toBeInTheDocument();
+
+		expect(fetchMe).not.toHaveBeenCalled();
+		expect(screen.getByText(/register to track stats/i)).toBeInTheDocument();
+
+		await fireEvent.click(screen.getByRole("button", { name: "Register" }));
+		expect(storeNavigation.gotoAuth).toHaveBeenCalledWith("register");
 	});
 
-	it("toggles verify code form when clicking VERIFY button", async () => {
-		vi.mocked(storeAuth).isLoggedIn = true;
-		vi.mocked(storeAuth).emailVerified = false;
-		render(ProfileScreen);
-		const btn = screen.getByRole("button", { name: /verify/i });
-		expect(btn).toHaveAttribute("aria-expanded", "false");
-		expect(screen.queryByTestId("verify-code-form")).not.toBeInTheDocument();
-		await fireEvent.click(btn);
-		expect(btn).toHaveAttribute("aria-expanded", "true");
-		expect(screen.getByTestId("verify-code-form")).toBeInTheDocument();
-		await fireEvent.click(btn);
-		expect(btn).toHaveAttribute("aria-expanded", "false");
-		expect(screen.queryByTestId("verify-code-form")).not.toBeInTheDocument();
-	});
-
-	it("closes verify code form when onVerified callback is triggered", async () => {
-		vi.mocked(storeAuth).isLoggedIn = true;
-		vi.mocked(storeAuth).emailVerified = false;
-		render(ProfileScreen);
-		const btn = screen.getByRole("button", { name: /verify/i });
-		await fireEvent.click(btn);
-		expect(screen.getByTestId("verify-code-form")).toBeInTheDocument();
-
-		const boxes = screen.getAllByLabelText(/digit/i);
-		for (let i = 0; i < 6; i++) {
-			await fireEvent.input(boxes[i], { target: { value: String(i + 1) } });
-		}
-		const submitBtn = screen.getByRole("button", { name: /verify.*submit/i });
-		await fireEvent.click(submitBtn);
-
-		expect(screen.queryByTestId("verify-code-form")).not.toBeInTheDocument();
-		expect(btn).toHaveAttribute("aria-expanded", "false");
-	});
-
-	it("closes verify code form when onSkip callback is triggered", async () => {
-		vi.mocked(storeAuth).isLoggedIn = true;
-		vi.mocked(storeAuth).emailVerified = false;
-		render(ProfileScreen);
-		const btn = screen.getByRole("button", { name: /verify/i });
-		await fireEvent.click(btn);
-		expect(screen.getByTestId("verify-code-form")).toBeInTheDocument();
-
-		const skipBtn = screen.getByRole("button", { name: /skip for now/i });
-		await fireEvent.click(skipBtn);
-
-		expect(screen.queryByTestId("verify-code-form")).not.toBeInTheDocument();
-		expect(btn).toHaveAttribute("aria-expanded", "false");
-	});
-
-	it("auto-opens verify code form with autoSubmit when activeVerifyCode is set", async () => {
-		vi.mocked(storeAuth).isLoggedIn = true;
-		vi.mocked(storeAuth).emailVerified = false;
-		storeNavigation.activeVerifyCode = "123456";
+	it("shows the error state and Retry calls fetchMe again", async () => {
+		(storeStats as { myStats: unknown }).myStats = null;
 
 		render(ProfileScreen);
 
-		expect(screen.getByTestId("verify-code-form")).toBeInTheDocument();
 		await vi.waitFor(() => {
-			expect(storeVerify.confirmCode).toHaveBeenCalledWith("123456", undefined);
+			expect(screen.getByText("Could not load stats.")).toBeInTheDocument();
 		});
+		expect(fetchMe).toHaveBeenCalledTimes(1);
+
+		await fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+		expect(fetchMe).toHaveBeenCalledTimes(2);
 	});
 
-	it("clears activeVerifyCode when onVerified callback is triggered", async () => {
-		vi.mocked(storeAuth).isLoggedIn = true;
-		vi.mocked(storeAuth).emailVerified = false;
-		storeNavigation.activeVerifyCode = "123456";
-		vi.mocked(storeVerify).confirmCode.mockResolvedValueOnce(false);
-
+	it("renders Logout in the account header", () => {
 		render(ProfileScreen);
 
-		expect(screen.getByTestId("verify-code-form")).toBeInTheDocument();
-		const boxes = screen.getAllByLabelText(/digit/i);
-		for (let i = 0; i < 6; i++) {
-			await fireEvent.input(boxes[i], { target: { value: String(i + 1) } });
-		}
-		vi.mocked(storeVerify).confirmCode.mockResolvedValueOnce(true);
-		const submitBtn = screen.getByRole("button", { name: /verify.*submit/i });
-		await fireEvent.click(submitBtn);
-
-		expect(storeNavigation.activeVerifyCode).toBeNull();
-		expect(screen.queryByTestId("verify-code-form")).not.toBeInTheDocument();
-	});
-
-	it("clears activeVerifyCode when onSkip callback is triggered", async () => {
-		vi.mocked(storeAuth).isLoggedIn = true;
-		vi.mocked(storeAuth).emailVerified = false;
-		storeNavigation.activeVerifyCode = "123456";
-		vi.mocked(storeVerify).confirmCode.mockResolvedValueOnce(false);
-
-		render(ProfileScreen);
-
-		expect(screen.getByTestId("verify-code-form")).toBeInTheDocument();
-
-		const skipBtn = screen.getByRole("button", { name: /skip for now/i });
-		await fireEvent.click(skipBtn);
-
-		expect(storeNavigation.activeVerifyCode).toBeNull();
-		expect(screen.queryByTestId("verify-code-form")).not.toBeInTheDocument();
+		const logout = screen.getByRole("button", { name: /logout/i });
+		const accountHeader = screen.getByText("Account").closest(".profile-header");
+		expect(accountHeader).not.toBeNull();
+		expect(accountHeader as HTMLElement).toContainElement(logout);
 	});
 });
