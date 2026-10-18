@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cstdint>
+#include <map>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -53,6 +54,9 @@ public:
     bool unbound_next = false;
     std::vector<std::string> write_log;
     mutable std::vector<int64_t> random_queue;
+    std::map<std::string, Value> variables;
+    std::map<std::string, Value> vars;
+    std::map<std::string, Value> bound_variables;
 
     std::vector<EntityRef> ResolveSelector(std::string_view name) const override {
         if (name == "self") {
@@ -106,14 +110,33 @@ public:
     }
 
     std::optional<Value> GetVariable(std::string_view name) const override {
+        const std::string key(name);
+        auto lookup = [&](const std::map<std::string, Value>& store) {
+            const auto found = store.find(key);
+            if (found == store.end()) {
+                return std::optional<Value>{};
+            }
+            return std::optional<Value>{found->second};
+        };
+        if (auto value = lookup(variables)) {
+            return value;
+        }
+        if (auto value = lookup(vars)) {
+            return value;
+        }
+        if (auto value = lookup(bound_variables)) {
+            return value;
+        }
         return std::nullopt;
     }
 
-    bool HasTag(EntityRef entity, std::string_view tag) const override { return false; }
+    bool HasTag(EntityRef /*entity*/, std::string_view /*tag*/) const override { return false; }
 
-    int64_t Random(int64_t low, int64_t high) override { return NextRandom(low); }
+    int64_t Random(int64_t low, int64_t /*high*/) override { return NextRandom(low); }
 
-    int64_t StatusMagnitude(EntityRef seat, std::string_view status) const override { return 0; }
+    int64_t StatusMagnitude(EntityRef /*seat*/, std::string_view /*status*/) const override {
+        return 0;
+    }
 
 private:
     // INFO: pops the scripted value, or `fallback` once the queue runs dry; a

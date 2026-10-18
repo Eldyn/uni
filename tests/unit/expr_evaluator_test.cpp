@@ -3,6 +3,8 @@
 #include <match/expr/evaluator.hpp>
 
 #include <cstdint>
+#include <limits>
+#include <set>
 #include <string>
 
 #include "expr_fake_context.hpp"
@@ -59,14 +61,19 @@ TEST_CASE("integer_overflow_is_reported_not_wrapped") {
     CHECK(error.code == "integer_overflow");
 }
 
-TEST_CASE("float_zero_divisor_and_runtime_nan") {
+TEST_CASE("float_zero_divisor_and_overflow") {
     match::expr::testing::FakeContext context;
     CHECK(ErrorOf("0.0 / 0.0", context).code == "division_by_zero");
-    // INFO: 1e308 * 1e308 widens to inf, and inf / inf is a runtime NaN.
     const std::string huge = "1" + std::string(308, '0') + ".0";
-    const std::string source =
-        "(" + huge + " * " + huge + ") / (" + huge + " * " + huge + ")";
-    CHECK(ErrorOf(source, context).code == "not_a_number");
+    CHECK(ErrorOf(huge + " * 10.0", context).code == "float_overflow");
+}
+
+TEST_CASE("float_nan_without_division") {
+    match::expr::testing::FakeContext context;
+    context.variables["x"] = Value{std::numeric_limits<double>::quiet_NaN()};
+    CHECK(ErrorOf("$x + 0.0", context).code == "not_a_number");
+    CHECK(ErrorOf("-$x", context).code == "not_a_number");
+    CHECK(ErrorOf("$x * 1.0", context).code == "not_a_number");
 }
 
 TEST_CASE("logical_operators_short_circuit") {
@@ -93,6 +100,78 @@ TEST_CASE("an_unbound_selector_reports_empty_selector") {
     context.unbound_next = true;
     const EvalError error = ErrorOf("@next.hand_size", context);
     CHECK(error.code == "empty_selector");
+}
+
+
+TEST_CASE("int_min_overflow_cases") {
+    match::expr::testing::FakeContext context;
+    CHECK(std::get<int64_t>(ValueOf("-9223372036854775807 - 1", context)) ==
+          std::numeric_limits<int64_t>::min());
+    CHECK(ErrorOf("(-9223372036854775807 - 1) / -1", context).code == "integer_overflow");
+    CHECK(ErrorOf("(-9223372036854775807 - 1) % -1", context).code == "integer_overflow");
+    CHECK(ErrorOf("-(-9223372036854775807 - 1)", context).code == "integer_overflow");
+    CHECK(ErrorOf("10 % 0", context).code == "division_by_zero");
+}
+
+TEST_CASE("type_mismatch_paths") {
+    match::expr::testing::FakeContext context;
+    CHECK(ErrorOf("1.0 % 2", context).code == "type_mismatch");
+    CHECK(ErrorOf("!1", context).code == "type_mismatch");
+    CHECK(ErrorOf("1 && true", context).code == "type_mismatch");
+    CHECK(ErrorOf("1 + 'a'", context).code == "type_mismatch");
+    CHECK(ErrorOf("1 == 'a'", context).code == "type_mismatch");
+    CHECK(ErrorOf("1.x", context).code == "type_mismatch");
+    CHECK(ErrorOf("@all.hand_size", context).code == "type_mismatch");
+}
+
+TEST_CASE("unknown_property_is_reported") {
+    match::expr::testing::FakeContext context;
+    CHECK(ErrorOf("@self.nope", context).code == "unknown_property");
+}
+
+TEST_CASE("bound_variable_reads_and_guards") {
+    match::expr::testing::FakeContext context;
+    context.variables["x"] = Value{7};
+    CHECK(std::get<int64_t>(ValueOf("$x", context)) == 7);
+    CHECK(std::get<bool>(ValueOf("defined($x)", context)) == true);
+    CHECK(std::get<int64_t>(ValueOf("default($x, 9)", context)) == 7);
+}
+
+TEST_CASE("if_evaluates_only_taken_branch") {
+    match::expr::testing::FakeContext context;
+    CHECK(std::get<int64_t>(ValueOf("if(true, 1, $nope.x)", context)) == 1);
+    CHECK(std::get<int64_t>(ValueOf("if(false, $nope.x, 2)", context)) == 2);
+}
+
+TEST_CASE("string_ordering_and_member_set_equality") {
+    match::expr::testing::FakeContext context;
+    CHECK(std::get<bool>(ValueOf("'a' < 'b'", context)) == true);
+    context.variables["a"] = Value{std::set<std::string>{"x", "y"}};
+    context.variables["b"] = Value{std::set<std::string>{"x", "y"}};
+    CHECK(std::get<bool>(ValueOf("$a == $b", context)) == true);
+    CHECK(std::get<bool>(ValueOf("$a != $b", context)) == false);
+}
+
+TEST_CASE("logical_evaluation_of_right_side_when_needed") {
+    match::expr::testing::FakeContext context;
+    CHECK(ErrorOf("true && $nope", context).code == "unbound_variable");
+    CHECK(std::get<bool>(ValueOf("false && $nope", context)) == false);
+}
+
+TEST_CASE("chained_comparison_is_type_mismatch") {
+    match::expr::testing::FakeContext context;
+    CHECK(ErrorOf("1 < 2 < 3", context).code == "type_mismatch");
+}
+
+TEST_CASE("negation_of_true") {
+    match::expr::testing::FakeContext context;
+    CHECK(std::get<bool>(ValueOf("!true", context)) == false);
+}
+
+TEST_CASE("large_int_comparison_is_exact") {
+    match::expr::testing::FakeContext context;
+    CHECK(std::get<bool>(ValueOf("9007199254740993 == 9007199254740992", context)) == false);
+    CHECK(std::get<bool>(ValueOf("9007199254740992 < 9007199254740993", context)) == true);
 }
 
 }  // TEST_SUITE

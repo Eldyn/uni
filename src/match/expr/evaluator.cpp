@@ -80,6 +80,18 @@ std::optional<int64_t> Times(int64_t left, int64_t right) {
 
 std::optional<int64_t> Negate(int64_t value) { return Minus(0, value); }
 
+// INFO: every float result is checked: NaN is not_a_number, an infinity is a
+// float overflow. Applied to each float-producing operation.
+EvalResult CheckedFloat(double value) {
+    if (std::isnan(value)) {
+        return Fail("not_a_number", "arithmetic produced not a number");
+    }
+    if (std::isinf(value)) {
+        return Fail("float_overflow", "float overflow");
+    }
+    return Value(value);
+}
+
 EvalResult LiteralValue(const Node& node) {
     return std::visit([](const auto& alternative) { return Value(alternative); }, node.literal);
 }
@@ -120,15 +132,11 @@ EvalResult PropertyValue(const Node& node, EvalContext& context) {
         return base;
     }
     const Value value = std::get<Value>(base);
-    const std::string key = node.text;
-    if (const EntityRef* entity = std::get_if<EntityRef>(&value)) {
-        const std::optional<Value> property = context.ReadProperty(*entity, key);
-        if (!property.has_value()) {
-            return ReadEntityProperty(*entity, key);
-        }
-        return *property;
-    }
-    if (const std::vector<EntityRef>* set = std::get_if<std::vector<EntityRef>>(&value)) {
+    const std::string& key = node.text;
+    std::optional<EntityRef> entity;
+    if (const EntityRef* found = std::get_if<EntityRef>(&value)) {
+        entity = *found;
+    } else if (const std::vector<EntityRef>* set = std::get_if<std::vector<EntityRef>>(&value)) {
         if (set->empty()) {
             const std::string name =
                 node.children[0]->kind == NodeKind::kSelector
@@ -141,14 +149,16 @@ EvalResult PropertyValue(const Node& node, EvalContext& context) {
                         "reading a property of a seat set; use count(), any(), all(), "
                         "sum() or a single-seat selector");
         }
-        const std::optional<Value> property = context.ReadProperty(set->front(), key);
-        if (!property.has_value()) {
-            return ReadEntityProperty(set->front(), key);
-        }
-        return *property;
+        entity = set->front();
+    } else {
+        return Fail("type_mismatch", "cannot read \"" + key + "\" on a value of type " +
+                                      ValueName(value));
     }
-    return Fail("type_mismatch", "cannot read \"" + key + "\" on a value of type " +
-                                     ValueName(value));
+    const std::optional<Value> property = context.ReadProperty(*entity, key);
+    if (!property.has_value()) {
+        return ReadEntityProperty(*entity, key);
+    }
+    return *property;
 }
 
 EvalResult UnaryValue(const Node& node, EvalContext& context) {
@@ -166,7 +176,7 @@ EvalResult UnaryValue(const Node& node, EvalContext& context) {
             return Value(*negated);
         }
         if (const double* number = std::get_if<double>(&operand)) {
-            return Value(-*number);
+            return CheckedFloat(-*number);
         }
         return Fail("type_mismatch", "operator - needs numbers");
     }
@@ -206,10 +216,27 @@ EvalResult LogicalValue(const Node& node, EvalContext& context) {
     return Value(*right_flag);
 }
 
+template <typename LeftType, typename RightType>
+EvalResult OrderedCompare(const std::string& symbol, const LeftType& left_value,
+                         const RightType& right_value) {
+    if (symbol == "<") {
+        return Value(left_value < right_value);
+    }
+    if (symbol == "<=") {
+        return Value(left_value <= right_value);
+    }
+    if (symbol == ">") {
+        return Value(left_value > right_value);
+    }
+    return Value(left_value >= right_value);
+}
+
 EvalResult Compare(const std::string& symbol, const Value& left, const Value& right) {
     if (symbol == "==" || symbol == "!=") {
-        bool equal;
-        if (IsNumber(left) && IsNumber(right)) {
+        bool equal = false;
+        if (std::holds_alternative<int64_t>(left) && std::holds_alternative<int64_t>(right)) {
+            equal = std::get<int64_t>(left) == std::get<int64_t>(right);
+        } else if (IsNumber(left) && IsNumber(right)) {
             equal = AsFloat(left) == AsFloat(right);
         } else if (left.index() == right.index()) {
             equal = left == right;
@@ -219,103 +246,86 @@ EvalResult Compare(const std::string& symbol, const Value& left, const Value& ri
         }
         return Value(symbol == "==" ? equal : !equal);
     }
+    if (std::holds_alternative<int64_t>(left) && std::holds_alternative<int64_t>(right)) {
+        const int64_t left_value = std::get<int64_t>(left);
+        const int64_t right_value = std::get<int64_t>(right);
+        return OrderedCompare(symbol, left_value, right_value);
+    }
     if (IsNumber(left) && IsNumber(right)) {
-        const double a = AsFloat(left);
-        const double b = AsFloat(right);
-        if (symbol == "<") {
-            return Value(a < b);
-        }
-        if (symbol == "<=") {
-            return Value(a <= b);
-        }
-        if (symbol == ">") {
-            return Value(a > b);
-        }
-        return Value(a >= b);
+        const double left_value = AsFloat(left);
+        const double right_value = AsFloat(right);
+        return OrderedCompare(symbol, left_value, right_value);
     }
     if (std::holds_alternative<std::string>(left) &&
         std::holds_alternative<std::string>(right)) {
-        const std::string& a = std::get<std::string>(left);
-        const std::string& b = std::get<std::string>(right);
-        if (symbol == "<") {
-            return Value(a < b);
-        }
-        if (symbol == "<=") {
-            return Value(a <= b);
-        }
-        if (symbol == ">") {
-            return Value(a > b);
-        }
-        return Value(a >= b);
+        const std::string& left_value = std::get<std::string>(left);
+        const std::string& right_value = std::get<std::string>(right);
+        return OrderedCompare(symbol, left_value, right_value);
     }
     return Fail("type_mismatch", "operator " + symbol + " needs numbers or strings");
 }
 
 EvalResult ApplyBinary(const std::string& symbol, const Value& left, const Value& right) {
     if (symbol == "%") {
-        const int64_t* a = std::get_if<int64_t>(&left);
-        const int64_t* b = std::get_if<int64_t>(&right);
-        if (a == nullptr || b == nullptr) {
+        const int64_t* left_int = std::get_if<int64_t>(&left);
+        const int64_t* right_int = std::get_if<int64_t>(&right);
+        if (left_int == nullptr || right_int == nullptr) {
             return Fail("type_mismatch", "operator % needs ints");
         }
-        if (*b == 0) {
+        if (*right_int == 0) {
             return Fail("division_by_zero", "division by zero");
         }
-        if (*a == std::numeric_limits<int64_t>::min() && *b == -1) {
+        if (*left_int == std::numeric_limits<int64_t>::min() && *right_int == -1) {
             return Fail("integer_overflow", "integer overflow");
         }
-        return Value(*a % *b);
+        return Value(*left_int % *right_int);
     }
     if (symbol == "/") {
-        const int64_t* a = std::get_if<int64_t>(&left);
-        const int64_t* b = std::get_if<int64_t>(&right);
-        if (a != nullptr && b != nullptr) {
-            if (*b == 0) {
+        const int64_t* left_int = std::get_if<int64_t>(&left);
+        const int64_t* right_int = std::get_if<int64_t>(&right);
+        if (left_int != nullptr && right_int != nullptr) {
+            if (*right_int == 0) {
                 return Fail("division_by_zero", "division by zero");
             }
-            if (*a == std::numeric_limits<int64_t>::min() && *b == -1) {
+            if (*left_int == std::numeric_limits<int64_t>::min() && *right_int == -1) {
                 return Fail("integer_overflow", "integer overflow");
             }
-            return Value(*a / *b);
+            return Value(*left_int / *right_int);
         }
         if (!IsNumber(left) || !IsNumber(right)) {
             return Fail("type_mismatch", "operator / needs numbers");
         }
-        const double a_float = AsFloat(left);
-        const double b_float = AsFloat(right);
-        if (b_float == 0.0) {
+        const double left_float = AsFloat(left);
+        const double right_float = AsFloat(right);
+        if (right_float == 0.0) {
             return Fail("division_by_zero", "division by zero");
         }
-        const double result = a_float / b_float;
-        if (std::isnan(a_float) || std::isnan(b_float) || std::isnan(result)) {
-            return Fail("not_a_number", "arithmetic produced not a number");
-        }
-        return Value(result);
+        return CheckedFloat(left_float / right_float);
     }
     if (symbol == "+" || symbol == "-" || symbol == "*") {
         if (!IsNumber(left) || !IsNumber(right)) {
             return Fail("type_mismatch", "operator " + symbol + " needs numbers");
         }
         if (IsFloat(left) || IsFloat(right)) {
-            const double a = AsFloat(left);
-            const double b = AsFloat(right);
+            const double left_value = AsFloat(left);
+            const double right_value = AsFloat(right);
             if (symbol == "+") {
-                return Value(a + b);
+                return CheckedFloat(left_value + right_value);
             }
             if (symbol == "-") {
-                return Value(a - b);
+                return CheckedFloat(left_value - right_value);
             }
-            return Value(a * b);
+            return CheckedFloat(left_value * right_value);
         }
-        const int64_t a = std::get<int64_t>(left);
-        const int64_t b = std::get<int64_t>(right);
+        const int64_t left_value = std::get<int64_t>(left);
+        const int64_t right_value = std::get<int64_t>(right);
         std::optional<int64_t> result;
         if (symbol == "+") {
-            result = Plus(a, b);
+            result = Plus(left_value, right_value);
         } else if (symbol == "-") {
-            result = Minus(a, b);
+            result = Minus(left_value, right_value);
         } else {
-            result = Times(a, b);
+            result = Times(left_value, right_value);
         }
         if (!result.has_value()) {
             return Fail("integer_overflow", "integer overflow");
