@@ -16,7 +16,7 @@ using json = nlohmann::json;
 
 struct Condition {
     enum class Kind { kExpression, kAllOf, kAnyOf, kNoneOf };
-    Kind kind;
+    Kind kind = Kind::kExpression;
     std::string source;
     std::vector<Condition> children;
 };

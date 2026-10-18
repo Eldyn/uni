@@ -70,4 +70,8 @@ struct Schema {
     }
 };
 
+// INFO: the user-facing spelling of a type, shared by every diagnostic that
+// names one.
+std::string TypeName(Type type);
+
 }  // namespace match::expr

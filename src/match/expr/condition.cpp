@@ -16,18 +16,62 @@
 namespace match::expr {
 namespace {
 
-std::string_view GroupKey(Condition::Kind kind) {
-    switch (kind) {
-        case Condition::Kind::kExpression:
-            return "";
-        case Condition::Kind::kAllOf:
-            return "all_of";
-        case Condition::Kind::kAnyOf:
-            return "any_of";
-        case Condition::Kind::kNoneOf:
-            return "none_of";
+// INFO: the three group keys and the node kind each one builds; every lookup
+// and every child pointer reads this one table.
+struct GroupKey {
+    std::string_view key;
+    Condition::Kind kind;
+};
+
+constexpr std::array<GroupKey, 3> kGroupKeys = {
+    GroupKey{"all_of", Condition::Kind::kAllOf},
+    GroupKey{"any_of", Condition::Kind::kAnyOf},
+    GroupKey{"none_of", Condition::Kind::kNoneOf},
+};
+
+constexpr size_t kMaximumConditionDepth = 64;
+
+std::string_view GroupKeyName(Condition::Kind kind) {
+    for (const GroupKey& group : kGroupKeys) {
+        if (group.kind == kind) {
+            return group.key;
+        }
     }
     return "";
+}
+
+bool IsGroupKey(std::string_view key) {
+    for (const GroupKey& group : kGroupKeys) {
+        if (group.key == key) {
+            return true;
+        }
+    }
+    return false;
+}
+
+std::vector<std::string> GroupKeyNames() {
+    std::vector<std::string> names;
+    for (const GroupKey& group : kGroupKeys) {
+        names.emplace_back(group.key);
+    }
+    return names;
+}
+
+// INFO: a group object holds exactly one of the three keys; return the key it
+// holds, or nothing when it holds none or more than one.
+std::optional<GroupKey> FindGroup(const json& object) {
+    std::optional<GroupKey> found;
+    size_t matches = 0;
+    for (const GroupKey& group : kGroupKeys) {
+        if (object.contains(group.key)) {
+            ++matches;
+            found = group;
+        }
+    }
+    if (matches == 1) {
+        return found;
+    }
+    return std::nullopt;
 }
 
 // INFO: the guard bindings a checked condition guarantees. A group returns
@@ -42,16 +86,34 @@ public:
     explicit ConditionParser(std::string_view file) : file_(std::string(file)) {}
 
     ConditionParseResult Parse(const json& value, const std::string& pointer) {
-        std::optional<Condition> condition = ParseNode(value, pointer);
+        std::optional<Condition> condition = ParseNode(value, pointer, 1);
         return ConditionParseResult{std::move(condition), std::move(diagnostics_)};
     }
 
 private:
-    void Error(const std::string& pointer, std::string message) {
-        diagnostics_.push_back(Diagnostic{file_, pointer, std::move(message), ""});
+    void Error(const std::string& pointer, std::string message, std::string suggestion = {}) {
+        diagnostics_.push_back(
+            Diagnostic{file_, pointer, std::move(message), std::move(suggestion)});
     }
 
-    std::optional<Condition> ParseNode(const json& value, const std::string& pointer) {
+    // INFO: a group object may hold only its one group key; report every other
+    // key instead of dropping it silently.
+    bool ReportUnknownKeys(const json& object, const std::string& pointer) {
+        bool clean = true;
+        for (const auto& entry : object.items()) {
+            const std::string& key = entry.key();
+            if (IsGroupKey(key)) {
+                continue;
+            }
+            clean = false;
+            Error(pointer + "/" + key, "unknown key \"" + key + "\"",
+                  SuggestClosest(key, GroupKeyNames()));
+        }
+        return clean;
+    }
+
+    std::optional<Condition> ParseNode(const json& value, const std::string& pointer,
+                                       size_t depth) {
         if (value.is_string()) {
             return Condition{Condition::Kind::kExpression, value.get<std::string>(), {}};
         }
@@ -59,24 +121,35 @@ private:
             Error(pointer, "condition leaves are expression strings");
             return std::nullopt;
         }
-        const std::optional<std::pair<Condition::Kind, std::string_view>> group = FindGroup(value);
+        if (depth > kMaximumConditionDepth) {
+            Error(pointer, "conditions are nested too deeply (more than " +
+                               std::to_string(kMaximumConditionDepth) + " levels)");
+            return std::nullopt;
+        }
+        const std::optional<GroupKey> group = FindGroup(value);
         if (!group) {
             Error(pointer, "a condition object holds exactly one of all_of, any_of, none_of");
             return std::nullopt;
         }
-        const json& children = value[group->second];
-        if (!children.is_array() || children.empty()) {
-            Error(std::string(pointer) + "/" + std::string(group->second),
-                  std::string(group->second) + " needs at least one condition");
+        if (!ReportUnknownKeys(value, pointer)) {
             return std::nullopt;
         }
-        Condition node{group->first, {}, {}};
+        const std::string key(group->key);
+        const json& children = value[key];
+        if (!children.is_array()) {
+            Error(pointer + "/" + key, key + " must be an array of conditions");
+            return std::nullopt;
+        }
+        if (children.empty()) {
+            Error(pointer + "/" + key, key + " needs at least one condition");
+            return std::nullopt;
+        }
+        Condition node{group->kind, {}, {}};
         bool ok = true;
         for (size_t index = 0; index < children.size(); ++index) {
             const std::string child_pointer =
-                std::string(pointer) + "/" + std::string(group->second) + "/" +
-                std::to_string(index);
-            std::optional<Condition> child = ParseNode(children[index], child_pointer);
+                pointer + "/" + key + "/" + std::to_string(index);
+            std::optional<Condition> child = ParseNode(children[index], child_pointer, depth + 1);
             if (child) {
                 node.children.push_back(std::move(*child));
             } else {
@@ -89,25 +162,6 @@ private:
         return node;
     }
 
-    std::optional<std::pair<Condition::Kind, std::string_view>> FindGroup(const json& object) {
-        static constexpr std::array<std::pair<std::string_view, Condition::Kind>, 3> kGroups = {
-            {{"all_of", Condition::Kind::kAllOf},
-             {"any_of", Condition::Kind::kAnyOf},
-             {"none_of", Condition::Kind::kNoneOf}}};
-        std::optional<std::pair<Condition::Kind, std::string_view>> found;
-        size_t matches = 0;
-        for (const auto& [key, kind] : kGroups) {
-            if (object.contains(key)) {
-                ++matches;
-                found = {kind, key};
-            }
-        }
-        if (matches == 1) {
-            return found;
-        }
-        return std::nullopt;
-    }
-
     std::string file_;
     std::vector<Diagnostic> diagnostics_;
 };
@@ -116,10 +170,10 @@ class ConditionChecker {
 public:
     ConditionChecker(const Schema& schema, std::string_view file,
                      std::vector<Diagnostic>& diagnostics)
-        : schema_(schema), file_(std::string_view(file)), diagnostics_(diagnostics) {}
+        : schema_(schema), file_(file), diagnostics_(diagnostics) {}
 
     void Check(const Condition& condition, const std::string& pointer) {
-        CheckNode(condition, pointer, {});
+        CheckNode(condition, pointer, {}, 1);
     }
 
 private:
@@ -128,26 +182,29 @@ private:
     }
 
     void Report(const std::vector<Diagnostic>& diagnostics) {
-        for (const Diagnostic& diagnostic : diagnostics) {
-            diagnostics_.push_back(diagnostic);
-        }
+        diagnostics_.insert(diagnostics_.end(), diagnostics.begin(), diagnostics.end());
     }
 
     std::optional<Narrowed> CheckNode(const Condition& condition, const std::string& pointer,
-                                      const std::set<std::string>& guaranteed) {
+                                      const std::set<std::string>& guaranteed, size_t depth) {
         if (condition.kind == Condition::Kind::kExpression) {
             return CheckLeaf(condition, pointer, guaranteed);
+        }
+        if (depth > kMaximumConditionDepth) {
+            Error(pointer, "conditions are nested too deeply (more than " +
+                               std::to_string(kMaximumConditionDepth) + " levels)");
+            return std::nullopt;
         }
         const bool binds_when_true = condition.kind == Condition::Kind::kAllOf;
         std::set<std::string> bound = guaranteed;
         bool ok = true;
         for (size_t index = 0; index < condition.children.size(); ++index) {
             const Condition& child = condition.children[index];
-            const std::string child_pointer = std::string(pointer) + "/" +
-                                              std::string(GroupKey(condition.kind)) + "/" +
+            const std::string child_pointer = pointer + "/" +
+                                              std::string(GroupKeyName(condition.kind)) + "/" +
                                               std::to_string(index);
             const std::optional<Narrowed> checked =
-                CheckNode(child, child_pointer, bound);
+                CheckNode(child, child_pointer, bound, depth + 1);
             if (!checked) {
                 ok = false;
                 continue;
@@ -180,36 +237,6 @@ private:
             return std::nullopt;
         }
         return Narrowed{result.bound_when_true, result.bound_when_false};
-    }
-
-    std::string TypeName(Type type) const {
-        switch (type) {
-            case Type::kBool:
-                return "bool";
-            case Type::kInt:
-                return "int";
-            case Type::kFloat:
-                return "float";
-            case Type::kString:
-                return "string";
-            case Type::kMemberSet:
-                return "member_set";
-            case Type::kSeat:
-                return "seat";
-            case Type::kSeatSet:
-                return "seat_set";
-            case Type::kCard:
-                return "card";
-            case Type::kCardSet:
-                return "card_set";
-            case Type::kMatch:
-                return "match";
-            case Type::kSettings:
-                return "settings";
-            case Type::kRule:
-                return "rule";
-        }
-        return "unknown";
     }
 
     const Schema& schema_;

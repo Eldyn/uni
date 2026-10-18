@@ -47,36 +47,6 @@ Type MemberOf(Type set_type) {
     return EntityOf(set_type);
 }
 
-std::string TypeName(Type type) {
-    switch (type) {
-        case Type::kBool:
-            return "bool";
-        case Type::kInt:
-            return "int";
-        case Type::kFloat:
-            return "float";
-        case Type::kString:
-            return "string";
-        case Type::kMemberSet:
-            return "member_set";
-        case Type::kSeat:
-            return "seat";
-        case Type::kSeatSet:
-            return "seat_set";
-        case Type::kCard:
-            return "card";
-        case Type::kCardSet:
-            return "card_set";
-        case Type::kMatch:
-            return "match";
-        case Type::kSettings:
-            return "settings";
-        case Type::kRule:
-            return "rule";
-    }
-    return "unknown";
-}
-
 // INFO: a set has no single value to read; the message names the aggregations
 // that work on it.
 std::string SetReadMessage(Type set_type) {
@@ -842,6 +812,36 @@ private:
 };
 
 }  // namespace
+
+std::string TypeName(Type type) {
+    switch (type) {
+        case Type::kBool:
+            return "bool";
+        case Type::kInt:
+            return "int";
+        case Type::kFloat:
+            return "float";
+        case Type::kString:
+            return "string";
+        case Type::kMemberSet:
+            return "member_set";
+        case Type::kSeat:
+            return "seat";
+        case Type::kSeatSet:
+            return "seat_set";
+        case Type::kCard:
+            return "card";
+        case Type::kCardSet:
+            return "card_set";
+        case Type::kMatch:
+            return "match";
+        case Type::kSettings:
+            return "settings";
+        case Type::kRule:
+            return "rule";
+    }
+    return "unknown";
+}
 
 CheckResult CheckExpression(std::string_view source, const Schema& schema,
                             std::optional<Type> expected, std::string_view file,
