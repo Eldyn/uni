@@ -3,6 +3,7 @@
 #include <match/expr/checker.hpp>
 
 #include <optional>
+#include <set>
 #include <string>
 #include <string_view>
 
@@ -17,6 +18,16 @@ CheckResult Check(std::string_view source, std::optional<Type> expected = std::n
     return match::expr::CheckExpression(source, match::expr::testing::MakeTestSchema(), expected,
                                         "mods/a/rules/x.json", "/rule/when");
 }
+
+CheckResult CheckWithGuard(std::string_view source, const std::set<std::string>& bound,
+                           std::optional<Type> expected = std::nullopt) {
+    return match::expr::CheckExpression(source, match::expr::testing::MakeTestSchema(), expected,
+                                        "mods/a/rules/x.json", "/rule/when",
+                                        match::expr::GuardState{bound});
+}
+
+constexpr std::string_view kUnboundResponder =
+    "variable $responder may be unbound; guard it with defined($responder)";
 
 std::string FirstMessage(const CheckResult& result) {
     REQUIRE_FALSE(result.diagnostics.empty());
@@ -192,6 +203,68 @@ TEST_CASE("a_filter_must_be_a_boolean_condition") {
     CHECK(Mentions(Check("@all[hand_size + 1]"),
                    "filter must be a boolean condition, got int"));
     CHECK(Mentions(Check("@all['x']"), "filter must be a boolean condition, got string"));
+}
+
+TEST_CASE("a_guard_does_not_narrow_an_earlier_operand") {
+    CHECK(Mentions(Check("$responder.hand_size > 0 && defined($responder)"),
+                   kUnboundResponder));
+}
+
+TEST_CASE("if_narrows_only_the_branch_its_condition_guards") {
+    CHECK(Mentions(Check("if(defined($responder), 0, $responder.hand_size)"),
+                   kUnboundResponder));
+
+    const CheckResult guarded = Check("if(defined($responder), $responder.hand_size, 0)");
+    REQUIRE(guarded.diagnostics.empty());
+    CHECK(guarded.type == Type::kInt);
+}
+
+TEST_CASE("negation_and_nesting_follow_the_guard") {
+    const CheckResult negated = Check("!defined($responder) || $responder.hand_size > 0");
+    REQUIRE(negated.diagnostics.empty());
+    CHECK(negated.type == Type::kBool);
+
+    const CheckResult doubled = Check("!!defined($responder) && $responder.hand_size > 0");
+    REQUIRE(doubled.diagnostics.empty());
+    CHECK(doubled.type == Type::kBool);
+
+    CHECK(Mentions(Check("!(defined($responder) && true) && $responder.hand_size > 0"),
+                   kUnboundResponder));
+}
+
+TEST_CASE("a_disjunction_guards_only_its_false_branch") {
+    CHECK(Mentions(Check("defined($responder) || $responder.hand_size > 0"),
+                   kUnboundResponder));
+}
+
+TEST_CASE("default_reads_an_optional_variable_without_a_guard") {
+    const CheckResult result = Check("default($choice, @match.uni:active_color)");
+    REQUIRE(result.diagnostics.empty());
+    CHECK(result.type == Type::kMemberSet);
+}
+
+TEST_CASE("a_guard_reports_the_variables_it_binds") {
+    const CheckResult bound = Check("defined($responder)");
+    REQUIRE(bound.diagnostics.empty());
+    CHECK(bound.bound_when_true.count("responder") == 1);
+    CHECK(bound.bound_when_false.empty());
+
+    const CheckResult unbound = Check("!defined($responder)");
+    REQUIRE(unbound.diagnostics.empty());
+    CHECK(unbound.bound_when_true.empty());
+    CHECK(unbound.bound_when_false.count("responder") == 1);
+}
+
+TEST_CASE("a_guard_state_supplies_already_bound_variables") {
+    const CheckResult result = CheckWithGuard("$responder.hand_size", {"responder"});
+    REQUIRE(result.diagnostics.empty());
+    CHECK(result.type == Type::kInt);
+}
+
+TEST_CASE("a_guard_binds_an_optional_set_variable") {
+    const CheckResult result = Check("defined($choice) && count($choice) > 0");
+    REQUIRE(result.diagnostics.empty());
+    CHECK(result.type == Type::kBool);
 }
 
 }  // TEST_SUITE
