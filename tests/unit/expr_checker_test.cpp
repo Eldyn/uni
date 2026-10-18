@@ -274,4 +274,56 @@ TEST_CASE("an_unknown_function_is_reported_with_a_suggestion") {
     CHECK(near_miss.diagnostics.front().suggestion == "random");
 }
 
+TEST_CASE("function_signature_errors_name_their_expectation") {
+    CHECK(Mentions(Check("count(1)"), "count needs a set"));
+    CHECK(Mentions(Check("sum(@all, 'x')"), "sum needs a number expression"));
+    CHECK(Mentions(Check("contains(@all, 1)"), "contains needs a seat for a seat_set"));
+    CHECK(Mentions(Check("shares(1, 2)"), "shares needs member sets"));
+    CHECK(Mentions(Check("has_tag(@next, 'x')"), "has_tag needs a card or a rule"));
+    CHECK(Mentions(Check("if(true, 1, 'a')"), "if needs matching branch types"));
+    CHECK(Mentions(Check("random(1.5, 2)"), "random needs ints"));
+    CHECK(Mentions(Check("min(1)"), "min takes at least 2 arguments, got 1"));
+    CHECK(Mentions(Check("clamp(1, 2)"), "clamp takes 3 arguments, got 2"));
+    CHECK(Mentions(Check("status_magnitude(1, 'x')"), "status_magnitude needs a seat"));
+    CHECK(Mentions(Check("abs('a')"), "abs needs numbers"));
+}
+
+TEST_CASE("membership_and_numeric_functions_accept_their_kinds") {
+    const CheckResult hand = Check("contains(@next.hand, $played)");
+    REQUIRE(hand.diagnostics.empty());
+    CHECK(hand.type == Type::kBool);
+
+    const CheckResult seats = Check("contains(@all, @next)");
+    REQUIRE(seats.diagnostics.empty());
+    CHECK(seats.type == Type::kBool);
+
+    const CheckResult colors = Check("contains($choice, @match.uni:active_color)");
+    REQUIRE(colors.diagnostics.empty());
+    CHECK(colors.type == Type::kBool);
+
+    const CheckResult any_match = Check("any(@all, hand_size > 3)");
+    REQUIRE(any_match.diagnostics.empty());
+    CHECK(any_match.type == Type::kBool);
+
+    const CheckResult minimum = Check("min(1, 2)");
+    REQUIRE(minimum.diagnostics.empty());
+    CHECK(minimum.type == Type::kInt);
+
+    const CheckResult maximum = Check("max(1.5, 2)");
+    REQUIRE(maximum.diagnostics.empty());
+    CHECK(maximum.type == Type::kFloat);
+
+    const CheckResult absolute = Check("abs(@next.hand_size)");
+    REQUIRE(absolute.diagnostics.empty());
+    CHECK(absolute.type == Type::kInt);
+
+    const CheckResult ceiled = Check("ceil(1.5)");
+    REQUIRE(ceiled.diagnostics.empty());
+    CHECK(ceiled.type == Type::kInt);
+
+    const CheckResult rounded = Check("round(@next.hand_size)");
+    REQUIRE(rounded.diagnostics.empty());
+    CHECK(rounded.type == Type::kInt);
+}
+
 }  // TEST_SUITE

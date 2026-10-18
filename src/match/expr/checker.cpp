@@ -38,6 +38,14 @@ Type EntityOf(Type type) {
     return type;
 }
 
+// INFO: a member set holds itself; the other sets hold their entity.
+Type MemberOf(Type set_type) {
+    if (set_type == Type::kMemberSet) {
+        return Type::kMemberSet;
+    }
+    return EntityOf(set_type);
+}
+
 std::string TypeName(Type type) {
     switch (type) {
         case Type::kBool:
@@ -105,73 +113,6 @@ const std::vector<std::string>& SelectorNames() {
                                                    "rand_all", "rand",    "all",
                                                    "others",  "match",   "settings"};
     return names;
-}
-
-// INFO: the closed function list. `maximum_arguments` is empty for the variadic
-// `min`/`max`. `all` accepts one argument so its missing condition is reported as
-// a signature error, not as a generic arity error.
-struct FunctionInfo {
-    std::string_view name;
-    size_t minimum_arguments;
-    std::optional<size_t> maximum_arguments;
-};
-
-const std::vector<FunctionInfo>& Functions() {
-    static const std::vector<FunctionInfo> functions = {
-        {"if", 3, 3},
-        {"min", 2, std::nullopt},
-        {"max", 2, std::nullopt},
-        {"clamp", 3, 3},
-        {"abs", 1, 1},
-        {"floor", 1, 1},
-        {"ceil", 1, 1},
-        {"round", 1, 1},
-        {"count", 1, 2},
-        {"any", 1, 2},
-        {"all", 1, 2},
-        {"sum", 2, 2},
-        {"contains", 2, 2},
-        {"shares", 2, 2},
-        {"has_tag", 2, 2},
-        {"defined", 1, 1},
-        {"default", 2, 2},
-        {"status_magnitude", 2, 2},
-        {"random", 2, 2},
-    };
-    return functions;
-}
-
-const FunctionInfo* FindFunction(std::string_view name) {
-    for (const FunctionInfo& function : Functions()) {
-        if (function.name == name) {
-            return &function;
-        }
-    }
-    return nullptr;
-}
-
-std::vector<std::string> FunctionNames() {
-    std::vector<std::string> names;
-    for (const FunctionInfo& function : Functions()) {
-        names.emplace_back(function.name);
-    }
-    return names;
-}
-
-std::string ArityMessage(const FunctionInfo& function, size_t arity) {
-    const size_t minimum = function.minimum_arguments;
-    const size_t maximum = function.maximum_arguments.value_or(minimum);
-    const std::string name(function.name);
-    if (minimum == maximum) {
-        return name + " takes " + std::to_string(minimum) + " arguments, got " +
-               std::to_string(arity);
-    }
-    if (!function.maximum_arguments.has_value()) {
-        return name + " takes at least " + std::to_string(minimum) + " arguments, got " +
-               std::to_string(arity);
-    }
-    return name + " takes between " + std::to_string(minimum) + " and " +
-           std::to_string(maximum) + " arguments, got " + std::to_string(arity);
 }
 
 std::vector<std::string> PropertyNames(const Schema& schema, Type entity) {
@@ -308,98 +249,33 @@ private:
             Error(ArityMessage(*function, arity));
             return std::nullopt;
         }
-        return CheckCallSignature(*function, node, scope, candidate);
+        return (this->*function->check)(node, scope, candidate);
     }
 
-    std::optional<Type> CheckCallSignature(const FunctionInfo& function, const Node& node,
-                                           Scope scope, Type candidate) {
-        const std::string& name = node.text;
-        if (name == "if") {
-            const std::optional<Type> condition = Check(*node.children[0], scope, candidate);
-            if (!condition) {
-                return std::nullopt;
-            }
-            if (*condition != Type::kBool) {
-                Error("if needs a bool condition");
-                return std::nullopt;
-            }
-            const std::optional<Type> then_type = Check(*node.children[1], scope, candidate);
-            if (!then_type) {
-                return std::nullopt;
-            }
-            const std::optional<Type> else_type = Check(*node.children[2], scope, candidate);
-            if (!else_type) {
-                return std::nullopt;
-            }
-            if (IsNumber(*then_type) && IsNumber(*else_type)) {
-                return Widen(*then_type, *else_type);
-            }
-            if (*then_type == *else_type) {
-                return then_type;
-            }
-            Error("if needs matching branch types");
+    std::optional<Type> CheckIf(const Node& node, Scope scope, Type candidate) {
+        const std::optional<Type> condition = Check(*node.children[0], scope, candidate);
+        if (!condition) {
             return std::nullopt;
         }
-        if (name == "min" || name == "max" || name == "clamp" || name == "abs") {
-            return CheckNumericArguments(node, scope, candidate);
+        if (*condition != Type::kBool) {
+            Error("if needs a bool condition");
+            return std::nullopt;
         }
-        if (name == "floor" || name == "ceil" || name == "round") {
-            return CheckRounding(node, scope, candidate);
+        const std::optional<Type> then_type = Check(*node.children[1], scope, candidate);
+        if (!then_type) {
+            return std::nullopt;
         }
-        if (name == "count" || name == "any" || name == "all" || name == "sum") {
-            return CheckSetCall(node, scope, candidate);
+        const std::optional<Type> else_type = Check(*node.children[2], scope, candidate);
+        if (!else_type) {
+            return std::nullopt;
         }
-        if (name == "contains") {
-            return CheckContains(node, scope, candidate);
+        if (IsNumber(*then_type) && IsNumber(*else_type)) {
+            return Widen(*then_type, *else_type);
         }
-        if (name == "shares") {
-            return CheckShares(node, scope, candidate);
+        if (*then_type == *else_type) {
+            return then_type;
         }
-        if (name == "has_tag") {
-            return CheckHasTag(node, scope, candidate);
-        }
-        if (name == "defined") {
-            if (node.children[0]->kind != NodeKind::kVariable) {
-                Error("defined needs a $variable");
-                return std::nullopt;
-            }
-            if (!Check(*node.children[0], scope, candidate)) {
-                return std::nullopt;
-            }
-            return Type::kBool;
-        }
-        if (name == "default") {
-            if (node.children[0]->kind != NodeKind::kVariable) {
-                Error("default needs a $variable");
-                return std::nullopt;
-            }
-            if (!Check(*node.children[0], scope, candidate)) {
-                return std::nullopt;
-            }
-            return Check(*node.children[1], scope, candidate);
-        }
-        if (name == "status_magnitude") {
-            const std::optional<Type> seat = Check(*node.children[0], scope, candidate);
-            if (!seat) {
-                return std::nullopt;
-            }
-            if (*seat != Type::kSeat) {
-                Error("status_magnitude needs a seat");
-                return std::nullopt;
-            }
-            const std::optional<Type> status = Check(*node.children[1], scope, candidate);
-            if (!status) {
-                return std::nullopt;
-            }
-            if (*status != Type::kString) {
-                Error("status_magnitude needs a string status");
-                return std::nullopt;
-            }
-            return Type::kInt;
-        }
-        if (name == "random") {
-            return CheckIntegerArguments(node, scope, candidate);
-        }
+        Error("if needs matching branch types");
         return std::nullopt;
     }
 
@@ -469,7 +345,7 @@ private:
                 Error("all needs a condition");
                 return std::nullopt;
             }
-            if (!CheckCondition(*node.children[1], entity)) {
+            if (!CheckOptionalCondition(node, 1, entity)) {
                 return std::nullopt;
             }
             return Type::kBool;
@@ -506,8 +382,7 @@ private:
             Error("contains needs a set");
             return std::nullopt;
         }
-        const Type member_type =
-            *set_type == Type::kMemberSet ? Type::kMemberSet : EntityOf(*set_type);
+        const Type member_type = MemberOf(*set_type);
         const std::optional<Type> member = Check(*node.children[1], scope, candidate);
         if (!member) {
             return std::nullopt;
@@ -551,6 +426,48 @@ private:
             return std::nullopt;
         }
         return Type::kBool;
+    }
+
+    std::optional<Type> CheckDefined(const Node& node, Scope scope, Type candidate) {
+        if (node.children[0]->kind != NodeKind::kVariable) {
+            Error("defined needs a $variable");
+            return std::nullopt;
+        }
+        if (!Check(*node.children[0], scope, candidate)) {
+            return std::nullopt;
+        }
+        return Type::kBool;
+    }
+
+    std::optional<Type> CheckDefault(const Node& node, Scope scope, Type candidate) {
+        if (node.children[0]->kind != NodeKind::kVariable) {
+            Error("default needs a $variable");
+            return std::nullopt;
+        }
+        if (!Check(*node.children[0], scope, candidate)) {
+            return std::nullopt;
+        }
+        return Check(*node.children[1], scope, candidate);
+    }
+
+    std::optional<Type> CheckStatusMagnitude(const Node& node, Scope scope, Type candidate) {
+        const std::optional<Type> seat = Check(*node.children[0], scope, candidate);
+        if (!seat) {
+            return std::nullopt;
+        }
+        if (*seat != Type::kSeat) {
+            Error("status_magnitude needs a seat");
+            return std::nullopt;
+        }
+        const std::optional<Type> status = Check(*node.children[1], scope, candidate);
+        if (!status) {
+            return std::nullopt;
+        }
+        if (*status != Type::kString) {
+            Error("status_magnitude needs a string status");
+            return std::nullopt;
+        }
+        return Type::kInt;
     }
 
     std::optional<Type> CheckSelector(const Node& node) {
@@ -713,6 +630,80 @@ private:
         }
         Error("unsupported operator " + symbol);
         return std::nullopt;
+    }
+
+    // INFO: the closed function table; each entry dispatches to a Checker
+    // method, so a function missing from the table fails the lookup in
+    // CheckCall instead of falling through. `maximum_arguments` is empty for
+    // the variadic `min`/`max`. `all` accepts one argument so its missing
+    // condition is reported as a signature error, not as a generic arity
+    // error.
+    struct FunctionInfo {
+        std::string_view name;
+        size_t minimum_arguments;
+        std::optional<size_t> maximum_arguments;
+        std::optional<Type> (Checker::*check)(const Node&, Scope, Type);
+    };
+
+    static const std::vector<FunctionInfo>& Functions() {
+        static const std::vector<FunctionInfo> functions = {
+            {"if", 3, 3, &Checker::CheckIf},
+            {"min", 2, std::nullopt, &Checker::CheckNumericArguments},
+            {"max", 2, std::nullopt, &Checker::CheckNumericArguments},
+            {"clamp", 3, 3, &Checker::CheckNumericArguments},
+            {"abs", 1, 1, &Checker::CheckNumericArguments},
+            {"floor", 1, 1, &Checker::CheckRounding},
+            {"ceil", 1, 1, &Checker::CheckRounding},
+            {"round", 1, 1, &Checker::CheckRounding},
+            {"count", 1, 2, &Checker::CheckSetCall},
+            {"any", 1, 2, &Checker::CheckSetCall},
+            {"all", 1, 2, &Checker::CheckSetCall},
+            {"sum", 2, 2, &Checker::CheckSetCall},
+            {"contains", 2, 2, &Checker::CheckContains},
+            {"shares", 2, 2, &Checker::CheckShares},
+            {"has_tag", 2, 2, &Checker::CheckHasTag},
+            {"defined", 1, 1, &Checker::CheckDefined},
+            {"default", 2, 2, &Checker::CheckDefault},
+            {"status_magnitude", 2, 2, &Checker::CheckStatusMagnitude},
+            {"random", 2, 2, &Checker::CheckIntegerArguments},
+        };
+        return functions;
+    }
+
+    static const FunctionInfo* FindFunction(std::string_view name) {
+        for (const FunctionInfo& function : Functions()) {
+            if (function.name == name) {
+                return &function;
+            }
+        }
+        return nullptr;
+    }
+
+    static std::vector<std::string> FunctionNames() {
+        std::vector<std::string> names;
+        for (const FunctionInfo& function : Functions()) {
+            names.emplace_back(function.name);
+        }
+        return names;
+    }
+
+    // INFO: a variadic function reports "at least", an exact-arity function
+    // "takes", and a ranged one "takes between"; the variadic check runs
+    // first because the variadic maximum is empty.
+    static std::string ArityMessage(const FunctionInfo& function, size_t arity) {
+        const size_t minimum = function.minimum_arguments;
+        const std::string name(function.name);
+        if (!function.maximum_arguments.has_value()) {
+            return name + " takes at least " + std::to_string(minimum) + " arguments, got " +
+                   std::to_string(arity);
+        }
+        const size_t maximum = *function.maximum_arguments;
+        if (minimum == maximum) {
+            return name + " takes " + std::to_string(minimum) + " arguments, got " +
+                   std::to_string(arity);
+        }
+        return name + " takes between " + std::to_string(minimum) + " and " +
+               std::to_string(maximum) + " arguments, got " + std::to_string(arity);
     }
 
     const Schema& schema_;
