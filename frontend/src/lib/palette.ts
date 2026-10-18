@@ -54,9 +54,6 @@ export const PLAYER_COLORS_LIGHT: string[] = SEAT_COLOR_ORDER.map(
 	(name) => CARD_PALETTE[name].light
 );
 
-/** Bots never get a player identity colour — they stay deliberately grey. */
-export const BOT_COLOR = "#6b6b6b";
-
 /** Cycles a seat index onto its colour, wrapping past the fourth seat. */
 export function playerColorFor(seatIndex: number): string {
 	if (seatIndex < 0) return PLAYER_COLORS[0];

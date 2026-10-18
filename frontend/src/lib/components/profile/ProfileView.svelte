@@ -17,11 +17,12 @@
 		winRatePercent
 	} from "$components/profile/profileModel";
 	import type { PlayerStats } from "$stores/stats.svelte";
+	import type { Loadout } from "$lib/avatar/types";
 
 	type ProfileViewStatus = "loading" | "ready" | "error" | "guest";
 
 	type ProfileViewProps = {
-		profile: { username: string; avatar: string; stats: PlayerStats | null };
+		profile: { username: string; loadout?: Loadout | null; stats: PlayerStats | null };
 		isOwn: boolean;
 		status: ProfileViewStatus;
 		onRetry?: () => void;
@@ -74,7 +75,7 @@
 
 <div class="profile-sections">
 	<header class="profile-identity">
-		<Avatar src={profile.avatar} size={96} />
+		<Avatar loadout={profile.loadout} size={96} />
 		<h1 class="title-screen">{profile.username}</h1>
 	</header>
 

@@ -16,23 +16,29 @@ function makeFakeTexture() {
 		repeat: { set: ReturnType<typeof vi.fn> };
 		offset: { x: number };
 		needsUpdate: boolean;
+		dispose: ReturnType<typeof vi.fn>;
 		clone: () => unknown;
 	} = {
 		repeat: { set: vi.fn() },
 		offset: { x: 0 },
 		needsUpdate: false,
+		dispose: vi.fn(),
 		clone: () => makeFakeTexture()
 	};
 	return texture;
 }
 
-vi.mock("$components/game/three/textures", () => ({
-	loadSilhouette: vi.fn(() => Promise.resolve(makeFakeTexture())),
-	loadTexture: vi.fn(() => Promise.resolve(makeFakeTexture()))
+vi.mock("$components/game/three/avatarTexture", () => ({
+	loadAvatarTexture: vi.fn(() => Promise.resolve(makeFakeTexture()))
 }));
+
+function settle(): Promise<void> {
+	return new Promise((resolve) => setTimeout(resolve, 0));
+}
 
 import { render, cleanup } from "@testing-library/svelte";
 import PlayerSeat3D from "$components/game/three/PlayerSeat3D.svelte";
+import { loadAvatarTexture } from "$components/game/three/avatarTexture";
 import { CardRegistry, CARD_REGISTRY_KEY } from "$components/game/animation/cardRegistry.svelte";
 import { CardBus, CARD_BUS_KEY } from "$components/game/card-bus.svelte";
 import {
@@ -364,6 +370,33 @@ describe("PlayerSeat3D CardRegistry integration", () => {
 
 		rerender({ player, seat, color: "#ffffff", ringCardsHidden: false });
 		expect(registry.activeFlights).toHaveLength(3);
+	});
+
+	it("disposes the previous texture when the loadout changes", async () => {
+		const registry = new CardRegistry();
+		const seat = { x: 0, z: 0, rotationY: 0 };
+		const base = { username: "alice", card_count: 1, is_bot: false };
+
+		const { rerender } = render(PlayerSeat3D, {
+			props: {
+				player: { ...base, loadout: { shape: "uni:round", skin: "basic:red", slots: {} } },
+				seat,
+				color: "#00ff00"
+			},
+			context: new Map([[CARD_REGISTRY_KEY, registry]])
+		});
+
+		await settle();
+		const first = await vi.mocked(loadAvatarTexture).mock.results[0].value;
+
+		await rerender({
+			player: { ...base, loadout: { shape: "uni:round", skin: "basic:blue", slots: {} } },
+			seat,
+			color: "#00ff00"
+		});
+		await settle();
+
+		expect(first.dispose).toHaveBeenCalledTimes(1);
 	});
 
 	it("renders avatar and name label as scene objects with no DOM overlay", () => {
