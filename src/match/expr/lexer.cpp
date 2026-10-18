@@ -38,11 +38,15 @@ std::string UnexpectedCharacterMessage(char character) {
 constexpr std::string_view kSnakeCaseMessage =
     "unexpected character; identifiers use lowercase ASCII snake_case";
 
+constexpr std::string_view kColonMessage = "expected an identifier after ':'";
+
 constexpr std::string_view kTernaryMessage =
     "unexpected character '?'; there is no ternary operator, use if(condition, a, b)";
 
 // INFO: reads `[a-z_][a-z0-9_]*`, optionally `:` plus a second identifier with
-// no spaces; `position` stops just past the identifier on success.
+// no spaces; on `:` a second identifier must follow directly, otherwise the
+// error points at the colon. `position` stops just past the identifier on
+// success.
 std::optional<ParseError> LexIdentifier(std::string_view source, size_t& position,
                                         std::string& text) {
     text.clear();
@@ -52,20 +56,15 @@ std::optional<ParseError> LexIdentifier(std::string_view source, size_t& positio
         text.push_back(source[position]);
         ++position;
     }
-    if (position >= source.size() || source[position] != ':' || text.empty()) {
+    if (position >= source.size() || source[position] != ':') {
         return std::nullopt;
     }
+    const size_t colon_position = position;
     ++position;
     text.push_back(':');
-    if (position >= source.size()) {
-        return std::nullopt;
-    }
-    if (!IsIdentifierStart(source[position]) &&
-        (IsUppercase(source[position]) || IsNonAscii(source[position]))) {
-        return ParseError{position, std::string(kSnakeCaseMessage)};
-    }
-    if (!IsIdentifierStart(source[position])) {
-        return ParseError{position, UnexpectedCharacterMessage(source[position])};
+    if (position >= source.size() || !IsIdentifierStart(source[position])) {
+        position = colon_position;
+        return ParseError{colon_position, std::string(kColonMessage)};
     }
     while (position < source.size() && IsIdentifierChar(source[position])) {
         text.push_back(source[position]);
