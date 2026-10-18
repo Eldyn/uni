@@ -1,3 +1,4 @@
+#include <avatar/catalogue.hpp>
 #include <common/boot_config.hpp>
 #include <common/env.hpp>
 #include <common/http.hpp>
@@ -41,6 +42,11 @@ int main() {
     try {
         Env::Load(".env");
         ValidateBootConfigOrThrow();
+
+        // INFO: the avatar catalogue is repo data; a missing or invalid file is
+        //       a deployment error, so the load aborts start-up with a clear
+        //       message instead of serving a half-working wardrobe.
+        uni::avatar::Catalogue::LoadGlobal();
 
         const int         port          = std::stoi(Env::Get("PORT", "9999"));
         const std::string db_path       = Env::Get("DB_PATH", "uni.sqlite");

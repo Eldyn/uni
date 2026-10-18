@@ -284,7 +284,8 @@ export default defineConfig(({ mode, command }) => {
 				$components: path.resolve("./src/lib/components"),
 				$stores: path.resolve("./src/lib/stores"),
 				$utils: path.resolve("./src/lib/utils"),
-				$data: path.resolve("./src/lib/data")
+				$data: path.resolve("./src/lib/data"),
+				$avatar: path.resolve("../avatar")
 			},
 			// Svelte's package.json exports a separate server build behind the
 			// default/node condition; under vitest's Node runtime that resolves
@@ -319,6 +320,7 @@ export default defineConfig(({ mode, command }) => {
 					searchForWorkspaceRoot(process.cwd()),
 					path.resolve("../mods"),
 					path.resolve("../contract"),
+					path.resolve("../avatar"),
 					path.resolve("../tests/fixtures")
 				]
 			}

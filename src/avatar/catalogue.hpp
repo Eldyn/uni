@@ -1,0 +1,114 @@
+#pragma once
+
+#include <nlohmann/json_fwd.hpp>
+
+#include <string>
+#include <vector>
+
+/**
+ * @file catalogue.hpp
+ * @brief The avatar catalogue: the repo data behind every cosmetic item.
+ *
+ * One JSON file (`avatar/catalogue.json`, overridable with the
+ * `UNI_AVATAR_CATALOGUE` env var) is the single source the client and the
+ * server both read. The server keeps the parsed form in memory for the whole
+ * process (`LoadGlobal`), and answers slot-default and starter questions from
+ * it. Validation mirrors the client schema
+ * (`frontend/src/lib/avatar/catalogueSchema.ts`), so a file the client rejects
+ * never reaches a running server either.
+ */
+
+namespace uni::avatar {
+
+/**
+ * @brief One catalogue item, restricted to the fields the server reasons about.
+ *
+ * `available_from` / `available_until` are empty when the entry has no window
+ * (ISO-8601 UTC strings when set). `shapes` is empty when the item supports
+ * every shape.
+ */
+struct Item {
+    std::string id;
+    std::string slot;
+    int regions = 0;
+    bool starter = false;
+    std::string available_from;
+    std::string available_until;
+    std::vector<std::string> shapes;
+};
+
+/** @brief One colour a player can pick: a namespaced id and a `#rrggbb` hex. */
+struct Swatch {
+    std::string id;
+    std::string hex;
+};
+
+/** @brief A named set of swatches, bought whole (or free when `starter`). */
+struct Palette {
+    std::string id;
+    std::vector<Swatch> swatches;
+    bool starter = false;
+};
+
+/**
+ * @brief The parsed catalogue, with the lookups the server needs.
+ *
+ * Parse-time failures throw `std::runtime_error` with a message naming the
+ * offending node. Lookups never throw: an unknown id or slot yields `nullptr`
+ * (or `false`), so a removed or unknown item resolves to the slot default
+ * instead of breaking a render or a save.
+ */
+class Catalogue {
+  public:
+    /**
+     * @brief Validate a parsed JSON document into a catalogue.
+     * @throws std::runtime_error when any rule fails.
+     */
+    static Catalogue Parse(const nlohmann::json& doc);
+
+    /**
+     * @brief Read and validate a catalogue file.
+     * @throws std::runtime_error on an I/O, parse or validation error.
+     */
+    static Catalogue LoadFile(const std::string& path);
+
+    /** @brief The process-wide catalogue; only valid after `LoadGlobal`. */
+    static const Catalogue& Instance();
+
+    /**
+     * @brief Load the process-wide catalogue, aborting start-up on failure.
+     *
+     * An empty `path` reads `UNI_AVATAR_CATALOGUE` (default
+     * `avatar/catalogue.json`). The error is logged before it is rethrown, so
+     * the caller lets it abort the boot with a clear message.
+     */
+    static void LoadGlobal(const std::string& path = "");
+
+    /** @brief The item with `id`, or `nullptr` when it is not in the catalogue. */
+    const Item* FindItem(const std::string& id) const;
+
+    /** @brief True when `id` exists and is owned by every account. */
+    bool IsStarter(const std::string& id) const;
+
+    /** @brief True when `swatch_id` belongs to a `starter` palette. */
+    bool IsStarterSwatch(const std::string& swatch_id) const;
+
+    /** @brief True when `swatch_id` exists in any palette. */
+    bool HasSwatch(const std::string& swatch_id) const;
+
+    /**
+     * @brief The first starter item in `slot`, or `nullptr` when the slot is
+     *        optional (or unknown).
+     */
+    const Item* SlotDefault(const std::string& slot) const;
+
+  private:
+    /** @brief `Parse` without the JSON-exception normalisation wrapper. */
+    static Catalogue ParseDoc(const nlohmann::json& doc);
+
+    std::vector<Item> items_;
+    std::vector<Palette> palettes_;
+    std::vector<std::string> featured_;
+};
+
+}  // namespace uni::avatar

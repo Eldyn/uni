@@ -14,7 +14,8 @@
 			"$components/*": ["src/lib/components/*"],
 			"$stores/*": ["src/lib/stores/*"],
 			"$utils/*": ["src/lib/utils/*"],
-			"$data/*": ["src/lib/data/*"]
+			"$data/*": ["src/lib/data/*"],
+			"$avatar/*": ["../avatar/*"]
 		}
 	},
 	"exclude": ["node_modules", "../public", "dist"]

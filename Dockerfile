@@ -80,6 +80,9 @@ COPY --from=backend  /app/build/Release/uni_server  /app/uni_server
 # Mod content is served from the image (no bind mount in prod); dev-only mods
 # were stripped in the backend stage above.
 COPY --from=backend  /app/mods                      /app/mods
+# The server loads the avatar catalogue from the working directory at start
+# (default `avatar/catalogue.json`), so it ships with the image like mods/.
+COPY --from=backend  /app/avatar/catalogue.json     /app/avatar/catalogue.json
 COPY --from=frontend /app/public                    /app/public
 
 # Mount points for the SQLite database and TLS certificates (see compose volumes).
