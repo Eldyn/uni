@@ -195,3 +195,83 @@ TEST_CASE("a_filter_must_be_a_boolean_condition") {
 }
 
 }  // TEST_SUITE
+
+TEST_SUITE("expr functions") {
+
+TEST_CASE("if_widens_its_branch_types") {
+    const CheckResult mixed = Check("if(@next.hand_size > 2, 1, 2.5)");
+    REQUIRE(mixed.diagnostics.empty());
+    CHECK(mixed.type == Type::kFloat);
+
+    CHECK(Mentions(Check("if(1, 2, 3)"), "if needs a bool condition"));
+}
+
+TEST_CASE("rounding_and_clamp_keep_the_number_kind") {
+    const CheckResult rounded = Check("floor(2.5)");
+    REQUIRE(rounded.diagnostics.empty());
+    CHECK(rounded.type == Type::kInt);
+
+    const CheckResult clamped = Check("clamp(@next.hand_size, 0, 5)");
+    REQUIRE(clamped.diagnostics.empty());
+    CHECK(clamped.type == Type::kInt);
+}
+
+TEST_CASE("set_aggregations_return_their_types") {
+    const CheckResult filtered = Check("count(@all[hand_size > 3])");
+    REQUIRE(filtered.diagnostics.empty());
+    CHECK(filtered.type == Type::kInt);
+
+    const CheckResult conditioned = Check("count(@all, hand_size > 3)");
+    REQUIRE(conditioned.diagnostics.empty());
+    CHECK(conditioned.type == Type::kInt);
+
+    CHECK(Mentions(Check("all(@all)"), "all needs a condition"));
+
+    const CheckResult summed = Check("sum(@all, hand_size)");
+    REQUIRE(summed.diagnostics.empty());
+    CHECK(summed.type == Type::kInt);
+}
+
+TEST_CASE("membership_and_tags_return_bool") {
+    const CheckResult overlap = Check("shares($played.color, @match.uni:active_color)");
+    REQUIRE(overlap.diagnostics.empty());
+    CHECK(overlap.type == Type::kBool);
+
+    const CheckResult tagged = Check("has_tag($played, 'uni:wild')");
+    REQUIRE(tagged.diagnostics.empty());
+    CHECK(tagged.type == Type::kBool);
+}
+
+TEST_CASE("defined_and_default_follow_their_arguments") {
+    const CheckResult bound = Check("defined($responder)");
+    REQUIRE(bound.diagnostics.empty());
+    CHECK(bound.type == Type::kBool);
+
+    CHECK(Mentions(Check("defined(@next)"), "defined needs a $variable"));
+
+    const CheckResult fallback = Check("default($choice, @match.uni:active_color)");
+    REQUIRE(fallback.diagnostics.empty());
+    CHECK(fallback.type == Type::kMemberSet);
+}
+
+TEST_CASE("status_magnitude_and_random_return_int") {
+    const CheckResult magnitude = Check("status_magnitude(@next, 'uni:draw_debt')");
+    REQUIRE(magnitude.diagnostics.empty());
+    CHECK(magnitude.type == Type::kInt);
+
+    const CheckResult roll = Check("random(1, 6)");
+    REQUIRE(roll.diagnostics.empty());
+    CHECK(roll.type == Type::kInt);
+
+    CHECK(Mentions(Check("random(1)"), "random takes 2 arguments, got 1"));
+}
+
+TEST_CASE("an_unknown_function_is_reported_with_a_suggestion") {
+    CHECK(Mentions(Check("frobnicate(1)"), "unknown function \"frobnicate\""));
+
+    const CheckResult near_miss = Check("rnadom(1, 2)");
+    REQUIRE_FALSE(near_miss.diagnostics.empty());
+    CHECK(near_miss.diagnostics.front().suggestion == "random");
+}
+
+}  // TEST_SUITE

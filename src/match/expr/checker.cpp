@@ -107,6 +107,73 @@ const std::vector<std::string>& SelectorNames() {
     return names;
 }
 
+// INFO: the closed function list. `maximum_arguments` is empty for the variadic
+// `min`/`max`. `all` accepts one argument so its missing condition is reported as
+// a signature error, not as a generic arity error.
+struct FunctionInfo {
+    std::string_view name;
+    size_t minimum_arguments;
+    std::optional<size_t> maximum_arguments;
+};
+
+const std::vector<FunctionInfo>& Functions() {
+    static const std::vector<FunctionInfo> functions = {
+        {"if", 3, 3},
+        {"min", 2, std::nullopt},
+        {"max", 2, std::nullopt},
+        {"clamp", 3, 3},
+        {"abs", 1, 1},
+        {"floor", 1, 1},
+        {"ceil", 1, 1},
+        {"round", 1, 1},
+        {"count", 1, 2},
+        {"any", 1, 2},
+        {"all", 1, 2},
+        {"sum", 2, 2},
+        {"contains", 2, 2},
+        {"shares", 2, 2},
+        {"has_tag", 2, 2},
+        {"defined", 1, 1},
+        {"default", 2, 2},
+        {"status_magnitude", 2, 2},
+        {"random", 2, 2},
+    };
+    return functions;
+}
+
+const FunctionInfo* FindFunction(std::string_view name) {
+    for (const FunctionInfo& function : Functions()) {
+        if (function.name == name) {
+            return &function;
+        }
+    }
+    return nullptr;
+}
+
+std::vector<std::string> FunctionNames() {
+    std::vector<std::string> names;
+    for (const FunctionInfo& function : Functions()) {
+        names.emplace_back(function.name);
+    }
+    return names;
+}
+
+std::string ArityMessage(const FunctionInfo& function, size_t arity) {
+    const size_t minimum = function.minimum_arguments;
+    const size_t maximum = function.maximum_arguments.value_or(minimum);
+    const std::string name(function.name);
+    if (minimum == maximum) {
+        return name + " takes " + std::to_string(minimum) + " arguments, got " +
+               std::to_string(arity);
+    }
+    if (!function.maximum_arguments.has_value()) {
+        return name + " takes at least " + std::to_string(minimum) + " arguments, got " +
+               std::to_string(arity);
+    }
+    return name + " takes between " + std::to_string(minimum) + " and " +
+           std::to_string(maximum) + " arguments, got " + std::to_string(arity);
+}
+
 std::vector<std::string> PropertyNames(const Schema& schema, Type entity) {
     std::vector<std::string> names;
     const std::map<std::string, Type>* properties = schema.Properties(entity);
@@ -222,11 +289,268 @@ private:
             case NodeKind::kBinary:
                 return CheckBinary(node, scope, candidate);
             case NodeKind::kCall:
-                Error("unknown function \"" + node.text + "\"");
-                return std::nullopt;
+                return CheckCall(node, scope, candidate);
         }
         Error("unsupported expression");
         return std::nullopt;
+    }
+
+    std::optional<Type> CheckCall(const Node& node, Scope scope, Type candidate) {
+        const FunctionInfo* function = FindFunction(node.text);
+        if (function == nullptr) {
+            Error("unknown function \"" + node.text + "\"",
+                  SuggestClosest(node.text, FunctionNames()));
+            return std::nullopt;
+        }
+        const size_t arity = node.children.size();
+        if (arity < function->minimum_arguments ||
+            (function->maximum_arguments.has_value() && arity > *function->maximum_arguments)) {
+            Error(ArityMessage(*function, arity));
+            return std::nullopt;
+        }
+        return CheckCallSignature(*function, node, scope, candidate);
+    }
+
+    std::optional<Type> CheckCallSignature(const FunctionInfo& function, const Node& node,
+                                           Scope scope, Type candidate) {
+        const std::string& name = node.text;
+        if (name == "if") {
+            const std::optional<Type> condition = Check(*node.children[0], scope, candidate);
+            if (!condition) {
+                return std::nullopt;
+            }
+            if (*condition != Type::kBool) {
+                Error("if needs a bool condition");
+                return std::nullopt;
+            }
+            const std::optional<Type> then_type = Check(*node.children[1], scope, candidate);
+            if (!then_type) {
+                return std::nullopt;
+            }
+            const std::optional<Type> else_type = Check(*node.children[2], scope, candidate);
+            if (!else_type) {
+                return std::nullopt;
+            }
+            if (IsNumber(*then_type) && IsNumber(*else_type)) {
+                return Widen(*then_type, *else_type);
+            }
+            if (*then_type == *else_type) {
+                return then_type;
+            }
+            Error("if needs matching branch types");
+            return std::nullopt;
+        }
+        if (name == "min" || name == "max" || name == "clamp" || name == "abs") {
+            return CheckNumericArguments(node, scope, candidate);
+        }
+        if (name == "floor" || name == "ceil" || name == "round") {
+            return CheckRounding(node, scope, candidate);
+        }
+        if (name == "count" || name == "any" || name == "all" || name == "sum") {
+            return CheckSetCall(node, scope, candidate);
+        }
+        if (name == "contains") {
+            return CheckContains(node, scope, candidate);
+        }
+        if (name == "shares") {
+            return CheckShares(node, scope, candidate);
+        }
+        if (name == "has_tag") {
+            return CheckHasTag(node, scope, candidate);
+        }
+        if (name == "defined") {
+            if (node.children[0]->kind != NodeKind::kVariable) {
+                Error("defined needs a $variable");
+                return std::nullopt;
+            }
+            if (!Check(*node.children[0], scope, candidate)) {
+                return std::nullopt;
+            }
+            return Type::kBool;
+        }
+        if (name == "default") {
+            if (node.children[0]->kind != NodeKind::kVariable) {
+                Error("default needs a $variable");
+                return std::nullopt;
+            }
+            if (!Check(*node.children[0], scope, candidate)) {
+                return std::nullopt;
+            }
+            return Check(*node.children[1], scope, candidate);
+        }
+        if (name == "status_magnitude") {
+            const std::optional<Type> seat = Check(*node.children[0], scope, candidate);
+            if (!seat) {
+                return std::nullopt;
+            }
+            if (*seat != Type::kSeat) {
+                Error("status_magnitude needs a seat");
+                return std::nullopt;
+            }
+            const std::optional<Type> status = Check(*node.children[1], scope, candidate);
+            if (!status) {
+                return std::nullopt;
+            }
+            if (*status != Type::kString) {
+                Error("status_magnitude needs a string status");
+                return std::nullopt;
+            }
+            return Type::kInt;
+        }
+        if (name == "random") {
+            return CheckIntegerArguments(node, scope, candidate);
+        }
+        return std::nullopt;
+    }
+
+    std::optional<Type> CheckNumericArguments(const Node& node, Scope scope, Type candidate) {
+        Type result = Type::kInt;
+        for (const NodePtr& child : node.children) {
+            const std::optional<Type> type = Check(*child, scope, candidate);
+            if (!type) {
+                return std::nullopt;
+            }
+            if (!IsNumber(*type)) {
+                Error(node.text + " needs numbers");
+                return std::nullopt;
+            }
+            result = Widen(result, *type);
+        }
+        return result;
+    }
+
+    std::optional<Type> CheckRounding(const Node& node, Scope scope, Type candidate) {
+        const std::optional<Type> type = Check(*node.children[0], scope, candidate);
+        if (!type) {
+            return std::nullopt;
+        }
+        if (!IsNumber(*type)) {
+            Error(node.text + " needs a number");
+            return std::nullopt;
+        }
+        return Type::kInt;
+    }
+
+    std::optional<Type> CheckIntegerArguments(const Node& node, Scope scope, Type candidate) {
+        for (const NodePtr& child : node.children) {
+            const std::optional<Type> type = Check(*child, scope, candidate);
+            if (!type) {
+                return std::nullopt;
+            }
+            if (*type != Type::kInt) {
+                Error(node.text + " needs ints");
+                return std::nullopt;
+            }
+        }
+        return Type::kInt;
+    }
+
+    // INFO: a set call shares its first argument, the set, and a condition that
+    // runs per candidate; the candidate is the entity the set holds.
+    std::optional<Type> CheckSetCall(const Node& node, Scope scope, Type candidate) {
+        const std::string& name = node.text;
+        const std::optional<Type> set_type = Check(*node.children[0], scope, candidate);
+        if (!set_type) {
+            return std::nullopt;
+        }
+        if (!IsSet(*set_type)) {
+            Error(name + " needs a set");
+            return std::nullopt;
+        }
+        const Type entity = EntityOf(*set_type);
+        if (name == "count" || name == "any") {
+            if (!CheckOptionalCondition(node, 1, entity)) {
+                return std::nullopt;
+            }
+            return name == "count" ? Type::kInt : Type::kBool;
+        }
+        if (name == "all") {
+            if (node.children.size() < 2) {
+                Error("all needs a condition");
+                return std::nullopt;
+            }
+            if (!CheckCondition(*node.children[1], entity)) {
+                return std::nullopt;
+            }
+            return Type::kBool;
+        }
+        if (name == "sum") {
+            // INFO: the value expression is checked in the candidate scope so a
+            // bare name reads the candidate's property.
+            const std::optional<Type> value = Check(*node.children[1], Scope::kCandidate, entity);
+            if (!value) {
+                return std::nullopt;
+            }
+            if (!IsNumber(*value)) {
+                Error("sum needs a number expression");
+                return std::nullopt;
+            }
+            return value;
+        }
+        return std::nullopt;
+    }
+
+    bool CheckOptionalCondition(const Node& node, size_t index, Type entity) {
+        if (node.children.size() <= index) {
+            return true;
+        }
+        return CheckCondition(*node.children[index], entity).has_value();
+    }
+
+    std::optional<Type> CheckContains(const Node& node, Scope scope, Type candidate) {
+        const std::optional<Type> set_type = Check(*node.children[0], scope, candidate);
+        if (!set_type) {
+            return std::nullopt;
+        }
+        if (!IsSet(*set_type)) {
+            Error("contains needs a set");
+            return std::nullopt;
+        }
+        const Type member_type =
+            *set_type == Type::kMemberSet ? Type::kMemberSet : EntityOf(*set_type);
+        const std::optional<Type> member = Check(*node.children[1], scope, candidate);
+        if (!member) {
+            return std::nullopt;
+        }
+        if (*member != member_type) {
+            Error("contains needs a " + TypeName(member_type) + " for a " + TypeName(*set_type));
+            return std::nullopt;
+        }
+        return Type::kBool;
+    }
+
+    std::optional<Type> CheckShares(const Node& node, Scope scope, Type candidate) {
+        for (const NodePtr& child : node.children) {
+            const std::optional<Type> type = Check(*child, scope, candidate);
+            if (!type) {
+                return std::nullopt;
+            }
+            if (*type != Type::kMemberSet) {
+                Error("shares needs member sets");
+                return std::nullopt;
+            }
+        }
+        return Type::kBool;
+    }
+
+    std::optional<Type> CheckHasTag(const Node& node, Scope scope, Type candidate) {
+        const std::optional<Type> target = Check(*node.children[0], scope, candidate);
+        if (!target) {
+            return std::nullopt;
+        }
+        if (*target != Type::kCard && *target != Type::kRule) {
+            Error("has_tag needs a card or a rule");
+            return std::nullopt;
+        }
+        const std::optional<Type> tag = Check(*node.children[1], scope, candidate);
+        if (!tag) {
+            return std::nullopt;
+        }
+        if (*tag != Type::kString) {
+            Error("has_tag needs a string tag");
+            return std::nullopt;
+        }
+        return Type::kBool;
     }
 
     std::optional<Type> CheckSelector(const Node& node) {
