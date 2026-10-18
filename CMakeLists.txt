@@ -278,6 +278,7 @@ if(UNI_BUILD_TESTS)
         src/controllers/auth_controller.cpp
         src/controllers/password_reset_controller.cpp
         src/controllers/stats_controller.cpp
+        src/controllers/avatar_controller.cpp
         src/controllers/friend_controller.cpp
         src/controllers/chat_controller.cpp
         src/services/auth_service.cpp
