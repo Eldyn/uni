@@ -14,7 +14,6 @@
 	import Divisor from "$components/common/Divisor.svelte";
 	import PixelCheckbox from "$components/common/PixelCheckbox.svelte";
 	import Listbox from "$components/common/Listbox.svelte";
-	import FormInput from "$components/common/FormInput.svelte";
 
 	const settings = $derived((storeLobby.current?.settings ?? {}) as Record<string, unknown>);
 	const isCreative = $derived(settings["creative"] === true);
@@ -328,21 +327,33 @@
 									</Listbox>
 								</div>
 							{:else if row.type === "answer"}
-								<FormInput
-									id={`director-intent-${row.id}-prompt-kind`}
-									label={m.director_intent_prompt_kind(
-										{ index: i + 1 },
-										{ locale: storeI18n.locale }
-									)}
-									value={row.prompt_kind}
-									oninput={(e) => setIntentField(i, "prompt_kind", e.currentTarget.value)}
-								/>
-								<FormInput
-									id={`director-intent-${row.id}-value`}
-									label={m.director_intent_value({ index: i + 1 }, { locale: storeI18n.locale })}
-									value={row.value}
-									oninput={(e) => setIntentField(i, "value", e.currentTarget.value)}
-								/>
+								<div class="director-field">
+									<label
+										class="director-field__label"
+										for={`director-intent-${row.id}-prompt-kind`}
+									>
+										{m.director_intent_prompt_kind({ index: i + 1 }, { locale: storeI18n.locale })}
+									</label>
+									<input
+										id={`director-intent-${row.id}-prompt-kind`}
+										class="input-pixel"
+										type="text"
+										value={row.prompt_kind}
+										oninput={(e) => setIntentField(i, "prompt_kind", e.currentTarget.value)}
+									/>
+								</div>
+								<div class="director-field">
+									<label class="director-field__label" for={`director-intent-${row.id}-value`}>
+										{m.director_intent_value({ index: i + 1 }, { locale: storeI18n.locale })}
+									</label>
+									<input
+										id={`director-intent-${row.id}-value`}
+										class="input-pixel"
+										type="text"
+										value={row.value}
+										oninput={(e) => setIntentField(i, "value", e.currentTarget.value)}
+									/>
+								</div>
 							{/if}
 						</div>
 					{/each}
@@ -359,13 +370,19 @@
 
 				<section class="director-section">
 					<Divisor text={m.director_section_stack({}, { locale: storeI18n.locale })} />
-					<FormInput
-						id="director-stack-kinds"
-						label={m.director_stack_kinds({}, { locale: storeI18n.locale })}
-						value={stackKinds}
-						placeholder={m.director_stack_placeholder({}, { locale: storeI18n.locale })}
-						oninput={(e) => (stackKinds = e.currentTarget.value)}
-					/>
+					<div class="director-field">
+						<label class="director-field__label" for="director-stack-kinds">
+							{m.director_stack_kinds({}, { locale: storeI18n.locale })}
+						</label>
+						<input
+							id="director-stack-kinds"
+							class="input-pixel"
+							type="text"
+							value={stackKinds}
+							placeholder={m.director_stack_placeholder({}, { locale: storeI18n.locale })}
+							oninput={(e) => (stackKinds = e.currentTarget.value)}
+						/>
+					</div>
 					<div class="director-actions">
 						<button type="button" class="pixel-bordered d-btn d-btn--primary" onclick={stackPile}>
 							{m.director_stack_draw_pile({}, { locale: storeI18n.locale })}
@@ -376,9 +393,13 @@
 				<section class="director-section">
 					<Divisor text={m.director_section_seat({}, { locale: storeI18n.locale })} />
 					<div class="director-field">
-						<FormInput
+						<label class="director-field__label" for="director-rename-to">
+							{m.director_rename_to({}, { locale: storeI18n.locale })}
+						</label>
+						<input
 							id="director-rename-to"
-							label={m.director_rename_to({}, { locale: storeI18n.locale })}
+							class="input-pixel"
+							type="text"
 							value={renameTo}
 							oninput={(e) => (renameTo = e.currentTarget.value)}
 						/>
@@ -445,12 +466,18 @@
 
 				<section class="director-section">
 					<Divisor text={m.director_section_scene({}, { locale: storeI18n.locale })} />
-					<FormInput
-						id="director-scene-name"
-						label={m.director_scene_name({}, { locale: storeI18n.locale })}
-						value={sceneName}
-						oninput={(e) => (sceneName = e.currentTarget.value)}
-					/>
+					<div class="director-field">
+						<label class="director-field__label" for="director-scene-name">
+							{m.director_scene_name({}, { locale: storeI18n.locale })}
+						</label>
+						<input
+							id="director-scene-name"
+							class="input-pixel"
+							type="text"
+							value={sceneName}
+							oninput={(e) => (sceneName = e.currentTarget.value)}
+						/>
+					</div>
 					<div class="director-actions">
 						<button type="button" class="pixel-bordered d-btn d-btn--primary" onclick={loadScene}>
 							{m.director_load_scene({}, { locale: storeI18n.locale })}
@@ -482,10 +509,23 @@
 	   calc()/min() on a computed longhand and trips over them otherwise. */
 	.director-panel {
 		--director-panel-inset: 8px;
+		/* The in-game chat launcher is fixed 1rem from the viewport's top-right
+		   and 48px tall. Start the panel below it (plus one gap step) so the
+		   launcher can never cover the header, at any width. */
+		--director-panel-launcher-clearance: calc(1rem + 48px + var(--space-2));
+		--director-panel-top: var(--director-panel-launcher-clearance);
 		--director-panel-width: min(320px, calc(100vw - 16px));
-		--director-panel-max-height: calc(100dvh - 16px);
+		--director-panel-max-height: calc(
+			100dvh - var(--director-panel-top) - var(--director-panel-inset)
+		);
+		/* One spacing scale for the whole panel: outer gutter, the rhythm
+		   between sections, the rhythm inside a section, and label/control. */
+		--director-gutter: var(--space-3);
+		--director-section-gap: var(--space-4);
+		--director-block-gap: var(--space-3);
+		--director-field-gap: var(--space-2);
 		position: absolute;
-		top: var(--director-panel-inset);
+		top: var(--director-panel-top);
 		right: var(--director-panel-inset);
 		z-index: 50;
 		display: flex;
@@ -501,8 +541,8 @@
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		gap: var(--space-2);
-		padding: var(--space-2) var(--space-3);
+		gap: var(--director-field-gap);
+		padding: var(--space-2) var(--director-gutter);
 		border-bottom: 2px solid var(--border);
 	}
 
@@ -535,42 +575,44 @@
 	.director-body {
 		display: flex;
 		flex-direction: column;
-		gap: var(--space-4);
+		gap: var(--director-section-gap);
 		min-height: 0;
-		padding: var(--space-3);
+		padding: var(--director-gutter);
 		overflow-y: auto;
+		scrollbar-gutter: stable;
 	}
 
 	.director-section {
 		display: flex;
 		flex-direction: column;
-		gap: var(--space-3);
+		gap: var(--director-block-gap);
 	}
 
 	.director-controls {
 		display: flex;
 		flex-direction: column;
-		gap: var(--space-2);
+		gap: var(--director-field-gap);
 	}
 
 	.director-field {
 		display: flex;
 		flex-direction: column;
-		gap: var(--space-2);
+		gap: var(--director-field-gap);
 	}
 
 	.director-field__label {
 		font-family: var(--tiny);
 		font-size: 13px;
 		font-weight: 500;
+		line-height: 1.2;
 		color: var(--text-h);
 	}
 
 	.director-intent {
 		display: flex;
 		flex-direction: column;
-		gap: var(--space-2);
-		padding: var(--space-2);
+		gap: var(--director-field-gap);
+		padding: var(--director-field-gap);
 		border: 2px solid var(--border);
 		background: var(--bg);
 	}
@@ -579,7 +621,7 @@
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		gap: var(--space-2);
+		gap: var(--director-field-gap);
 	}
 
 	.director-intent__title {
@@ -592,7 +634,7 @@
 	.director-actions {
 		display: flex;
 		flex-wrap: wrap;
-		gap: var(--space-2);
+		gap: var(--director-field-gap);
 	}
 
 	/* Small pixel-bordered action button. Colour variants only override the
