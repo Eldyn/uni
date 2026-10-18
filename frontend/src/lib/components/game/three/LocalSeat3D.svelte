@@ -9,7 +9,8 @@
 	import { LOCAL_AVATAR_WORLD } from "../layout/boardPlacement";
 	import { onDestroy, untrack } from "svelte";
 	import { gsap } from "gsap";
-	import { loadSilhouette, loadTexture } from "./textures";
+	import { FRAME_COUNT, FRAME_MS } from "$lib/avatar/types";
+	import { loadAvatarTexture } from "./avatarTexture";
 	import { turnRimTexture } from "./turnRimTexture";
 	import { storeAnimation } from "$stores/animation.svelte";
 	import { storeAudio } from "$stores/audio.svelte";
@@ -41,8 +42,7 @@
 
 	// Sits below cards (y >= 0) and above playmat/arrows (y <= -0.01)
 	const AVATAR_Y = -0.005;
-	const FRAME_COUNT = 5;
-	const FRAME_DURATION = 0.12;
+	const FRAME_DURATION = FRAME_MS / 1000;
 	// 96 / 68 ratio matches AVATAR_SPRITE_FILL so the figure is LOCAL_AVATAR_WORLD tall
 	const AVATAR_MESH_SIZE = LOCAL_AVATAR_WORLD * (96 / 68);
 
@@ -68,17 +68,23 @@
 
 	$effect(() => {
 		let cancelled = false;
-		const pending = isBot
-			? loadTexture("/assets/bot_animated_strip.png")
-			: loadSilhouette("/assets/base_player_strip.png");
-		pending.then((t) => {
-			if (cancelled) return;
-			const tex = t.clone();
-			tex.repeat.set(1 / FRAME_COUNT, 1);
-			tex.offset.x = 0;
-			tex.needsUpdate = true;
-			avatarTexture = tex;
-		});
+		const bot = isBot;
+		// A spectator's POV can be a bot, which has its own full-colour sheet;
+		// every human strip is baked from the loadout.
+		loadAvatarTexture(player.loadout, bot)
+			.then((texture) => {
+				if (cancelled) {
+					texture.dispose();
+					return;
+				}
+				// Swap in the new strip and retire the one it replaces, so a
+				// loadout change never leaks a CanvasTexture.
+				avatarTexture?.dispose();
+				avatarTexture = texture;
+			})
+			.catch(() => {
+				// WARN: a failed load keeps the previous strip (or none).
+			});
 		return () => {
 			cancelled = true;
 		};
@@ -97,11 +103,7 @@
 	const DANGER_COLOR = new Color("#ff4a3a");
 	let baseColor = $derived(isBot ? new Color("#ffffff") : new Color(color));
 	let effectiveColor = $derived(
-		isDebtTarget
-			? DANGER_COLOR
-			: dimmed
-				? baseColor.clone().multiplyScalar(0.45)
-				: baseColor
+		isDebtTarget ? DANGER_COLOR : dimmed ? baseColor.clone().multiplyScalar(0.45) : baseColor
 	);
 
 	// Skip mark: the local player can lose a turn too (any seat can be skipped).
@@ -112,9 +114,7 @@
 		LOCAL_AVATAR_WORLD * 0.7,
 		placement.localAvatarZ
 	]);
-	let steadyOpacity = $derived(
-		isDebtTarget ? 0.75 : isTurn ? TURN_STEADY_OPACITY : 0
-	);
+	let steadyOpacity = $derived(isDebtTarget ? 0.75 : isTurn ? TURN_STEADY_OPACITY : 0);
 
 	$effect(() => {
 		const token = storeTurnCue.token;
@@ -166,6 +166,7 @@
 	});
 
 	onDestroy(() => {
+		avatarTexture?.dispose();
 		pulseTween?.kill();
 		pulseTween = null;
 	});

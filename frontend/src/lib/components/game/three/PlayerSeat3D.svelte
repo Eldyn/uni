@@ -41,7 +41,8 @@
 	import { storeTurnSkip } from "$stores/turnSkip.svelte";
 	import type { HandMorph } from "$stores/tableSpin.svelte";
 	import { gsap } from "gsap";
-	import { loadSilhouette, loadTexture } from "./textures";
+	import { FRAME_COUNT, FRAME_MS } from "$lib/avatar/types";
+	import { loadAvatarTexture } from "./avatarTexture";
 	import {
 		computeSeatLabelLayout,
 		drawSeatLabel,
@@ -125,8 +126,7 @@
 	// The strip/GIF frame is 96px but the figure only fills 68px of it; scaling
 	// the sprite by frame/figure keeps the drawn figure `avatarWorld` tall.
 	const AVATAR_FRAME_RATIO = 96 / 68;
-	const FRAME_COUNT = 5;
-	const FRAME_DURATION = 0.12;
+	const FRAME_DURATION = FRAME_MS / 1000;
 	const DIM_FACTOR = 0.45;
 	const WHITE = new Color("#ffffff");
 	const TARGET_HIGHLIGHT = new Color("#ffffff");
@@ -230,22 +230,23 @@
 	$effect(() => {
 		let cancelled = false;
 		const bot = isBot;
-		const pending = bot
-			? loadTexture("/assets/bot_animated_strip.png")
-			: loadSilhouette("/assets/base_player_strip.png");
-		pending.then((source) => {
-			if (cancelled) return;
-			// Clone so each seat steps its own frame offset independently of the
-			// shared texture cache (and of every other seat).
-			const texture = source.clone();
-			// Both strips are horizontal 5-frame sheets; the bot sheet carries
-			// the bot's own colours (tinted white below), the player sheet is a
-			// silhouette multiplied by the seat colour.
-			texture.repeat.set(1 / FRAME_COUNT, 1);
-			texture.offset.x = 0;
-			texture.needsUpdate = true;
-			avatarTexture = texture;
-		});
+		const loadout = player.loadout;
+		// The bot sheet carries the bot's own colours (tinted white below);
+		// every human strip is baked from the loadout.
+		loadAvatarTexture(loadout, bot)
+			.then((texture) => {
+				if (cancelled) {
+					texture.dispose();
+					return;
+				}
+				// Swap in the new strip and retire the one it replaces, so a
+				// loadout change never leaks a CanvasTexture.
+				avatarTexture?.dispose();
+				avatarTexture = texture;
+			})
+			.catch(() => {
+				// WARN: a failed load keeps the previous strip (or none).
+			});
 		return () => {
 			cancelled = true;
 		};
@@ -281,9 +282,10 @@
 		// Targetable seats pulse 1→1.05 once per 1.5s, the mesh equivalent of
 		// the old CSS @keyframes pulseTarget.
 		pulsePhase = (pulsePhase + delta) % 1.5;
-		pulseScale = isValidTarget || isDebtTarget
-			? 1 + (isDebtTarget ? 0.04 : 0.025) * (1 - Math.cos((pulsePhase / 1.5) * 2 * Math.PI))
-			: 1;
+		pulseScale =
+			isValidTarget || isDebtTarget
+				? 1 + (isDebtTarget ? 0.04 : 0.025) * (1 - Math.cos((pulsePhase / 1.5) * 2 * Math.PI))
+				: 1;
 
 		if (targetHighlightActive) {
 			highlightPhase = (highlightPhase + delta) % TARGET_HIGHLIGHT_PERIOD_S;
@@ -493,6 +495,7 @@
 	});
 
 	onDestroy(() => {
+		avatarTexture?.dispose();
 		for (const tween of displacementTweens.values()) {
 			tween.kill();
 		}
