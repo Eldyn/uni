@@ -52,7 +52,7 @@ describe("LobbySettings creative bindings", () => {
 	it("offers Creative in the game mode picker and commits the pair", async () => {
 		render(LobbySettings);
 		await fireEvent.click(screen.getByRole("button", { name: /Game Mode/ }));
-		await fireEvent.click(screen.getByRole("option", { name: "Creative director mode" }));
+		await fireEvent.click(screen.getByRole("option", { name: "Creative" }));
 		expect(updateSettings).toHaveBeenCalledWith({ mode: "standard", creative: true });
 	});
 

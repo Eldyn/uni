@@ -195,9 +195,8 @@
 					},
 					{
 						value: "creative",
-						label: "Creative director mode",
-						description:
-							"Standard rules with host controls for clips. Forces unranked, no stats."
+						label: m.lobby_mode_creative({}, { locale: storeI18n.locale }),
+						description: m.lobby_mode_creative_desc({}, { locale: storeI18n.locale })
 					}
 				]}
 				oncommit={(v) => {
