@@ -2349,4 +2349,62 @@ TEST_CASE("game snapshot players carry the loadout") {
     CleanupUsers({alice, bob});
 }
 
+TEST_CASE("saving a loadout broadcasts loadout_changed to the room of the user") {
+    LobbyFixture f;
+    const std::string code = f.alice_creates();
+    f.bob_joins(code);
+    const json loadout = StoredLoadout("basic:red");
+
+    f.lobby.BroadcastLoadoutChanged("alice", loadout);
+
+    REQUIRE(f.bus.published.size() == 1);
+    CHECK(f.bus.published.back().first == "lobby_" + code);
+    const json payload = json::parse(f.bus.published.back().second);
+    CHECK(payload.value("action", std::string()) == "loadout_changed");
+    CHECK(payload.value("username", std::string()) == "alice");
+    REQUIRE(payload.contains("loadout"));
+    CHECK(payload["loadout"] == loadout);
+}
+
+TEST_CASE("no loadout_changed broadcast when the user is in no room") {
+    LobbyFixture f;
+
+    f.lobby.BroadcastLoadoutChanged("alice", StoredLoadout("basic:red"));
+
+    CHECK(f.bus.published.empty());
+}
+
+TEST_CASE("loadout_changed updates the member's stored loadout") {
+    LobbyFixture f;
+    const std::string code = f.alice_creates();
+    const json loadout = StoredLoadout("basic:blue");
+
+    f.lobby.BroadcastLoadoutChanged("alice", loadout);
+
+    Lobby* lobby = f.lobby.GetLobbyByCode(code);
+    REQUIRE(lobby != nullptr);
+    LobbyMember* member = lobby->FindMember("alice");
+    REQUIRE(member != nullptr);
+    CHECK(member->loadout == loadout);
+}
+
+TEST_CASE("loadout_changed reaches no room other than the user's") {
+    LobbyFixture f;
+    const std::string alice_code = f.alice_creates();
+
+    // A second, independent room owned by bob.
+    f.router.Dispatch(f.bctx(), create_msg(false, "req-bob"));
+    const json bob_resp =
+        json::parse(f.bus.FramesFor(f.bob_sock).back().payload);
+    const std::string bob_code =
+        bob_resp["lobby"]["invite_code"].get<std::string>();
+    f.bus.Clear();
+
+    f.lobby.BroadcastLoadoutChanged("alice", StoredLoadout("basic:red"));
+
+    REQUIRE(f.bus.published.size() == 1);
+    CHECK(f.bus.published.back().first == "lobby_" + alice_code);
+    CHECK(f.bus.published.back().first != "lobby_" + bob_code);
+}
+
 }  // TEST_SUITE("LobbyController::AvatarLoadouts")

@@ -32,6 +32,7 @@ channels:
           - $ref: "#/components/messages/LobbyList"
           - $ref: "#/components/messages/LobbyJoined"
           - $ref: "#/components/messages/LobbyUpdated"
+          - $ref: "#/components/messages/LoadoutChanged"
           - $ref: "#/components/messages/LobbyLeft"
           - $ref: "#/components/messages/LobbyEvicted"
           - $ref: "#/components/messages/MatchStateUpdated"
@@ -305,6 +306,23 @@ components:
           lobby:
             type: object
             description: Full lobby state.
+
+    LoadoutChanged:
+      name: loadout_changed
+      title: Loadout Changed Broadcast
+      payload:
+        type: object
+        required: [action, username, loadout]
+        properties:
+          action:
+            type: string
+            enum: ["loadout_changed"]
+          username:
+            type: string
+            description: Account whose equipped loadout changed.
+          loadout:
+            type: object
+            description: The saved loadout of the user.
 
     LobbyLeft:
       name: lobby_left

@@ -1919,6 +1919,23 @@ void LobbyController::BroadcastUpdate(const Lobby& lobby) const {
     broadcaster_.Publish("lobby_" + lobby.invite_code, notification.dump(), uWS::OpCode::TEXT);
 }
 
+void LobbyController::BroadcastLoadoutChanged(const std::string& username,
+                                              const nlohmann::json& loadout) {
+    Lobby* lobby = FindLobbyForUser(username);
+    if (lobby == nullptr) return;
+
+    LobbyMember* member = lobby->FindMember(username);
+    if (member == nullptr) return;
+    member->loadout = loadout;
+
+    auto notification = MakeResponse(ws::ServerAction::kLoadoutChanged);
+    notification["username"] = username;
+    notification["loadout"] = loadout;
+
+    broadcaster_.Publish("lobby_" + lobby->invite_code, notification.dump(),
+                         uWS::OpCode::TEXT);
+}
+
 /**
  * @brief Removes an active member and handles hot-swapping logic or graceful database saving.
  * @param lobby_id Unique internal numerical tracker identifying the instance folder.

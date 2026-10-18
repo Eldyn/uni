@@ -242,6 +242,18 @@ public:
         const std::vector<match::modload::LoadedMod>& mods,
         const std::string& deck_id);
 
+    /**
+     * @brief Publishes `loadout_changed` to the room of `username`.
+     *
+     * Updates the member's stored loadout and sends the event to that room
+     * only. Does nothing when the user is in no room. Bound to the avatar
+     * controller's `on_saved` hook so a save reaches the user's peers.
+     * @param username Account whose loadout changed.
+     * @param loadout The validated loadout just saved.
+     */
+    void BroadcastLoadoutChanged(const std::string& username,
+                                 const nlohmann::json& loadout);
+
 private:
     /** Mods scan plus asset index shared by the public HTTP routes. */
     struct ModsSnapshot {
