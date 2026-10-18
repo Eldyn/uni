@@ -1,7 +1,10 @@
 <script lang="ts">
 	import { storeNavigation, pathForScreen } from "$stores/navigation.svelte";
 	import type { AppScreen } from "$stores/navigation.svelte";
+	import { storeMenu } from "$stores/menu.svelte";
 	import { acceleratorKey } from "$lib/actions/keyboardAccelerators";
+	import { clickOutside } from "$components/common/actions/clickOutside";
+	import MenuGrid from "./MenuGrid.svelte";
 	import { storeI18n } from "$stores/i18n.svelte";
 	import * as m from "$lib/paraglide/messages.js";
 
@@ -50,9 +53,16 @@
 		storeNavigation.goto(screen);
 	}
 
-	function openMenu(event: MouseEvent) {
-		event.preventDefault();
-		storeNavigation.goto("settings");
+	function toggleMenu() {
+		storeMenu.toggle();
+	}
+
+	let menuButton = $state<HTMLButtonElement>();
+
+	function handleMenuKeydown(event: KeyboardEvent) {
+		if (event.key !== "Escape") return;
+		storeMenu.close();
+		menuButton?.focus();
 	}
 
 	const COLLAPSE_STORAGE_KEY = "uni:navbar-collapsed";
@@ -104,19 +114,37 @@
 			<span class="shell-navbar-key" aria-hidden="true">{dest.key}</span>
 		</a>
 	{/each}
-	<a
-		href={pathForScreen("settings")}
-		class="shell-navbar-item"
-		style="--nav-item-color: var(--accent)"
-		aria-current={storeNavigation.current === "settings" ? "page" : undefined}
-		aria-keyshortcuts={acceleratorKey("menu")}
-		title={collapsed ? m.nav_menu({}, { locale: storeI18n.locale }) : undefined}
-		onclick={openMenu}
+	<!-- svelte-ignore a11y_no_static_element_interactions -- wrapper only
+	     anchors the popover and catches Escape bubbling from the grid. -->
+	<div
+		class="shell-navbar-menu"
+		use:clickOutside={() => storeMenu.close()}
+		onkeydown={handleMenuKeydown}
 	>
-		<i class="pia pixelart-icons-font-menu text-xl leading-none" aria-hidden="true"></i>
-		<span class="shell-navbar-label">{m.nav_menu({}, { locale: storeI18n.locale })}</span>
-		<span class="shell-navbar-key" aria-hidden="true">{acceleratorKey("menu")}</span>
-	</a>
+		<button
+			type="button"
+			bind:this={menuButton}
+			class="shell-navbar-item"
+			style="--nav-item-color: var(--accent)"
+			aria-current={storeNavigation.current === "settings" || storeNavigation.current === "stats"
+				? "page"
+				: undefined}
+			aria-haspopup="menu"
+			aria-expanded={storeMenu.isOpen}
+			aria-keyshortcuts={acceleratorKey("menu")}
+			title={collapsed ? m.nav_menu({}, { locale: storeI18n.locale }) : undefined}
+			onclick={toggleMenu}
+		>
+			<i class="pia pixelart-icons-font-menu text-xl leading-none" aria-hidden="true"></i>
+			<span class="shell-navbar-label">{m.nav_menu({}, { locale: storeI18n.locale })}</span>
+			<span class="shell-navbar-key" aria-hidden="true">{acceleratorKey("menu")}</span>
+		</button>
+		{#if storeMenu.isOpen}
+			<div class="menu-grid-popover">
+				<MenuGrid />
+			</div>
+		{/if}
+	</div>
 
 	<!-- Rail-only footer: dead-centered at the sidebar's own bottom edge (see
 	     .shell-navbar-version below), replacing the old viewport-fixed badge
@@ -146,6 +174,32 @@
 		background: var(--bg);
 		border-top: 2px solid var(--border);
 	}
+	.shell-navbar-menu {
+		position: relative;
+		display: flex;
+		flex: 1;
+	}
+	.shell-navbar-menu > .shell-navbar-item {
+		flex: 1;
+		background: transparent;
+		border: none;
+		cursor: pointer;
+	}
+	/* Sheet layout (bottom bar): full-width sheet above the bar. The offset
+	   lives in a custom property so jsdom, which cannot resolve calc() with
+	   var() inside one, still computes the shorthand cleanly. */
+	.menu-grid-popover {
+		--menu-sheet-bottom: calc(var(--navbar-height, 56px) + var(--space-2));
+		position: fixed;
+		left: var(--space-2);
+		right: var(--space-2);
+		bottom: var(--menu-sheet-bottom);
+		z-index: 100;
+		padding: var(--space-3);
+		background: var(--bg);
+		border: 2px solid var(--border);
+	}
+
 	.shell-navbar-item {
 		flex: 1;
 		display: flex;
@@ -219,6 +273,21 @@
 			gap: var(--space-3);
 			justify-content: flex-start;
 			padding: var(--space-3) var(--space-4);
+		}
+		.shell-navbar-menu {
+			flex: none;
+			width: 100%;
+		}
+		/* Popover layout (rail): anchored to the right of the Menu item,
+		   bottom-aligned with it. About three tiles wide. */
+		.menu-grid-popover {
+			position: absolute;
+			left: 100%;
+			right: auto;
+			bottom: 0;
+			margin-left: var(--space-2);
+			/* About three 96px tiles plus their gaps and this box's chrome. */
+			width: 20rem;
 		}
 		.shell-navbar-item[aria-current="page"]::after {
 			inset: var(--space-2) auto var(--space-2) 0;
