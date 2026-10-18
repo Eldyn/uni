@@ -135,6 +135,7 @@ list(FILTER SOURCES EXCLUDE REGEX "src/match/expr/")
 file(GLOB UNI_EXPR_SOURCES CONFIGURE_DEPENDS "src/match/expr/*.cpp")
 add_library(uni_expr STATIC ${UNI_EXPR_SOURCES})
 target_include_directories(uni_expr PRIVATE include src "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(uni_expr PUBLIC nlohmann_json::nlohmann_json)
 add_executable(uni_server ${SOURCES})
 
 # --- Fix for Winsock conflicts on Windows ---
