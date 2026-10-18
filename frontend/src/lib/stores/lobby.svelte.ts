@@ -74,7 +74,7 @@ export interface LobbySettings {
 	count_wild_draw_four: number;
 	/** Game mode: standard or race. */
 	mode?: "standard" | "race";
-	/** Creative director mode. Forces unranked, no stats. */
+	/** Creative mode. Forces unranked, no stats. */
 	creative?: boolean;
 	/** Dev-only Creative scene file applied at match start. */
 	scene?: string;

@@ -8,11 +8,14 @@
 	} from "$stores/director.svelte";
 	import { storeGame } from "$stores/game.svelte";
 	import { storeLobby } from "$stores/lobby.svelte";
+	import { storeI18n } from "$stores/i18n.svelte";
+	import * as m from "$lib/paraglide/messages.js";
 	import type { Card } from "$stores/game.svelte";
+	import Divisor from "$components/common/Divisor.svelte";
+	import PixelCheckbox from "$components/common/PixelCheckbox.svelte";
+	import Listbox from "$components/common/Listbox.svelte";
 
-	const settings = $derived(
-		(storeLobby.current?.settings ?? {}) as Record<string, unknown>
-	);
+	const settings = $derived((storeLobby.current?.settings ?? {}) as Record<string, unknown>);
 	const isCreative = $derived(settings["creative"] === true);
 	const players = $derived(storeGame.state?.players ?? []);
 	const seatNames = $derived(players.map((p) => p.username));
@@ -30,12 +33,43 @@
 		value: string;
 	}
 	let nextIntentId = $state(1);
-	let intents = $state<IntentRow[]>([{ id: 0, type: "play", bits: "", prompt_kind: "", value: "" }]);
+	let intents = $state<IntentRow[]>([
+		{ id: 0, type: "play", bits: "", prompt_kind: "", value: "" }
+	]);
+
+	let collapsed = $state(false);
+
+	const INTENT_TYPES: IntentType[] = ["play", "answer", "draw", "pass"];
+	const FLIP_TARGETS = ["bot", "human"] as const;
+
+	function intentTypeLabel(type: IntentType): string {
+		switch (type) {
+			case "play":
+				return m.director_intent_play({}, { locale: storeI18n.locale });
+			case "answer":
+				return m.director_intent_answer({}, { locale: storeI18n.locale });
+			case "draw":
+				return m.director_intent_draw({}, { locale: storeI18n.locale });
+			case "pass":
+				return m.director_intent_pass({}, { locale: storeI18n.locale });
+		}
+	}
+
+	function flipLabel(target: string): string {
+		return target === "human"
+			? m.director_flip_human({}, { locale: storeI18n.locale })
+			: m.director_flip_bot({}, { locale: storeI18n.locale });
+	}
 
 	const seatHand = $derived(players.find((p) => p.username === effectiveSeat)?.hand ?? []);
 	function handLabel(card: Card): string {
 		return card.kind ?? `${card.type} ${card.value}`;
 	}
+	function cardLabel(cardId: string): string {
+		const card = seatHand.find((c) => String(c.id) === cardId);
+		return card ? handLabel(card) : "";
+	}
+	const cardOptions = $derived(["", ...seatHand.map((c) => String(c.id))]);
 
 	function setIntentType(i: number, type: string) {
 		intents[i] = { ...intents[i], type: type as IntentType, bits: "", prompt_kind: "", value: "" };
@@ -114,153 +148,344 @@
 </script>
 
 {#if isCreative && !$director.cleanView}
-	<aside class="director-panel" aria-label="Director controls">
-		<span class="director-badge">DIRECTOR</span>
-		<label>
-			<input
-				type="checkbox"
-				checked={$director.cleanView}
-				onchange={(e) => setCleanView(e.currentTarget.checked)}
-			/>
-			Clean view
-		</label>
-		<label>
-			<input
-				type="checkbox"
-				checked={$director.xRay}
-				onchange={(e) => setXRay(e.currentTarget.checked)}
-			/>
-			X-ray hands
-		</label>
-		<fieldset>
-			<legend>Hide players</legend>
-			{#each players as p (p.username)}
-				<label>
-					<input
-						type="checkbox"
-						checked={$director.hidePlayers.includes(p.username)}
-						onchange={() => togglePlayerHidden(p.username)}
-					/>
-					{p.username}
-				</label>
-			{/each}
-		</fieldset>
-		<fieldset>
-			<legend>Transport</legend>
-			<button onclick={() => sendDirectorCommand("pause")}>Pause</button>
-			<button onclick={() => sendDirectorCommand("step")}>Step</button>
-			<button onclick={() => sendDirectorCommand("force_turn")}>Force turn</button>
-		</fieldset>
-		<fieldset>
-			<legend>Script</legend>
-			<label>
-				Director seat
-				<select value={effectiveSeat} onchange={(e) => (seat = e.currentTarget.value)}>
-					{#each seatNames as name (name)}
-						<option value={name}>{name}</option>
+	<aside
+		class="director-panel pixel-bordered"
+		aria-label={m.director_panel_label({}, { locale: storeI18n.locale })}
+	>
+		<header class="director-header">
+			<h2 class="director-title">{m.director_title({}, { locale: storeI18n.locale })}</h2>
+			<button
+				type="button"
+				class="pixel-bordered director-collapse"
+				aria-expanded={!collapsed}
+				onclick={() => (collapsed = !collapsed)}
+			>
+				<i
+					class="pia {collapsed
+						? 'pixelart-icons-font-chevron-down'
+						: 'pixelart-icons-font-chevron-up'}"
+					aria-hidden="true"
+				></i>
+				<span class="sr-only">
+					{collapsed
+						? m.director_expand({}, { locale: storeI18n.locale })
+						: m.director_collapse({}, { locale: storeI18n.locale })}
+				</span>
+			</button>
+		</header>
+
+		{#if !collapsed}
+			<div class="director-body">
+				<section class="director-section">
+					<Divisor text={m.director_section_view({}, { locale: storeI18n.locale })} />
+					<div class="director-controls">
+						<PixelCheckbox
+							label={m.director_clean_view({}, { locale: storeI18n.locale })}
+							checked={$director.cleanView}
+							oncommit={setCleanView}
+						/>
+						<PixelCheckbox
+							label={m.director_xray({}, { locale: storeI18n.locale })}
+							checked={$director.xRay}
+							oncommit={setXRay}
+						/>
+					</div>
+				</section>
+
+				<section class="director-section">
+					<Divisor text={m.director_section_hide_players({}, { locale: storeI18n.locale })} />
+					<div class="director-controls">
+						{#each players as p (p.username)}
+							<PixelCheckbox
+								label={p.username}
+								checked={$director.hidePlayers.includes(p.username)}
+								oncommit={() => togglePlayerHidden(p.username)}
+							/>
+						{/each}
+					</div>
+				</section>
+
+				<section class="director-section">
+					<Divisor text={m.director_section_transport({}, { locale: storeI18n.locale })} />
+					<div class="director-actions">
+						<button
+							type="button"
+							class="pixel-bordered d-btn"
+							onclick={() => sendDirectorCommand("pause")}
+						>
+							{m.director_pause({}, { locale: storeI18n.locale })}
+						</button>
+						<button
+							type="button"
+							class="pixel-bordered d-btn"
+							onclick={() => sendDirectorCommand("step")}
+						>
+							{m.director_step({}, { locale: storeI18n.locale })}
+						</button>
+						<button
+							type="button"
+							class="pixel-bordered d-btn"
+							onclick={() => sendDirectorCommand("force_turn")}
+						>
+							{m.director_force_turn({}, { locale: storeI18n.locale })}
+						</button>
+					</div>
+				</section>
+
+				<section class="director-section">
+					<Divisor text={m.director_section_script({}, { locale: storeI18n.locale })} />
+
+					<div class="director-field">
+						<span class="director-field__label">
+							{m.director_seat({}, { locale: storeI18n.locale })}
+						</span>
+						<Listbox
+							id="director-seat"
+							label={m.director_seat({}, { locale: storeI18n.locale })}
+							options={seatNames}
+							selected={effectiveSeat}
+							disabled={seatNames.length === 0}
+							onselect={(name) => (seat = name)}
+						>
+							{#snippet trigger()}
+								<span class="sr-only">{m.director_seat({}, { locale: storeI18n.locale })}</span>
+								<span class="d-value">{effectiveSeat}</span>
+							{/snippet}
+							{#snippet option(name)}
+								<span class="d-option">{name}</span>
+							{/snippet}
+						</Listbox>
+					</div>
+
+					{#each intents as row, i (row.id)}
+						<div class="director-intent">
+							<div class="director-intent__head">
+								<span class="director-intent__title">
+									{m.director_intent_title({ index: i + 1 }, { locale: storeI18n.locale })}
+								</span>
+								<button
+									type="button"
+									class="pixel-bordered d-btn d-btn--danger"
+									onclick={() => removeIntent(i)}
+								>
+									{m.director_remove_intent({ index: i + 1 }, { locale: storeI18n.locale })}
+								</button>
+							</div>
+
+							<div class="director-field">
+								<span class="director-field__label">
+									{m.director_intent_type({ index: i + 1 }, { locale: storeI18n.locale })}
+								</span>
+								<Listbox
+									id={`director-intent-${row.id}-type`}
+									label={m.director_intent_type({ index: i + 1 }, { locale: storeI18n.locale })}
+									options={INTENT_TYPES}
+									selected={row.type}
+									onselect={(type) => setIntentType(i, type)}
+								>
+									{#snippet trigger()}
+										<span class="sr-only">
+											{m.director_intent_type({ index: i + 1 }, { locale: storeI18n.locale })}
+										</span>
+										<span class="d-value">{intentTypeLabel(row.type)}</span>
+									{/snippet}
+									{#snippet option(type)}
+										<span class="d-option">{intentTypeLabel(type)}</span>
+									{/snippet}
+								</Listbox>
+							</div>
+
+							{#if row.type === "play"}
+								<div class="director-field">
+									<span class="director-field__label">
+										{m.director_intent_card({ index: i + 1 }, { locale: storeI18n.locale })}
+									</span>
+									<Listbox
+										id={`director-intent-${row.id}-card`}
+										label={m.director_intent_card({ index: i + 1 }, { locale: storeI18n.locale })}
+										options={cardOptions}
+										selected={row.bits}
+										onselect={(bits) => setIntentField(i, "bits", bits)}
+									>
+										{#snippet trigger()}
+											<span class="sr-only">
+												{m.director_intent_card({ index: i + 1 }, { locale: storeI18n.locale })}
+											</span>
+											<span class="d-value">
+												{row.bits
+													? cardLabel(row.bits)
+													: m.director_pick_card({}, { locale: storeI18n.locale })}
+											</span>
+										{/snippet}
+										{#snippet option(bits)}
+											<span class="d-option">
+												{bits
+													? cardLabel(bits)
+													: m.director_pick_card({}, { locale: storeI18n.locale })}
+											</span>
+										{/snippet}
+									</Listbox>
+								</div>
+							{:else if row.type === "answer"}
+								<div class="director-field">
+									<label
+										class="director-field__label"
+										for={`director-intent-${row.id}-prompt-kind`}
+									>
+										{m.director_intent_prompt_kind({ index: i + 1 }, { locale: storeI18n.locale })}
+									</label>
+									<input
+										id={`director-intent-${row.id}-prompt-kind`}
+										class="input-pixel"
+										type="text"
+										value={row.prompt_kind}
+										oninput={(e) => setIntentField(i, "prompt_kind", e.currentTarget.value)}
+									/>
+								</div>
+								<div class="director-field">
+									<label class="director-field__label" for={`director-intent-${row.id}-value`}>
+										{m.director_intent_value({ index: i + 1 }, { locale: storeI18n.locale })}
+									</label>
+									<input
+										id={`director-intent-${row.id}-value`}
+										class="input-pixel"
+										type="text"
+										value={row.value}
+										oninput={(e) => setIntentField(i, "value", e.currentTarget.value)}
+									/>
+								</div>
+							{/if}
+						</div>
 					{/each}
-				</select>
-			</label>
-			{#each intents as row, i (row.id)}
-				<div class="intent-row">
-					<label>
-						Intent {i + 1} type
-						<select value={row.type} onchange={(e) => setIntentType(i, e.currentTarget.value)}>
-							<option value="play">play</option>
-							<option value="answer">answer</option>
-							<option value="draw">draw</option>
-							<option value="pass">pass</option>
-						</select>
-					</label>
-					{#if row.type === "play"}
-						<label>
-							Intent {i + 1} card
-							<select
-								value={row.bits}
-								onchange={(e) => setIntentField(i, "bits", e.currentTarget.value)}
+
+					<div class="director-actions">
+						<button type="button" class="pixel-bordered d-btn" onclick={addIntent}>
+							{m.director_add_intent({}, { locale: storeI18n.locale })}
+						</button>
+						<button type="button" class="pixel-bordered d-btn d-btn--primary" onclick={queueScript}>
+							{m.director_queue_script({}, { locale: storeI18n.locale })}
+						</button>
+					</div>
+				</section>
+
+				<section class="director-section">
+					<Divisor text={m.director_section_stack({}, { locale: storeI18n.locale })} />
+					<div class="director-field">
+						<label class="director-field__label" for="director-stack-kinds">
+							{m.director_stack_kinds({}, { locale: storeI18n.locale })}
+						</label>
+						<input
+							id="director-stack-kinds"
+							class="input-pixel"
+							type="text"
+							value={stackKinds}
+							placeholder={m.director_stack_placeholder({}, { locale: storeI18n.locale })}
+							oninput={(e) => (stackKinds = e.currentTarget.value)}
+						/>
+					</div>
+					<div class="director-actions">
+						<button type="button" class="pixel-bordered d-btn d-btn--primary" onclick={stackPile}>
+							{m.director_stack_draw_pile({}, { locale: storeI18n.locale })}
+						</button>
+					</div>
+				</section>
+
+				<section class="director-section">
+					<Divisor text={m.director_section_seat({}, { locale: storeI18n.locale })} />
+					<div class="director-field">
+						<label class="director-field__label" for="director-rename-to">
+							{m.director_rename_to({}, { locale: storeI18n.locale })}
+						</label>
+						<input
+							id="director-rename-to"
+							class="input-pixel"
+							type="text"
+							value={renameTo}
+							oninput={(e) => (renameTo = e.currentTarget.value)}
+						/>
+						<div class="director-actions">
+							<button
+								type="button"
+								class="pixel-bordered d-btn d-btn--primary"
+								onclick={renameSeat}
 							>
-								<option value="">Pick a card</option>
-								{#each seatHand as card (card.id)}
-									<option value={String(card.id)}>{handLabel(card)}</option>
-								{/each}
-							</select>
+								{m.director_rename({}, { locale: storeI18n.locale })}
+							</button>
+						</div>
+					</div>
+
+					<div class="director-field">
+						<div class="director-actions">
+							<button type="button" class="pixel-bordered d-btn" onclick={() => setSkin("bot")}>
+								{m.director_skin_bot({}, { locale: storeI18n.locale })}
+							</button>
+							<button type="button" class="pixel-bordered d-btn" onclick={() => setSkin("player")}>
+								{m.director_skin_player({}, { locale: storeI18n.locale })}
+							</button>
+						</div>
+					</div>
+
+					<div class="director-field">
+						<span class="director-field__label">
+							{m.director_flip_to({}, { locale: storeI18n.locale })}
+						</span>
+						<Listbox
+							id="director-flip-to"
+							label={m.director_flip_to({}, { locale: storeI18n.locale })}
+							options={FLIP_TARGETS}
+							selected={flipTo}
+							onselect={(target) => (flipTo = target)}
+						>
+							{#snippet trigger()}
+								<span class="sr-only">{m.director_flip_to({}, { locale: storeI18n.locale })}</span>
+								<span class="d-value">{flipLabel(flipTo)}</span>
+							{/snippet}
+							{#snippet option(target)}
+								<span class="d-option">{flipLabel(target)}</span>
+							{/snippet}
+						</Listbox>
+						<div class="director-actions">
+							<button type="button" class="pixel-bordered d-btn d-btn--primary" onclick={flipSeat}>
+								{m.director_flip_seat({}, { locale: storeI18n.locale })}
+							</button>
+						</div>
+					</div>
+				</section>
+
+				<section class="director-section">
+					<Divisor text={m.director_section_checkpoint({}, { locale: storeI18n.locale })} />
+					<div class="director-actions">
+						<button type="button" class="pixel-bordered d-btn" onclick={saveCheckpoint}>
+							{m.director_save_checkpoint({}, { locale: storeI18n.locale })}
+						</button>
+						<button type="button" class="pixel-bordered d-btn" onclick={loadCheckpoint}>
+							{m.director_load_checkpoint({}, { locale: storeI18n.locale })}
+						</button>
+					</div>
+				</section>
+
+				<section class="director-section">
+					<Divisor text={m.director_section_scene({}, { locale: storeI18n.locale })} />
+					<div class="director-field">
+						<label class="director-field__label" for="director-scene-name">
+							{m.director_scene_name({}, { locale: storeI18n.locale })}
 						</label>
-					{:else if row.type === "answer"}
-						<label>
-							Intent {i + 1} prompt kind
-							<input
-								type="text"
-								value={row.prompt_kind}
-								oninput={(e) => setIntentField(i, "prompt_kind", e.currentTarget.value)}
-							/>
-						</label>
-						<label>
-							Intent {i + 1} value
-							<input
-								type="text"
-								value={row.value}
-								oninput={(e) => setIntentField(i, "value", e.currentTarget.value)}
-							/>
-						</label>
-					{/if}
-					<button onclick={() => removeIntent(i)}>Remove intent {i + 1}</button>
-				</div>
-			{/each}
-			<button onclick={addIntent}>Add intent</button>
-			<button onclick={queueScript}>Queue script</button>
-		</fieldset>
-		<fieldset>
-			<legend>Stack</legend>
-			<label>
-				Stack kinds
-				<input
-					type="text"
-					placeholder="uni:blue_skip, uni:red_5"
-					value={stackKinds}
-					oninput={(e) => (stackKinds = e.currentTarget.value)}
-				/>
-			</label>
-			<button onclick={stackPile}>Stack draw pile</button>
-		</fieldset>
-		<fieldset>
-			<legend>Seat</legend>
-			<label>
-				Rename to
-				<input
-					type="text"
-					value={renameTo}
-					oninput={(e) => (renameTo = e.currentTarget.value)}
-				/>
-			</label>
-			<button onclick={renameSeat}>Rename</button>
-			<button onclick={() => setSkin("bot")}>Skin: bot</button>
-			<button onclick={() => setSkin("player")}>Skin: player</button>
-			<label>
-				Flip to
-				<select value={flipTo} onchange={(e) => (flipTo = e.currentTarget.value)}>
-					<option value="bot">bot</option>
-					<option value="human">human</option>
-				</select>
-			</label>
-			<button onclick={flipSeat}>Flip seat</button>
-		</fieldset>
-		<fieldset>
-			<legend>Checkpoint</legend>
-			<button onclick={saveCheckpoint}>Save checkpoint</button>
-			<button onclick={loadCheckpoint}>Load checkpoint</button>
-		</fieldset>
-		<fieldset>
-			<legend>Scene</legend>
-			<label>
-				Scene name
-				<input
-					type="text"
-					value={sceneName}
-					oninput={(e) => (sceneName = e.currentTarget.value)}
-				/>
-			</label>
-			<button onclick={loadScene}>Load scene</button>
-		</fieldset>
+						<input
+							id="director-scene-name"
+							class="input-pixel"
+							type="text"
+							value={sceneName}
+							oninput={(e) => (sceneName = e.currentTarget.value)}
+						/>
+					</div>
+					<div class="director-actions">
+						<button type="button" class="pixel-bordered d-btn d-btn--primary" onclick={loadScene}>
+							{m.director_load_scene({}, { locale: storeI18n.locale })}
+						</button>
+					</div>
+				</section>
+			</div>
+		{/if}
 	</aside>
 {/if}
 
@@ -269,36 +494,211 @@
 	     .director-panel chrome the clean-view stylesheet hides. -->
 	<button
 		class="director-clean-exit"
-		title="Exit clean view"
+		title={m.director_exit_clean_view({}, { locale: storeI18n.locale })}
 		onclick={() => setCleanView(false)}
 	>
-		Exit clean view
+		{m.director_exit_clean_view({}, { locale: storeI18n.locale })}
 	</button>
 {/if}
 
 <style>
+	/* Container: pixel-bordered chrome, pinned to the top-right of the game
+	   screen. Capped to the viewport so the body scrolls instead of growing
+	   past the fold and covering the table. The mathematical values live in
+	   custom properties: jsdom (used by the component tests) cannot resolve
+	   calc()/min() on a computed longhand and trips over them otherwise. */
 	.director-panel {
+		--director-panel-inset: 8px;
+		/* The in-game chat launcher is fixed 1rem from the viewport's top-right
+		   and 48px tall. Start the panel below it (plus one gap step) so the
+		   launcher can never cover the header, at any width. */
+		--director-panel-launcher-clearance: calc(1rem + 48px + var(--space-2));
+		--director-panel-top: var(--director-panel-launcher-clearance);
+		--director-panel-width: min(320px, calc(100vw - 16px));
+		--director-panel-max-height: calc(
+			100dvh - var(--director-panel-top) - var(--director-panel-inset)
+		);
+		/* One spacing scale for the whole panel: outer gutter, the rhythm
+		   between sections, the rhythm inside a section, and label/control. */
+		--director-gutter: var(--space-3);
+		--director-section-gap: var(--space-4);
+		--director-block-gap: var(--space-3);
+		--director-field-gap: var(--space-2);
 		position: absolute;
-		top: 8px;
-		right: 8px;
+		top: var(--director-panel-top);
+		right: var(--director-panel-inset);
 		z-index: 50;
 		display: flex;
 		flex-direction: column;
-		gap: 6px;
-		padding: 8px 10px;
-		background: rgb(0 0 0 / 0.65);
-		border-radius: 8px;
-		font-size: 12px;
+		width: var(--director-panel-width);
+		max-height: var(--director-panel-max-height);
+		--pc-fill: var(--surface-deep);
+		--pc-border: var(--accent-border);
+		font-size: 13px;
 	}
-	.director-badge {
+
+	.director-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--director-field-gap);
+		padding: var(--space-2) var(--director-gutter);
+		border-bottom: 2px solid var(--border);
+	}
+
+	.director-title {
+		margin: 0;
+		font-family: var(--tiny);
+		font-size: 15px;
 		font-weight: 700;
 		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		color: var(--accent);
 	}
-	.intent-row {
+
+	.director-collapse {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		padding: var(--space-1);
+		color: var(--text-h);
+		background: transparent;
+		font-size: 16px;
+		cursor: pointer;
+		--pc-fill: var(--surface);
+		--pc-border: var(--border);
+	}
+	.director-collapse:hover {
+		--pc-border: var(--accent);
+	}
+
+	.director-body {
 		display: flex;
 		flex-direction: column;
-		gap: 4px;
+		gap: var(--director-section-gap);
+		min-height: 0;
+		padding: var(--director-gutter);
+		overflow-y: auto;
+		scrollbar-gutter: stable;
 	}
+
+	.director-section {
+		display: flex;
+		flex-direction: column;
+		gap: var(--director-block-gap);
+	}
+
+	.director-controls {
+		display: flex;
+		flex-direction: column;
+		gap: var(--director-field-gap);
+	}
+
+	.director-field {
+		display: flex;
+		flex-direction: column;
+		gap: var(--director-field-gap);
+	}
+
+	.director-field__label {
+		font-family: var(--tiny);
+		font-size: 13px;
+		font-weight: 500;
+		line-height: 1.2;
+		color: var(--text-h);
+	}
+
+	.director-intent {
+		display: flex;
+		flex-direction: column;
+		gap: var(--director-field-gap);
+		padding: var(--director-field-gap);
+		border: 2px solid var(--border);
+		background: var(--bg);
+	}
+
+	.director-intent__head {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--director-field-gap);
+	}
+
+	.director-intent__title {
+		font-family: var(--tiny);
+		font-size: 13px;
+		font-weight: 700;
+		color: var(--accent);
+	}
+
+	.director-actions {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--director-field-gap);
+	}
+
+	/* Small pixel-bordered action button. Colour variants only override the
+	   --pc-* / label colour; the pixel border itself comes from .pixel-bordered. */
+	.d-btn {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		padding: var(--space-1) var(--space-3);
+		font-family: var(--tiny);
+		font-size: 13px;
+		line-height: 1.6;
+		color: var(--text-h);
+		background: transparent;
+		border: none;
+		cursor: pointer;
+		--pc-fill: var(--surface);
+		--pc-border: var(--border);
+		transition:
+			filter var(--duration-fast) var(--ease-standard),
+			--pc-border var(--duration-fast) var(--ease-standard);
+	}
+	.d-btn:hover:not(:disabled) {
+		--pc-border: var(--accent);
+	}
+	.d-btn--primary {
+		color: #fff;
+		--pc-fill: var(--accent);
+		--pc-border: var(--accent);
+	}
+	.d-btn--primary:hover:not(:disabled) {
+		filter: brightness(1.1);
+	}
+	.d-btn--danger {
+		color: var(--danger);
+		--pc-border: var(--danger);
+	}
+	.d-btn--danger:hover:not(:disabled) {
+		--pc-border: var(--danger);
+		filter: brightness(1.2);
+	}
+	.d-btn:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+
+	/* Listbox triggers render inside a field; stretch them to the column and
+	   keep the value/options on the tiny font used across the panel. */
+	.director-field :global(button[aria-haspopup="listbox"]) {
+		width: 100%;
+		justify-content: space-between;
+		font-family: var(--tiny);
+		font-size: 13px;
+		color: var(--text-h);
+	}
+	.director-field :global([role="listbox"]) {
+		min-width: 100%;
+	}
+	.d-value,
+	.d-option {
+		font-family: var(--tiny);
+		font-size: 13px;
+	}
+
 	/* Minimal corner affordance that turns clean view off. Kept tiny and
 	   low-profile so it stays out of the capture frame's way. */
 	.director-clean-exit {

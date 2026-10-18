@@ -1,16 +1,16 @@
-import { writable, get } from 'svelte/store';
-import { ClientAction, ws } from './ws.svelte';
+import { writable, get } from "svelte/store";
+import { ClientAction, ws } from "./ws.svelte";
 
 interface DirectorState {
-  cleanView: boolean;
-  hidePlayers: string[];
-  xRay: boolean;
+	cleanView: boolean;
+	hidePlayers: string[];
+	xRay: boolean;
 }
 
 const base: DirectorState = {
-  cleanView: false,
-  hidePlayers: [],
-  xRay: true
+	cleanView: false,
+	hidePlayers: [],
+	xRay: true
 };
 
 export const director = writable<DirectorState>(base);
@@ -25,43 +25,43 @@ export const director = writable<DirectorState>(base);
 export const CLEAN_VIEW_BODY_CLASS = "director-clean-view";
 
 function syncCleanViewBodyClass(cleanView: boolean): void {
-  if (typeof document === "undefined") return;
-  document.body.classList.toggle(CLEAN_VIEW_BODY_CLASS, cleanView);
+	if (typeof document === "undefined") return;
+	document.body.classList.toggle(CLEAN_VIEW_BODY_CLASS, cleanView);
 }
 
 if (typeof document !== "undefined") {
-  syncCleanViewBodyClass(get(director).cleanView);
-  director.subscribe((s) => syncCleanViewBodyClass(s.cleanView));
+	syncCleanViewBodyClass(get(director).cleanView);
+	director.subscribe((s) => syncCleanViewBodyClass(s.cleanView));
 }
 
 export function setCleanView(value: boolean) {
-  director.update((s) => ({ ...s, cleanView: value }));
+	director.update((s) => ({ ...s, cleanView: value }));
 }
 
 export function togglePlayerHidden(username: string) {
-  director.update((s) => ({
-    ...s,
-    hidePlayers: s.hidePlayers.includes(username)
-      ? s.hidePlayers.filter((u) => u !== username)
-      : [...s.hidePlayers, username]
-  }));
+	director.update((s) => ({
+		...s,
+		hidePlayers: s.hidePlayers.includes(username)
+			? s.hidePlayers.filter((u) => u !== username)
+			: [...s.hidePlayers, username]
+	}));
 }
 
 export function setXRay(value: boolean) {
-  director.update((s) => ({ ...s, xRay: value }));
+	director.update((s) => ({ ...s, xRay: value }));
 }
 
 /**
- * Sends a host-only Creative director command over the existing
+ * Sends a host-only Creative command over the existing
  * director_command path. No-arg ops (pause | step | force_turn) send
  * `{ op }` with no args key; every other op carries its args verbatim.
  */
 export function sendDirectorCommand(op: string, args?: Record<string, unknown>) {
-  if (args === undefined) {
-    ws.emit(ClientAction.DirectorCommand, { op });
-  } else {
-    ws.emit(ClientAction.DirectorCommand, { op, args });
-  }
+	if (args === undefined) {
+		ws.emit(ClientAction.DirectorCommand, { op });
+	} else {
+		ws.emit(ClientAction.DirectorCommand, { op, args });
+	}
 }
 
 /**
@@ -70,11 +70,11 @@ export function sendDirectorCommand(op: string, args?: Record<string, unknown>) 
  * strip), otherwise the existing is_bot / bot-in-username logic applies.
  */
 export function resolveSeatIsBot(player: {
-  is_bot: boolean;
-  username?: string | null;
-  skin?: string | null;
+	is_bot: boolean;
+	username?: string | null;
+	skin?: string | null;
 }): boolean {
-  if (player.skin === "bot") return true;
-  if (player.skin === "player") return false;
-  return player.is_bot || (player.username?.toLowerCase().includes("bot") ?? false);
+	if (player.skin === "bot") return true;
+	if (player.skin === "player") return false;
+	return player.is_bot || (player.username?.toLowerCase().includes("bot") ?? false);
 }

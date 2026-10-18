@@ -1061,7 +1061,7 @@ components:
           description: When false, match is excluded from leaderboard stats.
         creative:
           type: boolean
-          description: Creative director mode. Forces ranked off.
+          description: Creative mode. Forces ranked off.
         scene:
           type: string
           description: Dev-only Creative scene file applied at match start.

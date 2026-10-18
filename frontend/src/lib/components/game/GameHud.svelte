@@ -54,9 +54,11 @@
 					{formatTurnTimer(storeGame.turnTimeRemaining)}
 				</span>
 				<span class="gamemode-label">
-					{storeGame.state?.mode === "race"
-						? m.lobby_mode_race({}, { locale: storeI18n.locale })
-						: m.lobby_mode_standard({}, { locale: storeI18n.locale })}
+					{storeLobby.current?.settings?.creative
+						? m.lobby_mode_creative({}, { locale: storeI18n.locale })
+						: storeGame.state?.mode === "race"
+							? m.lobby_mode_race({}, { locale: storeI18n.locale })
+							: m.lobby_mode_standard({}, { locale: storeI18n.locale })}
 				</span>
 				{#if storeLobby.current?.settings?.ranked}
 					<span class="ranked-badge"
