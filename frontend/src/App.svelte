@@ -20,6 +20,7 @@
 		stats: () => import("./lib/components/stats/StatsScreen.svelte"),
 		decks: () => import("./lib/components/decks/DecksScreen.svelte"),
 		shop: () => import("./lib/components/shop/ShopScreen.svelte"),
+		wardrobe: () => import("./lib/components/wardrobe/WardrobeScreen.svelte"),
 		settings: () => import("./lib/components/settings/SettingsScreen.svelte")
 	} as const;
 

@@ -53,19 +53,29 @@ describe("MenuGrid", () => {
 		expect(storeMenu.isOpen).toBe(false);
 	});
 
-	it("wardrobe tile is aria-disabled, shows Soon, and does not navigate", async () => {
+	it("wardrobe tile is enabled, has no Soon badge, and navigates", async () => {
 		storeMenu.open();
 		render(MenuGrid);
 		const tile = wardrobe();
 
-		expect(tile).toHaveAttribute("aria-disabled", "true");
-		expect(within(tile).getByText(/soon/i)).toBeInTheDocument();
+		expect(tile).not.toHaveAttribute("aria-disabled", "true");
+		expect(within(tile).queryByText(/soon/i)).not.toBeInTheDocument();
 
 		await fireEvent.click(tile);
-		await fireEvent.keyDown(tile, { key: "Enter" });
 
-		expect(goto).not.toHaveBeenCalled();
-		expect(storeMenu.isOpen).toBe(true);
+		expect(goto).toHaveBeenCalledWith("wardrobe");
+		expect(storeMenu.isOpen).toBe(false);
+	});
+
+	it("enter on the wardrobe tile navigates and closes the grid", async () => {
+		storeMenu.open();
+		render(MenuGrid);
+		await tick();
+
+		await fireEvent.keyDown(wardrobe(), { key: "Enter" });
+
+		expect(goto).toHaveBeenCalledWith("wardrobe");
+		expect(storeMenu.isOpen).toBe(false);
 	});
 
 	it("tile labels use min-width 0 so long labels cannot widen the grid", () => {
@@ -88,8 +98,10 @@ describe("MenuGrid", () => {
 		await tick();
 
 		await fireEvent.keyDown(settings(), { key: "ArrowRight" });
+		expect(wardrobe()).toHaveFocus();
+
+		await fireEvent.keyDown(wardrobe(), { key: "ArrowRight" });
 		expect(leaderboard()).toHaveFocus();
-		expect(wardrobe()).not.toHaveFocus();
 
 		await fireEvent.keyDown(leaderboard(), { key: "ArrowRight" });
 		expect(settings()).toHaveFocus();

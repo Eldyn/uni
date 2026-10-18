@@ -17,7 +17,16 @@ import { ws } from "./ws.svelte";
  * @brief List of the screens available in the frontend application.
  */
 export type AppScreen =
-	"main" | "lobbies" | "lobby" | "game" | "profile" | "stats" | "decks" | "shop" | "settings";
+	| "main"
+	| "lobbies"
+	| "lobby"
+	| "game"
+	| "profile"
+	| "stats"
+	| "decks"
+	| "shop"
+	| "wardrobe"
+	| "settings";
 
 const SCREEN_PATHS: Record<AppScreen, string> = {
 	main: "/",
@@ -28,6 +37,7 @@ const SCREEN_PATHS: Record<AppScreen, string> = {
 	stats: "/profile/stats",
 	decks: "/decks",
 	shop: "/shop",
+	wardrobe: "/wardrobe",
 	settings: "/settings"
 };
 
@@ -89,7 +99,8 @@ const SCREEN_GUARDS: Partial<Record<AppScreen, () => boolean>> = {
 	lobby: () => storeLobby.isInLobby,
 	game: () => storeGame.state !== null,
 	profile: () => storeAuth.isLoggedIn || storeAuth.isGuest,
-	stats: () => storeAuth.isLoggedIn || storeAuth.isGuest
+	stats: () => storeAuth.isLoggedIn || storeAuth.isGuest,
+	wardrobe: () => storeAuth.isLoggedIn || storeAuth.isGuest
 };
 
 /**

@@ -55,6 +55,7 @@
 		onRetry={loadStats}
 		onLeaderboard={() => storeNavigation.goto("stats")}
 		onRegister={() => storeNavigation.gotoAuth("register")}
+		oneditlook={() => storeNavigation.goto("wardrobe")}
 	>
 		{#snippet account()}
 			<ProfileAccount />
