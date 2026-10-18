@@ -11,6 +11,7 @@ version; each release below corresponds to a `vX.Y.Z` git tag.
 
 ### Added
 
+- **Profile screen redesigned in the settings style** — `ProfileScreen` is now a thin wrapper over a reusable `ProfileView` that renders identity, stats and cards played, with `ProfileAccount` and `ProfileLogout` as its account snippets, so another player's data can be rendered later.
 - **Menu opens a tile grid with Leaderboard, Wardrobe and Settings** — the Menu item in the sidebar and bottom bar no longer links to Settings; it opens a three-tile grid (Wardrobe disabled behind a "Soon" badge), the `5` accelerator toggles it, and Escape or an outside click closes it.
 - **Uniform ABI v1 (pure TS)** — `fx/uniformAbi.ts` pins the engine uniform names (`uTime`..`uOriginPosition`), the post names (`uResolution`, `uSceneColor`, `uIntensity`) and the mod block `uParams[8]`, with GLSL preludes, a zeroed three-style uniform block, an allocation-free in-place frame update and a clamping/padding `setParams`. Not wired anywhere yet.
 - **Mod graphics are now looping audio (`audio.loop`)** — storeAudio gets a loop channel; an active presentation's loop plays on its composition target and stops when the affliction expires or the match tears down, and it honors SFX volume and mute.
