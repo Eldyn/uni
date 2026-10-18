@@ -92,15 +92,9 @@ version; each release below corresponds to a `vX.Y.Z` git tag.
 - **`window_responded` carries `window_kind` and `outcome`** — the fields are additive and the packet marker stays 1. `window_kind` is the kind of the window member that owns the response (`window->kind` for a pass). `outcome` is `winning`, `lost` or `pass`. A mod binding can read both fields. A lost response shows the group leader kind in `window_kind`, not the kind of its hidden card.
 - **Translated the standard mod log lines** (texts) — the four standard mods (`draw_stacking`, `jump_in`, `seven_zero`, `progressive`) now ship all nine locales, and `uni` gained the two `uni:log.stack_taken_*` keys in the eight non-English locales. The no-fallback test covers the four mods and each mod's key parity across locales. The ru/uk number forms match the shipped precedent; the keys flagged for native review are recorded in the follow-ups sweep report.
 - **The client cause memory comment names the server constant** — a comment on `REMEMBERED_EVENTS` (64) now names `EventSink::kCauseMemoryLimit` (512) and says why the client keeps far fewer: a cause chain caps at the 16 chained mod events plus the root `card_played` (`UNI_MOD_CAUSE_CHAIN_MAX`). Comment only, no value changed.
-
 ### Fixed
 
 - **An old replayed window response logs** — a tail recorded before the server stamped `outcome` carries only a `passed` flag for a pass and nothing at all for a card response, so a binding test on `outcome` read nothing. The replay now derives `outcome` the way the server's own default does (`pass` from a truthy `passed`, `winning` otherwise), so an old card response keeps its line.
-
-- **Progressive now lets you choose.** After the draw-until-playable stops on a playable card, you choose to play or keep it. The turn used to pass with the card unplayed. With Force Play on, the card is played at once.
-- **Progressive draws one card at a time.** Every card the draw-until-playable takes is its own event, so all players see the draws one after the other at the normal draw speed instead of as a burst, and the draws come in the order they happened.
-- **A forced play waits for its draw.** A card that Force Play plays right after drawing it is drawn first and flies to the pile only when the draw has landed, for the player and for every opponent. It no longer shows in the hand before it arrives.
-- **No Bluffing has a translated description** in every locale, without the "Rule-only mod" prefix. The Progressive description now matches the rule.
 - **A stack answer reports the stacking member kind** — a winning `window_responded` whose card stacks now carries the stacking member's kind in `window_kind` (the member the route half reroutes to), instead of the owning member's kind. Before this, a +2 answered by a +2 in a merged `jump_in` + `draw_stacking` group reported `jump_in` with a winning outcome, so both the jump-in line and the stack line posted.
 - **The stack answer kind follows the close's debt gate** — `window_responded.window_kind` names the stacking member only while the played card's draw debt is pending, the case the close reroutes through the stacking member; otherwise it stays the owning member's kind. A test pins a +2 jump-in answered down the stack route.
 - **The reconnect tail runs the bindings** — a late joiner's replayed history now runs the presentation bindings with the same cause memory as the live path, so mod lines (jump_in, seven_zero, progressive, draw-stacking stack) appear in the log after a reconnect instead of being dropped. Only log lines post: no beats, no sounds, no timers. The tail also honours the repeat guards (direction, placement, winner) plus a per-replay dedupe, so a repeated envelope posts nothing twice. The core rules keep running first, the same order the live path uses, and a card that carries the `uni:own_log` tag keeps the core rules out of its own lines.
@@ -118,6 +112,15 @@ version; each release below corresponds to a `vX.Y.Z` git tag.
 - **The orphaned selection golden fixture** (test) — `tests/fixtures/golden_log_texts/selection.json` held a frozen snapshot of the core log line selection. The play log became bindings only, so nothing reads it any more: the text golden reads its files by locale name and the no-fallback test reads per-locale names. The nine locale goldens and `rewritten.json` stay.
 - **The core play log path** — the play log is bindings only. The core rule engine (`logBuilder.ts`, `reactionRules.ts`, `reactionContext.ts`), the emitter (`playLogEmitter.ts`), its queue (`logQueue.ts`), the streak reader (`serverStreaks.ts`) and the client-side text helpers of the old path are deleted, together with their tests. The beat controller no longer turns beats into lines: it runs the presentation bindings of each client event and posts their lines straight to the chat store (`appendLocalLog`), so a line no longer waits for a card landing and no line is dropped by a flush. The repeat guards (same direction, a placed seat, the winner again, a repeated envelope) now live in the replay only, which still feeds the bindings for a late joiner and posts their lines alone. `resolveLogText` and its colour and card-name helpers move to `frontend/src/lib/presentation/logText.ts`; the `EventContext` type joins `LogLine` in `logEvent.ts`, because the beat map still carries the streak context. The tests that drove beats only to see a core log line are gone; the copy, the golden and the determinism tests now read the shipped bindings under `mods/uni/presentations/`. The `auto_play_wild` binding gains the `kind` param of the cause card, so an auto-played wild names its card instead of showing a raw placeholder, and only the `defs` and `match_start` content digests in the event stream goldens move.
 - **Client stack-penalty play-log guess** — the client no longer guesses the stack line from a +2 or +4 play and its debt toast. The `draw_stacking` mod now writes that line. The `uni:log.draw_stack` and `uni:log.draw_stack_heavy` texts are gone from the core texts. Non-English texts for the stack line stay out until the `draw_stacking` locale follow-up.
+
+## [0.6.3] - 2026-10-18
+
+### Fixed
+
+- **Progressive now lets you choose.** After the draw-until-playable stops on a playable card, you choose to play or keep it. The turn used to pass with the card unplayed. With Force Play on, the card is played at once.
+- **No Bluffing has a translated description** in every locale, without the "Rule-only mod" prefix. The Progressive description now matches the rule.
+- **Progressive draws one card at a time.** Every card the draw-until-playable takes is its own event, so all players see the draws one after the other at the normal draw speed instead of as a burst, and the draws come in the order they happened.
+- **A forced play waits for its draw.** A card that Force Play plays right after drawing it is drawn first and flies to the pile only when the draw has landed, for the player and for every opponent. It no longer shows in the hand before it arrives.
 
 ## [0.6.2] - 2026-10-17
 
@@ -640,7 +643,8 @@ point:
 - WebSocket payload-size, idle-time, and backpressure bounds, malformed-frame
   guards, and path-traversal protection on static file serving.
 
-[unreleased]: https://github.com/Eldyn/uni/compare/v0.6.2...HEAD
+[unreleased]: https://github.com/Eldyn/uni/compare/v0.6.3...HEAD
+[0.6.3]: https://github.com/Eldyn/uni/compare/v0.6.2...v0.6.3
 [0.6.2]: https://github.com/Eldyn/uni/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/Eldyn/uni/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/Eldyn/uni/compare/v0.5.5...v0.6.0
