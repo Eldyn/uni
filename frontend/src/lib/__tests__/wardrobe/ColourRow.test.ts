@@ -86,6 +86,12 @@ describe("ColourRow", () => {
 		expect(screen.getByText("Region 5")).toBeInTheDocument();
 	});
 
+	it("renders no row for zero regions", () => {
+		const { container } = renderRow({ regions: 0, colours: [] });
+
+		expect(container.querySelectorAll(".colour-row")).toHaveLength(0);
+	});
+
 	it("a motif with six regions shows skin plus five pickable rows", () => {
 		const labels = [1, 2, 3, 4, 5, 6].map((n) => `Region ${n}`);
 		const { container } = renderRow({
