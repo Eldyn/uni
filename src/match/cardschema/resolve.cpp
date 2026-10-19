@@ -315,4 +315,132 @@ void DedupeDiagnostics(std::vector<Diagnostic>& diagnostics) {
     diagnostics = std::move(unique);
 }
 
+ResolvedBack ResolveBack(const DeckSpec* deck,
+                         const std::vector<const KindTemplate*>& chain_child_first,
+                         const std::vector<const MemberDef*>& members) {
+    ResolvedBack result;
+    if (members.size() > kMaximumMembersPerCard) {
+        AddError(result.diagnostics, deck != nullptr ? deck->file : std::string{},
+                 std::string(match::expr::kRootPointer),
+                 "a card may have at most " + std::to_string(kMaximumMembersPerCard) +
+                     " members");
+        return result;
+    }
+
+    const Contribution* deck_back = nullptr;
+    if (deck != nullptr) {
+        const auto found = deck->contribute.find("back");
+        if (found != deck->contribute.end()) {
+            deck_back = &found->second;
+        }
+    }
+
+    // INFO: the nearest kind that contributes a back side wins the chain; the
+    // kind and the deck do not conflict, so at the same band the kind replaces
+    // the deck instead of being reported as a two-owner conflict.
+    const Contribution* kind_back = nullptr;
+    const KindTemplate* kind_owner = nullptr;
+    for (const KindTemplate* kind : chain_child_first) {
+        const auto found = kind->contribute.find("back");
+        if (found != kind->contribute.end()) {
+            kind_back = &found->second;
+            kind_owner = kind;
+            break;
+        }
+    }
+
+    std::vector<Candidate> candidates;
+    if (deck_back != nullptr && kind_back != nullptr) {
+        if (kind_back->band >= deck_back->band) {
+            candidates.push_back(Candidate{kind_back, kind_owner->identifier, kind_owner->file});
+        } else {
+            candidates.push_back(Candidate{deck_back, deck->identifier, deck->file});
+        }
+    } else if (kind_back != nullptr) {
+        candidates.push_back(Candidate{kind_back, kind_owner->identifier, kind_owner->file});
+    } else if (deck_back != nullptr) {
+        candidates.push_back(Candidate{deck_back, deck->identifier, deck->file});
+    }
+
+    std::set<std::string> seen_members;
+    for (const MemberDef* member : members) {
+        if (!seen_members.insert(member->identifier).second) {
+            continue;
+        }
+        const auto found = member->contribute.find("back");
+        if (found == member->contribute.end()) {
+            continue;
+        }
+        candidates.push_back(Candidate{&found->second, member->identifier, member->file});
+    }
+
+    if (candidates.empty()) {
+        return result;
+    }
+
+    std::map<Band, std::vector<const Candidate*>> by_band;
+    for (const Candidate& candidate : candidates) {
+        by_band[candidate.contribution->band].push_back(&candidate);
+    }
+    const auto group = by_band.rbegin();
+    if (group == by_band.rend()) {
+        return result;
+    }
+    const std::string fallback_file = deck != nullptr ? deck->file : std::string{};
+    const Candidate* winner = SelectBandWinner(group->second, "back", fallback_file,
+                                               result.diagnostics);
+    if (winner != nullptr) {
+        result.slot = ResolvedSlot{*winner->contribution, winner->source};
+    }
+    return result;
+}
+
+std::vector<Diagnostic> CheckSurfaces(const KindTemplate& kind, const ResolvedFace& face) {
+    std::vector<Diagnostic> diagnostics;
+
+    // INFO: the surface names the resolved contributions declare. A slot binding
+    // may name any of them, not only a surface of its own slot.
+    std::set<std::string> declared;
+    for (const auto& slot : face.slots) {
+        for (const auto& surface : slot.second.winner.surfaces) {
+            declared.insert(surface.first);
+        }
+    }
+
+    for (std::size_t index = 0; index < kind.slots.size(); ++index) {
+        const SlotBinding& binding = kind.slots[index];
+        if (binding.surface.empty() || declared.count(binding.surface) != 0) {
+            continue;
+        }
+        const std::vector<std::string> names(declared.begin(), declared.end());
+        std::string pointer = match::expr::AppendPointerToken(match::expr::kRootPointer, "kind");
+        pointer = match::expr::AppendPointerToken(pointer, "attributes");
+        pointer = match::expr::AppendPointerToken(pointer, std::to_string(index));
+        pointer = match::expr::AppendPointerToken(pointer, "surface");
+        AddError(diagnostics, kind.file, pointer,
+                 "slot \"" + binding.name + "\" names surface \"" + binding.surface + "\"",
+                 match::expr::SuggestClosest(binding.surface, names));
+    }
+
+    for (const auto& slot : face.slots) {
+        const Contribution& contribution = slot.second.winner;
+        std::map<std::pair<std::string, std::string>, std::string> seen;
+        for (const auto& surface : contribution.surfaces) {
+            const std::pair<std::string, std::string> pair{surface.second.mask,
+                                                           surface.second.channel};
+            const auto inserted = seen.emplace(pair, surface.first);
+            if (inserted.second) {
+                continue;
+            }
+            AddError(diagnostics, kind.file, PointerFor(contribution, slot.first),
+                     "slot \"" + slot.first + "\" surfaces \"" + inserted.first->second +
+                         "\" and \"" + surface.first + "\" use the same mask \"" +
+                         surface.second.mask + "\" and channel \"" + surface.second.channel +
+                         "\"");
+        }
+    }
+
+    return diagnostics;
+}
+
 }  // namespace match::cardschema

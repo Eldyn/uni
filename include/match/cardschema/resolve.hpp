@@ -1,6 +1,7 @@
 #pragma once
 
 #include <map>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -21,6 +22,14 @@ struct ResolvedFace {
     std::vector<Diagnostic> diagnostics;
 };
 
+// INFO: the winning `back` contribution of a deck plus its template chain and
+// members, or no slot when no owner contributes a back side. A deck with no
+// back contribution and no other candidate is not an error.
+struct ResolvedBack {
+    std::optional<ResolvedSlot> slot;
+    std::vector<Diagnostic> diagnostics;
+};
+
 // INFO: `chain_child_first` is the template and its parents, child first; the
 // contribution of the nearest kind wins a slot. `members` are the bound members
 // in slot order. The functions are pure: they read in-memory structs only.
@@ -36,6 +45,18 @@ ResolvedFace ResolveTemplateSlots(const std::vector<const KindTemplate*>& chain_
 // INFO: removes a diagnostic whose (file, pointer, message) already appeared,
 // keeping the first occurrence and the order of the rest.
 void DedupeDiagnostics(std::vector<Diagnostic>& diagnostics);
+
+// INFO: resolves the `back` slot for a deck: the kind chain `back` contribution
+// beats the deck's own at the same band, and members contribute at `attribute`
+// unless they set a band. The functions are pure and read in-memory structs.
+ResolvedBack ResolveBack(const DeckSpec* deck,
+                         const std::vector<const KindTemplate*>& chain_child_first,
+                         const std::vector<const MemberDef*>& members);
+
+// INFO: checks the surfaces of one kind against the face resolved for it: every
+// `SlotBinding.surface` must name a surface declared by a resolved contribution,
+// and two surfaces of one slot must not share a (mask, channel) pair.
+std::vector<Diagnostic> CheckSurfaces(const KindTemplate& kind, const ResolvedFace& face);
 
 // INFO: walks `extends` from `kind`. Returns an empty chain and one diagnostic
 // on a cycle or a missing parent; the chain holds `kind` itself first.

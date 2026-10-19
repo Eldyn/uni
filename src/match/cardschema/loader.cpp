@@ -253,8 +253,13 @@ const std::vector<std::string>& SurfaceKeys() {
     return keys;
 }
 
-// INFO: a surface is a mask image plus the channel the slot reads from it. The
-// channel names are checked in task 8, which resolves surfaces against slots.
+const std::vector<std::string>& SurfaceChannels() {
+    static const std::vector<std::string> channels = {"red", "green", "blue"};
+    return channels;
+}
+
+// INFO: a surface is a mask image plus the channel the slot reads from it: one
+// of `red`, `green`, `blue`.
 void ParseSurfaces(const json& value, const std::string& file, const std::string& pointer,
                    std::vector<Diagnostic>& diagnostics,
                    std::map<std::string, SurfaceDef>& surfaces) {
@@ -276,7 +281,8 @@ void ParseSurfaces(const json& value, const std::string& file, const std::string
             definition.mask = *mask;
         }
         if (const std::optional<std::string> channel =
-                ReadString(surface, "channel", file, surface_pointer, diagnostics, true)) {
+                ReadEnum(surface, "channel", SurfaceChannels(), file, surface_pointer, diagnostics,
+                         true)) {
             definition.channel = *channel;
         }
         surfaces[entry.key()] = definition;

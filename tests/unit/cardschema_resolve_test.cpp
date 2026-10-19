@@ -12,13 +12,19 @@
 
 using match::cardschema::Band;
 using match::cardschema::BuildExtendsChain;
+using match::cardschema::CheckSurfaces;
 using match::cardschema::Contribution;
+using match::cardschema::DeckSpec;
 using match::cardschema::Diagnostic;
 using match::cardschema::KindTemplate;
 using match::cardschema::LoadModSchema;
 using match::cardschema::MemberDef;
+using match::cardschema::ResolvedBack;
 using match::cardschema::ResolvedFace;
+using match::cardschema::ResolveBack;
 using match::cardschema::ResolveTemplateSlots;
+using match::cardschema::SlotBinding;
+using match::cardschema::SurfaceDef;
 using match::expr::FormatDiagnostic;
 
 namespace {
@@ -575,6 +581,183 @@ TEST_CASE("self_extends_is_a_cycle") {
     REQUIRE(diagnostics.size() == 1);
     CHECK(FormatDiagnostic(diagnostics[0]) ==
           "kinds/a.json#/kind/extends: extends cycle: uni:a -> uni:a");
+}
+
+TEST_CASE("back_from_deck") {
+    DeckSpec deck;
+    deck.identifier = "uni:mini";
+    deck.file = "decks/mini.json";
+    Contribution back;
+    back.sprite = "cards/back";
+    back.band = Band::kBase;
+    back.pointer = "/deck/contribute/back";
+    deck.contribute["back"] = back;
+
+    const std::vector<const KindTemplate*> chain;
+    const std::vector<const MemberDef*> members;
+    const ResolvedBack resolved = ResolveBack(&deck, chain, members);
+
+    CHECK(resolved.diagnostics.empty());
+    REQUIRE(resolved.slot.has_value());
+    CHECK(resolved.slot->winner.sprite == "cards/back");
+    CHECK(resolved.slot->source == "uni:mini");
+}
+
+TEST_CASE("member_back_beats_deck") {
+    DeckSpec deck;
+    deck.identifier = "uni:mini";
+    deck.file = "decks/mini.json";
+    Contribution deck_back;
+    deck_back.sprite = "cards/back";
+    deck_back.band = Band::kBase;
+    deck.contribute["back"] = deck_back;
+
+    MemberDef member;
+    member.identifier = "uni:red";
+    member.file = "attributes/color/red.json";
+    Contribution member_back;
+    member_back.tint = "#e5383b";
+    member_back.band = Band::kOverride;
+    member.contribute["back"] = member_back;
+
+    const std::vector<const KindTemplate*> chain;
+    const std::vector<const MemberDef*> members = {&member};
+    const ResolvedBack resolved = ResolveBack(&deck, chain, members);
+
+    CHECK(resolved.diagnostics.empty());
+    REQUIRE(resolved.slot.has_value());
+    CHECK(resolved.slot->winner.tint == "#e5383b");
+    CHECK(resolved.slot->source == "uni:red");
+}
+
+TEST_CASE("kind_back_beats_deck_same_band") {
+    DeckSpec deck;
+    deck.identifier = "uni:mini";
+    deck.file = "decks/mini.json";
+    Contribution deck_back;
+    deck_back.sprite = "cards/back";
+    deck_back.band = Band::kBase;
+    deck.contribute["back"] = deck_back;
+
+    KindTemplate kind;
+    kind.identifier = "uni:card";
+    kind.file = "kinds/card.json";
+    Contribution kind_back;
+    kind_back.sprite = "cards/kind_back";
+    kind_back.band = Band::kBase;
+    kind.contribute["back"] = kind_back;
+
+    const std::vector<const KindTemplate*> chain = {&kind};
+    const std::vector<const MemberDef*> members;
+    const ResolvedBack resolved = ResolveBack(&deck, chain, members);
+
+    CHECK(resolved.diagnostics.empty());
+    REQUIRE(resolved.slot.has_value());
+    CHECK(resolved.slot->winner.sprite == "cards/kind_back");
+    CHECK(resolved.slot->source == "uni:card");
+}
+
+TEST_CASE("no_back_no_error") {
+    DeckSpec deck;
+    deck.identifier = "uni:mini";
+    deck.file = "decks/mini.json";
+
+    const std::vector<const KindTemplate*> chain;
+    const std::vector<const MemberDef*> members;
+    const ResolvedBack resolved = ResolveBack(&deck, chain, members);
+
+    CHECK(resolved.diagnostics.empty());
+    CHECK_FALSE(resolved.slot.has_value());
+}
+
+TEST_CASE("surface_channel_rejected") {
+    CardSchemaTempDir dir;
+    dir.Write("uni/kinds/draw2.json",
+              R"({"format_version":"1.0.0","kind":{"identifier":"uni:draw2",)"
+              R"("contribute":{"base":{"surfaces":{"left":{"mask":"masks/split",)"
+              R"("channel":"alpha"}}}}}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "uni", "uni");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/uni/kinds/draw2.json#/kind/contribute/base/surfaces/left/channel: "
+          "key \"channel\" must be one of \"red\", \"green\", \"blue\"");
+}
+
+TEST_CASE("surface_undeclared") {
+    KindTemplate kind;
+    kind.identifier = "uni:split";
+    kind.file = "kinds/split.json";
+    kind.slot_order = {"base"};
+    Contribution base;
+    base.pointer = "/kind/contribute/base";
+    base.surfaces["left"] = SurfaceDef{"masks/split", "red"};
+    kind.contribute["base"] = base;
+    SlotBinding binding;
+    binding.attribute = "uni:color";
+    binding.name = "left";
+    binding.surface = "lefft";
+    kind.slots = {binding};
+
+    const std::vector<const KindTemplate*> chain = {&kind};
+    const std::vector<const MemberDef*> members;
+    const ResolvedFace face = ResolveTemplateSlots(chain, members, "kinds/split.json");
+    const std::vector<Diagnostic> diagnostics = CheckSurfaces(kind, face);
+
+    REQUIRE(diagnostics.size() == 1);
+    CHECK(diagnostics[0].message == "slot \"left\" names surface \"lefft\"");
+    CHECK(diagnostics[0].suggestion == "left");
+}
+
+TEST_CASE("surface_duplicate_pair") {
+    KindTemplate kind;
+    kind.identifier = "uni:split";
+    kind.file = "kinds/split.json";
+    kind.slot_order = {"base"};
+    Contribution base;
+    base.pointer = "/kind/contribute/base";
+    base.surfaces["left"] = SurfaceDef{"masks/split", "red"};
+    base.surfaces["right"] = SurfaceDef{"masks/split", "red"};
+    kind.contribute["base"] = base;
+
+    const std::vector<const KindTemplate*> chain = {&kind};
+    const std::vector<const MemberDef*> members;
+    const ResolvedFace face = ResolveTemplateSlots(chain, members, "kinds/split.json");
+    const std::vector<Diagnostic> diagnostics = CheckSurfaces(kind, face);
+
+    REQUIRE(diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(diagnostics[0]) ==
+          "kinds/split.json#/kind/contribute/base: slot \"base\" surfaces \"left\" and \"right\" "
+          "use the same mask \"masks/split\" and channel \"red\"");
+}
+
+TEST_CASE("surface_ok") {
+    KindTemplate kind;
+    kind.identifier = "uni:split";
+    kind.file = "kinds/split.json";
+    kind.slot_order = {"base"};
+    Contribution base;
+    base.pointer = "/kind/contribute/base";
+    base.surfaces["left"] = SurfaceDef{"masks/split", "red"};
+    base.surfaces["right"] = SurfaceDef{"masks/split", "green"};
+    kind.contribute["base"] = base;
+    SlotBinding left;
+    left.attribute = "uni:color";
+    left.name = "left";
+    left.surface = "left";
+    SlotBinding right;
+    right.attribute = "uni:color";
+    right.name = "right";
+    right.surface = "right";
+    kind.slots = {left, right};
+
+    const std::vector<const KindTemplate*> chain = {&kind};
+    const std::vector<const MemberDef*> members;
+    const ResolvedFace face = ResolveTemplateSlots(chain, members, "kinds/split.json");
+    const std::vector<Diagnostic> diagnostics = CheckSurfaces(kind, face);
+
+    CHECK(diagnostics.empty());
 }
 
 }  // TEST_SUITE("cardschema resolve")
