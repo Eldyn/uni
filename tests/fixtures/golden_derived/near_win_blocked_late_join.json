@@ -47,8 +47,8 @@
     "from_zone_ordinal": 0,
     "player": "player0",
     "tags": [
-     "colored",
      "numbered",
+     "colored",
      "red"
     ]
    },
@@ -77,8 +77,8 @@
     "from_zone_ordinal": 0,
     "player": "player1",
     "tags": [
-     "colored",
      "numbered",
+     "colored",
      "red"
     ]
    },
@@ -95,11 +95,11 @@
     "from_zone_ordinal": 0,
     "player": "player2",
     "tags": [
-     "colored",
      "action",
-     "red",
      "skip",
-     "uni:skip"
+     "uni:skip",
+     "colored",
+     "red"
     ]
    },
    "replayed": true,
