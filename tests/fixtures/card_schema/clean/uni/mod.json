@@ -1,0 +1,9 @@
+{
+  "id": "uni",
+  "name": "U",
+  "version": "1.0.0",
+  "api": "1",
+  "settings": [
+    {"id": "count_wild", "type": "int", "default": 4}
+  ]
+}

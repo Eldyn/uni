@@ -144,7 +144,7 @@ target_link_libraries(uni_cardschema PUBLIC uni_expr nlohmann_json::nlohmann_jso
 
 # --- Mod tooling ---
 add_executable(uni_mods tools/uni_mods/main.cpp)
-target_link_libraries(uni_mods PRIVATE uni_expr)
+target_link_libraries(uni_mods PRIVATE uni_expr uni_cardschema)
 
 add_executable(uni_server ${SOURCES})
 
