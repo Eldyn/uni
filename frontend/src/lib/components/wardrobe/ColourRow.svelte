@@ -1,8 +1,9 @@
 <!-- One labelled row per tint region, with its swatches as wrapping 28px
      buttons. The selected swatch carries a purple outline; a swatch from a
-     paid palette the account does not own is locked (disabled and dimmed).
-     When `skinFirst` is set (a motif) region 1 is the skin colour and shows
-     locked, so only the later regions are pickable. -->
+     paid palette the account does not own is locked (dimmed with a diagonal
+     slash; a click asks to buy it). When `skinFirst` is set (a motif) region 1
+     is the skin colour and shows locked, so only the later regions are
+     pickable. -->
 <script lang="ts">
 	import type { Swatch } from "$lib/avatar/types";
 
@@ -69,11 +70,7 @@
 						title={locked.has(swatch.id) ? lockedLabel : undefined}
 						style="--swatch: {swatch.hex}"
 						onclick={() => (locked.has(swatch.id) ? onlocked() : onpick(index, swatch.id))}
-					>
-						{#if locked.has(swatch.id)}
-							<i class="pia pixelart-icons-font-lock colour-lock" aria-hidden="true"></i>
-						{/if}
-					</button>
+					></button>
 				{/each}
 			</div>
 		</div>
@@ -139,13 +136,5 @@
 	.colour-swatch--skin {
 		cursor: default;
 		border-style: dashed;
-	}
-
-	.colour-lock {
-		position: relative;
-		z-index: 1;
-		color: #fff;
-		font-size: 0.8rem;
-		text-shadow: 0 0 2px #000;
 	}
 </style>

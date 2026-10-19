@@ -57,7 +57,7 @@ describe("ColourRow", () => {
 		}
 	});
 
-	it("shows a lock icon and a buy prompt on a locked swatch", () => {
+	it("shows a slash and a buy prompt, and no lock icon, on a locked swatch", () => {
 		const { container } = renderRow({
 			locked: new Set(["uni:neon:hot"]),
 			lockedLabel: "Buy this color in the Shop"
@@ -65,7 +65,7 @@ describe("ColourRow", () => {
 
 		const locked = container.querySelector<HTMLButtonElement>('[data-swatch-id="uni:neon:hot"]');
 		expect(locked).toHaveAttribute("title", "Buy this color in the Shop");
-		expect(locked?.querySelector(".pixelart-icons-font-lock")).not.toBeNull();
+		expect(locked?.querySelector(".pixelart-icons-font-lock")).toBeNull();
 	});
 
 	it("asks to buy when a locked swatch is clicked", async () => {

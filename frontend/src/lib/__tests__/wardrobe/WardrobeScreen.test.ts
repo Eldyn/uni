@@ -352,10 +352,24 @@ describe("WardrobeScreen", () => {
 		const locked = container.querySelector<HTMLElement>('[data-swatch-id="uni:neon:hot"]');
 		expect(locked).not.toBeNull();
 		expect(locked?.dataset.locked).toBe("true");
-		expect(locked?.querySelector(".pixelart-icons-font-lock")).not.toBeNull();
+		expect(locked?.querySelector(".pixelart-icons-font-lock")).toBeNull();
 
 		await fireEvent.click(locked!);
 		expect(storeNavigation.goto).toHaveBeenCalledWith("shop");
+	});
+
+	it("shows no color picker for an item with the none tint", async () => {
+		const catalogue = avatarFixture();
+		const hat = catalogue.items.find((entry) => entry.id === "uni:hat_cap");
+		if (hat) hat.tint = "none";
+		setCatalogueForTest(catalogue);
+		shopMock.owned = new Set([...STARTERS, "uni:hat_cap"]);
+		const { container } = render(WardrobeScreen);
+		flushSync();
+		await fireEvent.click(screen.getByRole("tab", { name: "Hat" }));
+		await fireEvent.click(cardFor(container, "uni:hat_cap"));
+
+		expect(screen.queryByRole("group", { name: "Colours" })).toBeNull();
 	});
 
 	it("gives the stage the main space of the screen", () => {

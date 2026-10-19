@@ -285,7 +285,7 @@
 					/>
 				{/key}
 
-				{#if activeTab !== "shape" && activeItem && activeItem.regions > 0}
+				{#if activeTab !== "shape" && activeItem && activeItem.regions > 0 && activeItem.tint !== "none"}
 					<ColourRow
 						regions={activeItem.regions}
 						colours={activeChoice?.colours ?? []}
