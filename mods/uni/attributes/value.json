@@ -1,0 +1,54 @@
+{
+  "format_version": "1.0.0",
+  "attribute": {
+    "identifier": "uni:value",
+    "members": [
+      {
+        "identifier": "uni:0",
+        "order": 0,
+        "tags": [
+          "zero"
+        ]
+      },
+      {
+        "identifier": "uni:1",
+        "order": 1
+      },
+      {
+        "identifier": "uni:2",
+        "order": 2
+      },
+      {
+        "identifier": "uni:3",
+        "order": 3
+      },
+      {
+        "identifier": "uni:4",
+        "order": 4
+      },
+      {
+        "identifier": "uni:5",
+        "order": 5
+      },
+      {
+        "identifier": "uni:6",
+        "order": 6
+      },
+      {
+        "identifier": "uni:7",
+        "order": 7,
+        "tags": [
+          "seven"
+        ]
+      },
+      {
+        "identifier": "uni:8",
+        "order": 8
+      },
+      {
+        "identifier": "uni:9",
+        "order": 9
+      }
+    ]
+  }
+}

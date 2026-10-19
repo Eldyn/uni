@@ -1,71 +1,83 @@
 {
-  "id": "classic",
-  "name": "Classic",
-  "namespace": "uni",
-  "mods": ["uni"],
-  "cards": {
-    "uni:red_0": 1,
-    "uni:red_1": 2,
-    "uni:red_2": 2,
-    "uni:red_3": 2,
-    "uni:red_4": 2,
-    "uni:red_5": 2,
-    "uni:red_6": 2,
-    "uni:red_7": 2,
-    "uni:red_8": 2,
-    "uni:red_9": 2,
-    "uni:red_skip": 2,
-    "uni:red_reverse": 2,
-    "uni:red_draw2": 2,
-    "uni:blue_0": 1,
-    "uni:blue_1": 2,
-    "uni:blue_2": 2,
-    "uni:blue_3": 2,
-    "uni:blue_4": 2,
-    "uni:blue_5": 2,
-    "uni:blue_6": 2,
-    "uni:blue_7": 2,
-    "uni:blue_8": 2,
-    "uni:blue_9": 2,
-    "uni:blue_skip": 2,
-    "uni:blue_reverse": 2,
-    "uni:blue_draw2": 2,
-    "uni:green_0": 1,
-    "uni:green_1": 2,
-    "uni:green_2": 2,
-    "uni:green_3": 2,
-    "uni:green_4": 2,
-    "uni:green_5": 2,
-    "uni:green_6": 2,
-    "uni:green_7": 2,
-    "uni:green_8": 2,
-    "uni:green_9": 2,
-    "uni:green_skip": 2,
-    "uni:green_reverse": 2,
-    "uni:green_draw2": 2,
-    "uni:yellow_0": 1,
-    "uni:yellow_1": 2,
-    "uni:yellow_2": 2,
-    "uni:yellow_3": 2,
-    "uni:yellow_4": 2,
-    "uni:yellow_5": 2,
-    "uni:yellow_6": 2,
-    "uni:yellow_7": 2,
-    "uni:yellow_8": 2,
-    "uni:yellow_9": 2,
-    "uni:yellow_skip": 2,
-    "uni:yellow_reverse": 2,
-    "uni:yellow_draw2": 2,
-    "uni:wild": 4,
-    "uni:wild_draw4": 4
-  },
-  "settings": {
-    "count_zeros": 1,
-    "count_numbered": 2,
-    "count_skips": 2,
-    "count_reverses": 2,
-    "count_draw_two": 2,
-    "count_wild": 4,
-    "count_wild_draw_four": 4
+  "format_version": "1.0.0",
+  "deck": {
+    "identifier": "uni:classic",
+    "name": "Classic",
+    "mods": [
+      "uni"
+    ],
+    "cards": [
+      {
+        "kind": "uni:numbered",
+        "copies": "@settings.count_zeros",
+        "members": {
+          "color": {
+            "tag": "colored"
+          },
+          "value": {
+            "identifiers": [
+              "uni:0"
+            ]
+          }
+        }
+      },
+      {
+        "kind": "uni:numbered",
+        "copies": "@settings.count_numbered",
+        "members": {
+          "color": {
+            "tag": "colored"
+          },
+          "value": {
+            "identifiers": [
+              "uni:1",
+              "uni:2",
+              "uni:3",
+              "uni:4",
+              "uni:5",
+              "uni:6",
+              "uni:7",
+              "uni:8",
+              "uni:9"
+            ]
+          }
+        }
+      },
+      {
+        "kind": "uni:skip",
+        "copies": "@settings.count_skips",
+        "members": {
+          "color": {
+            "tag": "colored"
+          }
+        }
+      },
+      {
+        "kind": "uni:reverse",
+        "copies": "@settings.count_reverses",
+        "members": {
+          "color": {
+            "tag": "colored"
+          }
+        }
+      },
+      {
+        "kind": "uni:draw2",
+        "copies": "@settings.count_draw_two",
+        "members": {
+          "color": {
+            "tag": "colored"
+          }
+        }
+      },
+      {
+        "kind": "uni:wild",
+        "copies": "@settings.count_wild"
+      },
+      {
+        "kind": "uni:wild_draw4",
+        "copies": "@settings.count_wild_draw_four"
+      }
+    ]
   }
 }

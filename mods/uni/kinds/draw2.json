@@ -1,0 +1,47 @@
+{
+  "format_version": "1.0.0",
+  "kind": {
+    "identifier": "uni:draw2",
+    "tags": [
+      "action",
+      "draw_penalty",
+      "stackable",
+      "uni:draw_penalty"
+    ],
+    "attributes": [
+      {
+        "attribute": "uni:color"
+      }
+    ],
+    "identifier_format": "{color}_draw2",
+    "title_format": "{color} Draw Two",
+    "face": {
+      "kind": "text",
+      "color": "{color}",
+      "label": "+2",
+      "art_version": 1
+    },
+    "behavior": {
+      "on_play": {
+        "nodes": [
+          {
+            "id": "n1",
+            "op": "draw_cards",
+            "args": {
+              "target": "@next_player",
+              "n": 2
+            },
+            "next": "n2"
+          },
+          {
+            "id": "n2",
+            "op": "skip_turn",
+            "args": {
+              "target": "@next_player"
+            }
+          }
+        ]
+      }
+    }
+  }
+}
