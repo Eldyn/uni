@@ -36,6 +36,15 @@ constexpr std::size_t kMaximumMembersPerAttribute = 1024;
 // of the member counts is checked against it before any card is allocated.
 constexpr std::uint64_t kMaximumGeneratedKinds = 4096;
 
+// INFO: one deck entry may select at most this many raw combinations; a larger
+// cross product is refused before it is walked, so a hostile entry cannot burn
+// CPU even when its copies are zero.
+constexpr std::uint64_t kMaximumDeckCombinations = kMaximumGeneratedKinds * 16;
+
+// INFO: the copies of one deck entry; a larger expression result is a
+// diagnostic rather than a silent truncation.
+constexpr std::uint64_t kMaximumCopiesValue = 4096;
+
 // INFO: the count of a rejected template; it is above every cap, so it consumes
 // the host budget for the templates that follow.
 constexpr std::uint64_t kOverBudgetCount = kMaximumGeneratedKinds + 1;
@@ -584,6 +593,7 @@ bool SelectMembers(const MemberSelector& selector, const std::string& attribute,
             candidates.push_back(member->identifier);
         }
         bool usable = true;
+        std::set<const MemberDef*> already_selected;
         for (const std::string& identifier : selector.identifiers) {
             const MemberDef* found = nullptr;
             for (const MemberDef* member : members) {
@@ -600,6 +610,11 @@ bool SelectMembers(const MemberSelector& selector, const std::string& attribute,
                 usable = false;
                 continue;
             }
+            // INFO: a repeated identifier would double-count the member, so only
+            // the first occurrence is kept.
+            if (!already_selected.insert(found).second) {
+                continue;
+            }
             selected.push_back(found);
         }
         std::sort(selected.begin(), selected.end(), CompareMembers);
@@ -609,10 +624,12 @@ bool SelectMembers(const MemberSelector& selector, const std::string& attribute,
 }
 
 // INFO: the number of combinations a combine mode yields over the selected
-// member lists. A zip whose lists differ in length and a unique_pairs over any
-// other than two slots are reported here and give nullopt; a product count that
-// overflows 64 bits is nullopt too, which is above every deck limit. The count
-// is computed before any combination is built.
+// member lists. A zip whose lists differ in length, a unique_pairs over any
+// other than two slots, and a unique_pairs whose two slots do not select the
+// same members are reported here and give nullopt; a product count that
+// overflows 64 bits saturates, which is above every deck limit, so the caller
+// reports the oversize selection instead of dropping the entry silently. The
+// count is computed before any combination is built.
 std::optional<std::uint64_t> ResolveCombinationCount(
     const std::string& combine, const std::vector<std::vector<const MemberDef*>>& lists,
     const std::string& file, const std::string& pointer, std::vector<Diagnostic>& diagnostics) {
@@ -636,6 +653,14 @@ std::optional<std::uint64_t> ResolveCombinationCount(
                          std::to_string(lists.size()));
             return std::nullopt;
         }
+        // INFO: unique_pairs shares one member list across the two slots, so both
+        // slots must select the same members; otherwise the second selector is
+        // ignored.
+        if (lists.front() != lists.back()) {
+            AddError(diagnostics, file, match::expr::AppendPointerToken(pointer, "combine"),
+                     "unique_pairs needs both slots to select the same members");
+            return std::nullopt;
+        }
         const std::uint64_t count = static_cast<std::uint64_t>(lists.front().size());
         // INFO: a pair count that overflows 64 bits is above every deck limit;
         // the saturated value lets the caller report the cap without the math.
@@ -646,7 +671,10 @@ std::optional<std::uint64_t> ResolveCombinationCount(
     for (const auto& list : lists) {
         total = MultiplyOptional(total, static_cast<std::uint64_t>(list.size()));
     }
-    return total;
+    // INFO: an overflowing product is above every deck limit; the saturated
+    // value lets the caller report the oversize selection instead of dropping
+    // the entry silently.
+    return total ? *total : std::numeric_limits<std::uint64_t>::max();
 }
 
 // INFO: visits every combination the combine mode yields, in stable order. A
@@ -685,7 +713,7 @@ void ForEachCombination(const std::string& combine,
     ForEachAssignment(lists, std::forward<Visitor>(visit));
 }
 
-// INFO: the runtime an expression context of a `copies` expression: only
+// INFO: the runtime expression context of a `copies` expression: only
 // `@settings.<key>` resolves, to the int the settings map holds; every other
 // selector, property, variable and query is empty or false. `Evaluate` calls
 // SelectorValue then ReadProperty for `@settings.key`, so those are the two
@@ -735,37 +763,18 @@ private:
     const std::map<std::string, int64_t>& settings_;
 };
 
-// INFO: the copies of one deck entry: an integer in range, or an expression
-// parsed, checked against a Schema whose settings are all ints, and evaluated
-// against `settings`. Any problem is reported at the entry pointer (the
-// expression check at the "copies" pointer) and gives nullopt, so the entry is
-// skipped.
-std::optional<int> ResolveCopies(const DeckEntry& entry, const DeckSpec& deck,
-                                 const std::map<std::string, int64_t>& settings,
-                                 std::vector<Diagnostic>& diagnostics) {
-    if (entry.copies.is_number_integer()) {
-        const long long number =
-            entry.copies.is_number_unsigned()
-                ? static_cast<long long>(entry.copies.get<unsigned long long>())
-                : entry.copies.get<long long>();
-        if (number < 0) {
-            AddError(diagnostics, deck.file, entry.pointer,
-                     "copies is " + std::to_string(number) +
-                         "; the count must not be negative");
-            return std::nullopt;
-        }
-        return static_cast<int>(number);
-    }
-    if (!entry.copies.is_string()) {
-        AddError(diagnostics, deck.file, entry.pointer,
-                 "key \"copies\" must be an integer or a non-empty string");
-        return std::nullopt;
-    }
-    const std::string source = entry.copies.get<std::string>();
-    const std::string pointer = match::expr::AppendPointerToken(entry.pointer, "copies");
+// INFO: evaluates one `copies` expression string. The source is parsed, checked
+// against a Schema whose settings are all ints, then evaluated with a context
+// that reads only `@settings.<key>`; the result must be a non-negative int no
+// larger than kMaximumCopiesValue. Any problem is reported at `pointer` (the
+// entry's "copies" pointer) and gives nullopt, so the entry is skipped.
+std::optional<int> EvaluateCopiesExpression(const std::string& source, const std::string& file,
+                                            const std::string& pointer,
+                                            const std::map<std::string, int64_t>& settings,
+                                            std::vector<Diagnostic>& diagnostics) {
     const match::expr::ParseResult parsed = match::expr::ParseExpression(source);
     if (parsed.error) {
-        AddError(diagnostics, deck.file, pointer, match::expr::FormatParseError(*parsed.error));
+        AddError(diagnostics, file, pointer, match::expr::FormatParseError(*parsed.error));
         return std::nullopt;
     }
     match::expr::Schema schema;
@@ -773,8 +782,7 @@ std::optional<int> ResolveCopies(const DeckEntry& entry, const DeckSpec& deck,
         schema.settings[name] = match::expr::Type::kInt;
     }
     const match::expr::CheckResult checked = match::expr::CheckParsedExpression(
-        *parsed.root, schema, match::expr::Type::kInt, deck.file, pointer,
-        match::expr::GuardState{});
+        *parsed.root, schema, match::expr::Type::kInt, file, pointer, match::expr::GuardState{});
     for (const Diagnostic& diagnostic : checked.diagnostics) {
         AddDiagnostic(diagnostics, diagnostic);
     }
@@ -785,30 +793,59 @@ std::optional<int> ResolveCopies(const DeckEntry& entry, const DeckSpec& deck,
     SettingsContext context(settings);
     const match::expr::EvalResult evaluated = match::expr::Evaluate(*parsed.root, context);
     if (const auto* error = std::get_if<match::expr::EvalError>(&evaluated)) {
-        AddError(diagnostics, deck.file, entry.pointer,
+        AddError(diagnostics, file, pointer,
                  "copies expression \"" + source + "\" failed: " + error->code + ": " +
                      error->message);
         return std::nullopt;
     }
     const int64_t* count = std::get_if<int64_t>(&std::get<match::expr::Value>(evaluated));
     if (count == nullptr) {
-        AddError(diagnostics, deck.file, entry.pointer,
+        AddError(diagnostics, file, pointer,
                  "copies expression \"" + source + "\" is not an int");
         return std::nullopt;
     }
     if (*count < 0) {
-        AddError(diagnostics, deck.file, entry.pointer,
+        AddError(diagnostics, file, pointer,
                  "copies expression \"" + source + "\" is " + std::to_string(*count) +
                      "; the count must not be negative");
         return std::nullopt;
     }
-    if (*count > static_cast<int64_t>(kMaximumGeneratedKinds)) {
-        AddError(diagnostics, deck.file, entry.pointer,
+    if (*count > static_cast<int64_t>(kMaximumCopiesValue)) {
+        AddError(diagnostics, file, pointer,
                  "copies expression \"" + source + "\" is " + std::to_string(*count) +
-                     "; the count must not exceed " + std::to_string(kMaximumGeneratedKinds));
+                     "; the count must not exceed " + std::to_string(kMaximumCopiesValue));
         return std::nullopt;
     }
     return static_cast<int>(*count);
+}
+
+// INFO: the copies of one deck entry: an integer in range, or an expression
+// evaluated by EvaluateCopiesExpression. Every problem is reported at the
+// entry's "copies" pointer and gives nullopt, so the entry is skipped.
+std::optional<int> ResolveCopies(const DeckEntry& entry, const DeckSpec& deck,
+                                 const std::map<std::string, int64_t>& settings,
+                                 std::vector<Diagnostic>& diagnostics) {
+    const std::string copies_pointer = match::expr::AppendPointerToken(entry.pointer, "copies");
+    if (entry.copies.is_number_integer()) {
+        const long long number =
+            entry.copies.is_number_unsigned()
+                ? static_cast<long long>(entry.copies.get<unsigned long long>())
+                : entry.copies.get<long long>();
+        if (number < 0) {
+            AddError(diagnostics, deck.file, copies_pointer,
+                     "copies is " + std::to_string(number) +
+                         "; the count must not be negative");
+            return std::nullopt;
+        }
+        return static_cast<int>(number);
+    }
+    if (!entry.copies.is_string()) {
+        AddError(diagnostics, deck.file, copies_pointer,
+                 "key \"copies\" must be an integer or a non-empty string");
+        return std::nullopt;
+    }
+    return EvaluateCopiesExpression(entry.copies.get<std::string>(), deck.file, copies_pointer,
+                                    settings, diagnostics);
 }
 
 }  // namespace
@@ -1165,6 +1202,14 @@ ExpandedDeck ExpandDeck(const std::vector<ModSchema>& mods, const std::string& d
         if (!combinations) {
             continue;
         }
+        // INFO: the raw combination count is bounded before the copy count can
+        // hide it: zero copies would otherwise walk a huge cross product.
+        if (*combinations > kMaximumDeckCombinations) {
+            AddError(result.diagnostics, deck->file, entry.pointer,
+                     "entry selects too many combinations (" + std::to_string(*combinations) +
+                         "; the limit is " + std::to_string(kMaximumDeckCombinations) + ")");
+            continue;
+        }
         const std::optional<int> copies = ResolveCopies(entry, *deck, settings, result.diagnostics);
         if (!copies) {
             continue;
@@ -1184,6 +1229,12 @@ ExpandedDeck ExpandDeck(const std::vector<ModSchema>& mods, const std::string& d
             return result;
         }
         total += *contribution;
+        // INFO: an entry with no copies deals no card, and an entry whose slots
+        // select nothing has no combination to build; neither may walk the cross
+        // product (the empty case would index an empty member list).
+        if (*copies == 0 || *combinations == 0) {
+            continue;
+        }
 
         ForEachCombination(entry.combine, member_lists,
                            [&](const std::vector<const MemberDef*>& members) {

@@ -68,6 +68,17 @@ struct ExpandedDeck {
 // Schema whose settings are all ints and evaluated with only `@settings`
 // readable. The running total is checked against the deck limit before a card
 // is built.
+//
+// INFO: on any error the caller must not read `cards`/`total`; expansion may
+// stop early and both describe only the entries seen before the error.
+//
+// INFO: `product` over a template whose slots form a symmetric pair counts both
+// orders of the pair ("red_blue" and "blue_red"); use `unique_pairs` to avoid
+// the duplicate.
+//
+// INFO: every call expands the catalog of the active mods again, so one call
+// per deck costs one full catalog expansion. A `const CatalogResult&` overload
+// arrives in Task 15.
 ExpandedDeck ExpandDeck(const std::vector<ModSchema>& mods, const std::string& deck_id,
                         const std::set<std::string>& active_mods,
                         const std::map<std::string, int64_t>& settings);

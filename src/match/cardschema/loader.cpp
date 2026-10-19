@@ -938,7 +938,9 @@ void ParseDeckCopies(const json& value, const std::string& file, const std::stri
                          std::to_string(match::expr::kMaximumExpressionNodes));
             return;
         }
-        // TODO(task 12): check the expression with match::expr::CheckExpression.
+        // INFO: the syntax and the node budget are checked here; the
+        // schema-aware check that knows the settings names and types runs in
+        // ExpandDeck, where the settings are known.
         entry.copies = *copies;
         return;
     }

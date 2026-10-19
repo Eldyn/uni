@@ -1,5 +1,6 @@
 #include <doctest/doctest.h>
 
+#include <chrono>
 #include <map>
 #include <string>
 #include <vector>
@@ -689,6 +690,53 @@ int CountOf(const ExpandedDeck& deck, const std::string& kind_id) {
     return 0;
 }
 
+// INFO: a deck with one entry, for the error-path tests that need a specific
+// kind, copies value or combine mode.
+DeckSpec SingleEntryDeck(const std::string& identifier, const std::string& file,
+                         const std::string& kind, const json& copies,
+                         const std::string& combine = combine_mode::kProduct) {
+    DeckSpec deck;
+    deck.identifier = identifier;
+    deck.file = file;
+    DeckEntry entry;
+    entry.kind = kind;
+    entry.copies = copies;
+    entry.combine = combine;
+    entry.pointer = "/deck/cards/0";
+    deck.cards = {entry};
+    return deck;
+}
+
+// INFO: a three-slot template over GridMod's attributes, so a deck entry can
+// select a large raw combination count.
+KindTemplate GridThreeSlotKind() {
+    KindTemplate kind;
+    kind.identifier = "uni:grid";
+    kind.identifier_format = "{first}_{second}_{third}";
+    kind.slots = {SlotBinding{"uni:slot0", "first", "", ""},
+                  SlotBinding{"uni:slot1", "second", "", ""},
+                  SlotBinding{"uni:slot2", "third", "", ""}};
+    kind.slot_order = {"first", "second", "third"};
+    kind.file = "mods/uni/kinds/grid.json";
+    return kind;
+}
+
+// INFO: an eleven-slot template over GridMod(11, 64). The raw product 64^11
+// overflows 64 bits, so a deck entry over it must report the oversize selection
+// instead of being dropped silently.
+KindTemplate OverflowKind() {
+    KindTemplate kind;
+    kind.identifier = "uni:grid";
+    kind.identifier_format = "{s0}_{s1}_{s2}_{s3}_{s4}_{s5}_{s6}_{s7}_{s8}_{s9}_{s10}";
+    for (int index = 0; index < 11; ++index) {
+        const std::string slot = "s" + std::to_string(index);
+        kind.slots.push_back(SlotBinding{"uni:slot" + std::to_string(index), slot, "", ""});
+        kind.slot_order.push_back(slot);
+    }
+    kind.file = "mods/uni/kinds/grid.json";
+    return kind;
+}
+
 }  // namespace
 
 TEST_SUITE("cardschema deck") {
@@ -809,7 +857,7 @@ TEST_CASE("copies_negative") {
 
     REQUIRE(result.diagnostics.size() == 1);
     CHECK(FormatDiagnostic(result.diagnostics[0]) ==
-          "mods/uni/decks/classic.json#/deck/cards/1: copies expression "
+          "mods/uni/decks/classic.json#/deck/cards/1/copies: copies expression "
           "\"@settings.count_wild - 10\" is -6; the count must not be negative");
 }
 
@@ -821,7 +869,7 @@ TEST_CASE("copies_division_by_zero") {
 
     REQUIRE(result.diagnostics.size() == 1);
     CHECK(FormatDiagnostic(result.diagnostics[0]) ==
-          "mods/uni/decks/classic.json#/deck/cards/1: copies expression "
+          "mods/uni/decks/classic.json#/deck/cards/1/copies: copies expression "
           "\"4 / (@settings.count_wild - 4)\" failed: division_by_zero: division by zero");
 }
 
@@ -830,8 +878,11 @@ TEST_CASE("deck_cap") {
     std::map<std::string, int64_t> settings = DefaultSettings();
     settings["count_numbered"] = 200;
 
+    const auto start = std::chrono::steady_clock::now();
     const ExpandedDeck result = ExpandDeck({mod}, "uni:classic", {}, settings);
+    const auto elapsed = std::chrono::steady_clock::now() - start;
 
+    CHECK(elapsed < std::chrono::seconds(2));
     REQUIRE(result.diagnostics.size() == 1);
     CHECK(FormatDiagnostic(result.diagnostics[0]) ==
           "mods/uni/decks/classic.json#/deck/cards/1: deck \"uni:classic\" has 3602 cards, "
@@ -848,6 +899,232 @@ TEST_CASE("copies_unknown_setting") {
     CHECK(FormatDiagnostic(result.diagnostics[0]) ==
           "mods/uni/decks/classic.json#/deck/cards/2/copies: unknown property "
           "\"count_wilds\" on settings (did you mean \"count_wild\")");
+}
+
+TEST_CASE("zero_copies_small_entry") {
+    ModSchema mod = GridMod(3, 2);
+    mod.kinds = {GridThreeSlotKind()};
+    mod.decks = {SingleEntryDeck("uni:zero", "mods/uni/decks/zero.json", "uni:grid", 0)};
+
+    const ExpandedDeck result = ExpandDeck({mod}, "uni:zero", {}, DefaultSettings());
+
+    CHECK(result.diagnostics.empty());
+    CHECK(result.cards.empty());
+    CHECK(result.total == 0);
+}
+
+TEST_CASE("too_many_combinations") {
+    ModSchema mod = GridMod(3, 200);
+    mod.kinds = {GridThreeSlotKind()};
+    mod.decks = {SingleEntryDeck("uni:oversize", "mods/uni/decks/oversize.json", "uni:grid", 0)};
+
+    const auto start = std::chrono::steady_clock::now();
+    const ExpandedDeck result = ExpandDeck({mod}, "uni:oversize", {}, DefaultSettings());
+    const auto elapsed = std::chrono::steady_clock::now() - start;
+
+    CHECK(elapsed < std::chrono::seconds(2));
+    CHECK(result.cards.empty());
+    REQUIRE(result.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(result.diagnostics[0]) ==
+          "mods/uni/decks/oversize.json#/deck/cards/0: entry selects too many combinations "
+          "(8000000; the limit is 65536)");
+}
+
+TEST_CASE("combination_product_overflow") {
+    ModSchema mod = GridMod(11, 64);
+    mod.kinds = {OverflowKind()};
+    mod.decks = {SingleEntryDeck("uni:overflow", "mods/uni/decks/overflow.json", "uni:grid", 0)};
+
+    const ExpandedDeck result = ExpandDeck({mod}, "uni:overflow", {}, DefaultSettings());
+
+    CHECK(result.cards.empty());
+    REQUIRE(result.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(result.diagnostics[0]) ==
+          "mods/uni/decks/overflow.json#/deck/cards/0: entry selects too many combinations "
+          "(18446744073709551615; the limit is 65536)");
+}
+
+TEST_CASE("unique_pairs_needs_two_slots") {
+    ModSchema mod = GridMod(3, 2);
+    mod.kinds = {GridThreeSlotKind()};
+    mod.decks = {SingleEntryDeck("uni:pairs3", "mods/uni/decks/pairs3.json", "uni:grid", 1,
+                                 combine_mode::kUniquePairs)};
+
+    const ExpandedDeck result = ExpandDeck({mod}, "uni:pairs3", {}, DefaultSettings());
+
+    REQUIRE(result.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(result.diagnostics[0]) ==
+          "mods/uni/decks/pairs3.json#/deck/cards/0: unique_pairs combine needs exactly two "
+          "slots, got 3");
+}
+
+TEST_CASE("unique_pairs_unequal_slots") {
+    ModSchema mod = ClassicMod();
+    mod.members.push_back(
+        ColorMember("uni:green", {"colored", "green"}, 2, "mods/uni/attributes/test.json"));
+
+    KindTemplate split;
+    split.identifier = "uni:split";
+    split.identifier_format = "{left}_{right}";
+    split.slots = {SlotBinding{"uni:color", "left", "", ""},
+                   SlotBinding{"uni:color", "right", "", ""}};
+    split.slot_order = {"left", "right"};
+    split.file = "mods/uni/kinds/split.json";
+    mod.kinds.push_back(split);
+
+    DeckSpec deck = SingleEntryDeck("uni:pairs", "mods/uni/decks/pairs.json", "uni:split", 1,
+                                    combine_mode::kUniquePairs);
+    MemberSelector left;
+    left.mode = selector_mode::kIdentifiers;
+    left.identifiers = {"uni:red", "uni:blue"};
+    left.pointer = "/deck/cards/0/members/left";
+    deck.cards[0].members["left"] = left;
+    MemberSelector right;
+    right.mode = selector_mode::kIdentifiers;
+    right.identifiers = {"uni:red", "uni:blue", "uni:green"};
+    right.pointer = "/deck/cards/0/members/right";
+    deck.cards[0].members["right"] = right;
+    mod.decks = {deck};
+
+    const ExpandedDeck result = ExpandDeck({mod}, "uni:pairs", {}, DefaultSettings());
+
+    REQUIRE(result.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(result.diagnostics[0]) ==
+          "mods/uni/decks/pairs.json#/deck/cards/0/combine: unique_pairs needs both slots to "
+          "select the same members");
+}
+
+TEST_CASE("identifier_selector_dedupes") {
+    ModSchema mod = ClassicMod();
+    mod.decks[0].cards[0].members["value"].identifiers = {"uni:0", "uni:0"};
+
+    const ExpandedDeck result = ExpandDeck({mod}, "uni:classic", {}, DefaultSettings());
+
+    CHECK(result.diagnostics.empty());
+    CHECK(result.total == 42);
+    CHECK(CountOf(result, "uni:red_0") == 1);
+}
+
+TEST_CASE("copies_integer_overflow") {
+    ModSchema mod = ClassicMod();
+    mod.decks[0].cards[1].copies = "9223372036854775807 + 1";
+
+    const ExpandedDeck result = ExpandDeck({mod}, "uni:classic", {}, DefaultSettings());
+
+    REQUIRE(result.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(result.diagnostics[0]) ==
+          "mods/uni/decks/classic.json#/deck/cards/1/copies: copies expression "
+          "\"9223372036854775807 + 1\" failed: integer_overflow: integer overflow");
+}
+
+TEST_CASE("copies_float_result") {
+    ModSchema mod = ClassicMod();
+    mod.decks[0].cards[1].copies = "1.5";
+
+    const ExpandedDeck result = ExpandDeck({mod}, "uni:classic", {}, DefaultSettings());
+
+    REQUIRE(result.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(result.diagnostics[0]) ==
+          "mods/uni/decks/classic.json#/deck/cards/1/copies: expected int, got float "
+          "(use floor(), ceil() or round())");
+}
+
+TEST_CASE("copies_above_maximum") {
+    ModSchema mod = ClassicMod();
+    mod.decks[0].cards[1].copies = "4097";
+
+    const ExpandedDeck result = ExpandDeck({mod}, "uni:classic", {}, DefaultSettings());
+
+    REQUIRE(result.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(result.diagnostics[0]) ==
+          "mods/uni/decks/classic.json#/deck/cards/1/copies: copies expression \"4097\" is 4097; "
+          "the count must not exceed 4096");
+}
+
+TEST_CASE("copies_literal_negative") {
+    ModSchema mod = ClassicMod();
+    mod.decks[0].cards[1].copies = -1;
+
+    const ExpandedDeck result = ExpandDeck({mod}, "uni:classic", {}, DefaultSettings());
+
+    REQUIRE(result.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(result.diagnostics[0]) ==
+          "mods/uni/decks/classic.json#/deck/cards/1/copies: copies is -1; the count must not "
+          "be negative");
+}
+
+TEST_CASE("unknown_deck") {
+    const ExpandedDeck result = ExpandDeck({ClassicMod()}, "uni:nope", {}, DefaultSettings());
+
+    REQUIRE(result.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(result.diagnostics[0]) == "#/: unknown deck \"uni:nope\"");
+}
+
+TEST_CASE("unknown_kind_suggestion") {
+    ModSchema mod = ClassicMod();
+    mod.decks[0].cards[0].kind = "uni:numberd";
+
+    const ExpandedDeck result = ExpandDeck({mod}, "uni:classic", {}, DefaultSettings());
+
+    REQUIRE(result.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(result.diagnostics[0]) ==
+          "mods/uni/decks/classic.json#/deck/cards/0: unknown kind \"uni:numberd\" "
+          "(did you mean \"uni:numbered\")");
+}
+
+TEST_CASE("abstract_kind_rejected") {
+    ModSchema mod = ClassicMod();
+    KindTemplate abstract_kind;
+    abstract_kind.identifier = "uni:base";
+    abstract_kind.is_abstract = true;
+    abstract_kind.file = "mods/uni/kinds/base.json";
+    mod.kinds.push_back(abstract_kind);
+    mod.decks = {SingleEntryDeck("uni:base_deck", "mods/uni/decks/base_deck.json", "uni:base", 1)};
+
+    const ExpandedDeck result = ExpandDeck({mod}, "uni:base_deck", {}, DefaultSettings());
+
+    REQUIRE(result.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(result.diagnostics[0]) ==
+          "mods/uni/decks/base_deck.json#/deck/cards/0: kind \"uni:base\" is abstract");
+}
+
+TEST_CASE("max_cards_below_total") {
+    ModSchema mod = ClassicMod();
+    mod.decks[0].max_cards = 10;
+
+    const ExpandedDeck result = ExpandDeck({mod}, "uni:classic", {}, DefaultSettings());
+
+    REQUIRE(result.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(result.diagnostics[0]) ==
+          "mods/uni/decks/classic.json#/deck/cards/1: deck \"uni:classic\" has 38 cards, "
+          "the limit is 10");
+}
+
+TEST_CASE("card_not_in_active_catalog") {
+    ModSchema mod = ClassicMod();
+    // INFO: a broken `extends` chain makes ExpandCards skip the template, so the
+    // active catalog holds no card of it; the deck still expands the template and
+    // must report the card the match cannot build.
+    mod.kinds[0].extends = "uni:missing";
+    mod.decks = {SingleEntryDeck("uni:missing_cards", "mods/uni/decks/missing_cards.json",
+                                 "uni:numbered", 1)};
+    MemberSelector color;
+    color.mode = selector_mode::kIdentifiers;
+    color.identifiers = {"uni:red"};
+    color.pointer = "/deck/cards/0/members/color";
+    mod.decks[0].cards[0].members["color"] = color;
+    MemberSelector value;
+    value.mode = selector_mode::kIdentifiers;
+    value.identifiers = {"uni:0"};
+    value.pointer = "/deck/cards/0/members/value";
+    mod.decks[0].cards[0].members["value"] = value;
+
+    const ExpandedDeck result = ExpandDeck({mod}, "uni:missing_cards", {}, DefaultSettings());
+
+    REQUIRE(result.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(result.diagnostics[0]) ==
+          "mods/uni/decks/missing_cards.json#/deck/cards/0: card \"uni:red_0\" is not generated "
+          "by the active mods");
 }
 
 }  // TEST_SUITE("cardschema deck")
