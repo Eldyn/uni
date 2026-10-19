@@ -59,7 +59,7 @@
 		data-featured-id={item.id}
 		style="--rarity-colour: {RARITY_COLOURS[item.rarity]}"
 	>
-		<span class="featured-tag font-tiny">{featuredLabel}</span>
+		<span class="featured-tag">{featuredLabel}</span>
 
 		<div class="featured-preview pixel-bordered">
 			{#if baked.url}
@@ -71,9 +71,9 @@
 		</div>
 
 		<div class="featured-info">
-			<h2 class="featured-name font-heading">{name}</h2>
-			<p class="featured-rarity font-tiny">{rarityName}</p>
-			<p class="featured-price font-pixel">
+			<h2 class="featured-name">{name}</h2>
+			<p class="featured-rarity">{rarityName}</p>
+			<p class="featured-price">
 				<span class="coin" aria-hidden="true"></span>{item.price}
 			</p>
 		</div>
@@ -109,6 +109,8 @@
 	}
 
 	.featured-tag {
+		font-family: var(--pypx);
+		font-weight: 800;
 		position: absolute;
 		top: 0;
 		left: 0;
@@ -146,6 +148,8 @@
 	}
 
 	.featured-name {
+		font-family: var(--pypx);
+		font-weight: 800;
 		margin: 0;
 		min-width: 0;
 		overflow-wrap: break-word;
@@ -153,6 +157,8 @@
 	}
 
 	.featured-rarity {
+		font-family: var(--pypx);
+		font-weight: 800;
 		margin: 0;
 		text-transform: uppercase;
 		letter-spacing: 0.08em;
@@ -160,6 +166,8 @@
 	}
 
 	.featured-price {
+		font-family: var(--pypx);
+		font-weight: 800;
 		display: flex;
 		align-items: center;
 		gap: 0.3rem;
