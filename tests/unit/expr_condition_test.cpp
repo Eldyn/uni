@@ -261,18 +261,16 @@ TEST_CASE("a_none_of_guard_after_the_leaf_does_not_narrow_it") {
     CHECK(diagnostics.front().message.find("may be unbound") != std::string::npos);
 }
 
-TEST_CASE("a_guard_inside_a_nested_group_does_not_narrow_later_siblings") {
-    const std::vector<match::expr::Diagnostic> diagnostics = Check(json::parse(
-        R"json({"all_of":[{"all_of":["defined($responder)"]},"$responder.hand_size > 0"]})json"));
-    REQUIRE_FALSE(diagnostics.empty());
-    CHECK(diagnostics.front().pointer == "/when/all_of/1");
+TEST_CASE("a_guard_inside_a_nested_group_narrows_later_siblings") {
+    CHECK(Check(json::parse(
+                    R"json({"all_of":[{"all_of":["defined($responder)"]},"$responder.hand_size > 0"]})json"))
+              .empty());
 }
 
-TEST_CASE("a_guard_inside_a_none_of_group_does_not_narrow_later_siblings") {
-    const std::vector<match::expr::Diagnostic> diagnostics = Check(json::parse(
-        R"json({"all_of":[{"none_of":["!defined($responder)"]},"$responder.hand_size > 0"]})json"));
-    REQUIRE_FALSE(diagnostics.empty());
-    CHECK(diagnostics.front().pointer == "/when/all_of/1");
+TEST_CASE("a_guard_inside_a_none_of_group_narrows_later_siblings") {
+    CHECK(Check(json::parse(
+                    R"json({"all_of":[{"none_of":["!defined($responder)"]},"$responder.hand_size > 0"]})json"))
+              .empty());
 }
 
 TEST_CASE("a_failing_check_points_into_the_nested_group") {

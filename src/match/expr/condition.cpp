@@ -272,11 +272,11 @@ private:
                 continue;
             }
             checked_children.push_back(*checked);
-            if (child.kind == Condition::Kind::kExpression) {
-                const std::set<std::string>& branch =
-                    binds_when_true ? checked->when_true : checked->when_false;
-                bound.insert(branch.begin(), branch.end());
-            }
+            // INFO: a group child already combines its leaves with the group
+            // rules, so its own when_true/when_false narrows the siblings.
+            const std::set<std::string>& branch =
+                binds_when_true ? checked->when_true : checked->when_false;
+            bound.insert(branch.begin(), branch.end());
         }
         if (!ok) {
             return std::nullopt;
