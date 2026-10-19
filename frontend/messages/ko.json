@@ -491,6 +491,7 @@
 	"shop_error_unknown_item": "존재하지 않는 아이템이에요.",
 	"shop_error_guest": "구매하려면 가입하세요.",
 	"shop_error_network": "서버에 연결하지 못했어요. 다시 시도하세요.",
+	"shop_swatch_not_sold": "이 색은 따로 판매하지 않습니다.",
 	"shop_rarity_common": "일반",
 	"shop_rarity_basic": "기본",
 	"shop_rarity_special": "특별",

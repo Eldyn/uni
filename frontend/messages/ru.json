@@ -491,6 +491,7 @@
 	"shop_error_unknown_item": "Этого товара не существует.",
 	"shop_error_guest": "Зарегистрируйтесь, чтобы купить.",
 	"shop_error_network": "Не удалось подключиться к серверу. Попробуйте ещё раз.",
+	"shop_swatch_not_sold": "Этот цвет не продаётся отдельно.",
 	"shop_rarity_common": "Обычное",
 	"shop_rarity_basic": "Базовое",
 	"shop_rarity_special": "Особое",

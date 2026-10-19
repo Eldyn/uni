@@ -491,6 +491,7 @@
 	"shop_error_unknown_item": "该物品不存在。",
 	"shop_error_guest": "注册后购买。",
 	"shop_error_network": "无法连接到服务器。请重试。",
+	"shop_swatch_not_sold": "此颜色不单独出售。",
 	"shop_rarity_common": "普通",
 	"shop_rarity_basic": "基础",
 	"shop_rarity_special": "特别",

@@ -491,6 +491,7 @@
 	"shop_error_unknown_item": "Este objeto no existe.",
 	"shop_error_guest": "Regístrate para comprar.",
 	"shop_error_network": "No se pudo conectar con el servidor. Inténtalo de nuevo.",
+	"shop_swatch_not_sold": "Este color no se vende por separado.",
 	"shop_rarity_common": "Común",
 	"shop_rarity_basic": "Básico",
 	"shop_rarity_special": "Especial",

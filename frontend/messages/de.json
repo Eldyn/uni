@@ -491,6 +491,7 @@
 	"shop_error_unknown_item": "Dieser Artikel existiert nicht.",
 	"shop_error_guest": "Zum Kaufen registrieren.",
 	"shop_error_network": "Der Server ist nicht erreichbar. Versuch es erneut.",
+	"shop_swatch_not_sold": "Diese Farbe gibt es nicht einzeln.",
 	"shop_rarity_common": "Gewöhnlich",
 	"shop_rarity_basic": "Basis",
 	"shop_rarity_special": "Spezial",

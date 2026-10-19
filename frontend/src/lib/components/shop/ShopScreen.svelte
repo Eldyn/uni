@@ -9,8 +9,8 @@
 	import { onMount, tick } from "svelte";
 	import { isBuyableNow, isSwatchBuyable } from "$lib/shop/shopBackend";
 	import { compareRarity, paletteRarity } from "$lib/shop/rarity";
-	import type { BuyFailure, SwatchEntry } from "$lib/shop/shopBackend";
-	import type { AvatarSlot, CatalogueItem, Loadout, Palette } from "$lib/avatar/types";
+	import type { BuyFailure } from "$lib/shop/shopBackend";
+	import type { AvatarSlot, CatalogueItem, Loadout, Palette, Swatch } from "$lib/avatar/types";
 	import { storeShop } from "$lib/stores/shop.svelte";
 	import { storeAuth } from "$stores/auth.svelte";
 	import { storeAvatar } from "$stores/avatar.svelte";
@@ -24,7 +24,7 @@
 	import FeaturedBanner from "$components/shop/FeaturedBanner.svelte";
 	import SlotTabs from "$components/shop/SlotTabs.svelte";
 	import PaletteCard from "$components/shop/PaletteCard.svelte";
-	import SwatchDetail from "$components/shop/SwatchDetail.svelte";
+	import PaletteDetail from "$components/shop/PaletteDetail.svelte";
 
 	/** A tab either filters to one catalogue slot, or to palettes, or to all. */
 	type TabSlot = AvatarSlot | "palette" | null;
@@ -64,7 +64,7 @@
 
 	let activeTab = $state("all");
 	let selected = $state<CatalogueItem | null>(null);
-	let selectedSwatch = $state<SwatchEntry | null>(null);
+	let selectedPalette = $state<Palette | null>(null);
 	let buyError = $state<BuyFailure | null>(null);
 	let focusedCard = $state(0);
 	let gridEl: HTMLDivElement | undefined = $state();
@@ -131,7 +131,7 @@
 
 	function openDetail(item: CatalogueItem): void {
 		triggerId = item.id;
-		selectedSwatch = null;
+		selectedPalette = null;
 		selected = item;
 		buyError = null;
 	}
@@ -151,16 +151,12 @@
 	function openPalette(palette: Palette): void {
 		triggerId = palette.id;
 		selected = null;
-		const swatch =
-			palette.swatches.find(
-				(entry) => isSwatchBuyable({ swatch: entry, palette }) && !owned.has(entry.id)
-			) ?? palette.swatches[0];
-		selectedSwatch = swatch ? { swatch, palette } : null;
+		selectedPalette = palette;
 		buyError = null;
 	}
 
-	async function closeSwatch(): Promise<void> {
-		selectedSwatch = null;
+	async function closePalette(): Promise<void> {
+		selectedPalette = null;
 		buyError = null;
 		const id = triggerId;
 		await tick();
@@ -170,8 +166,8 @@
 		card?.focus();
 	}
 
-	async function buySwatch(entry: SwatchEntry): Promise<void> {
-		const result = await storeShop.buy(entry.swatch.id);
+	async function buySwatch(swatch: Swatch): Promise<void> {
+		const result = await storeShop.buy(swatch.id);
 		if (result.ok) {
 			balance = result.balance;
 			owned = new Set(storeShop.owned);
@@ -179,10 +175,6 @@
 		} else {
 			buyError = result.reason;
 		}
-	}
-
-	function buySelectedSwatch(): void {
-		if (selectedSwatch) void buySwatch(selectedSwatch);
 	}
 
 	/** The preview look with one item equipped, on a fresh copy. */
@@ -204,6 +196,12 @@
 
 	function tryOn(item: CatalogueItem): void {
 		previewLoadout = withItem(previewLoadout ?? defaultLoadout(), item);
+	}
+
+	/** TRY ON for a color: the preview look wears it as the skin. */
+	function tryColour(swatchId: string): void {
+		previewLoadout = { ...(previewLoadout ?? defaultLoadout()), skin: swatchId };
+		buyError = null;
 	}
 
 	async function buy(item: CatalogueItem): Promise<void> {
@@ -311,15 +309,16 @@
 		/>
 	{/if}
 
-	{#if selectedSwatch}
-		<SwatchDetail
-			swatch={selectedSwatch.swatch}
-			palette={selectedSwatch.palette}
-			owned={owned.has(selectedSwatch.swatch.id)}
+	{#if selectedPalette}
+		<PaletteDetail
+			palette={selectedPalette}
+			{owned}
 			{balance}
 			{guest}
-			onbuy={buySelectedSwatch}
-			onclose={closeSwatch}
+			loadout={viewerLoadout}
+			onbuy={(swatch) => void buySwatch(swatch)}
+			ontry={tryColour}
+			onclose={closePalette}
 			error={buyError}
 		/>
 	{/if}
