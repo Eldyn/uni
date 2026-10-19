@@ -279,7 +279,7 @@ TEST_CASE("engine: force-played draw is not flagged as held") {
     //       progressive stops on is the one force_play auto-plays, so no
     //       play-or-keep hold ever begins.
     DeckDef deck = content.classic;
-    deck.mods = {"vanilla", "progressive", "wp9d1_force"};
+    deck.mods = {"uni", "progressive", "wp9d1_force"};
     AssemblyResult result = MatchAssembler::Assemble(
         content.mods, deck, Players(2, 5, 7));
     REQUIRE_MESSAGE(result.ok(), AssemblyMessage(result));
