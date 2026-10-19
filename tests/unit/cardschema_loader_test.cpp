@@ -1788,4 +1788,86 @@ TEST_CASE("copies_expression_settings_reference") {
           "@settings.count_zeros");
 }
 
+TEST_CASE("loads_property") {
+    CardSchemaTempDir dir;
+    dir.Write("tree/properties/growth.json",
+              R"({"format_version":"1.0.0","property":{"identifier":"tree:growth",)"
+              R"("scope":"match","type":"int","default":0,"range":[0,5],)"
+              R"("visibility":"public","sync_to_clients":true,)"
+              R"("writable_by":["tree","axe"]}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "tree", "tree");
+
+    REQUIRE(outcome.ok());
+    REQUIRE(outcome.schema.properties.size() == 1);
+    const match::cardschema::PropertyDef& property = outcome.schema.properties[0];
+    CHECK(property.identifier == "tree:growth");
+    CHECK(property.scope == "match");
+    CHECK(property.type == "int");
+    CHECK(property.default_value == 0);
+    REQUIRE(property.range.has_value());
+    CHECK(property.range->first == 0.0);
+    CHECK(property.range->second == 5.0);
+    CHECK(property.visibility == "public");
+    CHECK(property.sync_to_clients);
+    CHECK(property.writable_by == std::vector<std::string>{"tree", "axe"});
+}
+
+TEST_CASE("default_out_of_range") {
+    CardSchemaTempDir dir;
+    dir.Write("tree/properties/growth.json",
+              R"({"format_version":"1.0.0","property":{"identifier":"tree:growth",)"
+              R"("scope":"match","type":"int","default":9,"range":[0,5]}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "tree", "tree");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/tree/properties/growth.json#/property/default: "
+          "key \"default\" is outside the range [0, 5]");
+}
+
+TEST_CASE("member_needs_attribute") {
+    CardSchemaTempDir dir;
+    dir.Write("tree/properties/growth.json",
+              R"({"format_version":"1.0.0","property":{"identifier":"tree:growth",)"
+              R"("scope":"card","type":"member"}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "tree", "tree");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/tree/properties/growth.json#/property/attribute: "
+          "missing required key \"attribute\"");
+}
+
+TEST_CASE("range_on_string_rejected") {
+    CardSchemaTempDir dir;
+    dir.Write("tree/properties/growth.json",
+              R"({"format_version":"1.0.0","property":{"identifier":"tree:growth",)"
+              R"("scope":"match","type":"string","range":[0,5]}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "tree", "tree");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/tree/properties/growth.json#/property/range: "
+          "key \"range\" is only allowed when \"type\" is \"int\" or \"float\"");
+}
+
+TEST_CASE("bad_scope") {
+    CardSchemaTempDir dir;
+    dir.Write("tree/properties/growth.json",
+              R"({"format_version":"1.0.0","property":{"identifier":"tree:growth",)"
+              R"("scope":"crad","type":"int"}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "tree", "tree");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/tree/properties/growth.json#/property/scope: "
+          "key \"scope\" must be one of \"card\", \"seat\", \"match\" "
+          "(did you mean \"card\")");
+}
+
 }  // TEST_SUITE("cardschema loader")

@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <filesystem>
 #include <fstream>
 #include <limits>
@@ -141,20 +142,36 @@ std::string QuotedValues(const std::vector<std::string>& values) {
     return text;
 }
 
+// INFO: range bounds are whole numbers in practice, so `%g` keeps `[0, 5]`
+// readable instead of `[0.000000, 5.000000]`.
+std::string FormatNumber(double value) {
+    char buffer[32];
+    std::snprintf(buffer, sizeof(buffer), "%g", value);
+    return buffer;
+}
+
 std::optional<std::string> ReadEnum(const json& object, const char* key,
                                     const std::vector<std::string>& candidates,
                                     const std::string& file, const std::string& pointer,
-                                    std::vector<Diagnostic>& diagnostics) {
+                                    std::vector<Diagnostic>& diagnostics, bool required = false,
+                                    const char* fallback_suggestion = nullptr) {
     const std::optional<std::string> value =
-        ReadString(object, key, file, pointer, diagnostics, false);
+        ReadString(object, key, file, pointer, diagnostics, required);
     if (!value) {
         return std::nullopt;
     }
     if (!Contains(candidates, *value)) {
+        std::string suggestion = match::expr::SuggestClosest(*value, candidates);
+        // INFO: a short word can sit past the edit-distance threshold of every
+        // candidate (e.g. "crad" and "card"); a single-value enum names its one
+        // plausible answer instead of printing no suggestion.
+        if (suggestion.empty() && fallback_suggestion != nullptr) {
+            suggestion = fallback_suggestion;
+        }
         AddError(diagnostics, file, match::expr::AppendPointerToken(pointer, key),
                  "key \"" + std::string(key) + "\" must be one of " +
                      QuotedValues(candidates),
-                 match::expr::SuggestClosest(*value, candidates));
+                 suggestion);
         return std::nullopt;
     }
     return value;
@@ -871,6 +888,238 @@ bool ParseDeck(const json& value, const std::string& mod_id, const std::string& 
     return usable && diagnostics.size() == initial_diagnostics;
 }
 
+const std::vector<std::string>& PropertyKeys() {
+    static const std::vector<std::string> keys = {"identifier", "scope",     "type",
+                                                  "default",    "range",     "visibility",
+                                                  "sync_to_clients", "writable_by",
+                                                  "values",     "attribute"};
+    return keys;
+}
+
+const std::vector<std::string>& PropertyScopes() {
+    static const std::vector<std::string> scopes = {"card", "seat", "match"};
+    return scopes;
+}
+
+const std::vector<std::string>& PropertyTypes() {
+    static const std::vector<std::string> types = {"int", "float", "boolean", "string",
+                                                   "member"};
+    return types;
+}
+
+bool PropertyDefaultFitsType(const json& value, const std::string& type) {
+    if (type == "int") {
+        return value.is_number_integer();
+    }
+    if (type == "float") {
+        return value.is_number();
+    }
+    if (type == "boolean") {
+        return value.is_boolean();
+    }
+    if (type == "string" || type == "member") {
+        return value.is_string();
+    }
+    return true;
+}
+
+void ParsePropertyRange(const json& value, const std::string& file, const std::string& pointer,
+                        std::vector<Diagnostic>& diagnostics, PropertyDef& property) {
+    const auto range = value.find("range");
+    if (range == value.end()) {
+        return;
+    }
+    const std::string range_pointer = match::expr::AppendPointerToken(pointer, "range");
+    if (property.type != "int" && property.type != "float") {
+        AddError(diagnostics, file, range_pointer,
+                 "key \"range\" is only allowed when \"type\" is \"int\" or \"float\"");
+        return;
+    }
+    if (!range->is_array() || range->size() != 2 || !(*range)[0].is_number() ||
+        !(*range)[1].is_number()) {
+        AddError(diagnostics, file, range_pointer,
+                 "key \"range\" must be an array of two numbers");
+        return;
+    }
+    const double low = (*range)[0].get<double>();
+    const double high = (*range)[1].get<double>();
+    if (low > high) {
+        AddError(diagnostics, file, range_pointer, "key \"range\" must have low <= high");
+        return;
+    }
+    property.range = std::make_pair(low, high);
+}
+
+void ParsePropertyDefault(const json& value, const std::string& file, const std::string& pointer,
+                          std::vector<Diagnostic>& diagnostics, PropertyDef& property) {
+    const auto entry = value.find("default");
+    if (entry == value.end()) {
+        return;
+    }
+    const std::string default_pointer = match::expr::AppendPointerToken(pointer, "default");
+    property.default_value = *entry;
+    if (!PropertyDefaultFitsType(*entry, property.type)) {
+        AddError(diagnostics, file, default_pointer,
+                 "key \"default\" must be of type \"" + property.type + "\"");
+        return;
+    }
+    if (property.range && entry->is_number()) {
+        const double number = entry->get<double>();
+        if (number < property.range->first || number > property.range->second) {
+            AddError(diagnostics, file, default_pointer,
+                     "key \"default\" is outside the range [" +
+                         FormatNumber(property.range->first) + ", " +
+                         FormatNumber(property.range->second) + "]");
+        }
+    }
+}
+
+void ParsePropertyWritableBy(const json& value, const std::string& file,
+                             const std::string& pointer, std::vector<Diagnostic>& diagnostics,
+                             PropertyDef& property) {
+    const auto entry = value.find("writable_by");
+    if (entry == value.end()) {
+        return;
+    }
+    const std::string writable_pointer =
+        match::expr::AppendPointerToken(pointer, "writable_by");
+    if (entry->is_string()) {
+        if (entry->get<std::string>() == "owner") {
+            return;
+        }
+        AddError(diagnostics, file, writable_pointer,
+                 "key \"writable_by\" must be \"owner\" or an array of mod ids");
+        return;
+    }
+    if (!entry->is_array()) {
+        AddError(diagnostics, file, writable_pointer,
+                 "key \"writable_by\" must be \"owner\" or an array of mod ids");
+        return;
+    }
+    std::set<std::string> seen;
+    for (std::size_t index = 0; index < entry->size(); ++index) {
+        const json& item = (*entry)[index];
+        const std::string item_pointer =
+            match::expr::AppendPointerToken(writable_pointer, std::to_string(index));
+        if (!item.is_string() || item.get<std::string>().empty()) {
+            AddError(diagnostics, file, item_pointer, "mod id must be a non-empty string");
+            continue;
+        }
+        const std::string text = item.get<std::string>();
+        if (!IsValidLocalName(text)) {
+            AddError(diagnostics, file, item_pointer,
+                     "mod id \"" + text + "\" must use [a-z0-9_] (1 to 32 characters)");
+            continue;
+        }
+        if (!seen.insert(text).second) {
+            AddError(diagnostics, file, item_pointer, "duplicate mod id \"" + text + "\"");
+            continue;
+        }
+        property.writable_by.push_back(text);
+    }
+}
+
+void ParsePropertyValues(const json& value, const std::string& file, const std::string& pointer,
+                         std::vector<Diagnostic>& diagnostics, PropertyDef& property) {
+    const auto entry = value.find("values");
+    if (entry == value.end()) {
+        return;
+    }
+    const std::string values_pointer = match::expr::AppendPointerToken(pointer, "values");
+    if (property.type != "string") {
+        AddError(diagnostics, file, values_pointer,
+                 "key \"values\" is only allowed when \"type\" is \"string\"");
+        return;
+    }
+    if (!entry->is_array()) {
+        AddError(diagnostics, file, values_pointer, "key \"values\" must be an array");
+        return;
+    }
+    std::set<std::string> seen;
+    for (std::size_t index = 0; index < entry->size(); ++index) {
+        const json& item = (*entry)[index];
+        const std::string item_pointer =
+            match::expr::AppendPointerToken(values_pointer, std::to_string(index));
+        if (!item.is_string() || item.get<std::string>().empty()) {
+            AddError(diagnostics, file, item_pointer, "value must be a non-empty string");
+            continue;
+        }
+        const std::string text = item.get<std::string>();
+        if (!seen.insert(text).second) {
+            AddError(diagnostics, file, item_pointer, "duplicate value \"" + text + "\"");
+            continue;
+        }
+        property.values.push_back(text);
+    }
+}
+
+bool ParseProperty(const json& value, const std::string& mod_id, const std::string& file,
+                   const std::string& pointer, std::vector<Diagnostic>& diagnostics,
+                   PropertyDef& property) {
+    if (!value.is_object()) {
+        AddError(diagnostics, file, pointer, "property must be an object");
+        return false;
+    }
+    const std::size_t initial_diagnostics = diagnostics.size();
+    CheckUnknownKeys(value, PropertyKeys(), file, pointer, diagnostics);
+
+    bool usable = false;
+    const std::optional<std::string> identifier =
+        ReadString(value, "identifier", file, pointer, diagnostics, true);
+    if (identifier) {
+        property.identifier = *identifier;
+        usable = ValidateIdentifier(*identifier, mod_id, file,
+                                    match::expr::AppendPointerToken(pointer, "identifier"),
+                                    "property identifier", diagnostics);
+    }
+
+    if (const std::optional<std::string> scope =
+            ReadEnum(value, "scope", PropertyScopes(), file, pointer, diagnostics, true,
+                     "card")) {
+        property.scope = *scope;
+    }
+    if (const std::optional<std::string> type =
+            ReadEnum(value, "type", PropertyTypes(), file, pointer, diagnostics, true)) {
+        property.type = *type;
+    }
+
+    ParsePropertyRange(value, file, pointer, diagnostics, property);
+    ParsePropertyDefault(value, file, pointer, diagnostics, property);
+
+    if (const std::optional<std::string> visibility =
+            ReadEnum(value, "visibility", {"public", "owner", "hidden"}, file, pointer,
+                     diagnostics)) {
+        property.visibility = *visibility;
+    }
+
+    const auto sync_to_clients = value.find("sync_to_clients");
+    if (sync_to_clients != value.end()) {
+        if (!sync_to_clients->is_boolean()) {
+            AddError(diagnostics, file,
+                     match::expr::AppendPointerToken(pointer, "sync_to_clients"),
+                     "key \"sync_to_clients\" must be a boolean");
+        } else {
+            property.sync_to_clients = sync_to_clients->get<bool>();
+        }
+    }
+
+    ParsePropertyWritableBy(value, file, pointer, diagnostics, property);
+    ParsePropertyValues(value, file, pointer, diagnostics, property);
+
+    const std::optional<std::string> attribute =
+        ReadString(value, "attribute", file, pointer, diagnostics, property.type == "member");
+    if (attribute) {
+        if (ValidateIdentifier(*attribute, mod_id, file,
+                               match::expr::AppendPointerToken(pointer, "attribute"),
+                               "property attribute", diagnostics)) {
+            property.member_attribute = *attribute;
+        }
+    }
+
+    property.file = file;
+    return usable && diagnostics.size() == initial_diagnostics;
+}
+
 void ReadTags(const json& value, const std::string& file, const std::string& pointer,
               std::vector<Diagnostic>& diagnostics, MemberDef& member) {
     const auto tags = value.find("tags");
@@ -1167,7 +1416,8 @@ void LoadFileImpl(const fs::path& path, const std::string& folder, const std::st
                   std::map<std::string, std::string>& attribute_files,
                   std::map<std::string, std::string>& member_files,
                   std::map<std::string, std::string>& kind_files,
-                  std::map<std::string, std::string>& deck_files) {
+                  std::map<std::string, std::string>& deck_files,
+                  std::map<std::string, std::string>& property_files) {
     std::vector<Diagnostic>& diagnostics = outcome.diagnostics;
 
     const std::optional<json> document = internal::ReadCardDocument(path, label, diagnostics);
@@ -1306,6 +1556,27 @@ void LoadFileImpl(const fs::path& path, const std::string& folder, const std::st
         }
         deck_files.emplace(deck.identifier, label);
         outcome.schema.decks.push_back(std::move(deck));
+        return;
+    }
+
+    if (root == "property") {
+        PropertyDef property;
+        if (!ParseProperty(value, mod_id, label, pointer, diagnostics, property)) {
+            return;
+        }
+        const std::string identifier_pointer =
+            match::expr::AppendPointerToken(pointer, "identifier");
+        CheckIdentifierMatchesFile(property.identifier, path.stem().string(), label,
+                                   identifier_pointer, diagnostics);
+        const auto existing = property_files.find(property.identifier);
+        if (existing != property_files.end()) {
+            AddError(diagnostics, label, identifier_pointer,
+                     "duplicate property identifier \"" + property.identifier + "\" in " +
+                         label + "; first declared in " + existing->second);
+            return;
+        }
+        property_files.emplace(property.identifier, label);
+        outcome.schema.properties.push_back(std::move(property));
     }
 }
 
@@ -1314,10 +1585,11 @@ void LoadFile(const fs::path& path, const std::string& folder, const std::string
               std::map<std::string, std::string>& attribute_files,
               std::map<std::string, std::string>& member_files,
               std::map<std::string, std::string>& kind_files,
-              std::map<std::string, std::string>& deck_files) {
+              std::map<std::string, std::string>& deck_files,
+              std::map<std::string, std::string>& property_files) {
     try {
         LoadFileImpl(path, folder, label, mod_id, outcome, attribute_files, member_files,
-                     kind_files, deck_files);
+                     kind_files, deck_files, property_files);
     } catch (const std::exception& error) {
         AddError(outcome.diagnostics, label, std::string(match::expr::kRootPointer),
                  std::string("internal error: ") + error.what());
@@ -1457,6 +1729,7 @@ LoadOutcome LoadModSchema(const fs::path& mod_directory, const std::string& mod_
         std::map<std::string, std::string> member_files;
         std::map<std::string, std::string> kind_files;
         std::map<std::string, std::string> deck_files;
+        std::map<std::string, std::string> property_files;
 
         for (const fs::path& file : files) {
             const fs::path relative = file.lexically_relative(mod_directory);
@@ -1472,7 +1745,7 @@ LoadOutcome LoadModSchema(const fs::path& mod_directory, const std::string& mod_
             const std::string folder = relative.begin()->string();
             const std::string label = PathLabel(mod_id, relative);
             LoadFile(file, folder, label, mod_id, outcome, attribute_files, member_files,
-                     kind_files, deck_files);
+                     kind_files, deck_files, property_files);
         }
 
         std::stable_sort(outcome.schema.members.begin(), outcome.schema.members.end(),
