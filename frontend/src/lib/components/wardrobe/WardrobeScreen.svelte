@@ -25,6 +25,7 @@
 	import { storeAuth } from "$stores/auth.svelte";
 	import { storeAvatar } from "$stores/avatar.svelte";
 	import { storeI18n } from "$stores/i18n.svelte";
+	import { storeNavigation } from "$stores/navigation.svelte";
 
 	let { onleave = () => {} }: { onleave?: () => void } = $props();
 
@@ -96,8 +97,12 @@
 	const lockedSwatches = $derived(
 		new Set(
 			catalogue.palettes
-				.filter((palette) => palette.starter !== true && !storeShop.owned.has(palette.id))
-				.flatMap((palette) => palette.swatches.map((swatch) => swatch.id))
+				.filter((palette) => palette.starter !== true)
+				.flatMap((palette) =>
+					palette.swatches
+						.filter((swatch) => !storeShop.owned.has(swatch.id) && !storeShop.owned.has(palette.id))
+						.map((swatch) => swatch.id)
+				)
 		)
 	);
 
@@ -126,6 +131,9 @@
 	);
 	const skinLabel = $derived(wardrobeText("wardrobe_skin", "Skin", locale));
 	const coloursLabel = $derived(wardrobeText("wardrobe_colours", "Colours", locale));
+	const lockedLabel = $derived(
+		wardrobeText("wardrobe_swatch_locked", "Buy this color in the Shop", locale)
+	);
 	const leaveTitle = $derived(
 		wardrobeText("wardrobe_leave_title", "Leave without saving?", locale)
 	);
@@ -254,6 +262,8 @@
 					colours={[draft.skin]}
 					{swatches}
 					locked={lockedSwatches}
+					{lockedLabel}
+					onlocked={() => storeNavigation.goto("shop")}
 					regionLabels={[skinLabel]}
 					label={skinLabel}
 					onpick={(_region, swatchId) => pickColour("shape", 0, swatchId)}
@@ -284,6 +294,8 @@
 						colours={activeChoice?.colours ?? []}
 						{swatches}
 						locked={lockedSwatches}
+						{lockedLabel}
+						onlocked={() => storeNavigation.goto("shop")}
 						{regionLabels}
 						label={coloursLabel}
 						skinFirst={activeTab === "motif"}

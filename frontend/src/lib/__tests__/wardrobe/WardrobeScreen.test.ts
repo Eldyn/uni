@@ -13,6 +13,7 @@ import { setShopBackend } from "$lib/stores/shop.svelte";
 import { setCatalogueForTest } from "$lib/avatar/catalogue";
 import { avatarFixture, fullLoadout } from "$lib/__tests__/avatar/avatarFixture";
 import type { Loadout } from "$lib/avatar/types";
+import { storeNavigation } from "$stores/navigation.svelte";
 import wardrobeSource from "../../components/wardrobe/WardrobeScreen.svelte?raw";
 
 vi.mock("@threlte/core", () => ({
@@ -51,6 +52,12 @@ const { storeAvatar } = vi.hoisted(() => ({
 }));
 
 vi.mock("$stores/avatar.svelte", () => ({ storeAvatar }));
+
+const { storeNavigation } = vi.hoisted(() => ({
+	storeNavigation: { goto: vi.fn() }
+}));
+
+vi.mock("$stores/navigation.svelte", () => ({ storeNavigation }));
 
 const baked = vi.hoisted(() => ({ set: vi.fn(), destroy: vi.fn() }));
 
@@ -100,6 +107,7 @@ beforeEach(() => {
 	storeAvatar.save.mockReset();
 	storeAvatar.save.mockResolvedValue({ ok: true });
 	storeTopbarContent.current = undefined;
+	storeNavigation.goto.mockReset();
 });
 
 afterEach(() => {
@@ -303,5 +311,18 @@ describe("WardrobeScreen", () => {
 		expect(container.querySelectorAll(".colour-rows")).toHaveLength(2);
 		expect(screen.getAllByText("Skin")).toHaveLength(1);
 		expect(screen.getAllByText("Region 1")).toHaveLength(1);
+	});
+
+	it("marks a locked paid swatch and opens the Shop when it is clicked", async () => {
+		const { container } = render(WardrobeScreen);
+		flushSync();
+
+		const locked = container.querySelector<HTMLElement>('[data-swatch-id="uni:neon:hot"]');
+		expect(locked).not.toBeNull();
+		expect(locked?.dataset.locked).toBe("true");
+		expect(locked?.querySelector(".pixelart-icons-font-lock")).not.toBeNull();
+
+		await fireEvent.click(locked!);
+		expect(storeNavigation.goto).toHaveBeenCalledWith("shop");
 	});
 });
