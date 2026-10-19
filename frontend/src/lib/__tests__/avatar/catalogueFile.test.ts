@@ -41,12 +41,31 @@ describe("avatar catalogue file", () => {
 		expect(catalogue.items.length).toBe(16);
 	});
 
-	it("the default body is the original UNI body", () => {
+	it("the default body is the original UNI body, tinted by multiply", () => {
 		const firstShapeStarter = catalogue.items.find(
 			(item) => item.slot === "shape" && item.starter === true
 		);
 		expect(firstShapeStarter?.id).toBe("uni:classic");
-		expect(firstShapeStarter?.regions).toBe(0);
+		expect(firstShapeStarter?.regions).toBe(1);
+		expect(firstShapeStarter?.tint).toBe("multiply");
+	});
+
+	it("every colored part and motif lists one default color per stored color", () => {
+		const wrong = catalogue.items
+			.filter((item) => item.slot !== "shape")
+			.filter((item) => {
+				const expected = item.slot === "motif" ? Math.max(0, item.regions - 1) : item.regions;
+				return (item.default_colors ?? []).length !== expected;
+			})
+			.map((item) => item.id);
+		expect(wrong).toEqual([]);
+	});
+
+	it("an item with no regions has no default colors", () => {
+		const bad = catalogue.items.filter(
+			(item) => item.regions === 0 && (item.default_colors ?? []).length > 0
+		);
+		expect(bad).toEqual([]);
 	});
 
 	it("every item asset file exists under frontend/public/assets/avatar", () => {

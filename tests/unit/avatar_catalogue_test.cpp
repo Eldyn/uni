@@ -369,12 +369,15 @@ TEST_CASE("avatar catalogue: the real avatar/catalogue.json loads") {
     CHECK(catalogue.HasSwatch("uni:neon:hot"));
     REQUIRE(catalogue.SlotDefault("shape") != nullptr);
     CHECK(catalogue.SlotDefault("shape")->id == "uni:classic");
+    CHECK(catalogue.SlotDefault("shape")->regions == 1);
+    CHECK(catalogue.SlotDefault("shape")->tint == "multiply");
     REQUIRE(catalogue.SlotDefault("mouth") != nullptr);
     CHECK(catalogue.SlotDefault("mouth")->id == "uni:mouth_smile");
 
     const Item* patches = catalogue.FindItem("uni:motif_patches");
     REQUIRE(patches != nullptr);
     CHECK(patches->regions == 3);
+    CHECK(patches->default_colors.size() == 2);
 }
 
 TEST_CASE("avatar catalogue: tint mode") {
