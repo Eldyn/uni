@@ -492,6 +492,8 @@
 	"shop_error_guest": "Regístrate para comprar.",
 	"shop_error_network": "No se pudo conectar con el servidor. Inténtalo de nuevo.",
 	"shop_rarity_common": "Común",
+	"shop_rarity_basic": "Básico",
+	"shop_rarity_special": "Especial",
 	"shop_rarity_uncommon": "Poco común",
 	"shop_rarity_rare": "Raro",
 	"shop_rarity_epic": "Épico",

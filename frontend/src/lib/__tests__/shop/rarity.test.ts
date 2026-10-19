@@ -5,10 +5,12 @@ import type { Rarity } from "$lib/avatar/types";
 describe("RARITY_COLOURS", () => {
 	it("has the four rarity hex values", () => {
 		expect(RARITY_COLOURS).toEqual({
+			basic: "#2c354d",
 			common: "#9ca3af",
 			uncommon: "#4ade80",
 			rare: "#60a5fa",
-			epic: "#ffcc00"
+			epic: "#ffcc00",
+			special: "#c084fc"
 		});
 	});
 });
@@ -22,7 +24,7 @@ describe("rarityLabelKey", () => {
 	});
 
 	it("covers every rarity", () => {
-		const rarities: Rarity[] = ["common", "uncommon", "rare", "epic"];
+		const rarities: Rarity[] = ["basic", "common", "uncommon", "rare", "epic", "special"];
 		for (const rarity of rarities) {
 			expect(rarityLabelKey(rarity)).toBe(`shop_rarity_${rarity}`);
 		}

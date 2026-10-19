@@ -4,18 +4,20 @@
  */
 
 import type { Rarity } from "$lib/avatar/types";
+import { HOME_BACKGROUND_HINT_HEX, hexToCss } from "$lib/shaders/homePalette";
 
 /** The border and badge colour for each rarity. */
 export const RARITY_COLOURS: Record<Rarity, string> = {
+	basic: hexToCss(HOME_BACKGROUND_HINT_HEX),
 	common: "#9ca3af",
 	uncommon: "#4ade80",
 	rare: "#60a5fa",
-	epic: "#ffcc00"
+	epic: "#ffcc00",
+	special: "#c084fc"
 };
 
 /** The paraglide message key that names a rarity. */
-export type RarityLabelKey =
-	"shop_rarity_common" | "shop_rarity_uncommon" | "shop_rarity_rare" | "shop_rarity_epic";
+export type RarityLabelKey = `shop_rarity_${Rarity}`;
 
 /** The paraglide message key for a rarity label. */
 export function rarityLabelKey(rarity: Rarity): RarityLabelKey {

@@ -346,6 +346,15 @@ describe("swatch metadata", () => {
 		expect(() => parseCatalogue(catalogue)).toThrow(ZodError);
 	});
 
+	it("accepts basic and special on an item and a swatch", () => {
+		const catalogue = validCatalogue();
+		(catalogue.items as Record<string, unknown>[])[0].rarity = "special";
+		swatches(catalogue)[0].rarity = "basic";
+		const parsed = parseCatalogue(catalogue);
+		expect(parsed.items[0].rarity).toBe("special");
+		expect(parsed.palettes[0].swatches[0].rarity).toBe("basic");
+	});
+
 	it("rejects a negative or fractional price", () => {
 		const negative = validCatalogue();
 		swatches(negative)[0].price = -1;

@@ -1,6 +1,6 @@
 import { z } from "zod";
-import type { AvatarSlot, Catalogue, Rarity, Socket } from "./types";
-import { MAX_EXTRA_MASKS, REGIONS_PER_FILE } from "./types";
+import type { AvatarSlot, Catalogue, Socket } from "./types";
+import { MAX_EXTRA_MASKS, RARITIES, REGIONS_PER_FILE } from "./types";
 
 /** Slots a "still" asset must declare a socket for. */
 const PART_SLOTS: readonly AvatarSlot[] = ["eyes", "mouth", "head_top", "mask", "bodywear"];
@@ -17,7 +17,6 @@ const AVATAR_SLOTS: readonly AvatarSlot[] = [
 	"set",
 	"motif"
 ];
-const RARITIES: readonly Rarity[] = ["common", "uncommon", "rare", "epic"];
 
 /** A namespaced id is `<namespace>:<name>`; both parts must be non-empty. */
 const NAMESPACED_ID = /^[^:]+:.+$/;

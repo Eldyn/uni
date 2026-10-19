@@ -492,6 +492,8 @@
 	"shop_error_guest": "[Régîštér tö büý.~~~~~~~~~]",
 	"shop_error_network": "[Çöüld ñöt réåçh thé šérvér. Trý ågåîñ ågåîñ.~~~~~~~~~~~~~~]",
 	"shop_rarity_common": "[Çömmöñ~~~~~]",
+	"shop_rarity_basic": "[Bàšîç~~~~~]",
+	"shop_rarity_special": "[Špèçîàl~~~~~~]",
 	"shop_rarity_uncommon": "[Üñçömmöñ~~~~~~]",
 	"shop_rarity_rare": "[Råré~~~~]",
 	"shop_rarity_epic": "[Épîç~~~~]",

@@ -74,7 +74,7 @@ const std::vector<std::string>& Sockets() {
 
 const std::vector<std::string>& Rarities() {
     static const std::vector<std::string> kRarities = {
-        "common", "uncommon", "rare", "epic"};
+        "basic", "common", "uncommon", "rare", "epic", "special"};
     return kRarities;
 }
 

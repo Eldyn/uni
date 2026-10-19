@@ -10,7 +10,9 @@ export type AvatarSlot =
 	"shape" | "eyes" | "mouth" | "head_top" | "mask" | "bodywear" | "set" | "motif";
 export type PartSlot = "eyes" | "mouth" | "head_top" | "mask" | "bodywear";
 export type Socket = "eyes" | "mouth" | "head_top" | "body_center";
-export type Rarity = "common" | "uncommon" | "rare" | "epic";
+/** Every rarity, lowest first. The Shop sorts by this order. */
+export const RARITIES = ["basic", "common", "uncommon", "rare", "epic", "special"] as const;
+export type Rarity = (typeof RARITIES)[number];
 export type RegionCount = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 export type TintMode = "mask" | "multiply";
 /** Zero-based tint region: 3 * fileIndex + channelIndex. The UI shows 1..6. */

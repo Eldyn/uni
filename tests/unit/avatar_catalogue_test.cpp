@@ -639,3 +639,32 @@ TEST_CASE("avatar catalogue: paid swatch metadata") {
         CHECK_THROWS_AS(Catalogue::Parse(doc), std::runtime_error);
     }
 }
+
+TEST_CASE("avatar catalogue: the five rarities") {
+    SUBCASE("an item takes basic, common, rare, epic and special") {
+        for (const char* rarity : {"basic", "common", "rare", "epic", "special"}) {
+            json doc = ValidDoc();
+            ItemAt(doc, "uni:hat_cap")["rarity"] = rarity;
+            CHECK(Catalogue::Parse(doc).FindItem("uni:hat_cap")->rarity == rarity);
+        }
+    }
+    SUBCASE("a swatch takes basic and special") {
+        json doc = ValidDoc();
+        doc["palettes"][0]["swatches"][0]["rarity"] = "basic";
+        doc["palettes"][1]["swatches"][0]["rarity"] = "special";
+        CHECK_NOTHROW(Catalogue::Parse(doc));
+    }
+    SUBCASE("a listed special item is buyable, a hidden or unlisted one is not") {
+        json listed = ValidDoc();
+        ItemAt(listed, "uni:hat_cap")["rarity"] = "special";
+        CHECK(Catalogue::Parse(listed).IsBuyable("uni:hat_cap", 1000));
+
+        json hidden = listed;
+        ItemAt(hidden, "uni:hat_cap")["hidden"] = true;
+        CHECK_FALSE(Catalogue::Parse(hidden).IsBuyable("uni:hat_cap", 1000));
+
+        json unlisted = listed;
+        ItemAt(unlisted, "uni:hat_cap")["unlisted"] = true;
+        CHECK_FALSE(Catalogue::Parse(unlisted).IsBuyable("uni:hat_cap", 1000));
+    }
+}
