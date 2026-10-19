@@ -151,4 +151,14 @@ describe("MenuGrid", () => {
 		expect(goto).toHaveBeenCalledWith("settings");
 		expect(storeMenu.isOpen).toBe(false);
 	});
+
+	it("sets an inline font size on every tile label", () => {
+		render(MenuGrid);
+
+		const labels = document.querySelectorAll<HTMLElement>(".menu-tile-label");
+		expect(labels).toHaveLength(3);
+		for (const label of labels) {
+			expect(label.style.fontSize).toMatch(/^\d+(\.\d+)?px$/);
+		}
+	});
 });
