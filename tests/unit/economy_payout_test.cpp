@@ -24,6 +24,7 @@ using nlohmann::json;
 using uni::avatar::Catalogue;
 using uni::economy::EconomyService;
 using uni::economy::PayMatch;
+using uni::economy::PayoutEarnings;
 using uni::economy::PayoutInput;
 using uni::economy::PayoutParticipant;
 
@@ -326,4 +327,57 @@ TEST_CASE("economy payout: a repeated PayMatch for one match pays once") {
     CHECK(economy.Balance(loser) == 20);
     CHECK(LedgerCount(winner) == 3);
     CHECK(LedgerCount(loser) == 1);
+}
+
+TEST_CASE("economy payout: PayMatch returns what a finisher earned and omits a quitter") {
+    PayoutFixture fixture;
+    const Catalogue catalogue = Catalogue::Parse(ValidDoc());
+    EconomyService economy(Database::Get(), catalogue);
+    const std::string winner = Name("earned_winner");
+    const std::string finisher = Name("earned_finisher");
+    const std::string quitter = Name("earned_quitter");
+    MakeUser(winner);
+    MakeUser(finisher);
+    MakeUser(quitter);
+
+    const PayoutEarnings earned = PayMatch(
+        economy, PayoutInput{"match-earned", false,
+                             {Human(winner), Human(finisher),
+                              Human(quitter, true)},
+                             winner, 1700000000});
+
+    CHECK(earned.size() == 2);
+    CHECK(earned.at(winner) == 100);
+    CHECK(earned.at(finisher) == 20);
+    CHECK_FALSE(earned.contains(quitter));
+}
+
+TEST_CASE("economy payout: a repeated PayMatch returns no new earnings") {
+    PayoutFixture fixture;
+    const Catalogue catalogue = Catalogue::Parse(ValidDoc());
+    EconomyService economy(Database::Get(), catalogue);
+    const std::string winner = Name("again_winner");
+    const std::string loser = Name("again_loser");
+    MakeUser(winner);
+    MakeUser(loser);
+
+    const PayoutInput input{"match-again", false,
+                            {Human(winner), Human(loser)}, winner, 1700000000};
+    CHECK(PayMatch(economy, input).size() == 2);
+    CHECK(PayMatch(economy, input).empty());
+}
+
+TEST_CASE("economy payout: a creative match returns no earnings") {
+    PayoutFixture fixture;
+    const Catalogue catalogue = Catalogue::Parse(ValidDoc());
+    EconomyService economy(Database::Get(), catalogue);
+    const std::string winner = Name("creative_earned_winner");
+    const std::string loser = Name("creative_earned_loser");
+    MakeUser(winner);
+    MakeUser(loser);
+
+    CHECK(PayMatch(economy, PayoutInput{"match-c", true,
+                                        {Human(winner), Human(loser)}, winner,
+                                        1700000000})
+              .empty());
 }

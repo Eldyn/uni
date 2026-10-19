@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -35,6 +36,9 @@ struct PayoutInput {
     std::int64_t now = 0;
 };
 
+/** @brief Cash credited by one `PayMatch` call, by username (only > 0). */
+using PayoutEarnings = std::map<std::string, std::int64_t>;
+
 /**
  * @brief Pay every eligible participant of a finished match.
  *
@@ -43,7 +47,9 @@ struct PayoutInput {
  * two registered humans, and any participant who is a bot, a guest or quit.
  * @param economy The ledger service the credits are written through.
  * @param in      The finished match: id, mode, players, winner and server time.
+ * @return The amount each participant earned in this call; a participant who
+ *         earned nothing (or was already paid) is absent.
  */
-void PayMatch(EconomyService& economy, const PayoutInput& in);
+PayoutEarnings PayMatch(EconomyService& economy, const PayoutInput& in);
 
 }  // namespace uni::economy

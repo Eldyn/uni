@@ -182,6 +182,7 @@ TEST_CASE("match_over serializes once for N recipients") {
     session.EmitEvents(fake);
     REQUIRE(session.Engine().IsMatchOver());
 
+    session.SetPayouts({{"player0", 100}});
     fake.Clear();
     CHECK(session.BroadcastMatchOver(fake));
 
@@ -196,6 +197,7 @@ TEST_CASE("match_over serializes once for N recipients") {
     const json over = json::parse(*distinct.begin());
     CHECK(over.value("action", std::string()) == "match_over");
     CHECK(over.value("winner", std::string()) == "player0");
+    CHECK(over.at("payouts").at("player0") == 100);
 
     // Idempotent: a second broadcast re-sends nothing.
     CHECK(session.BroadcastMatchOver(fake));

@@ -314,6 +314,7 @@
 	"game_defeat_title": "ВЫ ПРОИГРАЛИ!",
 	"game_winner_label": "Победитель: {name}",
 	"game_back_to_lobby": "Вернуться в лобби",
+	"game_end_earned": "Заработано: +{amount}",
 	"game_interrupted_title": "Прервано",
 	"game_interrupted_heading": "Что-то пошло не так.",
 	"game_interrupted_desc": "Игрок отключился или матч был принудительно отменён.",

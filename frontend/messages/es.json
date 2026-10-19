@@ -314,6 +314,7 @@
 	"game_defeat_title": "¡HAS PERDIDO!",
 	"game_winner_label": "Ganador: {name}",
 	"game_back_to_lobby": "Volver a la sala",
+	"game_end_earned": "Ganado: +{amount}",
 	"game_interrupted_title": "Interrumpida",
 	"game_interrupted_heading": "Algo salió mal.",
 	"game_interrupted_desc": "Un jugador se desconectó o la partida fue cancelada forzosamente.",

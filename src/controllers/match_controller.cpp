@@ -244,6 +244,7 @@ MatchController::MatchController(IActionRouter& router, IBroadcaster& broadcast,
         if (!member.is_connected || !member.socket) return;
         json payload = ws::MakeResponse(ws::ServerAction::kMatchOver);
         payload["winner"] = winner;
+        if (lobby->session) payload["payouts"] = lobby->session->Payouts();
         broadcaster_.Send(member.socket, payload.dump(), uWS::OpCode::TEXT);
     });
 
@@ -1015,11 +1016,13 @@ match::view::SnapshotOptions MatchController::BuildSnapshotOptions(
 void MatchController::BroadcastMatchState(Lobby* current_lobby) {
     if (!current_lobby || !current_lobby->session) return;
 
+    // INFO: settle the payout BEFORE the snapshot broadcast: it ends with the
+    //       one-shot match_over frame, which carries the payouts.
+    const bool match_over = current_lobby->session->Engine().IsMatchOver();
+    if (match_over) lobby_store_.SettleMatchPayout(current_lobby->id);
     current_lobby->session->BroadcastSnapshot(
         broadcaster_, BuildSnapshotOptions(current_lobby));
-    if (current_lobby->session->Engine().IsMatchOver()) {
-        lobby_store_.NotifyMatchOver(current_lobby->id);
-    }
+    if (match_over) lobby_store_.NotifyMatchOver(current_lobby->id);
 }
 
 /**

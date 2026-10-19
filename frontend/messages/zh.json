@@ -314,6 +314,7 @@
 	"game_defeat_title": "你输了！",
 	"game_winner_label": "获胜者：{name}",
 	"game_back_to_lobby": "返回大厅",
+	"game_end_earned": "获得 +{amount}",
 	"game_interrupted_title": "已中断",
 	"game_interrupted_heading": "出错了。",
 	"game_interrupted_desc": "有玩家断开连接或比赛被强制终止。",

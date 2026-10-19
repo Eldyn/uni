@@ -32,8 +32,9 @@ std::string UtcDay(std::int64_t now_unix) {
 
 }  // namespace
 
-void PayMatch(EconomyService& economy, const PayoutInput& in) {
-    if (in.creative) return;
+PayoutEarnings PayMatch(EconomyService& economy, const PayoutInput& in) {
+    PayoutEarnings earned;
+    if (in.creative) return earned;
 
     /* INFO: a match pays only when at least two registered humans took part.
      *       A guest has no account, so Balance() is empty for them. */
@@ -44,7 +45,7 @@ void PayMatch(EconomyService& economy, const PayoutInput& in) {
             ++registered_humans;
         }
     }
-    if (registered_humans < 2) return;
+    if (registered_humans < 2) return earned;
 
     const std::string daily_ref = "daily:" + UtcDay(in.now);
 
@@ -52,15 +53,25 @@ void PayMatch(EconomyService& economy, const PayoutInput& in) {
         if (participant.is_bot || participant.quit) continue;
         if (!economy.Balance(participant.username).has_value()) continue;
 
-        (void)economy.Credit(participant.username, kBase, "match_base",
-                             in.match_id, in.now);
-        if (participant.username != in.winner) continue;
-        (void)economy.Credit(participant.username, kWin, "match_win",
-                             in.match_id, in.now);
-        /* The day in the ref makes the unique key pay the bonus once a day. */
-        (void)economy.Credit(participant.username, kDaily, "match_daily",
-                             daily_ref, in.now);
+        std::int64_t total = 0;
+        if (economy.Credit(participant.username, kBase, "match_base",
+                           in.match_id, in.now)) {
+            total += kBase;
+        }
+        if (participant.username == in.winner) {
+            if (economy.Credit(participant.username, kWin, "match_win",
+                               in.match_id, in.now)) {
+                total += kWin;
+            }
+            /* The day in the ref makes the unique key pay the bonus once a day. */
+            if (economy.Credit(participant.username, kDaily, "match_daily",
+                               daily_ref, in.now)) {
+                total += kDaily;
+            }
+        }
+        if (total > 0) earned[participant.username] = total;
     }
+    return earned;
 }
 
 }  // namespace uni::economy

@@ -25,6 +25,7 @@ public:
         lobby_destroyed_cbs.push_back(std::move(cb));
     }
     void NotifyMatchOver(uint32_t) override {}
+    void SettleMatchPayout(uint32_t) override {}
 
     void FireLobbyDestroyed(const std::string& lobby_code) {
         for (auto& cb : lobby_destroyed_cbs) cb(lobby_code);

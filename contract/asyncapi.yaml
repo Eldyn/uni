@@ -430,6 +430,15 @@ components:
             description: Username of the winning player, or empty string if match was abandoned.
           reason:
             type: string
+          payouts:
+            type: object
+            description: >
+              Cash each registered player earned in this match, by username.
+              A guest, a bot, a quitter and every player of a creative match
+              is absent; so is a player who earned 0. Absent when the match
+              was aborted.
+            additionalProperties:
+              type: integer
 
     # INFO: The wire action string is `match_event` (underscore), not the
     #       prose `match.event`, because both codegens derive identifiers by

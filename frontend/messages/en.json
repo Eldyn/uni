@@ -314,6 +314,7 @@
 	"game_defeat_title": "YOU LOST!",
 	"game_winner_label": "Winner: {name}",
 	"game_back_to_lobby": "Back to Lobby",
+	"game_end_earned": "Earned +{amount}",
 	"game_interrupted_title": "Interrupted",
 	"game_interrupted_heading": "Something went wrong.",
 	"game_interrupted_desc": "A player disconnected or the match was forcefully cancelled.",

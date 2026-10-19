@@ -89,4 +89,12 @@ public:
      * @param lobby_id ID of the lobby whose match ended.
      */
     virtual void NotifyMatchOver(uint32_t lobby_id) = 0;
+
+    /**
+     * @brief Computes the match payouts and stores them on the live session.
+     * MatchController calls this BEFORE the `match_over` frame is sent, so the
+     * frame carries them. Idempotent: a settled session is not paid again.
+     * @param lobby_id ID of the lobby whose match just ended.
+     */
+    virtual void SettleMatchPayout(uint32_t lobby_id) = 0;
 };

@@ -202,3 +202,21 @@ describe("storeGame match analytics", () => {
 		expect(trackMock).not.toHaveBeenCalled();
 	});
 });
+
+describe("storeGame match payouts", () => {
+	beforeEach(() => {
+		storeGame.reset();
+	});
+
+	it("keeps the payouts of the match_over frame", () => {
+		handler("match_state_updated")(snapshot("alice"));
+		handler("match_over")({ winner: "alice", payouts: { alice: 100, bob: 20 } });
+		expect(storeGame.state?.payouts).toEqual({ alice: 100, bob: 20 });
+	});
+
+	it("keeps an empty map when the frame has no payouts", () => {
+		handler("match_state_updated")(snapshot("alice"));
+		handler("match_over")({ winner: "alice" });
+		expect(storeGame.state?.payouts).toEqual({});
+	});
+});

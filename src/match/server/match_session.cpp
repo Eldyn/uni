@@ -899,7 +899,7 @@ bool MatchSession::BroadcastMatchOver(IBroadcaster& broadcaster) {
     //       view, no `seq`), so glaze serializes it once into `shared` and
     //       every socket sends the same bytes: N recipients, 1 dump.
     const match::view::MatchOverWire over{"match_over", engine_->GetWinner(),
-                                          engine_->GetPlacements()};
+                                          engine_->GetPlacements(), payouts_};
     std::string shared;
     shared.reserve(512);
     if (!match::view::WritePacket(over, shared)) return true;

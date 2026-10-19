@@ -38,6 +38,8 @@ class FakeLobbyStore : public ILobbyStore {
 public:
     Lobby lobby;
     uint32_t match_over_notifications = 0;
+    std::vector<std::string> store_calls;
+    std::map<std::string, std::int64_t> payouts_to_settle;
 
     Lobby* GetLobbyById(uint32_t id) override {
         return (lobby.id == id) ? &lobby : nullptr;
@@ -65,6 +67,12 @@ public:
 
     void NotifyMatchOver(uint32_t) override {
         ++match_over_notifications;
+        store_calls.push_back("notify");
+    }
+
+    void SettleMatchPayout(uint32_t) override {
+        store_calls.push_back("settle");
+        if (lobby.session) lobby.session->SetPayouts(payouts_to_settle);
     }
 
     void FireGameStarted() {
@@ -1101,6 +1109,50 @@ TEST_CASE("A human play that wins the match notifies the lobby store") {
     // INFO: Without routing the post-input broadcast through
     //       BroadcastMatchState this stays 0 and a rematch is rejected.
     CHECK_GE(f.store.match_over_notifications, 1);
+}
+
+TEST_CASE("The payout is settled before match_over and the frame carries it") {
+    MatchFixture f;
+    f.SetupMatch(human_vs_bot(), settings_with_mode(
+        BotTakeoverMode::kWaitUntilTurnEnd));
+    f.OpenBarrierNow();
+    f.store.payouts_to_settle = {{"Alice", 100}};
+
+    REQUIRE(f.Engine().GetCurrentPlayerUsername() == "Alice");
+    const std::vector<match::ecs::Entity> wilds =
+        CardsByKind(f.Engine(), "uni:wild");
+    REQUIRE(wilds.size() >= 2);
+    const match::ecs::Entity alice = *f.Engine().FindPlayer("Alice");
+    ForceHand(f.Engine(), alice, {wilds[0]});
+    const uint32_t wild_bits = BitsOf(f.Engine(), wilds[0]);
+
+    PerSocketData sd;
+    sd.username = "Alice";
+    sd.lobby_id = 1;
+    WsContext ctx{f.store.lobby.FindMember("Alice")->socket, &sd,
+                  uWS::OpCode::TEXT};
+    f.router.Dispatch(ctx, json{
+        {"action", ws::ClientAction::kMatchPlayCard},
+        {"card_id", wild_bits}
+    });
+    f.router.Dispatch(ctx, json{
+        {"action", ws::ClientAction::kMatchPromptResponse},
+        {"prompt_id", "choose_color"},
+        {"value", "red"}
+    });
+
+    REQUIRE(f.Engine().IsMatchOver());
+    REQUIRE_FALSE(f.store.store_calls.empty());
+    CHECK(f.store.store_calls.front() == "settle");
+    bool found = false;
+    for (const SentFrame& frame : f.bus.sent) {
+        const json packet = json::parse(frame.payload, nullptr, false);
+        if (packet.is_discarded()) continue;
+        if (packet.value("action", std::string()) != "match_over") continue;
+        found = true;
+        CHECK(packet.at("payouts").at("Alice") == 100);
+    }
+    CHECK(found);
 }
 
 TEST_CASE("OnTurnStarted notifies the lobby store when the engine is already over") {

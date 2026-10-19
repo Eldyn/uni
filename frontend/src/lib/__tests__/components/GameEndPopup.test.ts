@@ -137,6 +137,16 @@ describe("GameEndPopup race outcome", () => {
 
 		expect(document.activeElement).toBe(screen.getByRole("button", { name: "Back to Lobby" }));
 	});
+
+	it("shows the local earnings line", () => {
+		mockAuth.username = "Alice";
+		setEndState({ mode: "race", raceTarget: 3, placements: ["Alice", "Bob", "Cara", "Dan"] });
+		(mockGame.state as Record<string, unknown>).payouts = { Alice: 100 };
+
+		render(GameEndPopup);
+
+		expect(screen.getByText("Earned +100")).toBeInTheDocument();
+	});
 });
 
 const AVATAR_SELECTOR = ".avatar-sprite, .avatar-placeholder";
