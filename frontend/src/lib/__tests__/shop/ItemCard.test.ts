@@ -75,6 +75,11 @@ describe("ItemCard", () => {
 		expect(screen.queryByText("250")).toBeNull();
 	});
 
+	it("draws the preview through the fit avatar", () => {
+		const { container } = renderCard(makeItem());
+		expect(container.querySelector(".item-art .avatar-fit")).not.toBeNull();
+	});
+
 	it("wraps the art in a rarity frame that carries data-rarity", () => {
 		const { container } = renderCard(makeItem({ rarity: "epic" }));
 		expect(container.querySelector('[data-rarity="epic"]')).toBeTruthy();

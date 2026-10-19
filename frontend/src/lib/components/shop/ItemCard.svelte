@@ -26,7 +26,7 @@
 </script>
 
 <script lang="ts">
-	import Avatar from "$components/common/Avatar.svelte";
+	import AvatarFit from "$components/common/AvatarFit.svelte";
 	import RarityFrame from "$components/shop/RarityFrame.svelte";
 	import { itemPreviewLoadout } from "$lib/avatar/previewLoadout";
 	import type { Loadout } from "$lib/avatar/types";
@@ -71,7 +71,7 @@
 >
 	<RarityFrame rarity={item.rarity}>
 		<span class="item-art-tile pixel-bordered">
-			<span class="item-art" aria-hidden="true"><Avatar loadout={preview} size={96} /></span>
+			<span class="item-art" aria-hidden="true"><AvatarFit loadout={preview} /></span>
 		</span>
 		<span class="item-name font-tiny">{name}</span>
 		{#if owned}
@@ -130,8 +130,8 @@
 
 	.item-art {
 		display: block;
-		width: 96px;
-		height: 96px;
+		width: 100%;
+		height: 100%;
 	}
 
 	.item-name {

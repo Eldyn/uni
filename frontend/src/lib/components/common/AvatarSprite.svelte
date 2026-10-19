@@ -11,7 +11,7 @@
 </script>
 
 <script lang="ts">
-	type AvatarSpriteSize = 16 | 32 | 48 | 64 | 96;
+	type AvatarSpriteSize = 16 | 32 | 48 | 64 | 96 | 192 | 288 | 384;
 
 	let { url, size, label }: { url: string; size: AvatarSpriteSize; label?: string } = $props();
 

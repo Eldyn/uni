@@ -247,6 +247,38 @@ describe("tint", () => {
 		item.asset = { kind: "strip", path: "shapes/uni_round.png", masks: ["shapes/b.png"] };
 		expect(() => parseCatalogue(catalogue)).toThrow(ZodError);
 	});
+
+	it("accepts none on an item with no region", () => {
+		const catalogue = validCatalogue();
+		const item = itemOf(catalogue, "uni:eyes_dot");
+		item.tint = "none";
+		item.regions = 0;
+		expect(parseCatalogue(catalogue).items[1].tint).toBe("none");
+	});
+
+	it("rejects none with a region", () => {
+		const catalogue = validCatalogue();
+		itemOf(catalogue, "uni:eyes_dot").tint = "none";
+		expect(() => parseCatalogue(catalogue)).toThrow(ZodError);
+	});
+
+	it("rejects none with an extra mask file", () => {
+		const catalogue = validCatalogue();
+		const item = itemOf(catalogue, "uni:eyes_dot");
+		item.tint = "none";
+		item.regions = 0;
+		item.asset = { kind: "strip", path: "eyes/uni_eyes_dot.png", masks: ["eyes/b.png"] };
+		expect(() => parseCatalogue(catalogue)).toThrow(ZodError);
+	});
+
+	it("rejects none with default colors, even an empty list", () => {
+		const catalogue = validCatalogue();
+		const item = itemOf(catalogue, "uni:eyes_dot");
+		item.tint = "none";
+		item.regions = 0;
+		item.default_colors = [];
+		expect(() => parseCatalogue(catalogue)).toThrow(ZodError);
+	});
 });
 
 describe("default_colors", () => {

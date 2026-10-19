@@ -418,6 +418,8 @@ TEST_CASE("avatar catalogue: the real avatar/catalogue folder loads") {
     CHECK(catalogue.SlotDefault("shape")->id == "uni:classic");
     CHECK(catalogue.SlotDefault("shape")->regions == 1);
     CHECK(catalogue.SlotDefault("shape")->tint == "multiply");
+    REQUIRE(catalogue.FindItem("uni:set_astronaut") != nullptr);
+    CHECK(catalogue.FindItem("uni:set_astronaut")->tint == "none");
     REQUIRE(catalogue.SlotDefault("mouth") != nullptr);
     CHECK(catalogue.SlotDefault("mouth")->id == "uni:mouth_smile");
 
@@ -523,6 +525,35 @@ TEST_CASE("avatar catalogue: tint mode") {
         json& item = ItemAt(doc, "uni:round");
         item["tint"] = "multiply";
         item["asset"]["masks"] = json::array({"shapes/b.png"});
+        CHECK_THROWS_AS(Catalogue::Parse(doc), std::runtime_error);
+    }
+    SUBCASE("accepts none on an item with no region") {
+        json doc = ValidDoc();
+        json& item = ItemAt(doc, "uni:eyes_dot");
+        item["tint"] = "none";
+        item["regions"] = 0;
+        const Catalogue catalogue = Catalogue::Parse(doc);
+        CHECK(catalogue.FindItem("uni:eyes_dot")->tint == "none");
+    }
+    SUBCASE("rejects none with a region") {
+        json doc = ValidDoc();
+        ItemAt(doc, "uni:eyes_dot")["tint"] = "none";
+        CHECK_THROWS_AS(Catalogue::Parse(doc), std::runtime_error);
+    }
+    SUBCASE("rejects none with an extra mask file") {
+        json doc = ValidDoc();
+        json& item = ItemAt(doc, "uni:eyes_dot");
+        item["tint"] = "none";
+        item["regions"] = 0;
+        item["asset"]["masks"] = json::array({"eyes/b.png"});
+        CHECK_THROWS_AS(Catalogue::Parse(doc), std::runtime_error);
+    }
+    SUBCASE("rejects none with default colors, even an empty list") {
+        json doc = ValidDoc();
+        json& item = ItemAt(doc, "uni:eyes_dot");
+        item["tint"] = "none";
+        item["regions"] = 0;
+        item["default_colors"] = json::array();
         CHECK_THROWS_AS(Catalogue::Parse(doc), std::runtime_error);
     }
 }

@@ -10,6 +10,11 @@ import MockThrelte from "$lib/__tests__/components/MockThrelte.svelte";
 import { defaultLoadout } from "$lib/avatar/defaultLoadout";
 import type { Loadout } from "$lib/avatar/types";
 
+const { loadAvatarTexture, invalidate } = vi.hoisted(() => ({
+	loadAvatarTexture: vi.fn(),
+	invalidate: vi.fn()
+}));
+
 vi.mock("@threlte/core", () => ({
 	Canvas: MockThrelte,
 	T: new Proxy(
@@ -17,11 +22,8 @@ vi.mock("@threlte/core", () => ({
 		{
 			get: () => MockThrelte
 		}
-	)
-}));
-
-const { loadAvatarTexture } = vi.hoisted(() => ({
-	loadAvatarTexture: vi.fn()
+	),
+	useThrelte: () => ({ invalidate })
 }));
 
 vi.mock("$components/game/three/avatarTexture", () => ({ loadAvatarTexture }));
@@ -71,6 +73,7 @@ function loadout(skin: string): Loadout {
 beforeEach(() => {
 	loadAvatarTexture.mockReset();
 	loadAvatarTexture.mockImplementation(async () => makeTexture());
+	invalidate.mockReset();
 	rafCallbacks = [];
 	vi.stubGlobal(
 		"requestAnimationFrame",
@@ -189,5 +192,36 @@ describe("AvatarStage", () => {
 
 		expect(cancelAnimationFrame).toHaveBeenCalled();
 		expect(rafCallbacks.length).toBe(scheduled);
+	});
+
+	it("asks Threlte for a new render on every frame step", async () => {
+		mockContext(true);
+		render(AvatarStage, { props: { loadout: loadout("basic:red") } });
+		flushSync();
+		await settle();
+		invalidate.mockClear();
+
+		runFrame(0);
+		runFrame(120);
+		runFrame(240);
+		expect(invalidate).toHaveBeenCalledTimes(2);
+	});
+
+	it("shows one still frame under reduced motion", async () => {
+		mockContext(true);
+		vi.spyOn(window, "matchMedia").mockReturnValue({ matches: true } as MediaQueryList);
+		const { container } = render(AvatarStage, { props: { loadout: loadout("basic:red") } });
+		flushSync();
+		await settle();
+
+		expect(requestAnimationFrame).not.toHaveBeenCalled();
+		expect(container.querySelector(".avatar-stage")?.getAttribute("data-frame")).toBe("0");
+	});
+
+	it("scales the strip by a whole pixel factor", () => {
+		mockContext(true);
+		const { container } = render(AvatarStage, { props: { loadout: loadout("basic:red") } });
+		flushSync();
+		expect(container.querySelector(".avatar-stage")?.getAttribute("data-pixel-scale")).toBe("1");
 	});
 });

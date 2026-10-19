@@ -15,12 +15,22 @@ const PART_ORDER: PartSlot[] = ["bodywear", "mouth", "eyes", "mask", "head_top"]
 
 /**
  * The layers a loadout draws, back to front: the shape and the motif (region 0
- * follows the skin), then the parts. A worn set replaces every part slot. An
- * unknown item falls back to its slot default; a slot with no default is
- * dropped. Region colours are RGB; a region with no colour is left as a gap.
+ * follows the skin), then the parts. A worn set is the full player: it replaces
+ * the shape, the motif and every part slot. An unknown item falls back to its
+ * slot default; a slot with no default is dropped. Region colours are RGB; a
+ * region with no colour is left as a gap.
  */
 export function resolveLayers(loadout: Loadout): ResolvedLayer[] {
 	const layers: ResolvedLayer[] = [];
+
+	const setChoice = loadout.slots.set;
+	if (setChoice) {
+		const set = resolveItem(setChoice.item, "set");
+		if (set) {
+			return [{ slot: "set", item: set, colours: slotColours(set, setChoice) }];
+		}
+	}
+
 	const skin = swatchColour(loadout.skin);
 
 	const shape = resolveItem(loadout.shape, "shape");
@@ -35,15 +45,6 @@ export function resolveLayers(loadout: Loadout): ResolvedLayer[] {
 		const motif = resolveItem(motifChoice.item, "motif");
 		if (motif) {
 			layers.push({ slot: "motif", item: motif, colours: motifColours(motif, motifChoice, skin) });
-		}
-	}
-
-	const setChoice = loadout.slots.set;
-	if (setChoice) {
-		const set = resolveItem(setChoice.item, "set");
-		if (set) {
-			layers.push({ slot: "set", item: set, colours: slotColours(set, setChoice) });
-			return layers;
 		}
 	}
 

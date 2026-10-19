@@ -8,6 +8,7 @@
 		"path": "set/uni_set_astronaut.png"
 	},
 	"regions": 0,
+	"tint": "none",
 	"rarity": "epic",
 	"price": 900
 }

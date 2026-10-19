@@ -203,3 +203,15 @@ describe("tintImage with an extra mask file", () => {
 		expect(pixelAt(out, 0, 0)).toEqual([10, 20, 30, 255]);
 	});
 });
+
+describe("tintImage none mode", () => {
+	it("copies a region pixel untouched", () => {
+		const out = tintImage(imageWith([255, 0, 0, 255]), [RED], [], "none");
+		expect([...out.data]).toEqual([255, 0, 0, 255]);
+	});
+
+	it("keeps a mixed color and a partial alpha that mask mode drops", () => {
+		const out = tintImage(imageWith([200, 120, 40, 128]), [], [], "none");
+		expect([...out.data]).toEqual([200, 120, 40, 128]);
+	});
+});

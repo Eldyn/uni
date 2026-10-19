@@ -54,7 +54,7 @@ const { storeAvatar } = vi.hoisted(() => ({
 vi.mock("$stores/avatar.svelte", () => ({ storeAvatar }));
 
 const { storeNavigation } = vi.hoisted(() => ({
-	storeNavigation: { goto: vi.fn() }
+	storeNavigation: { goto: vi.fn(), setLeaveGuard: vi.fn() }
 }));
 
 vi.mock("$stores/navigation.svelte", () => ({ storeNavigation }));
@@ -94,6 +94,11 @@ function cssBlock(source: string, selector: string): string {
 	return match[1];
 }
 
+function leaveGuard(): (to: string) => boolean {
+	const calls = storeNavigation.setLeaveGuard.mock.calls;
+	return [...calls].reverse().find((call) => call[0])?.[0];
+}
+
 beforeEach(() => {
 	vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
 	setCatalogueForTest(avatarFixture());
@@ -108,6 +113,7 @@ beforeEach(() => {
 	storeAvatar.save.mockResolvedValue({ ok: true });
 	storeTopbarContent.current = undefined;
 	storeNavigation.goto.mockReset();
+	storeNavigation.setLeaveGuard.mockReset();
 });
 
 afterEach(() => {
@@ -124,15 +130,21 @@ describe("WardrobeScreen", () => {
 		expect(storeTopbarContent.current).toBeUndefined();
 	});
 
-	it("keeps Revert, SAVE and Close together at the end of the header", () => {
+	it("shows Discard Changes only when the draft differs from the saved look", async () => {
+		shopMock.owned = new Set([...STARTERS, "uni:hat_cap"]);
 		const { container } = render(WardrobeScreen);
 		flushSync();
+		const controls = () =>
+			[...(container.querySelector(".wardrobe-header")?.querySelectorAll("button") ?? [])].map(
+				(button) => button.textContent?.trim()
+			);
+		expect(controls()).toEqual(["SAVE"]);
+		expect(screen.queryByText(/unsaved/i)).toBeNull();
 
-		const header = container.querySelector(".wardrobe-header");
-		const controls = [...(header?.querySelectorAll("button") ?? [])].map(
-			(button) => button.getAttribute("aria-label") ?? button.textContent?.trim()
-		);
-		expect(controls).toEqual(["Revert", "SAVE", "Close"]);
+		await fireEvent.click(screen.getByRole("tab", { name: "Hat" }));
+		await fireEvent.click(cardFor(container, "uni:hat_cap"));
+		expect(controls()).toEqual(["Discard Changes", "SAVE"]);
+		expect(screen.queryByText(/unsaved/i)).toBeNull();
 		expect(cssBlock(wardrobeSource, ".wardrobe-header")).toMatch(/justify-content:\s*flex-end/);
 	});
 
@@ -192,11 +204,15 @@ describe("WardrobeScreen", () => {
 		expect(cardFor(container, "uni:hat_cap")).toBeDisabled();
 	});
 
-	it("styles SAVE as the primary button and Revert as the secondary button", () => {
-		render(WardrobeScreen);
+	it("styles SAVE as the primary button and Discard Changes as the secondary button", async () => {
+		shopMock.owned = new Set([...STARTERS, "uni:hat_cap"]);
+		const { container } = render(WardrobeScreen);
 		flushSync();
+		await fireEvent.click(screen.getByRole("tab", { name: "Hat" }));
+		await fireEvent.click(cardFor(container, "uni:hat_cap"));
+
 		expect(screen.getByRole("button", { name: "SAVE" })).toHaveClass("btn");
-		expect(screen.getByRole("button", { name: "Revert" })).toHaveClass("btn-secondary");
+		expect(screen.getByRole("button", { name: "Discard Changes" })).toHaveClass("btn-secondary");
 	});
 
 	it("saves the draft through storeAvatar", async () => {
@@ -238,36 +254,52 @@ describe("WardrobeScreen", () => {
 		await fireEvent.click(cardFor(container, "uni:eyes_wide"));
 		expect(equipped(container)).toBe("uni:eyes_wide");
 
-		await fireEvent.click(screen.getByRole("button", { name: "Revert" }));
+		await fireEvent.click(screen.getByRole("button", { name: "Discard Changes" }));
 		expect(equipped(container)).toBe("uni:eyes_dot");
 	});
 
-	it("shows the unsaved marker and asks before leaving", async () => {
-		shopMock.owned = new Set([...STARTERS, "uni:hat_cap"]);
-		const onleave = vi.fn();
-		const { container } = render(WardrobeScreen, { props: { onleave } });
+	it("has no close button", () => {
+		render(WardrobeScreen);
 		flushSync();
-
-		await fireEvent.click(screen.getByRole("tab", { name: "Hat" }));
-		await fireEvent.click(cardFor(container, "uni:hat_cap"));
-		expect(screen.getByText(/unsaved/i)).toBeInTheDocument();
-
-		await fireEvent.click(screen.getByRole("button", { name: "Close" }));
-		expect(onleave).not.toHaveBeenCalled();
-
-		const dialog = screen.getByRole("dialog");
-		await fireEvent.click(within(dialog).getByRole("button", { name: /leave/i }));
-		expect(onleave).toHaveBeenCalledTimes(1);
+		expect(screen.queryByRole("button", { name: "Close" })).toBeNull();
 	});
 
-	it("leaves straight away when there are no unsaved changes", async () => {
-		const onleave = vi.fn();
-		render(WardrobeScreen, { props: { onleave } });
+	it("asks before it leaves to another screen with unsaved changes", async () => {
+		shopMock.owned = new Set([...STARTERS, "uni:hat_cap"]);
+		const { container } = render(WardrobeScreen);
 		flushSync();
+		await fireEvent.click(screen.getByRole("tab", { name: "Hat" }));
+		await fireEvent.click(cardFor(container, "uni:hat_cap"));
 
-		await fireEvent.click(screen.getByRole("button", { name: "Close" }));
-		expect(onleave).toHaveBeenCalledTimes(1);
+		expect(leaveGuard()("shop")).toBe(false);
+		flushSync();
+		const dialog = screen.getByRole("dialog");
+		await fireEvent.click(within(dialog).getByRole("button", { name: /^leave$/i }));
+		expect(storeNavigation.goto).toHaveBeenCalledWith("shop");
+		expect(leaveGuard()("shop")).toBe(true);
+	});
+
+	it("keeps editing when the user cancels the prompt", async () => {
+		shopMock.owned = new Set([...STARTERS, "uni:hat_cap"]);
+		const { container } = render(WardrobeScreen);
+		flushSync();
+		await fireEvent.click(screen.getByRole("tab", { name: "Hat" }));
+		await fireEvent.click(cardFor(container, "uni:hat_cap"));
+
+		leaveGuard()("shop");
+		flushSync();
+		await fireEvent.click(screen.getByRole("button", { name: /keep editing/i }));
+		expect(storeNavigation.goto).not.toHaveBeenCalled();
 		expect(screen.queryByRole("dialog")).toBeNull();
+	});
+
+	it("leaves at once without changes, never blocks a match, and clears the guard", async () => {
+		const { unmount } = render(WardrobeScreen);
+		flushSync();
+		expect(leaveGuard()("shop")).toBe(true);
+		expect(leaveGuard()("game")).toBe(true);
+		unmount();
+		expect(storeNavigation.setLeaveGuard).toHaveBeenLastCalledWith(null);
 	});
 
 	it("shows a register prompt and no stage for a guest", () => {
@@ -320,9 +352,30 @@ describe("WardrobeScreen", () => {
 		const locked = container.querySelector<HTMLElement>('[data-swatch-id="uni:neon:hot"]');
 		expect(locked).not.toBeNull();
 		expect(locked?.dataset.locked).toBe("true");
-		expect(locked?.querySelector(".pixelart-icons-font-lock")).not.toBeNull();
+		expect(locked?.querySelector(".pixelart-icons-font-lock")).toBeNull();
 
 		await fireEvent.click(locked!);
 		expect(storeNavigation.goto).toHaveBeenCalledWith("shop");
+	});
+
+	it("shows no color picker for an item with the none tint", async () => {
+		const catalogue = avatarFixture();
+		const hat = catalogue.items.find((entry) => entry.id === "uni:hat_cap");
+		if (hat) hat.tint = "none";
+		setCatalogueForTest(catalogue);
+		shopMock.owned = new Set([...STARTERS, "uni:hat_cap"]);
+		const { container } = render(WardrobeScreen);
+		flushSync();
+		await fireEvent.click(screen.getByRole("tab", { name: "Hat" }));
+		await fireEvent.click(cardFor(container, "uni:hat_cap"));
+
+		expect(screen.queryByRole("group", { name: "Colours" })).toBeNull();
+	});
+
+	it("gives the stage the main space of the screen", () => {
+		expect(cssBlock(wardrobeSource, ".wardrobe-body")).toMatch(
+			/grid-template-columns:\s*minmax\(0, 1\.2fr\) minmax\(0, 1fr\)/
+		);
+		expect(cssBlock(wardrobeSource, ".wardrobe-stage")).toMatch(/min-height:\s*384px/);
 	});
 });
