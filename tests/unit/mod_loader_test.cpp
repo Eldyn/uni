@@ -44,17 +44,25 @@ struct TempModsRoot {
     }
 
     /** INFO: Entry sets are directories, one definition per file. Split a
-     *       JSON array fixture into `<subdir>/0.json`, `1.json`, ... so tests
-     *       can keep array-shaped fixtures; zero-padded indices preserve the
-     *       array's order under the loader's sorted-filename scan. */
+     *       JSON array fixture into `<subdir>/<name>.json` so tests can keep
+     *       array-shaped fixtures; `name` is the array index for legacy entry
+     *       sets, and the identifier's local name for kinds (whose loader
+     *       requires an identifier that matches the file stem). */
     void WriteEntrySet(const std::string& folder,
                        const std::string& subdir,
                        const std::string& array_json) const {
         nlohmann::json arr = nlohmann::json::parse(array_json);
         int index = 0;
         for (const auto& item : arr) {
-            Write(folder, subdir + "/" + std::to_string(index++) + ".json",
-                  item.dump());
+            std::string name = std::to_string(index++);
+            if (item.contains("kind") && item["kind"].is_object() &&
+                item["kind"].contains("identifier")) {
+                const std::string identifier =
+                    item["kind"]["identifier"].get<std::string>();
+                const std::size_t colon = identifier.find(':');
+                if (colon != std::string::npos) name = identifier.substr(colon + 1);
+            }
+            Write(folder, subdir + "/" + name + ".json", item.dump());
         }
     }
 };
@@ -77,29 +85,40 @@ const char* kMinimalManifest = R"({
 
 const char* kValidCards = R"([
   {
-    "id": "plus4",
-    "title": "+4",
-    "face": { "kind": "text", "color": "white", "label": "+4", "art_version": 2 },
-    "tags": ["draw_penalty", "stackable"],
-    "behavior": {
-      "on_play": {
-        "nodes": [
-          { "id": "n1", "op": "draw_cards", "args": { "target": "@next_player", "n": 4 }, "next": "n2" },
-          { "id": "n2", "op": "advance_turn", "args": {} }
-        ]
-      }
-    },
-    "window": {
-      "when_played": {
-        "responders": "@others",
-        "respond_with": { "any_tag": ["stackable"] },
-        "duration": "env",
-        "on_response": "append_to_stack",
-        "default": "resolve_stack"
+    "format_version": "1.0.0",
+    "kind": {
+      "identifier": "uni:plus4",
+      "title_format": "+4",
+      "face": { "kind": "text", "color": "white", "label": "+4", "art_version": 2 },
+      "tags": ["draw_penalty", "stackable"],
+      "behavior": {
+        "on_play": {
+          "nodes": [
+            { "id": "n1", "op": "draw_cards", "args": { "target": "@next_player", "n": 4 }, "next": "n2" },
+            { "id": "n2", "op": "advance_turn", "args": {} }
+          ]
+        }
+      },
+      "window": {
+        "when_played": {
+          "responders": "@others",
+          "respond_with": { "any_tag": ["stackable"] },
+          "duration": "env",
+          "on_response": "append_to_stack",
+          "default": "resolve_stack"
+        }
       }
     }
   },
-  { "id": "red_0", "title": "Red 0", "face": { "kind": "text", "color": "red", "label": "0" }, "tags": [] }
+  {
+    "format_version": "1.0.0",
+    "kind": {
+      "identifier": "uni:red_0",
+      "title_format": "Red 0",
+      "face": { "kind": "text", "color": "red", "label": "0" },
+      "tags": []
+    }
+  }
 ])";
 
 const char* kValidRules = R"([
@@ -124,12 +143,14 @@ const char* kValidMutations = R"([
 ])";
 
 const char* kValidDeck = R"({
-  "id": "classic",
-  "name": "Classic",
-  "namespace": "uni",
-  "mods": ["uni"],
-  "cards": { "uni:red_0": 2, "uni:plus4": 4 },
-  "settings": { "match": { "score_limit": 500 } }
+  "format_version": "1.0.0",
+  "deck": {
+    "identifier": "uni:classic",
+    "name": "Classic",
+    "mods": ["uni"],
+    "cards": [ { "kind": "uni:plus4", "copies": 4 },
+               { "kind": "uni:red_0", "copies": 2 } ]
+  }
 })";
 
 bool HasCheck(const std::vector<LoadError>& errors, const std::string& check) {
@@ -144,7 +165,7 @@ bool HasCheck(const std::vector<LoadError>& errors, const std::string& check) {
 TEST_CASE("modloader: valid mod folder loads all artifacts") {
     TempModsRoot tmp;
     tmp.Write("uni", "mod.json", kValidManifest);
-    tmp.WriteEntrySet("uni", "cards", kValidCards);
+    tmp.WriteEntrySet("uni", "kinds", kValidCards);
     tmp.WriteEntrySet("uni", "rules", kValidRules);
     tmp.WriteEntrySet("uni", "statuses", kValidStatuses);
     tmp.WriteEntrySet("uni", "mutations", kValidMutations);
@@ -191,7 +212,7 @@ TEST_CASE("modloader: valid mod folder loads all artifacts") {
     REQUIRE(mod.decks.size() == 1);
     CHECK(mod.decks[0].deck_id == "uni:classic");
     REQUIRE(mod.decks[0].cards.size() == 2);
-    CHECK(mod.decks[0].settings.contains("match"));
+    CHECK(mod.decks[0].settings.empty());
 }
 
 TEST_CASE("modloader: missing manifest yields structured error") {
@@ -297,25 +318,25 @@ TEST_CASE("modloader: absent entry-set directories are fine") {
 TEST_CASE("modloader: malformed entry file is a structured error") {
     TempModsRoot tmp;
     tmp.Write("bad", "mod.json", kMinimalManifest);
-    tmp.Write("bad", "cards/broken.json", "{ not json ");
+    tmp.Write("bad", "kinds/broken.json", "{ not json ");
 
     LoadResult result = ScanModsDirectory(tmp.root.string());
     CHECK_FALSE(result.ok());
-    CHECK(HasCheck(result.errors, "json.parse"));
+    CHECK(HasCheck(result.errors, "card_schema"));
     CHECK(result.mods.empty());
 }
 
-TEST_CASE("modloader: an old-style cards array file is rejected") {
+TEST_CASE("modloader: a cards folder is rejected") {
     TempModsRoot tmp;
     tmp.Write("old", "mod.json", kMinimalManifest);
-    /* INFO: The loader retires the single-file array form; a cards entry must be one
-     *       card object, so an array is a shape error, not a silent load. */
+    /* INFO: schema v1 replaces the old `cards/` folder outright; the folder is
+     *       reported as the removed form, not silently loaded. */
     tmp.Write("old", "cards/0.json",
               R"([ { "id": "c1", "face": { "kind": "blank" } } ])");
 
     LoadResult result = ScanModsDirectory(tmp.root.string());
     CHECK_FALSE(result.ok());
-    CHECK(HasCheck(result.errors, "card.shape"));
+    CHECK(HasCheck(result.errors, "card_schema"));
     CHECK(result.mods.empty());
 }
 
@@ -348,18 +369,20 @@ TEST_CASE("modloader: deeply nested JSON is rejected") {
     CHECK(result.mods.empty());
 }
 
-TEST_CASE("modloader: duplicate card ids within a mod are rejected") {
+TEST_CASE("modloader: a kind identifier must match its file name") {
     TempModsRoot tmp;
     tmp.Write("dup", "mod.json", R"({
       "id": "dup", "name": "Dup", "version": "1.0.0", "api": "1"
     })");
-    tmp.WriteEntrySet("dup", "cards", R"([
-      { "id": "same", "face": { "kind": "blank" } },
-      { "id": "same", "face": { "kind": "blank" } }
-    ])");
+    /* INFO: the file stem keys a kind, so a mismatched identifier is a schema
+     *       error rather than a second definition of the same name. */
+    tmp.Write("dup", "kinds/0.json", R"({
+      "format_version": "1.0.0",
+      "kind": { "identifier": "dup:same", "face": { "kind": "blank" } }
+    })");
 
     LoadResult result = ScanModsDirectory(tmp.root.string());
-    CHECK(HasCheck(result.errors, "card.id.duplicate"));
+    CHECK(HasCheck(result.errors, "card_schema"));
     CHECK(result.mods.empty());
 }
 
@@ -368,8 +391,10 @@ TEST_CASE("modloader: unknown face kind is rejected") {
     tmp.Write("faces", "mod.json", R"({
       "id": "faces", "name": "Faces", "version": "1.0.0", "api": "1"
     })");
-    tmp.WriteEntrySet("faces", "cards", R"([
-      { "id": "weird", "face": { "kind": "hologram" } }
+    tmp.WriteEntrySet("faces", "kinds", R"([
+      { "format_version": "1.0.0",
+        "kind": { "identifier": "faces:weird",
+                  "face": { "kind": "hologram" } } }
     ])");
 
     LoadResult result = ScanModsDirectory(tmp.root.string());
@@ -381,8 +406,9 @@ TEST_CASE("modloader: card auto_trigger loads with must_apply") {
     tmp.Write("totem", "mod.json", R"({
       "id": "totem", "name": "Totem", "version": "1.0.0", "api": "1"
     })");
-    tmp.WriteEntrySet("totem", "cards", R"([
-      { "id": "totem", "face": { "kind": "blank" },
+    tmp.WriteEntrySet("totem", "kinds", R"([
+      { "format_version": "1.0.0",
+        "kind": { "identifier": "totem:totem", "face": { "kind": "blank" },
         "auto_trigger": {
           "condition": { "always": null },
           "graph": { "nodes": [
@@ -390,7 +416,7 @@ TEST_CASE("modloader: card auto_trigger loads with must_apply") {
               "args": { "player": "@self", "kind": "special" } }
           ] },
           "must_apply": true
-        } }
+        } } }
     ])");
 
     LoadResult result = ScanModsDirectory(tmp.root.string());
@@ -410,14 +436,15 @@ TEST_CASE("modloader: auto_trigger must_apply defaults to false") {
     tmp.Write("opt", "mod.json", R"({
       "id": "opt", "name": "Opt", "version": "1.0.0", "api": "1"
     })");
-    tmp.WriteEntrySet("opt", "cards", R"([
-      { "id": "c1", "face": { "kind": "blank" },
+    tmp.WriteEntrySet("opt", "kinds", R"([
+      { "format_version": "1.0.0",
+        "kind": { "identifier": "opt:c1", "face": { "kind": "blank" },
         "auto_trigger": {
           "condition": { "always": null },
           "graph": { "nodes": [
             { "id": "n1", "op": "advance_turn", "args": {} }
           ] }
-        } }
+        } } }
     ])");
 
     LoadResult result = ScanModsDirectory(tmp.root.string());
@@ -431,9 +458,10 @@ TEST_CASE("modloader: non-object auto_trigger condition is rejected") {
     tmp.Write("bad", "mod.json", R"({
       "id": "bad", "name": "Bad", "version": "1.0.0", "api": "1"
     })");
-    tmp.WriteEntrySet("bad", "cards", R"([
-      { "id": "c1", "face": { "kind": "blank" },
-        "auto_trigger": { "condition": 7, "graph": { "nodes": [] } } }
+    tmp.WriteEntrySet("bad", "kinds", R"([
+      { "format_version": "1.0.0",
+        "kind": { "identifier": "bad:c1", "face": { "kind": "blank" },
+        "auto_trigger": { "condition": 7, "graph": { "nodes": [] } } } }
     ])");
 
     LoadResult result = ScanModsDirectory(tmp.root.string());
@@ -447,10 +475,11 @@ TEST_CASE("modloader: auto_trigger graph without nodes is rejected") {
     tmp.Write("bad", "mod.json", R"({
       "id": "bad", "name": "Bad", "version": "1.0.0", "api": "1"
     })");
-    tmp.WriteEntrySet("bad", "cards", R"([
-      { "id": "c1", "face": { "kind": "blank" },
+    tmp.WriteEntrySet("bad", "kinds", R"([
+      { "format_version": "1.0.0",
+        "kind": { "identifier": "bad:c1", "face": { "kind": "blank" },
         "auto_trigger": { "condition": { "always": null },
-                          "graph": { "foo": 1 } } }
+                          "graph": { "foo": 1 } } } }
     ])");
 
     LoadResult result = ScanModsDirectory(tmp.root.string());
@@ -464,11 +493,12 @@ TEST_CASE("modloader: non-bool auto_trigger must_apply is rejected") {
     tmp.Write("bad", "mod.json", R"({
       "id": "bad", "name": "Bad", "version": "1.0.0", "api": "1"
     })");
-    tmp.WriteEntrySet("bad", "cards", R"([
-      { "id": "c1", "face": { "kind": "blank" },
+    tmp.WriteEntrySet("bad", "kinds", R"([
+      { "format_version": "1.0.0",
+        "kind": { "identifier": "bad:c1", "face": { "kind": "blank" },
         "auto_trigger": { "condition": { "always": null },
                           "graph": { "nodes": [] },
-                          "must_apply": "yes" } }
+                          "must_apply": "yes" } } }
     ])");
 
     LoadResult result = ScanModsDirectory(tmp.root.string());
@@ -550,8 +580,9 @@ TEST_CASE("modloader: pre-existing errors do not poison ParseModFolder") {
     tmp.Write("good", "mod.json", R"({
       "id": "good", "name": "Good", "version": "1.0.0", "api": "1"
     })");
-    tmp.WriteEntrySet("good", "cards", R"([
-      { "id": "c1", "face": { "kind": "blank" } }
+    tmp.WriteEntrySet("good", "kinds", R"([
+      { "format_version": "1.0.0",
+        "kind": { "identifier": "good:c1", "face": { "kind": "blank" } } }
     ])");
 
     /* INFO: ParseModFolder is public; its contract is "true when the folder
@@ -565,7 +596,7 @@ TEST_CASE("modloader: pre-existing errors do not poison ParseModFolder") {
                                  mod, errors);
     CHECK(loaded);
     CHECK(mod.manifest.id == "good");
-    REQUIRE(mod.cards.size() == 1);
+    REQUIRE(mod.card_schema.kinds.size() == 1);
     /* INFO: the caller's prior error must be preserved, not cleared. */
     CHECK(errors.size() == 1);
     CHECK(errors[0].check == "earlier");
@@ -647,12 +678,19 @@ const char* kAssetManifest = R"({
 })";
 
 const char* kImageCard = R"({
-  "id": "bomb",
-  "face": { "kind": "image", "art": "bomb", "art_mode": "inset", "art_version": 1 }
+  "format_version": "1.0.0",
+  "kind": {
+    "identifier": "artmod:bomb",
+    "face": { "kind": "image", "art": "bomb", "art_mode": "inset", "art_version": 1 }
+  }
 })";
 
 const char* kTextCard = R"({
-  "id": "plain", "face": { "kind": "text", "color": "red", "label": "0" }
+  "format_version": "1.0.0",
+  "kind": {
+    "identifier": "artmod:plain",
+    "face": { "kind": "text", "color": "red", "label": "0" }
+  }
 })";
 
 const char* kGoodBundle = R"({
@@ -672,7 +710,7 @@ bool HasWarning(const std::vector<LoadWarning>& warnings,
 /** INFO: a mod with an image card plus a bundle whose index is `bundle`. */
 void WriteArtMod(TempModsRoot& tmp, const char* bundle) {
     tmp.Write("artmod", "mod.json", kAssetManifest);
-    tmp.Write("artmod", "cards/bomb.json", kImageCard);
+    tmp.Write("artmod", "kinds/bomb.json", kImageCard);
     tmp.Write("artmod", "assets/bomb/index.json", bundle);
 }
 
@@ -700,8 +738,9 @@ TEST_CASE("modloader: a valid bundle loads and reports its asset totals") {
 TEST_CASE("modloader: a card referencing an unknown bundle is rejected") {
     TempModsRoot tmp;
     tmp.Write("artmod", "mod.json", kAssetManifest);
-    tmp.Write("artmod", "cards/bomb.json",
-              R"({ "id": "bomb", "face": { "kind": "image", "art": "ghost" } })");
+    tmp.Write("artmod", "kinds/bomb.json",
+              R"({ "format_version": "1.0.0", "kind": { "identifier": "artmod:bomb",
+                   "face": { "kind": "image", "art": "ghost" } } })");
 
     LoadResult result = ScanModsDirectory(tmp.root.string());
     CHECK(HasCheck(result.errors, "asset.card_ref"));
@@ -813,7 +852,7 @@ TEST_CASE("modloader: exceeding the 2 MiB mod asset budget is rejected") {
 TEST_CASE("modloader: warnings never block a mod") {
     TempModsRoot tmp;
     tmp.Write("artmod", "mod.json", kAssetManifest);
-    tmp.Write("artmod", "cards/plain.json", kTextCard);
+    tmp.Write("artmod", "kinds/plain.json", kTextCard);
     /* INFO: bundle is unreferenced and carries an orphan file. */
     tmp.Write("artmod", "assets/extra/index.json",
               R"({ "id": "extra",
@@ -835,7 +874,7 @@ TEST_CASE("modloader: warnings never block a mod") {
 TEST_CASE("modloader: an image card with no reachable variant warns") {
     TempModsRoot tmp;
     tmp.Write("artmod", "mod.json", kAssetManifest);
-    tmp.Write("artmod", "cards/bomb.json", kImageCard);
+    tmp.Write("artmod", "kinds/bomb.json", kImageCard);
     /* INFO: the bundle exists but has neither an art nor an emoji slot. */
     tmp.Write("artmod", "assets/bomb/index.json",
               R"({ "id": "bomb", "card": "bomb",

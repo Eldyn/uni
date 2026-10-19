@@ -1,0 +1,54 @@
+{
+  "format_version": "1.0.0",
+  "kind": {
+    "identifier": "test:bomb",
+    "title_format": "Bomb",
+    "tags": [
+      "wild",
+      "action"
+    ],
+    "face": {
+      "kind": "image",
+      "art": "bomb",
+      "color": "white",
+      "label": "bomb",
+      "art_version": 1,
+      "art_mode": "inset",
+      "art_fit": "contain",
+      "keep": [
+        "border"
+      ]
+    },
+    "behavior": {
+      "on_play": {
+        "nodes": [
+          {
+            "id": "n1",
+            "op": "prompt",
+            "args": {
+              "kind": "choose_color",
+              "target": "@self"
+            },
+            "next": "n2"
+          },
+          {
+            "id": "n2",
+            "op": "set_active_type",
+            "args": {
+              "from_prompt": "n1"
+            },
+            "next": "n3"
+          },
+          {
+            "id": "n3",
+            "op": "draw_cards",
+            "args": {
+              "target": "@choose_player",
+              "n": 2
+            }
+          }
+        ]
+      }
+    }
+  }
+}

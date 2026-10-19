@@ -41,8 +41,9 @@ struct TempRoot {
 void WriteImageMod(TempRoot& tmp, const std::string& bundle) {
     tmp.Write("artmod", "mod.json",
               R"({ "id": "artmod", "name": "A", "version": "1.0.0", "api": "1" })");
-    tmp.Write("artmod", "cards/bomb.json",
-              R"({ "id": "bomb", "face": { "kind": "image", "art": "bomb" } })");
+    tmp.Write("artmod", "kinds/bomb.json",
+              R"({ "format_version": "1.0.0", "kind": { "identifier": "artmod:bomb",
+                   "face": { "kind": "image", "art": "bomb" } } })");
     tmp.Write("artmod", "assets/bomb/index.json", bundle);
 }
 

@@ -159,9 +159,10 @@ LoadResult LoadMod(const std::string& binding_file,
     root.Write(mod_id + "/mod.json", ManifestFor(mod_id));
     root.Write(mod_id + "/events/apple_eaten.json", kAppleEvent);
     root.Write(mod_id + "/assets/sfx/index.json", kSoundBundle);
-    root.Write(mod_id + "/cards/fruit.json",
-               R"({"id":"fruit","title":"F","face":{"kind":"blank"},)"
-               R"("tags":["my_mod:fruit"]})");
+    root.Write(mod_id + "/kinds/fruit.json",
+               R"({"format_version":"1.0.0","kind":{"identifier":")" + mod_id +
+                   R"(:fruit","title_format":"F","face":{"kind":"blank"},)"
+                   R"("tags":[")" + mod_id + R"(:fruit"]}})");
     root.Write(mod_id + "/presentations/shown.json", binding_file);
     return ScanModsDirectory(root.root.string());
 }
@@ -1728,9 +1729,10 @@ void WriteStreakMod(TempModsRoot& root) {
     root.Write("my_mod/mod.json", ManifestFor("my_mod"));
     root.Write("my_mod/events/apple_eaten.json", kAppleEvent);
     root.Write("my_mod/assets/sfx/index.json", kSoundBundle);
-    root.Write("my_mod/cards/fruit.json",
-               R"({"id":"fruit","title":"F","face":{"kind":"blank"},)"
-               R"("tags":["my_mod:fruit"]})");
+    root.Write("my_mod/kinds/fruit.json",
+               R"({"format_version":"1.0.0","kind":{"identifier":"my_mod:fruit",)"
+               R"("title_format":"F","face":{"kind":"blank"},)"
+               R"("tags":["my_mod:fruit"]}})");
     root.Write("my_mod/streaks/run.json", R"({
   "uni:format_version": "1.0.0",
   "uni:streak": {
