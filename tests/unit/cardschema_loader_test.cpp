@@ -622,4 +622,101 @@ TEST_CASE("rejected_duplicate_attribute_drops_its_members") {
     CHECK(outcome.schema.members[0].identifier == "uni:0");
 }
 
+TEST_CASE("loads_kind") {
+    CardSchemaTempDir dir;
+    dir.Write("uni/kinds/numbered.json",
+              R"({"format_version":"1.0.0","kind":{"identifier":"uni:numbered",)"
+              R"("tags":["numbered"],"attributes":[{"attribute":"uni:color"},)"
+              R"({"attribute":"uni:value"}],"identifier_format":"{color}_{value}",)"
+              R"("title_format":"{color} {value}",)"
+              R"("face":{"kind":"text","color":"{color}","label":"{value}",)"
+              R"("art_version":1}}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "uni", "uni");
+
+    REQUIRE(outcome.ok());
+    REQUIRE(outcome.schema.kinds.size() == 1);
+    const match::cardschema::KindTemplate& kind = outcome.schema.kinds[0];
+    CHECK(kind.identifier == "uni:numbered");
+    CHECK(kind.tags == std::vector<std::string>{"numbered"});
+    REQUIRE(kind.slots.size() == 2);
+    CHECK(kind.slots[0].name == "color");
+    CHECK(kind.slots[1].name == "value");
+    CHECK(kind.identifier_format == "{color}_{value}");
+    CHECK(kind.title_format == "{color} {value}");
+    CHECK(kind.face["label"] == "{value}");
+}
+
+TEST_CASE("behavior_passthrough") {
+    CardSchemaTempDir dir;
+    dir.Write("uni/kinds/jump.json",
+              R"({"format_version":"1.0.0","kind":{"identifier":"uni:jump",)"
+              R"("behavior":{"on_play":{"nodes":[{"id":"n1","op":"skip_turn",)"
+              R"("args":{}}]}}}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "uni", "uni");
+
+    REQUIRE(outcome.ok());
+    REQUIRE(outcome.schema.kinds.size() == 1);
+    CHECK(outcome.schema.kinds[0].behavior ==
+          match::cardschema::json::parse(
+              R"({"on_play":{"nodes":[{"id":"n1","op":"skip_turn","args":{}}]}})"));
+}
+
+TEST_CASE("duplicate_slot_name") {
+    CardSchemaTempDir dir;
+    dir.Write("uni/kinds/numbered.json",
+              R"({"format_version":"1.0.0","kind":{"identifier":"uni:numbered",)"
+              R"("attributes":[{"attribute":"uni:color"},{"attribute":"uni:color"}]}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "uni", "uni");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/uni/kinds/numbered.json#/kind/attributes/1: "
+          "duplicate slot name \"color\"");
+}
+
+TEST_CASE("symmetric_unknown_slot") {
+    CardSchemaTempDir dir;
+    dir.Write("uni/kinds/split.json",
+              R"({"format_version":"1.0.0","kind":{"identifier":"uni:split",)"
+              R"("attributes":[{"attribute":"uni:color","name":"left",)"
+              R"("surface":"left"}],"symmetric":[["left","right"]]}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "uni", "uni");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/uni/kinds/split.json#/kind/symmetric/0/1: "
+          "symmetric group names unknown slot \"right\"");
+}
+
+TEST_CASE("unknown_kind_key") {
+    CardSchemaTempDir dir;
+    dir.Write("uni/kinds/numbered.json",
+              R"({"format_version":"1.0.0","kind":{"identifier":"uni:numbered",)"
+              R"("tagz":["numbered"]}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "uni", "uni");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/uni/kinds/numbered.json#/kind/tagz: unknown key \"tagz\" "
+          "(did you mean \"tags\")");
+}
+
+TEST_CASE("foreign_kind_namespace") {
+    CardSchemaTempDir dir;
+    dir.Write("uni/kinds/x.json",
+              R"({"format_version":"1.0.0","kind":{"identifier":"other:x"}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "uni", "uni");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/uni/kinds/x.json#/kind/identifier: "
+          "kind identifier \"other:x\" must use the namespace \"uni\"");
+}
+
 }  // TEST_SUITE("cardschema loader")

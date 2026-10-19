@@ -8,6 +8,7 @@
 #include <limits>
 #include <map>
 #include <optional>
+#include <set>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -199,6 +200,286 @@ const std::vector<std::string>& MemberKeys(bool allow_attribute) {
         "identifier", "display_name", "tags", "order",
         "contribute", "properties", "identifier_alias"};
     return allow_attribute ? standalone : inline_keys;
+}
+
+const std::vector<std::string>& KindKeys() {
+    static const std::vector<std::string> keys = {
+        "identifier", "abstract", "extends", "tags", "attributes", "symmetric",
+        "slot_order", "identifier_format", "title_format", "face", "behavior",
+        "window", "auto_trigger", "label_key", "description_key", "properties",
+        "contribute"};
+    return keys;
+}
+
+const std::vector<std::string>& SlotKeys() {
+    static const std::vector<std::string> keys = {"attribute", "name", "surface"};
+    return keys;
+}
+
+void ReadStringArray(const json& object, const char* key, const char* element_error,
+                     const std::string& file, const std::string& pointer,
+                     std::vector<Diagnostic>& diagnostics, std::vector<std::string>& out) {
+    const auto entry = object.find(key);
+    if (entry == object.end()) {
+        return;
+    }
+    const std::string array_pointer = match::expr::AppendPointerToken(pointer, key);
+    if (!entry->is_array()) {
+        AddError(diagnostics, file, array_pointer,
+                 "key \"" + std::string(key) + "\" must be an array");
+        return;
+    }
+    for (std::size_t index = 0; index < entry->size(); ++index) {
+        const json& item = (*entry)[index];
+        if (!item.is_string() || item.get<std::string>().empty()) {
+            AddError(diagnostics, file,
+                     match::expr::AppendPointerToken(array_pointer, std::to_string(index)),
+                     element_error);
+            continue;
+        }
+        out.push_back(item.get<std::string>());
+    }
+}
+
+void ParseKindSlots(const json& value, const std::string& file, const std::string& pointer,
+                    std::vector<Diagnostic>& diagnostics, KindTemplate& kind) {
+    const auto attributes = value.find("attributes");
+    if (attributes == value.end()) {
+        return;
+    }
+    const std::string attributes_pointer =
+        match::expr::AppendPointerToken(pointer, "attributes");
+    if (!attributes->is_array()) {
+        AddError(diagnostics, file, attributes_pointer, "key \"attributes\" must be an array");
+        return;
+    }
+
+    std::set<std::string> names;
+    for (std::size_t index = 0; index < attributes->size(); ++index) {
+        const json& binding = (*attributes)[index];
+        const std::string binding_pointer =
+            match::expr::AppendPointerToken(attributes_pointer, std::to_string(index));
+        if (!binding.is_object()) {
+            AddError(diagnostics, file, binding_pointer,
+                     "attribute binding must be an object");
+            continue;
+        }
+        CheckUnknownKeys(binding, SlotKeys(), file, binding_pointer, diagnostics);
+
+        const std::optional<std::string> attribute =
+            ReadString(binding, "attribute", file, binding_pointer, diagnostics, true);
+        if (!attribute) {
+            continue;
+        }
+        if (!IsValidIdentifier(*attribute)) {
+            AddError(diagnostics, file,
+                     match::expr::AppendPointerToken(binding_pointer, "attribute"),
+                     "attribute \"" + *attribute + "\" is not a valid identifier");
+            continue;
+        }
+
+        const std::optional<std::string> declared_name =
+            ReadString(binding, "name", file, binding_pointer, diagnostics, false);
+        const std::string slot_name = declared_name ? *declared_name : LocalNameOf(*attribute);
+        if (declared_name && !IsValidLocalName(*declared_name)) {
+            AddError(diagnostics, file,
+                     match::expr::AppendPointerToken(binding_pointer, "name"),
+                     "slot name \"" + *declared_name +
+                         "\" must use [a-z0-9_] (1 to 32 characters)");
+            continue;
+        }
+        if (!names.insert(slot_name).second) {
+            AddError(diagnostics, file, binding_pointer,
+                     "duplicate slot name \"" + slot_name + "\"");
+            continue;
+        }
+
+        SlotBinding slot;
+        slot.attribute = *attribute;
+        slot.name = slot_name;
+        if (const std::optional<std::string> surface =
+                ReadString(binding, "surface", file, binding_pointer, diagnostics, false)) {
+            slot.surface = *surface;
+        }
+        kind.slots.push_back(std::move(slot));
+    }
+}
+
+void ParseKindSymmetric(const json& value, const std::string& file, const std::string& pointer,
+                        std::vector<Diagnostic>& diagnostics, KindTemplate& kind) {
+    const auto symmetric = value.find("symmetric");
+    if (symmetric == value.end()) {
+        return;
+    }
+    const std::string symmetric_pointer =
+        match::expr::AppendPointerToken(pointer, "symmetric");
+    if (!symmetric->is_array()) {
+        AddError(diagnostics, file, symmetric_pointer, "key \"symmetric\" must be an array");
+        return;
+    }
+    for (std::size_t group_index = 0; group_index < symmetric->size(); ++group_index) {
+        const json& group = (*symmetric)[group_index];
+        const std::string group_pointer =
+            match::expr::AppendPointerToken(symmetric_pointer, std::to_string(group_index));
+        if (!group.is_array()) {
+            AddError(diagnostics, file, group_pointer,
+                     "symmetric entry must be an array");
+            continue;
+        }
+        std::vector<std::string> names;
+        for (std::size_t name_index = 0; name_index < group.size(); ++name_index) {
+            const json& name = group[name_index];
+            if (!name.is_string() || name.get<std::string>().empty()) {
+                AddError(diagnostics, file,
+                         match::expr::AppendPointerToken(group_pointer,
+                                                         std::to_string(name_index)),
+                         "symmetric group entry must be a non-empty string");
+                continue;
+            }
+            names.push_back(name.get<std::string>());
+        }
+        if (names.size() < 2) {
+            AddError(diagnostics, file, group_pointer,
+                     "symmetric group must name at least 2 slots");
+        }
+        kind.symmetric_groups.push_back(std::move(names));
+    }
+}
+
+void CheckSymmetricSlots(const std::string& file, const std::string& pointer,
+                         std::vector<Diagnostic>& diagnostics, const KindTemplate& kind) {
+    std::set<std::string> declared;
+    for (const SlotBinding& slot : kind.slots) {
+        declared.insert(slot.name);
+    }
+    const std::string symmetric_pointer =
+        match::expr::AppendPointerToken(pointer, "symmetric");
+    for (std::size_t group_index = 0; group_index < kind.symmetric_groups.size();
+         ++group_index) {
+        const std::vector<std::string>& group = kind.symmetric_groups[group_index];
+        for (std::size_t name_index = 0; name_index < group.size(); ++name_index) {
+            if (declared.count(group[name_index]) != 0) {
+                continue;
+            }
+            AddError(diagnostics, file,
+                     match::expr::AppendPointerToken(
+                         match::expr::AppendPointerToken(symmetric_pointer,
+                                                         std::to_string(group_index)),
+                         std::to_string(name_index)),
+                     "symmetric group names unknown slot \"" + group[name_index] + "\"");
+        }
+    }
+}
+
+bool ParseKind(const json& value, const std::string& mod_id, const std::string& file,
+               const std::string& pointer, std::vector<Diagnostic>& diagnostics,
+               KindTemplate& kind) {
+    if (!value.is_object()) {
+        AddError(diagnostics, file, pointer, "kind must be an object");
+        return false;
+    }
+    const std::size_t initial_diagnostics = diagnostics.size();
+    CheckUnknownKeys(value, KindKeys(), file, pointer, diagnostics);
+
+    bool usable = false;
+    const std::optional<std::string> identifier =
+        ReadString(value, "identifier", file, pointer, diagnostics, true);
+    if (identifier) {
+        kind.identifier = *identifier;
+        usable = ValidateIdentifier(*identifier, mod_id, file,
+                                    match::expr::AppendPointerToken(pointer, "identifier"),
+                                    "kind identifier", diagnostics);
+    }
+
+    const auto abstract = value.find("abstract");
+    if (abstract != value.end()) {
+        if (!abstract->is_boolean()) {
+            AddError(diagnostics, file,
+                     match::expr::AppendPointerToken(pointer, "abstract"),
+                     "key \"abstract\" must be a boolean");
+        } else {
+            kind.is_abstract = abstract->get<bool>();
+        }
+    }
+
+    if (const std::optional<std::string> parent =
+            ReadString(value, "extends", file, pointer, diagnostics, false)) {
+        kind.extends = *parent;
+        if (!IsValidIdentifier(*parent)) {
+            AddError(diagnostics, file,
+                     match::expr::AppendPointerToken(pointer, "extends"),
+                     "extends \"" + *parent +
+                         "\" is not a valid identifier; a local name uses [a-z0-9_] "
+                         "(1 to 32 characters)");
+        }
+    }
+
+    ReadStringArray(value, "tags", "tag must be a non-empty string", file, pointer,
+                    diagnostics, kind.tags);
+    ParseKindSlots(value, file, pointer, diagnostics, kind);
+    ParseKindSymmetric(value, file, pointer, diagnostics, kind);
+    CheckSymmetricSlots(file, pointer, diagnostics, kind);
+
+    ReadStringArray(value, "slot_order", "slot_order entry must be a non-empty string", file,
+                    pointer, diagnostics, kind.slot_order);
+
+    if (const std::optional<std::string> format =
+            ReadString(value, "identifier_format", file, pointer, diagnostics, false)) {
+        kind.identifier_format = *format;
+    }
+    if (const std::optional<std::string> format =
+            ReadString(value, "title_format", file, pointer, diagnostics, false)) {
+        kind.title_format = *format;
+    }
+    if (const std::optional<std::string> label_key =
+            ReadString(value, "label_key", file, pointer, diagnostics, false)) {
+        kind.label_key = *label_key;
+    }
+    if (const std::optional<std::string> description_key =
+            ReadString(value, "description_key", file, pointer, diagnostics, false)) {
+        kind.description_key = *description_key;
+    }
+
+    const auto face = value.find("face");
+    if (face != value.end()) {
+        const std::string face_pointer = match::expr::AppendPointerToken(pointer, "face");
+        if (!face->is_object()) {
+            AddError(diagnostics, file, face_pointer, "key \"face\" must be an object");
+        } else {
+            kind.face = *face;
+        }
+    }
+
+    if (const auto entry = value.find("behavior"); entry != value.end()) {
+        kind.behavior = *entry;
+    }
+    if (const auto entry = value.find("window"); entry != value.end()) {
+        kind.window = *entry;
+    }
+    if (const auto entry = value.find("auto_trigger"); entry != value.end()) {
+        kind.auto_trigger = *entry;
+    }
+
+    const auto properties = value.find("properties");
+    if (properties != value.end()) {
+        if (!properties->is_object()) {
+            AddError(diagnostics, file,
+                     match::expr::AppendPointerToken(pointer, "properties"),
+                     "key \"properties\" must be an object");
+        } else {
+            kind.properties = *properties;
+        }
+    }
+
+    const auto contribute = value.find("contribute");
+    if (contribute != value.end() && !contribute->is_object()) {
+        AddError(diagnostics, file,
+                 match::expr::AppendPointerToken(pointer, "contribute"),
+                 "key \"contribute\" must be an object");
+    }
+
+    kind.file = file;
+    return usable && diagnostics.size() == initial_diagnostics;
 }
 
 void ReadTags(const json& value, const std::string& file, const std::string& pointer,
@@ -495,7 +776,8 @@ namespace {
 void LoadFileImpl(const fs::path& path, const std::string& folder, const std::string& label,
                   const std::string& mod_id, LoadOutcome& outcome,
                   std::map<std::string, std::string>& attribute_files,
-                  std::map<std::string, std::string>& member_files) {
+                  std::map<std::string, std::string>& member_files,
+                  std::map<std::string, std::string>& kind_files) {
     std::vector<Diagnostic>& diagnostics = outcome.diagnostics;
 
     const std::optional<json> document = internal::ReadCardDocument(path, label, diagnostics);
@@ -592,15 +874,38 @@ void LoadFileImpl(const fs::path& path, const std::string& folder, const std::st
                                    identifier_pointer, diagnostics);
         RegisterMember(std::move(member), label, identifier_pointer, diagnostics, member_files,
                        outcome.schema.members);
+        return;
+    }
+
+    if (root == "kind") {
+        KindTemplate kind;
+        if (!ParseKind(value, mod_id, label, pointer, diagnostics, kind)) {
+            return;
+        }
+        const std::string identifier_pointer =
+            match::expr::AppendPointerToken(pointer, "identifier");
+        CheckIdentifierMatchesFile(kind.identifier, path.stem().string(), label,
+                                   identifier_pointer, diagnostics);
+        const auto existing = kind_files.find(kind.identifier);
+        if (existing != kind_files.end()) {
+            AddError(diagnostics, label, identifier_pointer,
+                     "duplicate kind identifier \"" + kind.identifier + "\" in " + label +
+                         "; first declared in " + existing->second);
+            return;
+        }
+        kind_files.emplace(kind.identifier, label);
+        outcome.schema.kinds.push_back(std::move(kind));
     }
 }
 
 void LoadFile(const fs::path& path, const std::string& folder, const std::string& label,
               const std::string& mod_id, LoadOutcome& outcome,
               std::map<std::string, std::string>& attribute_files,
-              std::map<std::string, std::string>& member_files) {
+              std::map<std::string, std::string>& member_files,
+              std::map<std::string, std::string>& kind_files) {
     try {
-        LoadFileImpl(path, folder, label, mod_id, outcome, attribute_files, member_files);
+        LoadFileImpl(path, folder, label, mod_id, outcome, attribute_files, member_files,
+                     kind_files);
     } catch (const std::exception& error) {
         AddError(outcome.diagnostics, label, std::string(match::expr::kRootPointer),
                  std::string("internal error: ") + error.what());
@@ -738,6 +1043,7 @@ LoadOutcome LoadModSchema(const fs::path& mod_directory, const std::string& mod_
 
         std::map<std::string, std::string> attribute_files;
         std::map<std::string, std::string> member_files;
+        std::map<std::string, std::string> kind_files;
 
         for (const fs::path& file : files) {
             const fs::path relative = file.lexically_relative(mod_directory);
@@ -752,7 +1058,8 @@ LoadOutcome LoadModSchema(const fs::path& mod_directory, const std::string& mod_
             }
             const std::string folder = relative.begin()->string();
             const std::string label = PathLabel(mod_id, relative);
-            LoadFile(file, folder, label, mod_id, outcome, attribute_files, member_files);
+            LoadFile(file, folder, label, mod_id, outcome, attribute_files, member_files,
+                     kind_files);
         }
 
         std::stable_sort(outcome.schema.members.begin(), outcome.schema.members.end(),
