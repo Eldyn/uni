@@ -28,6 +28,7 @@
 		onRetry?: () => void;
 		onLeaderboard?: () => void;
 		onRegister?: () => void;
+		oneditlook?: () => void;
 		account?: Snippet;
 		accountAction?: Snippet;
 	};
@@ -39,6 +40,7 @@
 		onRetry,
 		onLeaderboard,
 		onRegister,
+		oneditlook,
 		account,
 		accountAction
 	}: ProfileViewProps = $props();
@@ -48,6 +50,20 @@
 	const options = $derived({ locale: storeI18n.locale });
 	const loading = $derived(status === "loading");
 	const groups = $derived(profile.stats ? cardsPlayedGroups(profile.stats) : []);
+
+	/**
+	 * Resolve the "Edit look" label, falling back to the English default until
+	 * the wardrobe key lands in the i18n catalogue (a later task).
+	 */
+	function wardrobeLabel(): string {
+		const fallback = "Edit look";
+		const translate = (m as Record<string, unknown>)["wardrobe_edit_look"];
+		if (typeof translate !== "function") return fallback;
+		const value = (translate as (inputs: object, opts: { locale: string }) => unknown)({}, options);
+		return typeof value === "string" && value.length > 0 ? value : fallback;
+	}
+
+	const editLookLabel = $derived(wardrobeLabel());
 
 	/** A stat number, or an em dash while loading or without data. */
 	function statValue(value: number | undefined): string {
@@ -77,6 +93,11 @@
 	<header class="profile-identity">
 		<Avatar loadout={profile.loadout} size={96} />
 		<h1 class="title-screen">{profile.username}</h1>
+		{#if isOwn}
+			<button class="btn-secondary profile-edit-look" type="button" onclick={() => oneditlook?.()}>
+				{editLookLabel}
+			</button>
+		{/if}
 	</header>
 
 	{#if status === "guest"}
@@ -159,6 +180,10 @@
 		display: flex;
 		align-items: center;
 		gap: var(--space-4);
+	}
+
+	.profile-edit-look {
+		margin-left: auto;
 	}
 
 	.profile-block {

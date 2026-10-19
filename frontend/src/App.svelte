@@ -20,6 +20,7 @@
 		stats: () => import("./lib/components/stats/StatsScreen.svelte"),
 		decks: () => import("./lib/components/decks/DecksScreen.svelte"),
 		shop: () => import("./lib/components/shop/ShopScreen.svelte"),
+		wardrobe: () => import("./lib/components/wardrobe/WardrobeScreen.svelte"),
 		settings: () => import("./lib/components/settings/SettingsScreen.svelte")
 	} as const;
 
@@ -127,6 +128,10 @@
 
 		await storeAuth.checkSession();
 		sessionChecked = true;
+
+		// A guarded deep link (e.g. /wardrobe) lost its guard race at
+		// construction because the session was not restored yet; apply it now.
+		storeNavigation.applyInitialScreen();
 
 		if (
 			storeAuth.isLoggedIn &&

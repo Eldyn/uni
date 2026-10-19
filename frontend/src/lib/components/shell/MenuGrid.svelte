@@ -1,8 +1,8 @@
 <script lang="ts">
 	/**
 	 * @file MenuGrid.svelte
-	 * @brief Tile grid opened by the nav Menu item: Leaderboard, Wardrobe
-	 * (disabled), Settings. Positioning is left to the host (NavBar).
+	 * @brief Tile grid opened by the nav Menu item: Settings, Wardrobe,
+	 * Leaderboard. Positioning is left to the host (NavBar).
 	 */
 	import { onMount } from "svelte";
 	import { storeMenu } from "$stores/menu.svelte";
@@ -28,7 +28,8 @@
 		{
 			label: m.nav_wardrobe({}, { locale: storeI18n.locale }),
 			icon: "pixelart-icons-font-shirt",
-			disabled: true
+			disabled: false,
+			screen: "wardrobe"
 		},
 		{
 			label: m.nav_leaderboard({}, { locale: storeI18n.locale }),
@@ -39,7 +40,6 @@
 	]);
 
 	const GRID_LABEL = $derived(m.nav_menu_grid_label({}, { locale: storeI18n.locale }));
-	const SOON_LABEL = $derived(m.nav_wardrobe_soon({}, { locale: storeI18n.locale }));
 
 	/** Index of the tile that holds the grid's single tab stop. */
 	let focused = $state(0);
@@ -145,9 +145,6 @@
 		>
 			<i class="pia {tile.icon} text-xl leading-none" aria-hidden="true"></i>
 			<span class="menu-tile-label">{tile.label}</span>
-			{#if tile.disabled}
-				<span class="menu-tile-badge">{SOON_LABEL}</span>
-			{/if}
 		</button>
 	{/each}
 </div>
@@ -198,12 +195,5 @@
 		overflow-wrap: break-word;
 		line-height: 1.1;
 		font-size: 0.65rem;
-	}
-
-	.menu-tile-badge {
-		padding: 0 var(--space-1);
-		color: var(--accent);
-		font-size: 0.6rem;
-		line-height: 1.1;
 	}
 </style>

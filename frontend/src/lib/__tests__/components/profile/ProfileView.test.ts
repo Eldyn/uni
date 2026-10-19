@@ -179,4 +179,22 @@ describe("ProfileView", () => {
 		expect(screen.queryByRole("button", { name: "Logout" })).not.toBeInTheDocument();
 		expect(screen.queryByRole("button", { name: /verify/i })).not.toBeInTheDocument();
 	});
+
+	it("shows the Edit look button for the owner and calls oneditlook", async () => {
+		const oneditlook = vi.fn();
+		render(ProfileView, {
+			props: { profile: makeProfile(makeStats()), isOwn: true, status: "ready", oneditlook }
+		});
+
+		await fireEvent.click(screen.getByRole("button", { name: "Edit look" }));
+		expect(oneditlook).toHaveBeenCalledTimes(1);
+	});
+
+	it("hides the Edit look button on another player's profile", () => {
+		render(ProfileView, {
+			props: { profile: makeProfile(makeStats()), isOwn: false, status: "ready" }
+		});
+
+		expect(screen.queryByRole("button", { name: "Edit look" })).not.toBeInTheDocument();
+	});
 });
