@@ -2,6 +2,8 @@
 
 #include <nlohmann/json.hpp>
 
+#include <match/cardschema/model.hpp>
+
 #include <cstdint>
 #include <map>
 #include <optional>
@@ -132,6 +134,8 @@ struct CardDef {
     std::string description_key;        /**< Empty: derived by the glossary. */
     FaceSpec face;
     std::vector<std::string> tags;
+    std::vector<std::string> requires_mods; /**< Mods whose members the card uses. */
+    std::string template_id;                /**< Kind template the card came from. */
     std::vector<BehaviorEntry> behaviors;
     std::optional<WindowSpec> window;
     std::optional<AutoTriggerDef> auto_trigger; /**< Must-apply. */
@@ -646,6 +650,7 @@ struct LoadedMod {
     std::string path;                   /**< Absolute/relative folder path. */
     ModManifest manifest;
     std::string content_hash;           /**< SHA-256 hex of the folder. */
+    match::cardschema::ModSchema card_schema;  /**< Schema v1 card sources. */
     std::vector<CardDef> cards;
     std::vector<RuleDef> rules;
     std::vector<StatusDef> statuses;

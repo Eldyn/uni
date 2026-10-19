@@ -13,6 +13,13 @@
 #include "match/modload/texts_limits.hpp"
 #include "common/crypto_hash.hpp"
 
+#include "match/cardschema/catalog.hpp"
+#include "match/cardschema/internal.hpp"
+#include "match/cardschema/loader.hpp"
+#include "match/cardschema/model.hpp"
+#include "match/cardschema/validate.hpp"
+#include "match/expr/diagnostic.hpp"
+
 #include <common/contract.hpp>
 
 #include <algorithm>
@@ -24,7 +31,9 @@
 #include <filesystem>
 #include <fstream>
 #include <iterator>
+#include <map>
 #include <set>
+#include <string_view>
 #include <unordered_set>
 #include <utility>
 
@@ -89,6 +98,114 @@ void AddWarning(std::vector<LoadWarning>& warnings,
                 const std::string& path,
                 const std::string& message) {
     warnings.push_back(LoadWarning{check, artifact, path, message});
+}
+
+/* INFO: one mod folder carried between the two scan passes: the parsed model,
+ *       its report, and the diagnostics collected so far. */
+struct PendingMod {
+    LoadedMod mod;
+    ModReport report;
+    std::vector<LoadError> errors;
+    std::vector<LoadWarning> warnings;
+    bool ok = true;
+};
+
+/** INFO: converts one cardschema diagnostic into a loader error, keeping the
+ *        owner file label and the exact formatted text, capped like the
+ *        cardschema report so one bad mod cannot flood the loader output. */
+void AddSchemaError(std::vector<LoadError>& errors,
+                    const match::cardschema::Diagnostic& diagnostic) {
+    if (errors.size() >= match::cardschema::internal::kMaximumDiagnostics) return;
+    AddError(errors, "card_schema", "cards", diagnostic.file,
+             match::expr::FormatDiagnostic(diagnostic));
+}
+
+/** INFO: the batch form of AddSchemaError for a whole diagnostic list. */
+void AppendSchemaErrors(std::vector<LoadError>& errors,
+                        const std::vector<match::cardschema::Diagnostic>& diagnostics) {
+    for (const match::cardschema::Diagnostic& diagnostic : diagnostics) {
+        AddSchemaError(errors, diagnostic);
+    }
+}
+
+/** INFO: the mod id a cardschema diagnostic names. Every label starts with
+ *        `mods/<id>/`, so the folder after `mods/` owns the diagnostic. An
+ *        empty result means the label does not name a mod folder. */
+std::string DiagnosticModId(const std::string& file) {
+    constexpr std::string_view kModsPrefix = "mods/";
+    if (file.compare(0, kModsPrefix.size(), kModsPrefix) != 0) return {};
+    const std::size_t slash = file.find('/', kModsPrefix.size());
+    if (slash == std::string::npos) return {};
+    return file.substr(kModsPrefix.size(), slash - kModsPrefix.size());
+}
+
+/** INFO: the default integer settings of a manifest, the same rule the
+ *        `uni-mods verify` tool uses: every `int` setting contributes `id` to
+ *        `default`. Reads the raw manifest so it stays independent of the
+ *        loader's own manifest model. */
+std::map<std::string, std::int64_t> ManifestDefaultSettings(
+    const nlohmann::json& manifest) {
+    std::map<std::string, std::int64_t> settings;
+    if (!manifest.is_object()) return settings;
+    const auto entries = manifest.find("settings");
+    if (entries == manifest.end() || !entries->is_array()) return settings;
+    for (const nlohmann::json& entry : *entries) {
+        if (!entry.is_object()) continue;
+        const auto id = entry.find("id");
+        const auto type = entry.find("type");
+        const auto value = entry.find("default");
+        if (id == entry.end() || !id->is_string()) continue;
+        if (type == entry.end() || !type->is_string()
+            || type->get<std::string>() != "int") {
+            continue;
+        }
+        if (value == entry.end() || !value->is_number_integer()) continue;
+        settings[id->get<std::string>()] = value->get<std::int64_t>();
+    }
+    return settings;
+}
+
+/** INFO: the kind file label of a generated card's template, so a parse error
+ *        on the converted definition names the kind the card came from. */
+std::string KindFileLabel(const match::cardschema::ModSchema& schema,
+                          const std::string& template_id) {
+    for (const match::cardschema::KindTemplate& kind : schema.kinds) {
+        if (kind.identifier == template_id) return kind.file;
+    }
+    return template_id;
+}
+
+/** INFO: the legacy-shaped `DeckDef` the lobby and the assembler already read
+ *        (kind id -> count snapshot plus the five snapshot-file keys). */
+DeckDef BuildDeckDef(const std::string& host_mod,
+                     const match::cardschema::ExpandedDeck& expanded) {
+    DeckDef deck;
+    deck.id = match::cardschema::LocalNameOf(expanded.deck_id);
+    deck.namespace_id = host_mod;
+    deck.deck_id = expanded.deck_id;
+    deck.name = expanded.name;
+    deck.mods = expanded.mods;
+    if (deck.mods.empty()) deck.mods.push_back(host_mod);
+    deck.cards = expanded.cards;
+    nlohmann::json cards = nlohmann::json::object();
+    for (const auto& [kind_id, count] : deck.cards) cards[kind_id] = count;
+    deck.raw = nlohmann::json::object();
+    deck.raw["id"] = deck.id;
+    deck.raw["name"] = deck.name;
+    deck.raw["namespace"] = deck.namespace_id;
+    deck.raw["mods"] = deck.mods;
+    deck.raw["cards"] = std::move(cards);
+    return deck;
+}
+
+/** INFO: the pending entry whose manifest id is `mod_id`, or nullptr. */
+PendingMod* PendingById(std::vector<PendingMod>& pending,
+                        const std::string& mod_id) {
+    if (mod_id.empty()) return nullptr;
+    for (PendingMod& entry : pending) {
+        if (entry.mod.manifest.id == mod_id) return &entry;
+    }
+    return nullptr;
 }
 
 bool ReadJsonFile(const fs::path& path,
@@ -376,19 +493,18 @@ std::vector<fs::path> ListJsonFiles(const fs::path& dir,
     return files;
 }
 
-bool ParseCardEntry(const fs::path& path,
-                    const std::string& ns,
-                    CardDef& out,
-                    std::vector<LoadError>& errors) {
-    nlohmann::json entry;
-    if (!ReadJsonFile(path, entry, errors, "cards")) return false;
+bool ParseCardObject(const nlohmann::json& entry,
+                     const std::string& source_label,
+                     const std::string& ns,
+                     CardDef& out,
+                     std::vector<LoadError>& errors) {
     if (!entry.is_object()) {
-        AddError(errors, "card.shape", "cards", path.string(),
+        AddError(errors, "card.shape", "cards", source_label,
                  "card file must be a JSON object");
         return false;
     }
     if (!ParseStringField(entry, "id", out.id) || !IsValidLocalId(out.id)) {
-        AddError(errors, "card.id", "cards", path.string(),
+        AddError(errors, "card.id", "cards", source_label,
                  "card needs an id matching [a-z0-9_]+ (1-32)");
         return false;
     }
@@ -406,7 +522,7 @@ bool ParseCardEntry(const fs::path& path,
         const auto found = entry.find(std::string(field));
         if (found == entry.end()) continue;
         if (!found->is_string()) {
-            AddError(errors, "card.keys", "cards", path.string(),
+            AddError(errors, "card.keys", "cards", source_label,
                      "card '" + out.id + "' field '" + std::string(field)
                          + "' must be a text key string");
             ok = false;
@@ -416,7 +532,7 @@ bool ParseCardEntry(const fs::path& path,
     }
     auto face = entry.find("face");
     if (face != entry.end()) {
-        if (!ParseFace(*face, out.face, errors, path.string())) ok = false;
+        if (!ParseFace(*face, out.face, errors, source_label)) ok = false;
     }
     auto tags = entry.find("tags");
     if (tags != entry.end() && tags->is_array()) {
@@ -429,7 +545,7 @@ bool ParseCardEntry(const fs::path& path,
         for (auto it = behavior->begin(); it != behavior->end(); ++it) {
             BehaviorEntry be;
             if (ParseBehaviorEntry(it.value(), be, errors, "cards",
-                                   path.string(), it.key())) {
+                                   source_label, it.key())) {
                 out.behaviors.push_back(std::move(be));
             } else {
                 ok = false;
@@ -439,7 +555,7 @@ bool ParseCardEntry(const fs::path& path,
     auto window = entry.find("window");
     if (window != entry.end()) {
         WindowSpec spec;
-        if (ParseWindow(*window, spec, errors, path.string())) {
+        if (ParseWindow(*window, spec, errors, source_label)) {
             out.window = std::move(spec);
         } else {
             ok = false;
@@ -448,34 +564,11 @@ bool ParseCardEntry(const fs::path& path,
     auto auto_trigger = entry.find("auto_trigger");
     if (auto_trigger != entry.end()) {
         AutoTriggerDef spec;
-        if (ParseAutoTrigger(*auto_trigger, spec, errors, path.string())) {
+        if (ParseAutoTrigger(*auto_trigger, spec, errors, source_label)) {
             out.auto_trigger = std::move(spec);
         } else {
             ok = false;
         }
-    }
-    return ok;
-}
-
-bool ScanCardsDirectory(const fs::path& dir,
-                        const std::string& ns,
-                        std::vector<CardDef>& out,
-                        std::vector<LoadError>& errors) {
-    bool ok = true;
-    std::set<std::string> seen;
-    for (const fs::path& file : ListJsonFiles(dir, "cards", errors)) {
-        CardDef card;
-        if (!ParseCardEntry(file, ns, card, errors)) {
-            ok = false;
-            continue;
-        }
-        if (!seen.insert(card.id).second) {
-            AddError(errors, "card.id.duplicate", "cards", file.string(),
-                     "duplicate card id '" + card.id + "'");
-            ok = false;
-            continue;
-        }
-        out.push_back(std::move(card));
     }
     return ok;
 }
@@ -1917,77 +2010,6 @@ bool ScanGlossaryDirectory(const fs::path& dir, const std::string& mod_id,
     return ok;
 }
 
-bool ParseDeckFile(const fs::path& path,
-                   const std::string& ns,
-                   DeckDef& out,
-                   std::vector<LoadError>& errors) {
-    nlohmann::json json;
-    if (!ReadJsonFile(path, json, errors, "deck")) return false;
-    if (!json.is_object()) {
-        AddError(errors, "deck.shape", "deck", path.string(),
-                 "deck file must be a JSON object");
-        return false;
-    }
-    out.raw = json;
-    if (!ParseStringField(json, "id", out.id) || !IsValidLocalId(out.id)) {
-        AddError(errors, "deck.id", "deck", path.string(),
-                 "deck requires an id matching [a-z0-9_]+ (1-32)");
-        return false;
-    }
-    out.namespace_id = ns;
-    out.deck_id = ns + ":" + out.id;
-    (void)ParseStringField(json, "name", out.name);
-    auto mods = json.find("mods");
-    if (mods != json.end() && mods->is_array()) {
-        for (const auto& mod : *mods) {
-            if (mod.is_string()) out.mods.push_back(mod.get<std::string>());
-        }
-    }
-    auto cards = json.find("cards");
-    if (cards != json.end()) {
-        if (!cards->is_object()) {
-            AddError(errors, "deck.cards", "deck", path.string(),
-                     "'cards' must be an object of kind id -> count");
-            return false;
-        }
-        for (auto it = cards->begin(); it != cards->end(); ++it) {
-            if (!it.value().is_number_integer()) {
-                AddError(errors, "deck.cards", "deck", path.string(),
-                         "count for '" + it.key() + "' must be an integer");
-                return false;
-            }
-            out.cards.emplace_back(it.key(), it.value().get<int>());
-        }
-    }
-    auto settings = json.find("settings");
-    if (settings != json.end()) out.settings = *settings;
-    return true;
-}
-
-bool ScanDeckDirectory(const fs::path& dir,
-                       const std::string& ns,
-                       std::vector<DeckDef>& out,
-                       std::vector<LoadError>& errors) {
-    std::vector<fs::path> files = ListJsonFiles(dir, "deck", errors);
-    bool ok = true;
-    std::set<std::string> seen;
-    for (const auto& file : files) {
-        DeckDef deck;
-        if (!ParseDeckFile(file, ns, deck, errors)) {
-            ok = false;
-            continue;
-        }
-        if (!seen.insert(deck.id).second) {
-            AddError(errors, "deck.id.duplicate", "deck", file.string(),
-                     "duplicate deck id '" + deck.id + "'");
-            ok = false;
-            continue;
-        }
-        out.push_back(std::move(deck));
-    }
-    return ok;
-}
-
 bool ParseAssetVariant(const nlohmann::json& value,
                        AssetVariant& out,
                        std::vector<LoadError>& errors,
@@ -2361,12 +2383,22 @@ bool ValidateModContent(const LoadedMod& mod,
 
     // Unknown top-level entries are ignored with a warning.
     static const std::set<std::string> kKnownEntries = {
-        "mod.json", "cards", "rules", "statuses", "mutations", "decks",
+        "mod.json", "kinds", "attributes", "properties", "decks",
         "assets", "tables", "entities", "presentations", "events", "texts",
         "glossary"};
     std::error_code ec;
     for (const auto& entry : fs::directory_iterator(root, ec)) {
         const std::string name = entry.path().filename().string();
+        if (name == "cards") {
+            /* INFO: schema 0 shipped one file per card under `cards/`. The v1
+             *       loader reads `kinds/` instead and refuses the old folder so
+             *       a half-migrated mod cannot load with no cards at all. */
+            AddError(errors, "card_schema", "cards", entry.path().string(),
+                     "cards/ is the removed schema 0 form; move the files to "
+                     "kinds/ (see docs)");
+            ok = false;
+            continue;
+        }
         if (kKnownEntries.count(name) == 0) {
             AddWarning(warnings, "mod.unknown_entry", "mod",
                        entry.path().string(),
@@ -2525,12 +2557,18 @@ bool ParseModFolder(const std::string& folder_path,
     }
 
     /* INFO: Entry sets are directories; a missing directory is an empty
-     *       set, so a mod declares only the content it ships. */
+     *       set, so a mod declares only the content it ships. Schema v1 card
+     *       sources (attributes, kinds, decks, properties) load through the
+     *       cardschema loader; the catalog is expanded once for every mod in
+     *       ScanModsDirectory. */
     bool ok = true;
-    if (!ScanCardsDirectory(root / "cards", loaded.manifest.id, loaded.cards,
-                            errors)) {
+    match::cardschema::LoadOutcome outcome =
+        match::cardschema::LoadModSchema(root, loaded.manifest.id);
+    if (!outcome.diagnostics.empty()) {
+        AppendSchemaErrors(errors, outcome.diagnostics);
         ok = false;
     }
+    loaded.card_schema = std::move(outcome.schema);
     if (!ScanRulesDirectory(root / "rules", loaded.manifest.id, loaded.rules,
                             errors)) {
         ok = false;
@@ -2541,10 +2579,6 @@ bool ParseModFolder(const std::string& folder_path,
     }
     if (!ScanMutationsDirectory(root / "mutations", loaded.manifest.id,
                                 loaded.mutations, errors)) {
-        ok = false;
-    }
-    if (!ScanDeckDirectory(root / "decks", loaded.manifest.id, loaded.decks,
-                           errors)) {
         ok = false;
     }
     if (!ScanAssetsDirectory(root / "assets", loaded.manifest.id, loaded.assets,
@@ -2611,46 +2645,124 @@ LoadResult ScanModsDirectory(const std::string& root) {
     /* INFO: per-mod isolation: every folder gets a ModReport; the
      *       mods that validate land in `mods`. A bad mod no longer empties the
      *       whole scan, so the server keeps running and authors can read why it
-     *       failed. Fail-closed moves to the match boundary. */
+     *       failed. Fail-closed moves to the match boundary.
+     *
+     *       The scan runs in two passes. Pass one parses every folder, so the
+     *       card catalog can be expanded once over all of them; the generated
+     *       cards and decks are then attached to their host mods. Pass two runs
+     *       the whole-mod validation and publishes the reports. */
+    std::vector<PendingMod> pending;
     std::unordered_set<std::string> seen_ids;
     for (const auto& folder : folders) {
-        ModReport report;
-        report.folder = folder.string();
-        report.mod_id = folder.filename().string();
+        PendingMod entry;
+        entry.report.folder = folder.string();
+        entry.report.mod_id = folder.filename().string();
 
-        LoadedMod mod;
-        std::vector<LoadError> errors;
-        std::vector<LoadWarning> warnings;
         bool ok = ParseModFolder(folder.string(), folder.filename().string(),
-                                 mod, errors);
-        if (ok && mod.manifest.dev_only && !DevContentAllowed()) {
+                                 entry.mod, entry.errors);
+        if (ok && entry.mod.manifest.dev_only && !DevContentAllowed()) {
             continue;
         }
         if (ok) {
-            report.mod_id = mod.manifest.id;
-            if (!seen_ids.insert(mod.manifest.id).second) {
-                AddError(errors, "mod.id.duplicate", "mod",
+            entry.report.mod_id = entry.mod.manifest.id;
+            if (!seen_ids.insert(entry.mod.manifest.id).second) {
+                AddError(entry.errors, "mod.id.duplicate", "mod",
                          (folder / "mod.json").string(),
-                         "duplicate mod id '" + mod.manifest.id + "'");
+                         "duplicate mod id '" + entry.mod.manifest.id + "'");
                 ok = false;
-            } else {
-                ok = ValidateModContent(mod, warnings, errors,
-                                        report.asset_count,
-                                        report.asset_bytes);
             }
         }
+        entry.ok = ok;
+        pending.push_back(std::move(entry));
+    }
 
-        report.ok = ok;
-        report.errors = std::move(errors);
-        report.warnings = std::move(warnings);
-        for (const LoadError& error : report.errors) {
+    /* INFO: the catalog expands once for every mod that parsed, so a card a
+     *       mod's template generates over another mod's members is seen before
+     *       the per-mod card lists are built. A diagnostic is charged to the
+     *       mod its file label names, and that mod is dropped like any other
+     *       bad mod. */
+    std::vector<match::cardschema::ModSchema> schemas;
+    for (const PendingMod& entry : pending) {
+        if (entry.ok) schemas.push_back(entry.mod.card_schema);
+    }
+
+    const match::cardschema::CatalogResult catalog =
+        match::cardschema::ExpandCards(schemas);
+    std::vector<match::cardschema::Diagnostic> catalog_diagnostics =
+        catalog.diagnostics;
+    for (match::cardschema::Diagnostic& diagnostic :
+         match::cardschema::ValidateCatalog(schemas)) {
+        catalog_diagnostics.push_back(std::move(diagnostic));
+    }
+    for (const match::cardschema::Diagnostic& diagnostic : catalog_diagnostics) {
+        PendingMod* owner = PendingById(pending, DiagnosticModId(diagnostic.file));
+        if (owner == nullptr) {
+            for (PendingMod& candidate : pending) {
+                if (candidate.ok) {
+                    owner = &candidate;
+                    break;
+                }
+            }
+        }
+        if (owner == nullptr) {
+            AddSchemaError(result.errors, diagnostic);
+            continue;
+        }
+        AddSchemaError(owner->errors, diagnostic);
+        owner->ok = false;
+    }
+
+    for (PendingMod& entry : pending) {
+        if (!entry.ok) continue;
+        const std::string host_mod = entry.mod.manifest.id;
+        for (const match::cardschema::GeneratedCard& generated : catalog.cards) {
+            if (generated.host_mod != host_mod) continue;
+            const std::string label =
+                KindFileLabel(entry.mod.card_schema, generated.template_id);
+            CardDef card;
+            if (!ParseCardObject(generated.legacy_entry, label, host_mod, card,
+                                 entry.errors)) {
+                entry.ok = false;
+                continue;
+            }
+            card.requires_mods = generated.requires_mods;
+            card.template_id = generated.template_id;
+            entry.mod.cards.push_back(std::move(card));
+        }
+        if (!entry.ok) continue;
+        const std::map<std::string, std::int64_t> settings =
+            ManifestDefaultSettings(entry.mod.manifest.raw);
+        for (const match::cardschema::DeckSpec& deck : entry.mod.card_schema.decks) {
+            const match::cardschema::ExpandedDeck expanded =
+                match::cardschema::ExpandDeck(schemas, deck.identifier, {}, settings);
+            if (!expanded.diagnostics.empty()) {
+                AppendSchemaErrors(entry.errors, expanded.diagnostics);
+                entry.ok = false;
+                break;
+            }
+            entry.mod.decks.push_back(BuildDeckDef(host_mod, expanded));
+        }
+    }
+
+    for (PendingMod& entry : pending) {
+        if (entry.ok) {
+            entry.ok = ValidateModContent(entry.mod, entry.warnings,
+                                          entry.errors,
+                                          entry.report.asset_count,
+                                          entry.report.asset_bytes);
+        }
+
+        entry.report.ok = entry.ok;
+        entry.report.errors = std::move(entry.errors);
+        entry.report.warnings = std::move(entry.warnings);
+        for (const LoadError& error : entry.report.errors) {
             result.errors.push_back(error);
         }
-        for (const LoadWarning& warning : report.warnings) {
+        for (const LoadWarning& warning : entry.report.warnings) {
             result.warnings.push_back(warning);
         }
-        if (ok) result.mods.push_back(std::move(mod));
-        result.reports.push_back(std::move(report));
+        if (entry.ok) result.mods.push_back(std::move(entry.mod));
+        result.reports.push_back(std::move(entry.report));
     }
 
     /* INFO: deterministic ordering: sort by manifest id so match assembly
