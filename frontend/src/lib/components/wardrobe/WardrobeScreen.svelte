@@ -1,8 +1,8 @@
 <!-- The Wardrobe screen: the live draft on the 3D stage on the left, the owned
-     items per slot and their colours on the right, and Revert / SAVE in the
-     header. A worn set blocks the part slots it covers, and leaving to another
-     screen with unsaved changes asks first. Guests get a register prompt
-     instead. -->
+     items per slot and their colours on the right, and Discard Changes (only
+     for a changed draft) / SAVE in the header. A worn set blocks the part slots
+     it covers, and leaving to another screen with unsaved changes asks first.
+     Guests get a register prompt instead. -->
 <script lang="ts">
 	import { onMount } from "svelte";
 	import AvatarStage from "$components/shop/AvatarStage.svelte";
@@ -126,7 +126,9 @@
 	const noneLabel = $derived(wardrobeText("wardrobe_none", "None", locale));
 	const blockNote = $derived(wardrobeText("wardrobe_blocked_by_set", "Blocked by set", locale));
 	const saveLabel = $derived(wardrobeText("wardrobe_save", "SAVE", locale));
-	const revertLabel = $derived(wardrobeText("wardrobe_revert", "Revert", locale));
+	const discardLabel = $derived(
+		wardrobeText("wardrobe_discard_changes", "Discard Changes", locale)
+	);
 	const guestLabel = $derived(
 		wardrobeText("wardrobe_register_to_customise", "Register to customise", locale)
 	);
@@ -232,7 +234,9 @@
 
 	<header class="wardrobe-header">
 		{#if !guest}
-			<button type="button" class="btn-secondary" onclick={revert}>{revertLabel}</button>
+			{#if dirty}
+				<button type="button" class="btn-secondary" onclick={revert}>{discardLabel}</button>
+			{/if}
 			<button type="button" class="btn" onclick={save}>{saveLabel}</button>
 		{/if}
 	</header>

@@ -130,15 +130,21 @@ describe("WardrobeScreen", () => {
 		expect(storeTopbarContent.current).toBeUndefined();
 	});
 
-	it("keeps Revert, SAVE and Close together at the end of the header", () => {
+	it("shows Discard Changes only when the draft differs from the saved look", async () => {
+		shopMock.owned = new Set([...STARTERS, "uni:hat_cap"]);
 		const { container } = render(WardrobeScreen);
 		flushSync();
+		const controls = () =>
+			[...(container.querySelector(".wardrobe-header")?.querySelectorAll("button") ?? [])].map(
+				(button) => button.textContent?.trim()
+			);
+		expect(controls()).toEqual(["SAVE"]);
+		expect(screen.queryByText(/unsaved/i)).toBeNull();
 
-		const header = container.querySelector(".wardrobe-header");
-		const controls = [...(header?.querySelectorAll("button") ?? [])].map(
-			(button) => button.getAttribute("aria-label") ?? button.textContent?.trim()
-		);
-		expect(controls).toEqual(["Revert", "SAVE"]);
+		await fireEvent.click(screen.getByRole("tab", { name: "Hat" }));
+		await fireEvent.click(cardFor(container, "uni:hat_cap"));
+		expect(controls()).toEqual(["Discard Changes", "SAVE"]);
+		expect(screen.queryByText(/unsaved/i)).toBeNull();
 		expect(cssBlock(wardrobeSource, ".wardrobe-header")).toMatch(/justify-content:\s*flex-end/);
 	});
 
@@ -198,11 +204,15 @@ describe("WardrobeScreen", () => {
 		expect(cardFor(container, "uni:hat_cap")).toBeDisabled();
 	});
 
-	it("styles SAVE as the primary button and Revert as the secondary button", () => {
-		render(WardrobeScreen);
+	it("styles SAVE as the primary button and Discard Changes as the secondary button", async () => {
+		shopMock.owned = new Set([...STARTERS, "uni:hat_cap"]);
+		const { container } = render(WardrobeScreen);
 		flushSync();
+		await fireEvent.click(screen.getByRole("tab", { name: "Hat" }));
+		await fireEvent.click(cardFor(container, "uni:hat_cap"));
+
 		expect(screen.getByRole("button", { name: "SAVE" })).toHaveClass("btn");
-		expect(screen.getByRole("button", { name: "Revert" })).toHaveClass("btn-secondary");
+		expect(screen.getByRole("button", { name: "Discard Changes" })).toHaveClass("btn-secondary");
 	});
 
 	it("saves the draft through storeAvatar", async () => {
@@ -244,7 +254,7 @@ describe("WardrobeScreen", () => {
 		await fireEvent.click(cardFor(container, "uni:eyes_wide"));
 		expect(equipped(container)).toBe("uni:eyes_wide");
 
-		await fireEvent.click(screen.getByRole("button", { name: "Revert" }));
+		await fireEvent.click(screen.getByRole("button", { name: "Discard Changes" }));
 		expect(equipped(container)).toBe("uni:eyes_dot");
 	});
 
