@@ -9,6 +9,7 @@ import { storeI18n } from "$lib/stores/i18n.svelte";
 import { storeModTexts } from "$lib/stores/modTexts.svelte";
 import { storeModGlossary } from "$lib/stores/modGlossary.svelte";
 import { textsUrl } from "$lib/i18n/modTexts";
+import cardCatalog from "../../../../../tests/fixtures/card_catalog/uni.json";
 
 export const SHIPPED_LOCALES = ["de", "en", "es", "it", "ja", "ko", "ru", "uk", "zh"] as const;
 export type ShippedLocale = (typeof SHIPPED_LOCALES)[number];
@@ -28,10 +29,10 @@ const glossaryFiles = import.meta.glob<{
 		"uni:description_key": string;
 	};
 }>("../../../../../mods/uni/glossary/*.json", { eager: true, import: "default" });
-const cardFiles = import.meta.glob<{ id: string }>("../../../../../mods/uni/cards/*.json", {
-	eager: true,
-	import: "default"
-});
+
+const cardIds = (cardCatalog as { kind_id: string }[]).map((card) =>
+	card.kind_id.slice(`${UNI_MOD_ID}:`.length)
+);
 
 export interface GlossaryListingEntry {
 	id: string;
@@ -48,8 +49,8 @@ async function sha256Hex(bytes: Uint8Array): Promise<string> {
 /** The glossary listing of the `uni` mod, built like BuildGlossaryEntries does. */
 export function uniGlossaryListing(): GlossaryListingEntry[] {
 	const byId = new Map<string, GlossaryListingEntry>();
-	for (const card of Object.values(cardFiles)) {
-		const id = `${UNI_MOD_ID}:${card.id}`;
+	for (const cardId of cardIds) {
+		const id = `${UNI_MOD_ID}:${cardId}`;
 		byId.set(id, {
 			id,
 			label_key: `${id}.label`,

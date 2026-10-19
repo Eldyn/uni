@@ -3,6 +3,7 @@ import { getGlossaryEntry, type GlossaryEntry } from "$lib/glossary/glossary";
 import { cardInfoByKind, getCardInfo } from "$lib/glossary/cardDescriptions";
 import type { CardValue } from "$stores/game.svelte";
 import { SHIPPED_LOCALES, prepareCoreTexts } from "./coreTextsHarness";
+import cardCatalog from "../../../../../tests/fixtures/card_catalog/uni.json";
 
 /**
  * The golden files hold what the glossary and the card descriptions showed
@@ -30,8 +31,8 @@ const CORE_KEYWORDS = [
 	"race"
 ].map((name) => `uni:${name}`);
 
-interface CardFile {
-	id: string;
+interface CatalogCard {
+	kind_id: string;
 	face: { color: string; label: string };
 }
 
@@ -41,16 +42,14 @@ interface GoldenLocale {
 	cardInfos: Record<string, { title: string; description: string } | null>;
 }
 
-const cardFiles = import.meta.glob<CardFile>("../../../../../mods/uni/cards/*.json", {
-	eager: true,
-	import: "default"
-});
 const goldenFiles = import.meta.glob<GoldenLocale>(
 	"../../../../../tests/fixtures/golden_glossary_core/*.json",
 	{ eager: true, import: "default" }
 );
 
-const cards = Object.values(cardFiles).sort((a, b) => a.id.localeCompare(b.id));
+const cards = (cardCatalog as CatalogCard[])
+	.map((card) => ({ id: card.kind_id.slice("uni:".length), face: card.face }))
+	.sort((a, b) => a.id.localeCompare(b.id));
 
 function render(locale: string): GoldenLocale {
 	const entries: GoldenLocale["entries"] = {};
