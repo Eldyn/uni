@@ -1,5 +1,6 @@
 #include <match/expr/evaluator.hpp>
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <limits>
@@ -124,18 +125,14 @@ EvalResult EvaluatePredicate(const Node& predicate, EvalContext& context, Entity
 
 EvalResult SelectorValue(const Node& node, EvalContext& context) {
     const std::vector<EntityRef> resolved = context.ResolveSelector(node.text);
-    if (node.children.empty()) {
-        if (resolved.size() == 1) {
-            return Value(resolved.front());
-        }
-        // INFO: a multi-seat selector stays a set value; reading a property of
-        // it is rejected by PropertyValue, which asks for an aggregation.
-        return Value(resolved);
-    }
     // INFO: a filter runs once per candidate; a bare name reads the candidate's
     // property, while other selectors keep their outer meaning.
     std::vector<EntityRef> result;
     for (const EntityRef entity : resolved) {
+        if (node.children.empty()) {
+            result.push_back(entity);
+            continue;
+        }
         const EvalResult predicate =
             EvaluatePredicate(*node.children[0], context, entity,
                               "filter on @" + node.text + " must be a boolean");
@@ -146,10 +143,17 @@ EvalResult SelectorValue(const Node& node, EvalContext& context) {
             result.push_back(entity);
         }
     }
-    if (resolved.size() == 1 && result.size() == 1) {
-        return Value(result.front());
+    // INFO: the static selector type decides: a set selector is always a vector
+    // even when it holds one entity, while a single selector is one entity or
+    // empty_selector when it finds nothing.
+    const std::optional<Type> type = SelectorType(node.text);
+    if (type == Type::kSeatSet || type == Type::kCardSet) {
+        return Value(result);
     }
-    return Value(result);
+    if (result.empty()) {
+        return Fail("empty_selector", "@" + node.text + " selects no seats");
+    }
+    return Value(result.front());
 }
 
 EvalResult ReadEntityProperty(EntityRef entity, const std::string& key) {
@@ -279,6 +283,17 @@ EvalResult OrderedCompare(const std::string& symbol, const LeftType& left_value,
     return Value(left_value >= right_value);
 }
 
+// INFO: seat sets and card sets compare as sets, not in context order. The
+// inputs are copied so the caller's vectors stay in their own order.
+bool EntitySetsEqual(std::vector<EntityRef> left, std::vector<EntityRef> right) {
+    if (left.size() != right.size()) {
+        return false;
+    }
+    std::sort(left.begin(), left.end());
+    std::sort(right.begin(), right.end());
+    return left == right;
+}
+
 EvalResult Compare(const std::string& symbol, const Value& left, const Value& right) {
     if (symbol == "==" || symbol == "!=") {
         bool equal = false;
@@ -287,7 +302,13 @@ EvalResult Compare(const std::string& symbol, const Value& left, const Value& ri
         } else if (IsNumber(left) && IsNumber(right)) {
             equal = AsFloat(left) == AsFloat(right);
         } else if (left.index() == right.index()) {
-            equal = left == right;
+            if (const std::vector<EntityRef>* left_entities =
+                    std::get_if<std::vector<EntityRef>>(&left)) {
+                equal = EntitySetsEqual(*left_entities,
+                                        std::get<std::vector<EntityRef>>(right));
+            } else {
+                equal = left == right;
+            }
         } else {
             return Fail("type_mismatch", "operator " + symbol + " cannot compare " +
                                             ValueName(left) + " with " + ValueName(right));
@@ -751,14 +772,6 @@ EvalResult CallValue(const Node& node, EvalContext& context,
                 }
             }
             return Value(false);
-        }
-        if (const EntityRef* entity = std::get_if<EntityRef>(&set_value)) {
-            const EvalResult single = ExpectSingleEntity(member_value, *node.children[1],
-                                                         "contains needs an entity");
-            if (std::holds_alternative<EvalError>(single)) {
-                return single;
-            }
-            return Value(*entity == std::get<EntityRef>(std::get<Value>(single)));
         }
         if (const std::set<std::string>* members = std::get_if<std::set<std::string>>(&set_value)) {
             const std::set<std::string>* subset = std::get_if<std::set<std::string>>(&member_value);

@@ -75,6 +75,11 @@ struct Schema {
 // names one.
 std::string TypeName(Type type);
 
+// INFO: the static type a selector name denotes, or nullopt for an unknown
+// name. A set selector (a seat set) always evaluates to a vector of entities; a
+// single selector (a seat, the match or the settings) evaluates to one entity.
+std::optional<Type> SelectorType(std::string_view selector);
+
 // INFO: the type names a schema may declare, in one table so the schema loader
 // and the loader's suggestions cannot drift apart.
 inline constexpr std::pair<std::string_view, Type> kTypeNames[] = {

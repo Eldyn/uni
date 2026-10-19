@@ -77,23 +77,6 @@ std::string SetReadMessage(Type set_type) {
            "sum(), contains() or shares()";
 }
 
-std::optional<Type> SelectorType(std::string_view selector) {
-    if (selector == "self" || selector == "next" || selector == "prev" || selector == "rand" ||
-        selector == "rand_all") {
-        return Type::kSeat;
-    }
-    if (selector == "all" || selector == "others") {
-        return Type::kSeatSet;
-    }
-    if (selector == "match") {
-        return Type::kMatch;
-    }
-    if (selector == "settings") {
-        return Type::kSettings;
-    }
-    return std::nullopt;
-}
-
 const std::vector<std::string>& SelectorNames() {
     static const std::vector<std::string> names = {"self",    "next",    "prev",
                                                    "rand_all", "rand",    "all",

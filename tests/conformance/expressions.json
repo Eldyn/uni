@@ -3237,6 +3237,53 @@
             "expect": {
                 "check_error": "default needs a seat fallback for $responder"
             }
+        },
+        {
+            "name": "seat_set_equality_is_set_equality",
+            "expression": "@all == @others",
+            "expect": {
+                "value": false
+            },
+            "world": {
+                "seats": [
+                    {
+                        "name": "Ana"
+                    },
+                    {
+                        "name": "Bo"
+                    }
+                ],
+                "self": 0
+            }
+        },
+        {
+            "name": "seat_set_equality_is_reflexive",
+            "expression": "@others == @others",
+            "expect": {
+                "value": true
+            },
+            "world": {
+                "seats": [
+                    {
+                        "name": "Ana"
+                    },
+                    {
+                        "name": "Bo"
+                    }
+                ],
+                "self": 0
+            }
+        },
+        {
+            "name": "unbound_single_selector_comparison",
+            "expression": "@next == @self",
+            "expect": {
+                "error": "empty_selector"
+            },
+            "world": {
+                "seats": [],
+                "self": 0
+            }
         }
     ]
 }

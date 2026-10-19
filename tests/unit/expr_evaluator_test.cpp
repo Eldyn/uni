@@ -302,9 +302,10 @@ TEST_CASE("runtime_errors_in_set_functions") {
 
     match::expr::testing::FakeContext empty;
     empty.unbound_next = true;
-    CHECK(std::get<int64_t>(ValueOf("sum(@next, hand_size)", empty)) == 0);
-    CHECK(std::get<bool>(ValueOf("any(@next, hand_size > 0)", empty)) == false);
-    CHECK(std::get<bool>(ValueOf("all(@next, hand_size > 0)", empty)) == true);
+    const std::string no_seats = "@others[hand_size > 100]";
+    CHECK(std::get<int64_t>(ValueOf("sum(" + no_seats + ", hand_size)", empty)) == 0);
+    CHECK(std::get<bool>(ValueOf("any(" + no_seats + ", hand_size > 0)", empty)) == false);
+    CHECK(std::get<bool>(ValueOf("all(" + no_seats + ", hand_size > 0)", empty)) == true);
     CHECK(ErrorOf("sum(@all, @next.hand_size)", empty).code == "empty_selector");
 }
 
@@ -359,10 +360,28 @@ TEST_CASE("a_filter_keeps_self_and_nested_filters_correct") {
     CHECK(std::get<int64_t>(ValueOf(nested_source, context)) == 2);
 }
 
-TEST_CASE("a_filter_on_an_empty_selector_is_an_empty_set") {
+TEST_CASE("a_filter_on_an_empty_set_selector_is_an_empty_set") {
+    match::expr::testing::FakeContext context;
+    CHECK(std::get<int64_t>(ValueOf("count(@others[hand_size > 100])", context)) == 0);
+}
+
+TEST_CASE("seat_sets_compare_as_sets_not_in_context_order") {
+    match::expr::testing::FakeContext context;
+    context.variables["seats"] =
+        Value{std::vector<EntityRef>{match::expr::testing::FakeContext::kDi,
+                                     match::expr::testing::FakeContext::kCy,
+                                     match::expr::testing::FakeContext::kBo,
+                                     match::expr::testing::FakeContext::kAna}};
+    CHECK(std::get<bool>(ValueOf("$seats == @all", context)) == true);
+    context.variables["seats"] =
+        Value{std::vector<EntityRef>{match::expr::testing::FakeContext::kDi}};
+    CHECK(std::get<bool>(ValueOf("$seats == @all", context)) == false);
+}
+
+TEST_CASE("an_unbound_single_selector_in_comparison_is_empty_selector") {
     match::expr::testing::FakeContext context;
     context.unbound_next = true;
-    CHECK(std::get<int64_t>(ValueOf("count(@next[hand_size > 0])", context)) == 0);
+    CHECK(ErrorOf("@next == @self", context).code == "empty_selector");
 }
 
 TEST_CASE("random_rejects_an_empty_range") {
