@@ -4,6 +4,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 
 namespace match::expr {
 
@@ -73,5 +74,25 @@ struct Schema {
 // INFO: the user-facing spelling of a type, shared by every diagnostic that
 // names one.
 std::string TypeName(Type type);
+
+// INFO: the type names a schema may declare, in one table so the schema loader
+// and the loader's suggestions cannot drift apart.
+inline constexpr std::pair<std::string_view, Type> kTypeNames[] = {
+    {"bool", Type::kBool},     {"int", Type::kInt},
+    {"float", Type::kFloat},   {"string", Type::kString},
+    {"member_set", Type::kMemberSet}, {"seat", Type::kSeat},
+    {"seat_set", Type::kSeatSet}, {"card", Type::kCard},
+    {"card_set", Type::kCardSet},
+};
+
+// INFO: the type a schema type name denotes, or nullopt for an unknown name.
+inline std::optional<Type> TypeFromName(std::string_view name) {
+    for (const auto& [text, type] : kTypeNames) {
+        if (text == name) {
+            return type;
+        }
+    }
+    return std::nullopt;
+}
 
 }  // namespace match::expr

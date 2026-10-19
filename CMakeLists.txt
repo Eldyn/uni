@@ -139,7 +139,7 @@ target_link_libraries(uni_expr PUBLIC nlohmann_json::nlohmann_json)
 
 # --- Mod tooling ---
 add_executable(uni_mods tools/uni_mods/main.cpp)
-target_include_directories(uni_mods PRIVATE include src "${CMAKE_BINARY_DIR}/generated")
+target_include_directories(uni_mods PRIVATE include)
 target_link_libraries(uni_mods PRIVATE uni_expr)
 
 add_executable(uni_server ${SOURCES})
