@@ -738,6 +738,23 @@
             }
         },
         {
+            "name": "sum_of_an_empty_float_set_is_float_zero",
+            "expression": "sum(@all[hand_size > 99], 1.5)",
+            "expect": {
+                "value": 0.0
+            },
+            "world": {
+                "seats": [
+                    {
+                        "name": "Ana",
+                        "properties": {
+                            "hand_size": 5
+                        }
+                    }
+                ]
+            }
+        },
+        {
             "name": "contains_seat_set",
             "expression": "contains(@all, @next)",
             "expect": {

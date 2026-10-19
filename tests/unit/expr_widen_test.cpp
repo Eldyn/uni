@@ -55,6 +55,15 @@ TEST_CASE("if_widens_an_int_branch_to_float") {
           1.25);
 }
 
+TEST_CASE("sum_of_an_empty_float_set_is_float_zero") {
+    const Schema schema = MakeTestSchema();
+    FakeContext context;
+    const Value value =
+        CheckedValue("sum(@all[hand_size > 99], 1.5)", schema, context, Type::kFloat);
+    REQUIRE(std::holds_alternative<double>(value));
+    CHECK(std::get<double>(value) == 0.0);
+}
+
 TEST_CASE("default_widens_an_int_fallback_to_float") {
     Schema schema = MakeTestSchema();
     schema.variables["ratio"] = match::expr::VariableInfo{Type::kFloat, true};

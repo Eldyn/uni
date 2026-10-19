@@ -507,7 +507,8 @@ EvalResult EvaluateSetFunction(const std::string& name, const Node& node, EvalCo
     if (node.children.size() < 2) {
         return Fail("type_mismatch", "sum needs a value expression");
     }
-    bool is_float = false;
+    // INFO: a float value type makes even an empty sum 0.0.
+    bool is_float = node.widen_to_float;
     int64_t int_sum = 0;
     double float_sum = 0.0;
     for (const EntityRef entity : entities) {

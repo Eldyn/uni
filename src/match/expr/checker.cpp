@@ -472,6 +472,9 @@ private:
             Error("sum needs a number expression");
             return std::nullopt;
         }
+        // INFO: an empty float sum is 0.0, so the int result widens when the
+        // value expression is float.
+        node.widen_to_float = (value->type == Type::kFloat);
         return Narrowed{value->type, bound, bound};
     }
 
