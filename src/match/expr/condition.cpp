@@ -250,6 +250,7 @@ private:
             return std::nullopt;
         }
         if (!result.type.has_value()) {
+            Error(pointer, "internal checker error");
             return std::nullopt;
         }
         if (*result.type != Type::kBool) {

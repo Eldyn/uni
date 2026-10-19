@@ -404,67 +404,104 @@ private:
     }
 
     // INFO: a set call shares its first argument, the set, and a condition that
-    // runs per candidate; the candidate is the entity the set holds.
-    std::optional<Narrowed> CheckSetCall(const Node& node, Scope scope, Type candidate,
+    // runs per candidate; the candidate is the entity the set holds. Each
+    // aggregation is its own table entry, so every call has a handler and none
+    // can fall out of a shared switch.
+    std::optional<Type> CheckSetArgument(const Node& node, Scope scope, Type candidate,
                                          const std::set<std::string>& bound) {
-        const std::string& name = node.text;
         const std::optional<Narrowed> set_type = Check(*node.children[0], scope, candidate, bound);
         if (!set_type) {
             return std::nullopt;
         }
         if (!IsSet(set_type->type)) {
-            Error(name + " needs a set");
+            Error(node.text + " needs a set");
             return std::nullopt;
         }
-        if (set_type->type == Type::kMemberSet) {
-            // INFO: a member set is its own kind; only count and any accept it,
-            // and only without a condition or value argument.
-            if (name == "count" || name == "any") {
-                if (node.children.size() > 1) {
-                    Error(name + " needs a seat set or card set for a condition");
-                    return std::nullopt;
-                }
-                return Narrowed{name == "count" ? Type::kInt : Type::kBool, bound, bound};
-            }
-            if (name == "all" && node.children.size() < 2) {
-                Error("all needs a condition");
-                return std::nullopt;
-            }
-            Error(name + " needs a seat set or card set for a condition");
+        return set_type->type;
+    }
+
+    std::optional<Narrowed> CheckCount(const Node& node, Scope scope, Type candidate,
+                                       const std::set<std::string>& bound) {
+        const std::optional<Type> set_type = CheckSetArgument(node, scope, candidate, bound);
+        if (!set_type) {
             return std::nullopt;
         }
-        const Type entity = EntityOf(set_type->type);
-        if (name == "count" || name == "any") {
-            if (!CheckOptionalCondition(node, 1, entity, bound)) {
+        // INFO: a member set holds its members; only count and any read it, and
+        // only without a condition.
+        if (*set_type == Type::kMemberSet) {
+            if (node.children.size() > 1) {
+                Error("count needs a seat set or card set for a condition");
                 return std::nullopt;
             }
-            return Narrowed{name == "count" ? Type::kInt : Type::kBool, bound, bound};
+            return Narrowed{Type::kInt, bound, bound};
         }
-        if (name == "all") {
-            if (node.children.size() < 2) {
-                Error("all needs a condition");
-                return std::nullopt;
-            }
-            if (!CheckOptionalCondition(node, 1, entity, bound)) {
+        if (!CheckOptionalCondition(node, 1, EntityOf(*set_type), bound)) {
+            return std::nullopt;
+        }
+        return Narrowed{Type::kInt, bound, bound};
+    }
+
+    std::optional<Narrowed> CheckAny(const Node& node, Scope scope, Type candidate,
+                                     const std::set<std::string>& bound) {
+        const std::optional<Type> set_type = CheckSetArgument(node, scope, candidate, bound);
+        if (!set_type) {
+            return std::nullopt;
+        }
+        if (*set_type == Type::kMemberSet) {
+            if (node.children.size() > 1) {
+                Error("any needs a seat set or card set for a condition");
                 return std::nullopt;
             }
             return Narrowed{Type::kBool, bound, bound};
         }
-        if (name == "sum") {
-            // INFO: the value expression is checked in the candidate scope so a
-            // bare name reads the candidate's property.
-            const std::optional<Narrowed> value =
-                Check(*node.children[1], Scope::kCandidate, entity, bound);
-            if (!value) {
-                return std::nullopt;
-            }
-            if (!IsNumber(value->type)) {
-                Error("sum needs a number expression");
-                return std::nullopt;
-            }
-            return Narrowed{value->type, bound, bound};
+        if (!CheckOptionalCondition(node, 1, EntityOf(*set_type), bound)) {
+            return std::nullopt;
         }
-        return std::nullopt;
+        return Narrowed{Type::kBool, bound, bound};
+    }
+
+    std::optional<Narrowed> CheckAll(const Node& node, Scope scope, Type candidate,
+                                     const std::set<std::string>& bound) {
+        const std::optional<Type> set_type = CheckSetArgument(node, scope, candidate, bound);
+        if (!set_type) {
+            return std::nullopt;
+        }
+        if (node.children.size() < 2) {
+            Error("all needs a condition");
+            return std::nullopt;
+        }
+        if (*set_type == Type::kMemberSet) {
+            Error("all needs a seat set or card set for a condition");
+            return std::nullopt;
+        }
+        if (!CheckOptionalCondition(node, 1, EntityOf(*set_type), bound)) {
+            return std::nullopt;
+        }
+        return Narrowed{Type::kBool, bound, bound};
+    }
+
+    std::optional<Narrowed> CheckSum(const Node& node, Scope scope, Type candidate,
+                                     const std::set<std::string>& bound) {
+        const std::optional<Type> set_type = CheckSetArgument(node, scope, candidate, bound);
+        if (!set_type) {
+            return std::nullopt;
+        }
+        if (*set_type == Type::kMemberSet) {
+            Error("sum needs a seat set or card set for a condition");
+            return std::nullopt;
+        }
+        // INFO: the value expression is checked in the candidate scope so a
+        // bare name reads the candidate's property.
+        const std::optional<Narrowed> value = Check(*node.children[1], Scope::kCandidate,
+                                                    EntityOf(*set_type), bound);
+        if (!value) {
+            return std::nullopt;
+        }
+        if (!IsNumber(value->type)) {
+            Error("sum needs a number expression");
+            return std::nullopt;
+        }
+        return Narrowed{value->type, bound, bound};
     }
 
     bool CheckOptionalCondition(const Node& node, size_t index, Type entity,
@@ -845,10 +882,10 @@ private:
             {"floor", 1, 1, &Checker::CheckRounding},
             {"ceil", 1, 1, &Checker::CheckRounding},
             {"round", 1, 1, &Checker::CheckRounding},
-            {"count", 1, 2, &Checker::CheckSetCall},
-            {"any", 1, 2, &Checker::CheckSetCall},
-            {"all", 1, 2, &Checker::CheckSetCall},
-            {"sum", 2, 2, &Checker::CheckSetCall},
+            {"count", 1, 2, &Checker::CheckCount},
+            {"any", 1, 2, &Checker::CheckAny},
+            {"all", 1, 2, &Checker::CheckAll},
+            {"sum", 2, 2, &Checker::CheckSum},
             {"contains", 2, 2, &Checker::CheckContains},
             {"shares", 2, 2, &Checker::CheckShares},
             {"has_tag", 2, 2, &Checker::CheckHasTag},
@@ -975,6 +1012,12 @@ CheckResult CheckParsedExpression(const Node& root, const Schema& schema,
     const std::optional<Type> type = checker.CheckRoot(root);
     result.type = type;
     result.diagnostics = checker.TakeDiagnostics();
+    // INFO: a checker path that returns no type must leave a reason behind; a
+    // silent failure would otherwise be reported as a clean expression.
+    if (!result.type.has_value() && result.diagnostics.empty()) {
+        result.diagnostics.push_back(Diagnostic{std::string(file), std::string(pointer),
+                                                "internal checker error", ""});
+    }
     result.bound_when_true = checker.BoundWhenTrue();
     result.bound_when_false = checker.BoundWhenFalse();
     return result;
