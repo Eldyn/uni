@@ -1,6 +1,7 @@
 #pragma once
 
 #include <atomic>
+#include <random>
 #include <filesystem>
 #include <fstream>
 #include <stdexcept>
@@ -13,8 +14,10 @@ struct CardSchemaTempDir {
 
     CardSchemaTempDir() {
         static std::atomic<unsigned long long> next_id{0};
+        static const unsigned long long process_tag = std::random_device{}();
         root = std::filesystem::temp_directory_path() /
-               ("uni_cardschema_test_" + std::to_string(next_id.fetch_add(1)));
+               ("uni_cardschema_test_" + std::to_string(process_tag) + "_" +
+                std::to_string(next_id.fetch_add(1)));
         std::filesystem::remove_all(root);
         std::filesystem::create_directories(root);
     }
