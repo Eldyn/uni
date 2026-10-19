@@ -6,6 +6,7 @@
 	import { onMount } from "svelte";
 	import AvatarStage from "$components/shop/AvatarStage.svelte";
 	import ShopBackdrop from "$components/shop/ShopBackdrop.svelte";
+	import { HOME_BACKGROUND_HINT_CSS } from "$lib/shaders/homePalette";
 	import SlotTabs from "$components/shop/SlotTabs.svelte";
 	import Modal from "$components/common/Modal.svelte";
 	import ColourRow from "$components/wardrobe/ColourRow.svelte";
@@ -222,7 +223,7 @@
 	});
 </script>
 
-<div class="wardrobe-screen">
+<div class="wardrobe-screen" style:background-color={HOME_BACKGROUND_HINT_CSS}>
 	<ShopBackdrop dim={0.45} />
 
 	<header class="wardrobe-header">

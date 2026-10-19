@@ -19,6 +19,7 @@
 	import ItemCard from "$components/shop/ItemCard.svelte";
 	import ItemDetail from "$components/shop/ItemDetail.svelte";
 	import ShopBackdrop from "$components/shop/ShopBackdrop.svelte";
+	import { HOME_BACKGROUND_HINT_CSS } from "$lib/shaders/homePalette";
 	import FeaturedBanner from "$components/shop/FeaturedBanner.svelte";
 	import SlotTabs from "$components/shop/SlotTabs.svelte";
 	import SwatchCard from "$components/shop/SwatchCard.svelte";
@@ -257,7 +258,7 @@
 	}
 </script>
 
-<div class="shop-screen">
+<div class="shop-screen" style:background-color={HOME_BACKGROUND_HINT_CSS}>
 	<ShopBackdrop dim={0.15} />
 
 	<header class="shop-header">

@@ -7,7 +7,7 @@
 export const BACKDROP_MAX_FPS = 20;
 export const BACKDROP_FRAME_INTERVAL_MS = 1000 / BACKDROP_MAX_FPS;
 
-/** Shader time of the still frame. A mid-cycle picture, with some dust lit. */
+/** Shader time of the still frame. */
 export const BACKDROP_STILL_TIME_S = 12;
 
 const STILL_MEDIA_QUERIES = ["(prefers-reduced-motion: reduce)", "(update: slow)"];

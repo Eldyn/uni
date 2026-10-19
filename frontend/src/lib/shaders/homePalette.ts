@@ -17,3 +17,6 @@ export function hexToRgb01(hex: number): [number, number, number] {
 export function hexToCss(hex: number): string {
 	return `#${hex.toString(16).padStart(6, "0")}`;
 }
+
+/** The flat backdrop field. Also the color under the canvas and its fallback. */
+export const HOME_BACKGROUND_HINT_CSS = hexToCss(HOME_BACKGROUND_HINT_HEX);
