@@ -1,6 +1,6 @@
 import { classifyPixel } from "./stripFormat";
 import { createImage, type PixelImage } from "./pixels";
-import type { RegionIndex } from "./types";
+import type { RegionIndex, TintMode } from "./types";
 
 export type Rgb = [number, number, number];
 
@@ -24,12 +24,18 @@ export function hexToRgb(hex: string): Rgb {
  * alpha, so an extra pixel over a clear or invalid primary pixel is ignored,
  * and a grey, clear or invalid extra pixel is ignored. A missing extra image
  * or one of another size is skipped.
+ *
+ * In `multiply` mode every pixel with alpha above 0 is multiplied by
+ * `colours[0]`; no mask rule applies.
  */
 export function tintImage(
 	src: PixelImage,
 	colours: Rgb[],
-	extraMasks: (PixelImage | undefined)[] = []
+	extraMasks: (PixelImage | undefined)[] = [],
+	mode: TintMode = "mask"
 ): PixelImage {
+	if (mode === "multiply") return multiplyImage(src, colours[0]);
+
 	const out = createImage(src.width, src.height);
 
 	for (let offset = 0; offset < src.data.length; offset += 4) {
@@ -55,6 +61,24 @@ export function tintImage(
 		out.data[offset + 1] = src.data[offset + 1];
 		out.data[offset + 2] = src.data[offset + 2];
 		out.data[offset + 3] = src.data[offset + 3];
+	}
+
+	return out;
+}
+
+/** Multiply mode: every visible pixel times the color; alpha is kept. */
+function multiplyImage(src: PixelImage, colour: Rgb | undefined): PixelImage {
+	const out = createImage(src.width, src.height);
+
+	for (let offset = 0; offset < src.data.length; offset += 4) {
+		const alpha = src.data[offset + 3];
+		if (alpha === 0) continue;
+
+		for (let channel = 0; channel < 3; channel++) {
+			const value = src.data[offset + channel];
+			out.data[offset + channel] = colour ? Math.round((value * colour[channel]) / 255) : value;
+		}
+		out.data[offset + 3] = alpha;
 	}
 
 	return out;

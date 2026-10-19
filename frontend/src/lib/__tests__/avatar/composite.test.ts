@@ -177,6 +177,23 @@ describe("bakeLoadoutPixels", () => {
 		expect(pixelAt(out, 2 * FRAME_SIZE, 0)).toEqual([10, 20, 30, 255]);
 	});
 
+	it("a multiply item multiplies grey art by its first color", () => {
+		const item = {
+			...stripItem("shapes/classic.png"),
+			slot: "shape" as const,
+			tint: "multiply" as const
+		};
+		const art = createImage(STRIP_WIDTH, FRAME_SIZE);
+		setPixel(art, 0, 0, [237, 237, 237, 255]);
+		const out = bakeLoadoutPixels(
+			[layer(item, [[232, 74, 74]])],
+			"uni:round",
+			lookup(["shapes/classic.png", art])
+		);
+
+		expect(pixelAt(out, 0, 0)).toEqual([216, 69, 69, 255]);
+	});
+
 	it("a missing extra mask image keeps the primary pixel", () => {
 		const item = maskedStripItem("body");
 		const primary = createImage(STRIP_WIDTH, FRAME_SIZE);
