@@ -139,7 +139,6 @@ TEST_CASE("an_unbound_selector_reports_empty_selector") {
     CHECK(error.code == "empty_selector");
 }
 
-
 TEST_CASE("int_min_overflow_cases") {
     match::expr::testing::FakeContext context;
     CHECK(std::get<int64_t>(ValueOf("-9223372036854775807 - 1", context)) ==
@@ -157,8 +156,12 @@ TEST_CASE("type_mismatch_paths") {
     CHECK(ErrorOf("1 && true", context).code == "type_mismatch");
     CHECK(ErrorOf("1 + 'a'", context).code == "type_mismatch");
     CHECK(ErrorOf("1 == 'a'", context).code == "type_mismatch");
-    CHECK(ErrorOf("1.x", context).code == "type_mismatch");
     CHECK(ErrorOf("@all.hand_size", context).code == "type_mismatch");
+}
+
+TEST_CASE("a_property_read_on_a_number_is_a_type_mismatch") {
+    match::expr::testing::FakeContext context;
+    CHECK(ErrorOf("1.x", context).code == "type_mismatch");
 }
 
 TEST_CASE("unknown_property_is_reported") {
