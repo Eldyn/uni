@@ -14,7 +14,7 @@ export type Socket = "eyes" | "mouth" | "head_top" | "body_center";
 export const RARITIES = ["basic", "common", "rare", "epic", "special"] as const;
 export type Rarity = (typeof RARITIES)[number];
 export type RegionCount = 0 | 1 | 2 | 3 | 4 | 5 | 6;
-export type TintMode = "mask" | "multiply";
+export type TintMode = "mask" | "multiply" | "none";
 /** Zero-based tint region: 3 * fileIndex + channelIndex. The UI shows 1..6. */
 export type RegionIndex = 0 | 1 | 2 | 3 | 4 | 5;
 
@@ -28,7 +28,7 @@ export interface CatalogueItem {
 	name: string; // English fallback; i18n key is `avatar_item_<id with : -> _>`
 	asset: ItemAsset;
 	regions: RegionCount;
-	tint?: TintMode; // absent = "mask"; "multiply" needs regions 1 and no masks
+	tint?: TintMode; // absent = "mask"; "multiply" needs regions 1 and no masks; "none" needs regions 0, no masks, no default_colors
 	default_colors?: string[]; // "#rrggbb" or swatch id per stored color; not on a shape
 	rarity: Rarity;
 	price: number; // integer >= 0

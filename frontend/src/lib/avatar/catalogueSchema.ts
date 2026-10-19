@@ -60,7 +60,7 @@ const itemSchema = z.object({
 		z.literal(5),
 		z.literal(6)
 	]),
-	tint: z.enum(["mask", "multiply"]).optional(),
+	tint: z.enum(["mask", "multiply", "none"]).optional(),
 	default_colors: z.array(z.string()).optional(),
 	rarity: z.enum(RARITIES),
 	price: z.number().int().nonnegative(),
@@ -164,6 +164,23 @@ function refineCatalogue(catalogue: z.infer<typeof baseCatalogueSchema>, ctx: z.
 				ctx.addIssue({
 					code: "custom",
 					message: `multiply item "${item.id}" takes no extra mask files`,
+					path: ["items", index, "tint"]
+				});
+			}
+		}
+		if (item.tint === "none") {
+			const problem =
+				item.regions !== 0
+					? "needs 0 regions"
+					: (item.asset.masks?.length ?? 0) > 0
+						? "takes no extra mask files"
+						: item.default_colors !== undefined
+							? "takes no default colors"
+							: null;
+			if (problem) {
+				ctx.addIssue({
+					code: "custom",
+					message: `none item "${item.id}" ${problem}`,
 					path: ["items", index, "tint"]
 				});
 			}

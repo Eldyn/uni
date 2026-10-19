@@ -216,6 +216,18 @@ describe("default colors", () => {
 		expect(loadoutHash(loadout)).not.toBe(before);
 	});
 
+	it("the loadout hash changes with the none tint mode", () => {
+		const loadout = fullLoadout({ slots: { set: { item: "uni:set_suit", colours: [] } } });
+		setCatalogueForTest(avatarFixture());
+		const before = loadoutHash(loadout);
+		const catalogue = avatarFixture();
+		const set = catalogue.items.find((entry) => entry.id === "uni:set_suit");
+		if (set) set.tint = "none";
+		setCatalogueForTest(catalogue);
+
+		expect(loadoutHash(loadout)).not.toBe(before);
+	});
+
 	it("ART_VERSION is 2", () => {
 		expect(ART_VERSION).toBe(2);
 	});

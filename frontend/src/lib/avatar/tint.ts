@@ -26,7 +26,8 @@ export function hexToRgb(hex: string): Rgb {
  * or one of another size is skipped.
  *
  * In `multiply` mode every pixel with alpha above 0 is multiplied by
- * `colours[0]`; no mask rule applies.
+ * `colours[0]`; no mask rule applies. In `none` mode the art copies through
+ * untouched: no tint, no mask rule.
  */
 export function tintImage(
 	src: PixelImage,
@@ -35,6 +36,9 @@ export function tintImage(
 	mode: TintMode = "mask"
 ): PixelImage {
 	if (mode === "multiply") return multiplyImage(src, colours[0]);
+	if (mode === "none") {
+		return { width: src.width, height: src.height, data: new Uint8ClampedArray(src.data) };
+	}
 
 	const out = createImage(src.width, src.height);
 
