@@ -63,4 +63,11 @@ std::vector<Diagnostic> CheckAssignment(std::string_view source, const Schema& s
                                         std::string_view file, std::string_view pointer,
                                         const GuardState& initial);
 
+// INFO: checks an assignment that was already parsed. The checker records a
+// widening hint on the value tree (`Node::widen_to_float`), so a caller that
+// evaluates the same assignment writes a float into a float property.
+std::vector<Diagnostic> CheckParsedAssignment(const Assignment& assignment, const Schema& schema,
+                                              std::string_view file, std::string_view pointer,
+                                              const GuardState& initial);
+
 }  // namespace match::expr

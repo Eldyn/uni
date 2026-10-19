@@ -183,6 +183,10 @@ public:
             Error(ExpectedMessage(*expected_, checked->type));
             return std::nullopt;
         }
+        // INFO: the slot is float, so an int result widens at run time.
+        if (*expected_ == Type::kFloat && checked->type == Type::kInt) {
+            node.widen_to_float = true;
+        }
         return checked->type;
     }
 
@@ -209,6 +213,11 @@ public:
         }
         if (!Accepts(*property, value->type)) {
             Error(ExpectedMessage(*property, value->type));
+        } else {
+            // INFO: a float property receives an int value as a double, even
+            // when the context has no current value to widen from.
+            assignment.value->widen_to_float =
+                (*property == Type::kFloat && value->type == Type::kInt);
         }
         return TakeDiagnostics();
     }
@@ -336,10 +345,9 @@ private:
             return std::nullopt;
         }
         // INFO: the taken branch may be the int one of a mixed pair; the
-        // evaluator widens it so the checked float type holds at run time.
-        if (type == Type::kFloat) {
-            node.widen_to_float = true;
-        }
+        // evaluator widens it so the checked float type holds at run time. The
+        // flag is assigned, not set, so a re-check can clear it.
+        node.widen_to_float = (type == Type::kFloat);
         return Narrowed{type, Intersect(then_type->when_true, else_type->when_true),
                         Intersect(then_type->when_false, else_type->when_false)};
     }
@@ -582,9 +590,8 @@ private:
         Type type;
         if (IsNumber(variable->type) && IsNumber(fallback->type)) {
             type = Widen(variable->type, fallback->type);
-            if (type == Type::kFloat) {
-                node.widen_to_float = true;
-            }
+            // INFO: assigned, not set, so a re-check can clear the flag.
+            node.widen_to_float = (type == Type::kFloat);
         } else if (variable->type == fallback->type) {
             type = variable->type;
         } else {
@@ -1009,10 +1016,17 @@ std::vector<Diagnostic> CheckAssignment(std::string_view source, const Schema& s
                                         const GuardState& initial) {
     const AssignmentResult parsed = ParseAssignment(source);
     if (parsed.error) {
-        return {Diagnostic{std::string(file), std::string(pointer), parsed.error->message, ""}};
+        return {Diagnostic{std::string(file), std::string(pointer),
+                           FormatParseError(*parsed.error), ""}};
     }
+    return CheckParsedAssignment(*parsed.assignment, schema, file, pointer, initial);
+}
+
+std::vector<Diagnostic> CheckParsedAssignment(const Assignment& assignment, const Schema& schema,
+                                              std::string_view file, std::string_view pointer,
+                                              const GuardState& initial) {
     const size_t node_count =
-        CountNodes(*parsed.assignment->target) + CountNodes(*parsed.assignment->value);
+        CountNodes(*assignment.target) + CountNodes(*assignment.value);
     if (node_count > kMaximumExpressionNodes) {
         return {Diagnostic{std::string(file), std::string(pointer),
                            "expression has " + std::to_string(node_count) +
@@ -1020,7 +1034,7 @@ std::vector<Diagnostic> CheckAssignment(std::string_view source, const Schema& s
                            ""}};
     }
     Checker checker(schema, std::nullopt, file, pointer, initial);
-    return checker.CheckAssignment(*parsed.assignment);
+    return checker.CheckAssignment(assignment);
 }
 
 }  // namespace match::expr

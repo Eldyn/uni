@@ -184,6 +184,17 @@ TEST_CASE("an_int_assigned_to_a_float_property_widens_to_double") {
     CHECK(context.multipliers.at(AssignmentContext::kAna) == 1.0);
 }
 
+TEST_CASE("an_int_assigned_to_an_unset_float_property_widens_to_double") {
+    AssignmentContext context;
+    Assignment assignment = Parse("@next.seat:multiplier = 1");
+    CHECK(match::expr::CheckParsedAssignment(assignment, MakeSchema(), kFile, kPointer,
+                                             match::expr::GuardState{})
+              .empty());
+    CHECK_FALSE(ApplyAssignment(assignment, context).has_value());
+    REQUIRE(context.multipliers.count(AssignmentContext::kAna) == 1);
+    CHECK(context.multipliers.at(AssignmentContext::kAna) == 1.0);
+}
+
 TEST_CASE("compound_assignment_rejects_a_non_number_property") {
     CHECK(FirstMessage(Check("@next.seat:ready *= 1")) == "operator *= needs a number property");
     CHECK(FirstMessage(Check("@next.seat:ready -= 1")) == "operator -= needs a number property");

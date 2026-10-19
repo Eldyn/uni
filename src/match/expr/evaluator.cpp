@@ -40,6 +40,14 @@ double AsFloat(const Value& value) {
                           : static_cast<double>(std::get<int64_t>(value));
 }
 
+// INFO: applies the checker's widening hint to a value that may be an int.
+Value WidenIntToFloat(Value value) {
+    if (const int64_t* number = std::get_if<int64_t>(&value)) {
+        return Value(static_cast<double>(*number));
+    }
+    return value;
+}
+
 std::string ValueName(const Value& value) {
     if (const EntityRef* entity = std::get_if<EntityRef>(&value)) {
         return TypeName(entity->kind);
@@ -977,7 +985,11 @@ EvalResult Evaluate(const Node& root, EvalContext& context) {
                              " nodes; the limit is " +
                              std::to_string(kMaximumExpressionNodes)};
     }
-    return EvaluateNode(root, context, std::nullopt);
+    EvalResult result = EvaluateNode(root, context, std::nullopt);
+    if (root.widen_to_float && std::holds_alternative<Value>(result)) {
+        result = WidenIntToFloat(std::get<Value>(result));
+    }
+    return result;
 }
 
 std::optional<EvalError> ApplyAssignment(const Assignment& assignment, EvalContext& context) {
@@ -1008,7 +1020,10 @@ std::optional<EvalError> ApplyAssignment(const Assignment& assignment, EvalConte
     if (std::holds_alternative<EvalError>(value_result)) {
         return std::get<EvalError>(value_result);
     }
-    const Value value = std::get<Value>(value_result);
+    Value value = std::get<Value>(value_result);
+    if (assignment.value->widen_to_float) {
+        value = WidenIntToFloat(value);
+    }
     const std::string& key = target.text;
     const std::string symbol(AssignmentOperatorSymbol(assignment.op));
     // INFO: pass one computes every new value without writing, so an error on

@@ -55,6 +55,37 @@ TEST_CASE("if_widens_an_int_branch_to_float") {
           1.25);
 }
 
+TEST_CASE("an_int_expression_checked_as_float_widens") {
+    const Schema schema = MakeTestSchema();
+    FakeContext context;
+    const Value value = CheckedValue("1", schema, context, Type::kFloat);
+    REQUIRE(std::holds_alternative<double>(value));
+    CHECK(std::get<double>(value) == 1.0);
+}
+
+TEST_CASE("a_recheck_resets_the_widening_flag") {
+    Schema float_schema = MakeTestSchema();
+    float_schema.variables["value"] = match::expr::VariableInfo{Type::kFloat, false};
+    Schema int_schema = MakeTestSchema();
+    int_schema.variables["value"] = match::expr::VariableInfo{Type::kInt, false};
+
+    const ParseResult parsed = ParseExpression("if(true, $value, 1)");
+    REQUIRE_FALSE(parsed.error.has_value());
+    const CheckResult checked_float = CheckParsedExpression(*parsed.root, float_schema,
+                                                           std::nullopt, "test", "/",
+                                                           GuardState{});
+    CHECK(checked_float.type == Type::kFloat);
+    const CheckResult checked_int =
+        CheckParsedExpression(*parsed.root, int_schema, std::nullopt, "test", "/", GuardState{});
+    CHECK(checked_int.type == Type::kInt);
+
+    FakeContext context;
+    context.variables["value"] = Value{int64_t{1}};
+    const EvalResult result = Evaluate(*parsed.root, context);
+    REQUIRE(std::holds_alternative<Value>(result));
+    CHECK(std::holds_alternative<int64_t>(std::get<Value>(result)));
+}
+
 TEST_CASE("sum_of_an_empty_float_set_is_float_zero") {
     const Schema schema = MakeTestSchema();
     FakeContext context;
