@@ -119,6 +119,9 @@ const PERSISTED_SCREENS = new Set<AppScreen>([
 	"wardrobe"
 ]);
 
+/** A screen's veto on leaving it: false keeps the user on the screen. */
+export type LeaveGuard = (to: AppScreen) => boolean;
+
 /**
  * @class StoreNavigation
  * @brief Reactive store for screen switching.
@@ -197,6 +200,8 @@ export class StoreNavigation {
 	openCreateLobbyOnArrival = $state(false);
 
 	#screenRestored = false;
+
+	#leaveGuard: LeaveGuard | null = null;
 
 	/** Coarse, non-identifying account bucket for analytics segmentation. */
 	get #accountType(): "registered" | "guest" | "anonymous" {
@@ -324,6 +329,11 @@ export class StoreNavigation {
 			return;
 		}
 
+		if (this.#leaveGuard && !this.#leaveGuard(to)) {
+			window.history.pushState(this.#historyState, "", pathForScreen(this.current));
+			return;
+		}
+
 		// The popped-to screen's backing state (lobby membership, an active
 		// match, an auth session) may have gone away since this history entry
 		// was pushed. Landing on it anyway would render a broken screen, so
@@ -346,6 +356,11 @@ export class StoreNavigation {
 		}
 	};
 
+	/** Set or clear the guard the current screen puts on leaving it. */
+	setLeaveGuard(guard: LeaveGuard | null): void {
+		this.#leaveGuard = guard;
+	}
+
 	/**
 	 * @brief Changes the current screen, refusing when its backing state is
 	 * absent.
@@ -359,6 +374,7 @@ export class StoreNavigation {
 	 */
 	goto(screen: AppScreen): boolean {
 		if (screen === this.current) return true;
+		if (this.#leaveGuard && !this.#leaveGuard(screen)) return false;
 
 		const guard = SCREEN_GUARDS[screen];
 		if (guard && !guard()) return false;
