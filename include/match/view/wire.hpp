@@ -2,6 +2,8 @@
 
 #include <glaze/glaze.hpp>
 
+#include <cstdint>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -23,13 +25,16 @@ namespace match::view {
  * @brief Shared terminal frame, identical for every recipient.
  *
  * Same fields as the `match_over` packet `BroadcastMatchOver` used to build
- * with nlohmann_json (`action`, `winner`, `placements`), so the wire shape is
- * unchanged and existing packet parsers keep working.
+ * with nlohmann_json (`action`, `winner`, `placements`, plus the additive
+ * `payouts`), so the wire shape is unchanged and existing packet parsers keep
+ * working.
  */
 struct MatchOverWire {
     std::string action = "match_over";
     std::string winner;
     std::vector<std::string> placements;
+    /** Cash each player earned, by username (only > 0; set before send). */
+    std::map<std::string, std::int64_t> payouts;
 };
 
 /**
