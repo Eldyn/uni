@@ -15,6 +15,7 @@
 #include <vector>
 
 #include <match/expr/diagnostic.hpp>
+#include <match/expr/parser.hpp>
 #include <match/expr/schema_json.hpp>
 
 namespace match::cardschema {
@@ -547,7 +548,8 @@ const std::vector<std::string>& DeckEntryKeys() {
 }
 
 const std::vector<std::string>& CombineModes() {
-    static const std::vector<std::string> modes = {"product", "unique_pairs", "zip"};
+    static const std::vector<std::string> modes = {
+        combine_mode::kProduct, combine_mode::kUniquePairs, combine_mode::kZip};
     return modes;
 }
 
@@ -556,16 +558,16 @@ const std::vector<std::string>& CombineModes() {
 // is a diagnostic naming the selector so the author can see the form list.
 void ParseMemberSelector(const json& value, const std::string& file, const std::string& pointer,
                          std::vector<Diagnostic>& diagnostics, MemberSelector& selector) {
-    static const std::vector<std::string> tag_keys = {"tag"};
-    static const std::vector<std::string> identifiers_keys = {"identifiers"};
+    static const std::vector<std::string> selector_keys = {selector_mode::kTag,
+                                                           selector_mode::kIdentifiers};
     static const std::string kSelectorMessage =
         "member selector must be \"all\", {\"tag\": ...}, or {\"identifiers\": [...]}";
 
     selector.pointer = pointer;
 
     if (value.is_string()) {
-        if (value.get<std::string>() == "all") {
-            selector.mode = "all";
+        if (value.get<std::string>() == selector_mode::kAll) {
+            selector.mode = selector_mode::kAll;
             return;
         }
         AddError(diagnostics, file, pointer, kSelectorMessage);
@@ -576,34 +578,45 @@ void ParseMemberSelector(const json& value, const std::string& file, const std::
         return;
     }
 
-    const bool has_tag = value.find("tag") != value.end();
-    const bool has_identifiers = value.find("identifiers") != value.end();
+    // INFO: an unknown key is reported at its own pointer first, so a typo such
+    // as "tagg" is not hidden behind the generic selector message.
+    CheckUnknownKeys(value, selector_keys, file, pointer, diagnostics);
+
+    const bool has_tag = value.find(selector_mode::kTag) != value.end();
+    const bool has_identifiers = value.find(selector_mode::kIdentifiers) != value.end();
     if (has_tag == has_identifiers) {
         AddError(diagnostics, file, pointer, kSelectorMessage);
         return;
     }
 
     if (has_tag) {
-        CheckUnknownKeys(value, tag_keys, file, pointer, diagnostics);
         const std::optional<std::string> tag =
-            ReadString(value, "tag", file, pointer, diagnostics, true);
+            ReadString(value, selector_mode::kTag, file, pointer, diagnostics, true);
         if (!tag) {
             return;
         }
+        const std::string tag_pointer =
+            match::expr::AppendPointerToken(pointer, selector_mode::kTag);
         if (tag->empty()) {
-            AddError(diagnostics, file, match::expr::AppendPointerToken(pointer, "tag"),
+            AddError(diagnostics, file, tag_pointer,
                      "selector tag must be a non-empty string");
             return;
         }
-        selector.mode = "tag";
+        if (!IsValidIdentifier(*tag) && !IsValidLocalName(*tag)) {
+            AddError(diagnostics, file, tag_pointer,
+                     "selector tag \"" + *tag +
+                         "\" is not a valid identifier; a local name uses [a-z0-9_] "
+                         "(1 to 32 characters)");
+            return;
+        }
+        selector.mode = selector_mode::kTag;
         selector.tag = *tag;
         return;
     }
 
-    CheckUnknownKeys(value, identifiers_keys, file, pointer, diagnostics);
     const std::string identifiers_pointer =
-        match::expr::AppendPointerToken(pointer, "identifiers");
-    const auto identifiers = value.find("identifiers");
+        match::expr::AppendPointerToken(pointer, selector_mode::kIdentifiers);
+    const auto identifiers = value.find(selector_mode::kIdentifiers);
     if (!identifiers->is_array()) {
         AddError(diagnostics, file, identifiers_pointer,
                  "key \"identifiers\" must be an array");
@@ -623,13 +636,20 @@ void ParseMemberSelector(const json& value, const std::string& file, const std::
             continue;
         }
         const std::string text = item.get<std::string>();
+        if (!IsValidIdentifier(text)) {
+            AddError(diagnostics, file, item_pointer,
+                     "identifier \"" + text +
+                         "\" is not a valid identifier; a local name uses [a-z0-9_] "
+                         "(1 to 32 characters)");
+            continue;
+        }
         if (!seen.insert(text).second) {
             AddError(diagnostics, file, item_pointer, "duplicate identifier \"" + text + "\"");
             continue;
         }
         selector.identifiers.push_back(text);
     }
-    selector.mode = "identifiers";
+    selector.mode = selector_mode::kIdentifiers;
 }
 
 void ParseDeckMembers(const json& value, const std::string& file, const std::string& pointer,
@@ -644,10 +664,16 @@ void ParseDeckMembers(const json& value, const std::string& file, const std::str
         return;
     }
     for (const auto& item : members->items()) {
+        const std::string member_pointer =
+            match::expr::AppendPointerToken(members_pointer, item.key());
+        if (!IsValidLocalName(item.key())) {
+            AddError(diagnostics, file, member_pointer,
+                     "slot name \"" + item.key() +
+                         "\" must use [a-z0-9_] (1 to 32 characters)");
+            continue;
+        }
         MemberSelector selector;
-        ParseMemberSelector(item.value(), file,
-                            match::expr::AppendPointerToken(members_pointer, item.key()),
-                            diagnostics, selector);
+        ParseMemberSelector(item.value(), file, member_pointer, diagnostics, selector);
         entry.members[item.key()] = std::move(selector);
     }
 }
@@ -661,9 +687,26 @@ void ParseDeckCopies(const json& value, const std::string& file, const std::stri
         return;
     }
     if (copies->is_string()) {
-        if (copies->get<std::string>().empty()) {
+        const std::string text = copies->get<std::string>();
+        if (text.empty()) {
             AddError(diagnostics, file, copies_pointer,
                      "key \"copies\" must be a non-empty string");
+            return;
+        }
+        // INFO: only the syntax is checked here; the schema-aware check that
+        // knows the settings names and types runs in Task 12.
+        const match::expr::ParseResult parsed = match::expr::ParseExpression(text);
+        if (parsed.error) {
+            AddError(diagnostics, file, copies_pointer,
+                     match::expr::FormatParseError(*parsed.error));
+            return;
+        }
+        const std::size_t node_count = match::expr::CountNodes(*parsed.root);
+        if (node_count > match::expr::kMaximumExpressionNodes) {
+            AddError(diagnostics, file, copies_pointer,
+                     "expression has " + std::to_string(node_count) +
+                         " nodes; the limit is " +
+                         std::to_string(match::expr::kMaximumExpressionNodes));
             return;
         }
         // TODO(task 12): check the expression with match::expr::CheckExpression.
@@ -671,8 +714,17 @@ void ParseDeckCopies(const json& value, const std::string& file, const std::stri
         return;
     }
     if (copies->is_number_integer()) {
-        if (!copies->is_number_unsigned() && copies->get<long long>() < 0) {
-            AddError(diagnostics, file, copies_pointer, "key \"copies\" must not be negative");
+        const bool below_minimum =
+            !copies->is_number_unsigned() && copies->get<long long>() < 0;
+        const bool above_maximum =
+            copies->is_number_unsigned()
+                ? copies->get<unsigned long long>() >
+                      static_cast<unsigned long long>(kMaximumDeckCopies)
+                : copies->get<long long>() > kMaximumDeckCopies;
+        if (below_minimum || above_maximum) {
+            AddError(diagnostics, file, copies_pointer,
+                     "key \"copies\" must be between 0 and " +
+                         std::to_string(kMaximumDeckCopies));
             return;
         }
         entry.copies = *copies;
@@ -695,11 +747,12 @@ void ParseDeckCombine(const json& value, const std::string& file, const std::str
     }
     const std::string text = combine->get<std::string>();
     if (!Contains(CombineModes(), text)) {
-        // INFO: "product" is the default mode; the edit distance from a short
-        // typo to "unique_pairs" or "zip" is not a reliable suggestion, so the
-        // default is named instead.
+        std::string suggestion = match::expr::SuggestClosest(text, CombineModes());
+        if (suggestion.empty()) {
+            suggestion = combine_mode::kProduct;
+        }
         AddError(diagnostics, file, combine_pointer,
-                 "key \"combine\" must be one of " + QuotedValues(CombineModes()), "product");
+                 "key \"combine\" must be one of " + QuotedValues(CombineModes()), suggestion);
         return;
     }
     entry.combine = text;
@@ -748,9 +801,10 @@ void ParseDeckMaxCards(const json& value, const std::string& file, const std::st
     const long long number = max_cards->is_number_unsigned()
                                  ? static_cast<long long>(max_cards->get<unsigned long long>())
                                  : max_cards->get<long long>();
-    if (number < 1 || number > 1024) {
+    if (number < kMinimumDeckCards || number > kMaximumDeckCards) {
         AddError(diagnostics, file, max_cards_pointer,
-                 "key \"max_cards\" must be between 1 and 1024");
+                 "key \"max_cards\" must be between " + std::to_string(kMinimumDeckCards) +
+                     " and " + std::to_string(kMaximumDeckCards));
         return;
     }
     deck.max_cards = static_cast<int>(number);

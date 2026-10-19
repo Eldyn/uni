@@ -13,6 +13,24 @@ using Diagnostic = match::expr::Diagnostic;
 
 enum class Band { kBase = 0, kAttribute = 1, kOverride = 2, kRuntime = 3 };
 
+// INFO: the deck budgets and the literal spellings of the selector forms and
+// combine modes live in one place; the loader and later phases compare strings.
+inline constexpr int kMinimumDeckCards = 1;
+inline constexpr int kMaximumDeckCards = 1024;
+inline constexpr int kMaximumDeckCopies = 1024;
+
+namespace selector_mode {
+inline constexpr const char* kAll = "all";
+inline constexpr const char* kTag = "tag";
+inline constexpr const char* kIdentifiers = "identifiers";
+}  // namespace selector_mode
+
+namespace combine_mode {
+inline constexpr const char* kProduct = "product";
+inline constexpr const char* kUniquePairs = "unique_pairs";
+inline constexpr const char* kZip = "zip";
+}  // namespace combine_mode
+
 struct SurfaceDef { std::string mask; std::string channel; };  // channel: red|green|blue
 
 struct Contribution {
@@ -73,7 +91,7 @@ struct KindTemplate {
 };
 
 struct MemberSelector {
-    std::string mode;                    // "tag" | "identifiers" | "all"
+    std::string mode;                    // selector_mode::k*
     std::string tag;
     std::vector<std::string> identifiers;
     std::string pointer;
@@ -83,14 +101,14 @@ struct DeckEntry {
     std::string kind;                    // template identifier
     json copies;                         // integer or expression string
     std::map<std::string, MemberSelector> members;   // slot name -> selector
-    std::string combine = "product";     // product|unique_pairs|zip
+    std::string combine = combine_mode::kProduct;    // combine_mode::k*
     std::string pointer;
 };
 
 struct DeckSpec {
     std::string identifier;
     std::string name;
-    int max_cards = 1024;
+    int max_cards = kMaximumDeckCards;
     ContributionMap contribute;          // back side
     std::vector<DeckEntry> cards;
     std::vector<std::string> mods;       // optional "mods" list, copied to DeckDef.mods
