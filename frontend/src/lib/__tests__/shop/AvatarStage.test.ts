@@ -102,6 +102,29 @@ describe("AvatarStage", () => {
 		expect(requestAnimationFrame).not.toHaveBeenCalled();
 	});
 
+	it("shows the fallback sprite until the baked texture is ready", async () => {
+		mockContext(true);
+		let resolveTexture!: (value: FakeTexture) => void;
+		loadAvatarTexture.mockImplementation(
+			() =>
+				new Promise<FakeTexture>((resolve) => {
+					resolveTexture = resolve;
+				})
+		);
+
+		const { container } = render(AvatarStage, { props: { loadout: loadout("basic:red") } });
+		flushSync();
+
+		expect(container.querySelector(".avatar-stage-fallback")).toBeTruthy();
+		expect(container.querySelector(".avatar-placeholder")).toBeTruthy();
+
+		resolveTexture(makeTexture());
+		await settle();
+		flushSync();
+
+		expect(container.querySelector(".avatar-stage-fallback")).toBeNull();
+	});
+
 	it("loads a texture for the loadout and reloads it when the loadout changes", async () => {
 		mockContext(true);
 		const first = loadout("basic:red");

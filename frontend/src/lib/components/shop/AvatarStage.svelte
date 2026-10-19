@@ -86,7 +86,6 @@ void main() {
 				// INFO: swap in the new strip and retire the one it replaces, so
 				// a loadout change never leaks a CanvasTexture.
 				texture?.dispose();
-				loaded.offset.x = frame / FRAME_COUNT;
 				texture = loaded;
 			})
 			.catch(() => {
@@ -96,6 +95,12 @@ void main() {
 		return () => {
 			cancelled = true;
 		};
+	});
+
+	// The strip's frame cursor is its own effect: reading `frame` inside the
+	// load effect above would re-run the bake on every animation frame.
+	$effect(() => {
+		if (texture) texture.offset.x = frame / FRAME_COUNT;
 	});
 
 	function stepFrames(deltaMs: number): void {
@@ -229,7 +234,12 @@ void main() {
 				<T.MeshBasicMaterial color="#7c3aed" transparent opacity={0.28} depthWrite={false} />
 			</T.Mesh>
 		</Canvas>
-	{:else}
+	{/if}
+
+	<!-- The fallback sprite is the stage's floor, not its ceiling: it shows
+	     whenever there is no WebGL and while the baked strip is still loading,
+	     so the stage never reads as an empty box. -->
+	{#if !webgl || !texture}
 		<div class="avatar-stage-fallback">
 			<Avatar {loadout} {bot} size={96} />
 		</div>
@@ -260,7 +270,10 @@ void main() {
 	}
 
 	.avatar-stage-fallback {
+		position: absolute;
+		inset: 0;
 		display: grid;
 		place-items: center;
+		pointer-events: none;
 	}
 </style>
