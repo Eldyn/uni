@@ -15,6 +15,7 @@
 		lobby: () => m.lobby_title({}, { locale: storeI18n.locale }),
 		decks: () => m.decks_title({}, { locale: storeI18n.locale }),
 		shop: () => m.shop_title({}, { locale: storeI18n.locale }),
+		wardrobe: () => m.wardrobe_title({}, { locale: storeI18n.locale }),
 		profile: () => m.profile_title({}, { locale: storeI18n.locale }),
 		stats: () => m.leaderboard_title({}, { locale: storeI18n.locale }),
 		settings: () => m.settings_title({}, { locale: storeI18n.locale })
@@ -25,6 +26,10 @@
 	// (the secondary header keeps it on desktop), so the topbar needs to know
 	// when to make room for it.
 	const isLobbyScreen = $derived(storeNavigation.current === "lobby");
+
+	/** Screens whose title sits in the centered middle slot. */
+	const CENTERED_TITLE_SCREENS: ReadonlySet<string> = new Set(["shop", "wardrobe"]);
+	const centerTitle = $derived(CENTERED_TITLE_SCREENS.has(storeNavigation.current));
 
 	const readyCount = $derived(
 		storeLobby.current
@@ -51,7 +56,9 @@
 
 <header class="shell-topbar">
 	<div class="shell-topbar-left">
-		<h1 class="shell-topbar-title" class:hide-mobile-title={isLobbyScreen}>{title}</h1>
+		{#if !centerTitle}
+			<h1 class="shell-topbar-title" class:hide-mobile-title={isLobbyScreen}>{title}</h1>
+		{/if}
 		{#if storeTopbarContent.actions}
 			<div class="shell-topbar-actions">
 				{@render storeTopbarContent.actions()}
@@ -59,7 +66,11 @@
 		{/if}
 	</div>
 
-	{#if storeTopbarContent.current}
+	{#if centerTitle}
+		<div class="shell-topbar-content">
+			<h1 class="shell-topbar-title">{title}</h1>
+		</div>
+	{:else if storeTopbarContent.current}
 		<div class="shell-topbar-content" class:hide-mobile-content={isLobbyScreen}>
 			{@render storeTopbarContent.current()}
 		</div>
