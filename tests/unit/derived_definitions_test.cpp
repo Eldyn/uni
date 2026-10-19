@@ -107,9 +107,10 @@ const char* kBlockBody = R"(
 LoadResult LoadUni(const std::vector<std::pair<std::string, std::string>>& files) {
     TempModsRoot root;
     root.Write("uni/mod.json", ManifestFor("uni"));
-    root.Write("uni/cards/penalty.json",
-               R"({"id":"penalty","title":"P","face":{"kind":"blank"},)"
-               R"("tags":["uni:draw_penalty"]})");
+    root.Write("uni/kinds/penalty.json",
+               R"({"format_version":"1.0.0","kind":{"identifier":"uni:penalty",)"
+               R"("title_format":"P","face":{"kind":"blank"},)"
+               R"("tags":["uni:draw_penalty"]}})");
     for (const auto& [name, contents] : files) {
         root.Write("uni/derived/" + name + ".json", contents);
     }

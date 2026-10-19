@@ -1,0 +1,23 @@
+{
+  "id": "uni",
+  "settings": [
+    {
+      "id": "no_default",
+      "type": "int"
+    },
+    {
+      "type": "int",
+      "default": 1
+    },
+    {
+      "id": "bad_type",
+      "type": "string",
+      "default": 1
+    },
+    {
+      "id": "bad_default",
+      "type": "int",
+      "default": "four"
+    }
+  ]
+}

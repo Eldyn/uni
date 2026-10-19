@@ -1,0 +1,61 @@
+{
+  "format_version": "1.0.0",
+  "kind": {
+    "identifier": "uni:reverse",
+    "tags": [
+      "action",
+      "reverse",
+      "uni:reverse"
+    ],
+    "attributes": [
+      {
+        "attribute": "uni:color"
+      }
+    ],
+    "identifier_format": "{color}_reverse",
+    "title_format": "{color} Reverse",
+    "face": {
+      "kind": "text",
+      "color": "{color}",
+      "label": "reverse",
+      "art_version": 1
+    },
+    "behavior": {
+      "on_play": {
+        "nodes": [
+          {
+            "id": "n1",
+            "cases": [
+              {
+                "when": {
+                  "player_count": {
+                    "cmp": "eq",
+                    "n": 2
+                  }
+                },
+                "next": "two_player"
+              }
+            ],
+            "else": "standard"
+          },
+          {
+            "id": "standard",
+            "op": "reverse_direction",
+            "args": {}
+          },
+          {
+            "id": "two_player",
+            "op": "reverse_direction",
+            "args": {},
+            "next": "extra_advance"
+          },
+          {
+            "id": "extra_advance",
+            "op": "advance_turn",
+            "args": {}
+          }
+        ]
+      }
+    }
+  }
+}

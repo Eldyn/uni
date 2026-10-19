@@ -1,0 +1,13 @@
+{
+  "format_version": "1.0.0",
+  "attribute_member": {
+    "attribute": "uni:color",
+    "identifier": "uni:green",
+    "display_name": "uni.color.green",
+    "tags": [
+      "colored",
+      "green"
+    ],
+    "order": 2
+  }
+}

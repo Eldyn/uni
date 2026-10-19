@@ -1,0 +1,12 @@
+{
+  "format_version": "1.0.0",
+  "kind": {
+    "identifier": "gloss_mod:plum",
+    "title_format": "Plum",
+    "face": {
+      "kind": "blank"
+    },
+    "label_key": "gloss_mod:fruit.plum",
+    "description_key": "gloss_mod:fruit.plum.description"
+  }
+}

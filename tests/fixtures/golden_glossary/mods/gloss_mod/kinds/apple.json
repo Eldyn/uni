@@ -1,0 +1,10 @@
+{
+  "format_version": "1.0.0",
+  "kind": {
+    "identifier": "gloss_mod:apple",
+    "title_format": "apple",
+    "face": {
+      "kind": "blank"
+    }
+  }
+}

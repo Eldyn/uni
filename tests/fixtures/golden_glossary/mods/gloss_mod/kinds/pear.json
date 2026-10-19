@@ -1,0 +1,10 @@
+{
+  "format_version": "1.0.0",
+  "kind": {
+    "identifier": "gloss_mod:pear",
+    "title_format": "pear",
+    "face": {
+      "kind": "blank"
+    }
+  }
+}

@@ -401,9 +401,10 @@ TEST_CASE("streak validation: has_tag needs a namespaced tag") {
 TEST_CASE("streak validation: has_tag passes when a card carries the tag") {
     TempModsRoot root;
     root.Write("my_mod/mod.json", ManifestFor("my_mod"));
-    root.Write("my_mod/cards/fancy_card.json",
-               R"({"id":"fancy_card","title":"Fancy",)"
-               R"("face":{"kind":"blank"},"tags":["my_mod:fancy"]})");
+    root.Write("my_mod/kinds/fancy_card.json",
+               R"({"format_version":"1.0.0","kind":{"identifier":"my_mod:fancy_card",)"
+               R"("title_format":"Fancy","face":{"kind":"blank"},)"
+               R"("tags":["my_mod:fancy"]}})");
     root.Write("my_mod/streaks/fancy_total.json",
                StreakFile("my_mod:fancy_total", R"(
       "uni:type": "total",
@@ -460,7 +461,8 @@ TEST_CASE("streak context: the match set resolves a name of another mod") {
   }
 })");
     root.Write("my_mod/decks/d.json",
-               R"({"id":"d","name":"d","mods":["my_mod"],"cards":{}})");
+               R"({"format_version":"1.0.0","deck":{"identifier":"my_mod:d",)"
+               R"("name":"d","mods":["my_mod"],"cards":[]}})");
     root.Write("uni/mod.json", ManifestFor("uni"));
     root.Write("uni/streaks/skip_run.json",
                StreakFile("uni:skip_run", kSkipRunBody));

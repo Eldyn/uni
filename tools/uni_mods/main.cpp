@@ -1,4 +1,4 @@
-#include <match/expr/verify_command.hpp>
+#include <match/cardschema/verify_mods.hpp>
 
 #include <cstddef>
 #include <exception>
@@ -13,7 +13,7 @@ int main(int argc, char** argv) {
         for (int index = 1; index < argc; ++index) {
             args.emplace_back(argv[index]);
         }
-        return match::expr::RunVerify(args, std::cout, std::cerr);
+        return match::cardschema::RunVerifyCommand(args, std::cout, std::cerr);
     } catch (const std::exception& error) {
         std::cerr << "internal error: " << error.what() << "\n";
         return 3;

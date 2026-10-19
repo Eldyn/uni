@@ -131,15 +131,20 @@ find_package(glaze REQUIRED)
 
 # --- Main Executable ---
 file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS "src/*.cpp")
-list(FILTER SOURCES EXCLUDE REGEX "src/match/expr/")
+list(FILTER SOURCES EXCLUDE REGEX "src/match/(expr|cardschema)/")
 file(GLOB UNI_EXPR_SOURCES CONFIGURE_DEPENDS "src/match/expr/*.cpp")
 add_library(uni_expr STATIC ${UNI_EXPR_SOURCES})
 target_include_directories(uni_expr PUBLIC include)
 target_link_libraries(uni_expr PUBLIC nlohmann_json::nlohmann_json)
 
+file(GLOB UNI_CARDSCHEMA_SOURCES CONFIGURE_DEPENDS "src/match/cardschema/*.cpp")
+add_library(uni_cardschema STATIC ${UNI_CARDSCHEMA_SOURCES})
+target_include_directories(uni_cardschema PRIVATE include src "${CMAKE_BINARY_DIR}/generated")
+target_link_libraries(uni_cardschema PUBLIC uni_expr nlohmann_json::nlohmann_json)
+
 # --- Mod tooling ---
 add_executable(uni_mods tools/uni_mods/main.cpp)
-target_link_libraries(uni_mods PRIVATE uni_expr)
+target_link_libraries(uni_mods PRIVATE uni_expr uni_cardschema)
 
 add_executable(uni_server ${SOURCES})
 
@@ -165,6 +170,7 @@ target_link_libraries(uni_server PRIVATE
     jwt-cpp::jwt-cpp
     nlohmann_json::nlohmann_json
     uni_expr
+    uni_cardschema
     CURL::libcurl
     glaze::glaze
 )
@@ -324,6 +330,7 @@ if(UNI_BUILD_TESTS)
         Threads::Threads
         nlohmann_json::nlohmann_json
         uni_expr
+        uni_cardschema
         uwebsockets::uwebsockets
         usockets::usockets
         libuv::uv_a

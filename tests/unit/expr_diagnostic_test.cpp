@@ -38,6 +38,18 @@ TEST_CASE("suggest_closest_rejects_far_word") {
     CHECK(match::expr::SuggestClosest("zzz", {"hand_size", "seat"}) == "");
 }
 
+TEST_CASE("suggest_closest_counts_a_transposition_as_one_edit") {
+    CHECK(match::expr::SuggestClosest("crad", {"card"}) == "card");
+}
+
+TEST_CASE("suggest_closest_gives_no_suggestion_for_a_distant_short_word") {
+    CHECK(match::expr::SuggestClosest("zzz", {"card"}) == "");
+}
+
+TEST_CASE("suggest_closest_pruning_still_picks_the_right_candidate") {
+    CHECK(match::expr::SuggestClosest("crad", {"card_declaration_name", "card"}) == "card");
+}
+
 TEST_CASE("suggest_closest_keeps_a_candidate_of_a_near_length") {
     CHECK(match::expr::SuggestClosest("sea", {"seat"}) == "seat");
 }

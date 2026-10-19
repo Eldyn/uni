@@ -1,0 +1,41 @@
+{
+  "format_version": "1.0.0",
+  "kind": {
+    "identifier": "uni:wild",
+    "tags": [
+      "wild",
+      "action",
+      "uni:wild"
+    ],
+    "identifier_format": "wild",
+    "title_format": "Wild",
+    "face": {
+      "kind": "text",
+      "color": "white",
+      "label": "jolly",
+      "art_version": 1
+    },
+    "behavior": {
+      "on_play": {
+        "nodes": [
+          {
+            "id": "n1",
+            "op": "prompt",
+            "args": {
+              "kind": "choose_color",
+              "target": "@self"
+            },
+            "next": "n2"
+          },
+          {
+            "id": "n2",
+            "op": "set_active_type",
+            "args": {
+              "from_prompt": "n1"
+            }
+          }
+        ]
+      }
+    }
+  }
+}

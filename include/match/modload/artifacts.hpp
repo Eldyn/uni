@@ -2,6 +2,8 @@
 
 #include <nlohmann/json.hpp>
 
+#include <match/cardschema/model.hpp>
+
 #include <cstdint>
 #include <map>
 #include <optional>
@@ -132,6 +134,18 @@ struct CardDef {
     std::string description_key;        /**< Empty: derived by the glossary. */
     FaceSpec face;
     std::vector<std::string> tags;
+    /**
+     * Mods whose members the generated card uses, excluding its host mod.
+     *
+     * The loader expands every template over the members of every loaded mod,
+     * so a card of one mod may need another. `LoadedMod.cards` therefore holds
+     * those cards unfiltered on purpose: a match that does not enable one of
+     * these mods must not deal the card. Plan 2a-2 Task 1 adds `CardActive` and
+     * filters the readers; until then every reader sees the card.
+     * TODO(2a-2 T1): filter the readers listed in the Plan 2a-2 Task 1 notes.
+     */
+    std::vector<std::string> requires_mods;
+    std::string template_id;                /**< Kind template the card came from. */
     std::vector<BehaviorEntry> behaviors;
     std::optional<WindowSpec> window;
     std::optional<AutoTriggerDef> auto_trigger; /**< Must-apply. */
@@ -646,6 +660,7 @@ struct LoadedMod {
     std::string path;                   /**< Absolute/relative folder path. */
     ModManifest manifest;
     std::string content_hash;           /**< SHA-256 hex of the folder. */
+    match::cardschema::ModSchema card_schema;  /**< Schema v1 card sources. */
     std::vector<CardDef> cards;
     std::vector<RuleDef> rules;
     std::vector<StatusDef> statuses;

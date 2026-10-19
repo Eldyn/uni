@@ -95,7 +95,8 @@ std::string EntryFile(const std::string& identifier,
 }
 
 std::string CardFile(const std::string& id, const std::string& extra = "") {
-    return R"({ "id": ")" + id + R"(", "title": "T")" + extra + " }";
+    return R"({ "format_version": "1.0.0", "kind": { "identifier": "my_mod:)" + id +
+           R"(", "title_format": "T", "face": { "kind": "blank" })" + extra + " } }";
 }
 
 const char* kEnglish = R"({
@@ -353,7 +354,7 @@ TEST_CASE("glossary file: the schema rejects an unknown key") {
 
 TEST_CASE("glossary card: a card reads its optional key fields") {
     const LoadResult loaded = LoadMod(
-        {{"cards/foo.json",
+        {{"kinds/foo.json",
           CardFile("foo", R"(, "label_key": "my_mod:foo.name",
                           "description_key": "my_mod:foo.text")")}});
     REQUIRE(loaded.ok());
@@ -363,16 +364,16 @@ TEST_CASE("glossary card: a card reads its optional key fields") {
 
 TEST_CASE("glossary card: a key field that is no string is rejected") {
     const LoadResult loaded = LoadMod(
-        {{"cards/foo.json", CardFile("foo", R"(, "label_key": 7)")}});
+        {{"kinds/foo.json", CardFile("foo", R"(, "label_key": 7)")}});
     CHECK_FALSE(loaded.ok());
-    CHECK(HasCheck(loaded.errors, "card.keys"));
+    CHECK(HasCheck(loaded.errors, "card_schema"));
 }
 
 // --- automatic entries and the override rule --------------------------------
 
 TEST_CASE("glossary entries: each card creates an entry with derived keys") {
-    const LoadResult loaded = LoadMod({{"cards/foo.json", CardFile("foo")},
-                                       {"cards/bar.json", CardFile("bar")}});
+    const LoadResult loaded = LoadMod({{"kinds/foo.json", CardFile("foo")},
+                                       {"kinds/bar.json", CardFile("bar")}});
     REQUIRE(loaded.ok());
     const auto entries = match::modload::BuildGlossaryEntries(loaded.mods[0]);
     REQUIRE(entries.size() == 2);
@@ -386,7 +387,7 @@ TEST_CASE("glossary entries: each card creates an entry with derived keys") {
 
 TEST_CASE("glossary entries: a card with declared keys uses them") {
     const LoadResult loaded = LoadMod(
-        {{"cards/foo.json",
+        {{"kinds/foo.json",
           CardFile("foo", R"(, "label_key": "my_mod:name.foo")")}});
     REQUIRE(loaded.ok());
     const auto entries = match::modload::BuildGlossaryEntries(loaded.mods[0]);
@@ -397,7 +398,7 @@ TEST_CASE("glossary entries: a card with declared keys uses them") {
 
 TEST_CASE("glossary entries: an explicit entry overrides the automatic one") {
     const LoadResult loaded = LoadMod(
-        {{"cards/foo.json", CardFile("foo")},
+        {{"kinds/foo.json", CardFile("foo")},
          {"glossary/foo.json",
           EntryFile("my_mod:foo", R"(
       "uni:label_key": "my_mod:custom.label",
@@ -412,7 +413,7 @@ TEST_CASE("glossary entries: an explicit entry overrides the automatic one") {
 }
 
 TEST_CASE("glossary entries: an explicit entry needs no card") {
-    const LoadResult loaded = LoadMod({{"cards/foo.json", CardFile("foo")},
+    const LoadResult loaded = LoadMod({{"kinds/foo.json", CardFile("foo")},
                                        {"glossary/combo.json",
                                         EntryFile("my_mod:combo")}});
     REQUIRE(loaded.ok());
@@ -424,8 +425,8 @@ TEST_CASE("glossary entries: an explicit entry needs no card") {
 
 TEST_CASE("glossary entries: the list is sorted by id") {
     const LoadResult loaded =
-        LoadMod({{"cards/zeta.json", CardFile("zeta")},
-                 {"cards/alpha.json", CardFile("alpha")},
+        LoadMod({{"kinds/zeta.json", CardFile("zeta")},
+                 {"kinds/alpha.json", CardFile("alpha")},
                  {"glossary/mid.json", EntryFile("my_mod:mid")}});
     REQUIRE(loaded.ok());
     const auto entries = match::modload::BuildGlossaryEntries(loaded.mods[0]);
@@ -543,7 +544,7 @@ TEST_CASE("glossary validation: a key missing in it only warns") {
 
 TEST_CASE("glossary validation: a card with declared keys needs them in en") {
     const LoadResult loaded = LoadMod(
-        {{"cards/foo.json",
+        {{"kinds/foo.json",
           CardFile("foo", R"(, "label_key": "my_mod:name.foo")")},
          {"texts/en.json", kEnglish}});
     REQUIRE(loaded.ok());
@@ -554,7 +555,7 @@ TEST_CASE("glossary validation: a card with declared keys needs them in en") {
 
 TEST_CASE("glossary validation: declared card keys that are no keys fail") {
     const LoadResult loaded = LoadMod(
-        {{"cards/foo.json",
+        {{"kinds/foo.json",
           CardFile("foo", R"(, "description_key": "Draw two.")")}});
     REQUIRE(loaded.ok());
     CHECK(HasCheck(Validate(loaded), "glossary.key.syntax"));
@@ -562,7 +563,7 @@ TEST_CASE("glossary validation: declared card keys that are no keys fail") {
 
 TEST_CASE("glossary validation: an overridden card key is not used") {
     const LoadResult loaded = LoadMod(
-        {{"cards/foo.json",
+        {{"kinds/foo.json",
           CardFile("foo", R"(, "label_key": "my_mod:name.foo")")},
          {"glossary/foo.json", EntryFile("my_mod:foo")},
          {"texts/en.json", kEnglish}});
@@ -571,7 +572,7 @@ TEST_CASE("glossary validation: an overridden card key is not used") {
 }
 
 TEST_CASE("glossary validation: derived card keys are no error") {
-    const LoadResult loaded = LoadMod({{"cards/foo.json", CardFile("foo")}});
+    const LoadResult loaded = LoadMod({{"kinds/foo.json", CardFile("foo")}});
     REQUIRE(loaded.ok());
     CHECK(Validate(loaded).empty());
     CHECK(Warnings(loaded).empty());
@@ -579,7 +580,7 @@ TEST_CASE("glossary validation: derived card keys are no error") {
 
 TEST_CASE("glossary validation: a derived key missing in en only warns") {
     const LoadResult loaded =
-        LoadMod({{"cards/foo.json", CardFile("foo")},
+        LoadMod({{"kinds/foo.json", CardFile("foo")},
                  {"texts/en.json", R"({ "my_mod:other": "x" })"}});
     REQUIRE(loaded.ok());
     CHECK(Validate(loaded).empty());
@@ -592,7 +593,7 @@ TEST_CASE("glossary validation: a derived key missing in en only warns") {
 }
 
 TEST_CASE("glossary validation: derived keys present in en do not warn") {
-    const LoadResult loaded = LoadMod({{"cards/foo.json", CardFile("foo")},
+    const LoadResult loaded = LoadMod({{"kinds/foo.json", CardFile("foo")},
                                        {"texts/en.json", kEnglish}});
     REQUIRE(loaded.ok());
     CHECK(Warnings(loaded).empty());
@@ -632,8 +633,8 @@ TEST_CASE("glossary file: the glossary folder is a known entry of the mod") {
 
 TEST_CASE("defs: a mod lists its glossary entries with keys and source") {
     const LoadResult loaded = LoadMod(
-        {{"cards/foo.json", CardFile("foo")},
-         {"cards/bar.json", CardFile("bar")},
+        {{"kinds/foo.json", CardFile("foo")},
+         {"kinds/bar.json", CardFile("bar")},
          {"glossary/bar.json",
           EntryFile("my_mod:bar", R"(
       "uni:label_key": "my_mod:bar.custom",
@@ -660,7 +661,7 @@ TEST_CASE("defs: a mod with no card and no glossary file has no listing") {
 }
 
 TEST_CASE("defs: the listing holds no text and no other field") {
-    const LoadResult loaded = LoadMod({{"cards/foo.json", CardFile("foo")}});
+    const LoadResult loaded = LoadMod({{"kinds/foo.json", CardFile("foo")}});
     REQUIRE(loaded.ok());
     const json entry = BuildDefs(loaded)["mods"][0]["glossary"][0];
     std::set<std::string> names;
@@ -670,9 +671,9 @@ TEST_CASE("defs: the listing holds no text and no other field") {
 }
 
 TEST_CASE("defs: a changed glossary entry changes the digest") {
-    const LoadResult first = LoadMod({{"cards/foo.json", CardFile("foo")}});
+    const LoadResult first = LoadMod({{"kinds/foo.json", CardFile("foo")}});
     const LoadResult second = LoadMod(
-        {{"cards/foo.json",
+        {{"kinds/foo.json",
           CardFile("foo", R"(, "label_key": "my_mod:other")")}});
     CHECK(BuildDefs(first)["defs_digest"] != BuildDefs(second)["defs_digest"]);
 }
