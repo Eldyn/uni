@@ -672,4 +672,12 @@ TEST_CASE("avatar catalogue: the five rarities") {
         ItemAt(unlisted, "uni:hat_cap")["unlisted"] = true;
         CHECK_FALSE(Catalogue::Parse(unlisted).IsBuyable("uni:hat_cap", 1000));
     }
+    SUBCASE("the old uncommon rarity is rejected") {
+        json item = ValidDoc();
+        ItemAt(item, "uni:hat_cap")["rarity"] = "uncommon";
+        CHECK_THROWS_AS(Catalogue::Parse(item), std::runtime_error);
+        json swatch = ValidDoc();
+        swatch["palettes"][1]["swatches"][0]["rarity"] = "uncommon";
+        CHECK_THROWS_AS(Catalogue::Parse(swatch), std::runtime_error);
+    }
 }

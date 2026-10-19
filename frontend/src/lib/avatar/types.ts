@@ -11,7 +11,7 @@ export type AvatarSlot =
 export type PartSlot = "eyes" | "mouth" | "head_top" | "mask" | "bodywear";
 export type Socket = "eyes" | "mouth" | "head_top" | "body_center";
 /** Every rarity, lowest first. The Shop sorts by this order. */
-export const RARITIES = ["basic", "common", "uncommon", "rare", "epic", "special"] as const;
+export const RARITIES = ["basic", "common", "rare", "epic", "special"] as const;
 export type Rarity = (typeof RARITIES)[number];
 export type RegionCount = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 export type TintMode = "mask" | "multiply";

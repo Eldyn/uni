@@ -10,7 +10,6 @@ import { HOME_BACKGROUND_HINT_HEX, hexToCss } from "$lib/shaders/homePalette";
 export const RARITY_COLOURS: Record<Rarity, string> = {
 	basic: hexToCss(HOME_BACKGROUND_HINT_HEX),
 	common: "#9ca3af",
-	uncommon: "#4ade80",
 	rare: "#60a5fa",
 	epic: "#ffcc00",
 	special: "#c084fc"

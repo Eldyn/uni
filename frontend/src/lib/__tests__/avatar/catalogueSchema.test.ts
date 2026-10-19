@@ -346,6 +346,12 @@ describe("swatch metadata", () => {
 		expect(() => parseCatalogue(catalogue)).toThrow(ZodError);
 	});
 
+	it("rejects the old uncommon rarity", () => {
+		const catalogue = validCatalogue();
+		(catalogue.items as Record<string, unknown>[])[0].rarity = "uncommon";
+		expect(() => parseCatalogue(catalogue)).toThrow(ZodError);
+	});
+
 	it("accepts basic and special on an item and a swatch", () => {
 		const catalogue = validCatalogue();
 		(catalogue.items as Record<string, unknown>[])[0].rarity = "special";
