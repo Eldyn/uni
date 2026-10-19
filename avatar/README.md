@@ -88,6 +88,8 @@ shade), anything else is invalid. The extra file only adds regions; the shape
 comes from the art file, and grey pixels in the extra file are ignored. The
 tests reject `regions` above `3 * (1 + masks.length)`.
 
+`tint` picks how the art takes color. `mask` (the default) uses the region pixel rules above. `multiply` multiplies every visible pixel by one color and needs `regions: 1` and no `masks`. `none` draws the art untouched, for flat pre-styled art: it needs `regions: 0`, and `masks` and `default_colors` are rejected. The Wardrobe shows no color picker for it.
+
 ## Spelling
 
 JSON keys and values use US English: `body_center`, `color`.

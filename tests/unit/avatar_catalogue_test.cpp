@@ -418,6 +418,8 @@ TEST_CASE("avatar catalogue: the real avatar/catalogue folder loads") {
     CHECK(catalogue.SlotDefault("shape")->id == "uni:classic");
     CHECK(catalogue.SlotDefault("shape")->regions == 1);
     CHECK(catalogue.SlotDefault("shape")->tint == "multiply");
+    REQUIRE(catalogue.FindItem("uni:set_astronaut") != nullptr);
+    CHECK(catalogue.FindItem("uni:set_astronaut")->tint == "none");
     REQUIRE(catalogue.SlotDefault("mouth") != nullptr);
     CHECK(catalogue.SlotDefault("mouth")->id == "uni:mouth_smile");
 
