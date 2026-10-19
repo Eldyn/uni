@@ -314,6 +314,7 @@
 	"game_defeat_title": "DU HAST VERLOREN!",
 	"game_winner_label": "Gewinner: {name}",
 	"game_back_to_lobby": "Zurück zur Lobby",
+	"game_end_earned": "Verdient: +{amount}",
 	"game_interrupted_title": "Unterbrochen",
 	"game_interrupted_heading": "Etwas ist schiefgelaufen.",
 	"game_interrupted_desc": "Ein Spieler hat die Verbindung getrennt oder das Spiel wurde abgebrochen.",

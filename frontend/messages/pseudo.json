@@ -314,6 +314,7 @@
 	"game_defeat_title": "[ÝÖÜ LÖST! ]",
 	"game_winner_label": "[Wïnnér: {name} ~~]",
 	"game_back_to_lobby": "[Båck tö Löbbý ~]",
+	"game_end_earned": "[Éårñéd +{amount} ~~~~]",
 	"game_interrupted_title": "[Ïntérrüptéd ~]",
 	"game_interrupted_heading": "[Söméthïng wént wröng. ~~~~]",
 	"game_interrupted_desc": "[Å plåýér dïscönnéctéd ör thé måtch wås förcéfüllý cåncélléd. ~~~~~~~~~~~~~~~]",

@@ -314,6 +314,7 @@
 	"game_defeat_title": "敗北！",
 	"game_winner_label": "勝者: {name}",
 	"game_back_to_lobby": "ロビーに戻る",
+	"game_end_earned": "獲得 +{amount}",
 	"game_interrupted_title": "中断",
 	"game_interrupted_heading": "問題が発生しました。",
 	"game_interrupted_desc": "プレイヤーが切断されたか、試合が強制終了されました。",

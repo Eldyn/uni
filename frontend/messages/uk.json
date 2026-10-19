@@ -314,6 +314,7 @@
 	"game_defeat_title": "ВИ ПРОГРАЛИ!",
 	"game_winner_label": "Переможець: {name}",
 	"game_back_to_lobby": "До лобі",
+	"game_end_earned": "Зароблено: +{amount}",
 	"game_interrupted_title": "Перервано",
 	"game_interrupted_heading": "Щось пішло не так.",
 	"game_interrupted_desc": "Гравець від'єднався, або матч було примусово скасовано.",
