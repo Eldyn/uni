@@ -3,6 +3,7 @@
 	import Modal from "$lib/components/common/Modal.svelte";
 	import Avatar from "$lib/components/common/Avatar.svelte";
 	import GameInterruptedPopup from "./popup/GameInterruptedPopup.svelte";
+	import MatchEarningsLine from "./MatchEarningsLine.svelte";
 	import { storeGame } from "$stores/game.svelte";
 	import { storeLobby } from "$stores/lobby.svelte";
 	import { storeAuth } from "$stores/auth.svelte";
@@ -160,6 +161,7 @@
 				{/if}
 			{/if}
 
+			<MatchEarningsLine />
 			<button type="button" class="btn pixel-corners" onclick={() => storeGame.returnToLobby()}>
 				{m.game_back_to_lobby({}, { locale: storeI18n.locale })}
 			</button>
