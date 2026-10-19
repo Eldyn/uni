@@ -4,18 +4,21 @@
      "Register to buy" instead. Escape closes the panel. -->
 <script lang="ts">
 	import { onMount } from "svelte";
+	import Avatar from "$components/common/Avatar.svelte";
 	import RarityFrame from "$components/shop/RarityFrame.svelte";
-	import { itemArtStyle, itemLabelKey, shopItemText } from "$components/shop/ItemCard.svelte";
+	import { itemLabelKey, shopItemText } from "$components/shop/ItemCard.svelte";
+	import { itemPreviewLoadout } from "$lib/avatar/previewLoadout";
 	import { storeI18n } from "$stores/i18n.svelte";
 	import { RARITY_COLOURS, rarityLabelKey } from "$lib/shop/rarity";
 	import type { BuyFailure } from "$lib/shop/shopBackend";
-	import type { CatalogueItem } from "$lib/avatar/types";
+	import type { CatalogueItem, Loadout } from "$lib/avatar/types";
 
 	let {
 		item,
 		owned,
 		balance,
 		guest,
+		loadout,
 		onbuy,
 		ontry,
 		onclose,
@@ -25,6 +28,8 @@
 		owned: boolean;
 		balance: number;
 		guest: boolean;
+		/** The viewer's saved look: its shape and skin dress the preview. */
+		loadout: Loadout;
 		onbuy: () => void;
 		ontry: () => void;
 		onclose: () => void;
@@ -44,7 +49,7 @@
 	const locale = $derived(storeI18n.locale);
 	const name = $derived(shopItemText(itemLabelKey(item.id), item.id, locale));
 	const rarityName = $derived(shopItemText(rarityLabelKey(item.rarity), item.rarity, locale));
-	const artStyle = $derived(itemArtStyle(item));
+	const preview = $derived(itemPreviewLoadout(item, loadout, owned));
 
 	const buyLabel = $derived(
 		guest
@@ -89,7 +94,7 @@
 
 	<div class="detail-art">
 		<RarityFrame rarity={item.rarity}>
-			<span class="item-art" style={artStyle} aria-hidden="true"></span>
+			<span class="item-art" aria-hidden="true"><Avatar loadout={preview} size={96} /></span>
 		</RarityFrame>
 	</div>
 
@@ -167,11 +172,9 @@
 	}
 
 	.item-art {
+		display: block;
 		width: 96px;
 		height: 96px;
-		background-repeat: no-repeat;
-		background-position: 0 0;
-		image-rendering: pixelated;
 	}
 
 	.detail-name {

@@ -236,6 +236,7 @@
 			owned={owned.has(selected.id)}
 			{balance}
 			{guest}
+			loadout={viewerLoadout}
 			onbuy={() => buy(selected)}
 			ontry={() => tryOn(selected)}
 			onclose={closeDetail}
