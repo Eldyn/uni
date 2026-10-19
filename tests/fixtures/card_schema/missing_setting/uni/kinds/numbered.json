@@ -1,0 +1,1 @@
+{"format_version": "1.0.0", "kind": {"identifier": "uni:numbered", "attributes": [{"attribute": "uni:color"}], "identifier_format": "{color}", "title_format": "{color}", "face": {"kind": "text", "color": "{color}", "label": "{color}", "art_version": 1}}}
