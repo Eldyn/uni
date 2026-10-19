@@ -1,0 +1,22 @@
+{
+	"id": "uni:hat_cap",
+	"order": 10,
+	"slot": "head_top",
+	"name": "Cap",
+	"asset": {
+		"kind": "still",
+		"path": "head_top/uni_hat_cap.png",
+		"bob": [
+			[0, 0],
+			[0, -1],
+			[0, -2],
+			[0, -1],
+			[0, 0]
+		]
+	},
+	"regions": 1,
+	"default_colors": ["basic:blue"],
+	"rarity": "common",
+	"price": 80,
+	"socket": "head_top"
+}

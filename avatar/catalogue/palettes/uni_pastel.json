@@ -1,0 +1,36 @@
+{
+	"id": "uni:pastel",
+	"order": 20,
+	"name": "Pastel",
+	"price": 200,
+	"swatches": [
+		{
+			"id": "uni:pastel:blush",
+			"hex": "#f4b8c1",
+			"price": 100,
+			"rarity": "common"
+		},
+		{
+			"id": "uni:pastel:peach",
+			"hex": "#f7cfa9"
+		},
+		{
+			"id": "uni:pastel:butter",
+			"hex": "#f4e6a3"
+		},
+		{
+			"id": "uni:pastel:mint",
+			"hex": "#b6e3c6"
+		},
+		{
+			"id": "uni:pastel:sky",
+			"hex": "#b3d4f0",
+			"price": 250,
+			"rarity": "uncommon"
+		},
+		{
+			"id": "uni:pastel:lilac",
+			"hex": "#cdbce8"
+		}
+	]
+}

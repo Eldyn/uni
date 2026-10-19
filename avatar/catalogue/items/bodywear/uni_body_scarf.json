@@ -1,0 +1,14 @@
+{
+	"id": "uni:body_scarf",
+	"order": 10,
+	"slot": "bodywear",
+	"name": "Scarf",
+	"asset": {
+		"kind": "strip",
+		"path": "bodywear/uni_body_scarf.png"
+	},
+	"regions": 1,
+	"default_colors": ["basic:orange"],
+	"rarity": "uncommon",
+	"price": 160
+}

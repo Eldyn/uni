@@ -1,0 +1,14 @@
+{
+	"id": "uni:motif_patches",
+	"order": 20,
+	"slot": "motif",
+	"name": "Patches",
+	"asset": {
+		"kind": "strip",
+		"path": "motif/uni_motif_patches.png"
+	},
+	"regions": 3,
+	"default_colors": ["basic:blue", "basic:yellow"],
+	"rarity": "epic",
+	"price": 500
+}

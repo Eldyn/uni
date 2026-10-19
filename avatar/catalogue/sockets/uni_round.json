@@ -1,0 +1,7 @@
+{
+	"shape": "uni:round",
+	"eyes": [36, 26],
+	"mouth": [42, 40],
+	"head_top": [32, 4],
+	"body_center": [48, 62]
+}

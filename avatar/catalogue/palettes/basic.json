@@ -1,0 +1,57 @@
+{
+	"id": "basic",
+	"order": 10,
+	"name": "Basic",
+	"price": 0,
+	"starter": true,
+	"swatches": [
+		{
+			"id": "basic:red",
+			"hex": "#e84a4a"
+		},
+		{
+			"id": "basic:orange",
+			"hex": "#e8873a"
+		},
+		{
+			"id": "basic:yellow",
+			"hex": "#e8c53a"
+		},
+		{
+			"id": "basic:lime",
+			"hex": "#9ad34a"
+		},
+		{
+			"id": "basic:green",
+			"hex": "#4aa85a"
+		},
+		{
+			"id": "basic:teal",
+			"hex": "#3aa8a0"
+		},
+		{
+			"id": "basic:blue",
+			"hex": "#4a6ae8"
+		},
+		{
+			"id": "basic:indigo",
+			"hex": "#6a4ae8"
+		},
+		{
+			"id": "basic:violet",
+			"hex": "#9a4ae8"
+		},
+		{
+			"id": "basic:pink",
+			"hex": "#e85a9a"
+		},
+		{
+			"id": "basic:brown",
+			"hex": "#8a5a3a"
+		},
+		{
+			"id": "basic:grey",
+			"hex": "#8a8a8a"
+		}
+	]
+}

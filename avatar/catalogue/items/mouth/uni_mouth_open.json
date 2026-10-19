@@ -1,0 +1,14 @@
+{
+	"id": "uni:mouth_open",
+	"order": 30,
+	"slot": "mouth",
+	"name": "Open mouth",
+	"asset": {
+		"kind": "strip",
+		"path": "mouth/uni_mouth_open.png"
+	},
+	"regions": 1,
+	"default_colors": ["#202020"],
+	"rarity": "common",
+	"price": 40
+}

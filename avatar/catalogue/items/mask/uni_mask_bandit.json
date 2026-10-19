@@ -1,0 +1,22 @@
+{
+	"id": "uni:mask_bandit",
+	"order": 10,
+	"slot": "mask",
+	"name": "Bandit mask",
+	"asset": {
+		"kind": "still",
+		"path": "mask/uni_mask_bandit.png",
+		"bob": [
+			[0, 0],
+			[0, -1],
+			[0, -2],
+			[0, -1],
+			[0, 0]
+		]
+	},
+	"regions": 1,
+	"default_colors": ["#202020"],
+	"rarity": "uncommon",
+	"price": 150,
+	"socket": "eyes"
+}
