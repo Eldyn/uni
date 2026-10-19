@@ -4,7 +4,7 @@
      "Register to buy" instead. Escape closes the panel. -->
 <script lang="ts">
 	import { onMount } from "svelte";
-	import Avatar from "$components/common/Avatar.svelte";
+	import AvatarFit from "$components/common/AvatarFit.svelte";
 	import RarityFrame from "$components/shop/RarityFrame.svelte";
 	import { itemLabelKey, shopItemText } from "$components/shop/ItemCard.svelte";
 	import { itemPreviewLoadout } from "$lib/avatar/previewLoadout";
@@ -85,7 +85,7 @@
 
 	<div class="detail-art">
 		<RarityFrame rarity={item.rarity}>
-			<span class="item-art" aria-hidden="true"><Avatar loadout={preview} size={96} /></span>
+			<span class="item-art" aria-hidden="true"><AvatarFit loadout={preview} /></span>
 		</RarityFrame>
 	</div>
 
@@ -154,8 +154,8 @@
 
 	.detail-art {
 		display: flex;
-		width: 112px;
-		height: 112px;
+		width: 208px;
+		height: 208px;
 	}
 
 	.detail-art :global(.rarity-frame) {
@@ -166,8 +166,8 @@
 
 	.item-art {
 		display: block;
-		width: 96px;
-		height: 96px;
+		width: 100%;
+		height: 100%;
 	}
 
 	.detail-name {

@@ -21,7 +21,7 @@
 </script>
 
 <script lang="ts">
-	import Avatar from "$components/common/Avatar.svelte";
+	import AvatarFit from "$components/common/AvatarFit.svelte";
 	import RarityFrame from "$components/shop/RarityFrame.svelte";
 	import { itemLabelKey, shopItemText } from "$components/shop/ItemCard.svelte";
 	import { itemPreviewLoadout } from "$lib/avatar/previewLoadout";
@@ -54,7 +54,7 @@
 	} = $props();
 
 	/** Cards per row; the up and down arrows step a row. */
-	const COLUMNS = 4;
+	const COLUMNS = 3;
 
 	const locale = $derived(storeI18n.locale);
 
@@ -152,7 +152,7 @@
 			<RarityFrame rarity={item.rarity}>
 				<span class="slot-art-tile pixel-bordered">
 					<span class="slot-art" aria-hidden="true">
-						<Avatar loadout={itemPreviewLoadout(item, loadout, true)} size={96} />
+						<AvatarFit loadout={itemPreviewLoadout(item, loadout, true)} />
 					</span>
 				</span>
 				<span class="slot-name font-tiny">
@@ -172,7 +172,7 @@
 
 	.slot-grid {
 		display: grid;
-		grid-template-columns: repeat(4, minmax(0, 1fr));
+		grid-template-columns: repeat(3, minmax(0, 1fr));
 		gap: 0.5rem;
 	}
 
@@ -218,8 +218,8 @@
 
 	.slot-art {
 		display: block;
-		width: 96px;
-		height: 96px;
+		width: 100%;
+		height: 100%;
 	}
 
 	.slot-name {
