@@ -74,10 +74,19 @@
 		catalogue.items.filter((item) => item.slot === activeTab && ownedIds.has(item.id))
 	);
 
-	const swatches = $derived<Swatch[]>(
-		catalogue.palettes
-			.filter((palette) => palette.starter === true)
-			.flatMap((palette) => palette.swatches)
+	const swatches = $derived<Swatch[]>(catalogue.palettes.flatMap((palette) => palette.swatches));
+
+	/** Swatches from a paid palette the account does not own yet. */
+	const lockedSwatches = $derived(
+		new Set(
+			catalogue.palettes
+				.filter((palette) => palette.starter !== true && !shopMock.owned.has(palette.id))
+				.flatMap((palette) => palette.swatches.map((swatch) => swatch.id))
+		)
+	);
+
+	const regionLabels = $derived(
+		[1, 2, 3].map((region) => wardrobeText(`wardrobe_region_${region}`, `Region ${region}`, locale))
 	);
 
 	const skinHex = $derived(swatches.find((swatch) => swatch.id === draft.skin)?.hex ?? "#000000");
@@ -221,6 +230,8 @@
 					regions={1}
 					colours={[draft.skin]}
 					{swatches}
+					locked={lockedSwatches}
+					{regionLabels}
 					label={skinLabel}
 					onpick={(_region, swatchId) => pickColour("shape", 0, swatchId)}
 				/>
@@ -248,6 +259,8 @@
 						regions={activeItem.regions}
 						colours={activeChoice?.colours ?? []}
 						{swatches}
+						locked={lockedSwatches}
+						{regionLabels}
 						label={coloursLabel}
 						skinFirst={activeTab === "motif"}
 						{skinHex}
