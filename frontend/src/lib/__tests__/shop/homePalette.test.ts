@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
 	HOME_BACKGROUND_BASE_HEX,
+	HOME_BACKGROUND_HINT_CSS,
 	HOME_BACKGROUND_HINT_HEX,
 	hexToCss,
 	hexToRgb01
@@ -26,5 +27,9 @@ describe("homePalette", () => {
 		expect(rippleQuadSource).toContain("HOME_BACKGROUND_BASE_HEX");
 		expect(rippleQuadSource).toContain("HOME_BACKGROUND_HINT_HEX");
 		expect(rippleQuadSource).not.toMatch(/hexToVec3\(0x[0-9a-fA-F]{6}\)/);
+	});
+
+	it("gives the hint color as a CSS string", () => {
+		expect(HOME_BACKGROUND_HINT_CSS).toBe("#2c354d");
 	});
 });
