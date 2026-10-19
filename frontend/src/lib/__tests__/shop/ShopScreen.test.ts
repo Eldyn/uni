@@ -118,6 +118,7 @@ describe("ShopScreen", () => {
 	});
 
 	it("shows the empty-state line for a tab with nothing to list", async () => {
+		setCatalogueForTest(fixture({ palettes: [] }));
 		const { container } = render(ShopScreen);
 		flushSync();
 
@@ -273,5 +274,34 @@ describe("ShopScreen", () => {
 		const { container } = render(ShopScreen);
 		flushSync();
 		expect(container.querySelectorAll(".shop-backdrop")).toHaveLength(1);
+	});
+
+	it("lists the paid swatches in the Palettes tab", async () => {
+		const { container } = render(ShopScreen);
+		flushSync();
+
+		await fireEvent.click(screen.getByRole("tab", { name: "Palettes" }));
+
+		expect(cardIds(container)).toEqual(["uni:neon:hot", "uni:neon:volt"]);
+		expect(screen.getByText("250")).toBeInTheDocument();
+		expect(screen.getByText("600")).toBeInTheDocument();
+	});
+
+	it("buys a swatch and marks it owned", async () => {
+		shopMock.buy.mockImplementation(async (id: string): Promise<BuyResult> => {
+			shopMock.owned.add(id);
+			shopMock.balance = 1250;
+			return { ok: true, balance: 1250 };
+		});
+		const { container } = render(ShopScreen);
+		flushSync();
+
+		await fireEvent.click(screen.getByRole("tab", { name: "Palettes" }));
+		await fireEvent.click(cardFor(container, "uni:neon:hot"));
+		await fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "BUY" }));
+
+		await vi.waitFor(() => expect(shopMock.buy).toHaveBeenCalledWith("uni:neon:hot"));
+		expect(container.querySelector("[data-balance]")?.getAttribute("data-balance")).toBe("1250");
+		expect(screen.getAllByText("OWNED")).toHaveLength(1);
 	});
 });
