@@ -21,6 +21,8 @@ const { shopMock } = vi.hoisted(() => ({
 	}
 }));
 
+const { bakedSets } = vi.hoisted(() => ({ bakedSets: [] as unknown[] }));
+
 vi.mock("$lib/stores/shopMock.svelte", () => ({ shopMock }));
 
 vi.mock("$stores/auth.svelte", () => ({
@@ -32,7 +34,11 @@ vi.mock("$stores/avatar.svelte", () => ({
 }));
 
 vi.mock("$lib/avatar/useBakedAvatar.svelte", () => ({
-	createBakedAvatar: () => ({ url: null, set: vi.fn(), destroy: vi.fn() })
+	createBakedAvatar: () => ({
+		url: null,
+		set: (loadout: unknown) => bakedSets.push(loadout),
+		destroy: vi.fn()
+	})
 }));
 
 function fixture(overrides: Partial<Catalogue> = {}): Catalogue {
@@ -57,6 +63,7 @@ beforeEach(() => {
 	shopMock.balance = 1500;
 	shopMock.owned = new Set(STARTERS);
 	shopMock.buy.mockReset();
+	bakedSets.length = 0;
 });
 
 afterEach(() => {
@@ -156,6 +163,16 @@ describe("ShopScreen", () => {
 		const empty = render(ShopScreen);
 		flushSync();
 		expect(empty.container.querySelector("[data-featured-id]")).toBeNull();
+	});
+
+	it("shows the featured item worn on the banner preview", () => {
+		setCatalogueForTest(fixture({ featured: ["uni:hat_cap"] }));
+		render(ShopScreen);
+		flushSync();
+
+		expect(bakedSets.at(-1)).toMatchObject({
+			slots: { head_top: { item: "uni:hat_cap" } }
+		});
 	});
 
 	it("moves between tabs and cards with the arrow keys", async () => {

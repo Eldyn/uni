@@ -7,6 +7,7 @@ import { bakeLoadoutPixels } from "./composite";
 import type { PixelImage } from "./pixels";
 import { loadoutHash, resolveLayers } from "./slotRules";
 import type { Loadout } from "./types";
+import { assetUrl } from "$lib/utils/assetUrl";
 
 export interface BakeDeps {
 	loadImage(path: string): Promise<PixelImage>;
@@ -127,13 +128,23 @@ export function createBakeCache(deps: BakeDeps): BakeCache {
 let singleton: BakeCache | undefined;
 
 /**
+ * The served URL for a catalogue-relative avatar asset path. INFO: the
+ * catalogue stores paths relative to the avatar asset root, and assets live
+ * under the hashed `public/assets/avatar/` directory, so a raw path must be
+ * resolved here before it is fetched.
+ */
+export function avatarAssetUrl(path: string): string {
+	return assetUrl(`/assets/avatar/${path}`);
+}
+
+/**
  * The app-wide bake cache, wired to the browser decode edge and the
  * IndexedDB store. INFO: created on first use, so importing this module
  * has no side effects (no store opened, no fetch).
  */
 export function getBakeCache(): BakeCache {
 	singleton ??= createBakeCache({
-		loadImage: decodePng,
+		loadImage: (path) => decodePng(avatarAssetUrl(path)),
 		store: new PersistentFaceStore(createIndexedDbFaceStoreBackend())
 	});
 	return singleton;

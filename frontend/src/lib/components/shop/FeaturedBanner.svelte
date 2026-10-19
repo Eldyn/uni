@@ -3,7 +3,7 @@
      actions. It renders nothing when the catalogue has no featured item. -->
 <script lang="ts">
 	import AvatarSprite from "$components/common/AvatarSprite.svelte";
-	import { itemLabelKey, shopItemText } from "$components/shop/ItemCard.svelte";
+	import { itemArtStyle, itemLabelKey, shopItemText } from "$components/shop/ItemCard.svelte";
 	import { storeI18n } from "$stores/i18n.svelte";
 	import { RARITY_COLOURS, rarityLabelKey } from "$lib/shop/rarity";
 	import { createBakedAvatar } from "$lib/avatar/useBakedAvatar.svelte";
@@ -65,7 +65,9 @@
 			{#if baked.url}
 				<AvatarSprite url={baked.url} size={96} />
 			{:else}
-				<span class="featured-placeholder" aria-hidden="true"></span>
+				<!-- The bake is not ready yet: the item's own art keeps the stage
+				     tile from ever rendering as an empty box. -->
+				<span class="featured-item-art" style={itemArtStyle(item)} aria-hidden="true"></span>
 			{/if}
 		</div>
 
@@ -126,10 +128,13 @@
 		--pc-fill: var(--surface-deep);
 	}
 
-	.featured-placeholder {
+	.featured-item-art {
 		display: block;
 		width: 96px;
 		height: 96px;
+		background-repeat: no-repeat;
+		background-position: 0 0;
+		image-rendering: pixelated;
 	}
 
 	.featured-info {

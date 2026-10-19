@@ -110,6 +110,11 @@
 		};
 	}
 
+	/** The featured hero shows the draft avatar already wearing the item. */
+	const featuredPreview = $derived(
+		featured ? withItem(previewLoadout ?? defaultLoadout(), featured) : previewLoadout
+	);
+
 	function tryOn(item: CatalogueItem): void {
 		previewLoadout = withItem(previewLoadout ?? defaultLoadout(), item);
 	}
@@ -187,7 +192,7 @@
 			owned={featuredOwned}
 			{balance}
 			{guest}
-			loadout={previewLoadout}
+			loadout={featuredPreview}
 			onbuy={() => buy(featured)}
 			ontry={() => tryOn(featured)}
 		/>
