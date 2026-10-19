@@ -15,6 +15,7 @@
 #include <utility>
 #include <vector>
 
+#include <match/expr/condition.hpp>
 #include <match/expr/diagnostic.hpp>
 #include <match/expr/parser.hpp>
 #include <match/expr/schema_json.hpp>
@@ -200,6 +201,173 @@ void CheckIdentifierMatchesFile(const std::string& identifier, const std::string
     AddError(diagnostics, file, id_pointer,
              "identifier \"" + identifier + "\" does not match the file name \"" + stem +
                  ".json\"");
+}
+
+const std::vector<std::string>& ContributionKeys() {
+    static const std::vector<std::string> keys = {"sprite", "tint", "shader", "parameters",
+                                                  "band", "when", "explicit", "surfaces"};
+    return keys;
+}
+
+const std::vector<std::string>& BandNames() {
+    static const std::vector<std::string> names = {"base", "attribute", "override", "runtime"};
+    return names;
+}
+
+Band BandFromName(const std::string& name) {
+    if (name == "attribute") {
+        return Band::kAttribute;
+    }
+    if (name == "override") {
+        return Band::kOverride;
+    }
+    if (name == "runtime") {
+        return Band::kRuntime;
+    }
+    return Band::kBase;
+}
+
+// INFO: a tint is `#rrggbb`: a leading `#` and exactly six hexadecimal digits.
+bool IsValidTint(const std::string& tint) {
+    if (tint.size() != 7 || tint.front() != '#') {
+        return false;
+    }
+    for (std::size_t index = 1; index < tint.size(); ++index) {
+        const char character = tint[index];
+        const bool digit = character >= '0' && character <= '9';
+        const bool lower = character >= 'a' && character <= 'f';
+        const bool upper = character >= 'A' && character <= 'F';
+        if (!digit && !lower && !upper) {
+            return false;
+        }
+    }
+    return true;
+}
+
+const std::vector<std::string>& SurfaceKeys() {
+    static const std::vector<std::string> keys = {"mask", "channel"};
+    return keys;
+}
+
+// INFO: a surface is a mask image plus the channel the slot reads from it. The
+// channel names are checked in task 8, which resolves surfaces against slots.
+void ParseSurfaces(const json& value, const std::string& file, const std::string& pointer,
+                   std::vector<Diagnostic>& diagnostics,
+                   std::map<std::string, SurfaceDef>& surfaces) {
+    if (!value.is_object()) {
+        AddError(diagnostics, file, pointer, "key \"surfaces\" must be an object");
+        return;
+    }
+    for (const auto& entry : value.items()) {
+        const std::string surface_pointer = match::expr::AppendPointerToken(pointer, entry.key());
+        const json& surface = entry.value();
+        if (!surface.is_object()) {
+            AddError(diagnostics, file, surface_pointer, "surface must be an object");
+            continue;
+        }
+        CheckUnknownKeys(surface, SurfaceKeys(), file, surface_pointer, diagnostics);
+        SurfaceDef definition;
+        if (const std::optional<std::string> mask =
+                ReadString(surface, "mask", file, surface_pointer, diagnostics, true)) {
+            definition.mask = *mask;
+        }
+        if (const std::optional<std::string> channel =
+                ReadString(surface, "channel", file, surface_pointer, diagnostics, true)) {
+            definition.channel = *channel;
+        }
+        surfaces[entry.key()] = definition;
+    }
+}
+
+void ParseContribution(const json& value, Band default_band, const std::string& file,
+                       const std::string& pointer, std::vector<Diagnostic>& diagnostics,
+                       Contribution& contribution) {
+    if (!value.is_object()) {
+        AddError(diagnostics, file, pointer, "contribution must be an object");
+        return;
+    }
+    CheckUnknownKeys(value, ContributionKeys(), file, pointer, diagnostics);
+
+    contribution.band = default_band;
+    contribution.pointer = pointer;
+
+    if (const std::optional<std::string> sprite =
+            ReadString(value, "sprite", file, pointer, diagnostics, false)) {
+        contribution.sprite = *sprite;
+    }
+    if (const std::optional<std::string> shader =
+            ReadString(value, "shader", file, pointer, diagnostics, false)) {
+        contribution.shader = *shader;
+    }
+    if (const std::optional<std::string> tint =
+            ReadString(value, "tint", file, pointer, diagnostics, false)) {
+        if (IsValidTint(*tint)) {
+            contribution.tint = *tint;
+        } else {
+            AddError(diagnostics, file, match::expr::AppendPointerToken(pointer, "tint"),
+                     "key \"tint\" must be a \"#rrggbb\" color");
+        }
+    }
+    if (const std::optional<std::string> band =
+            ReadEnum(value, "band", BandNames(), file, pointer, diagnostics, false)) {
+        contribution.band = BandFromName(*band);
+    }
+    if (const std::optional<std::string> when =
+            ReadString(value, "when", file, pointer, diagnostics, false)) {
+        contribution.when = *when;
+        // INFO: `when` is an expression. Parse it here for its syntax and node
+        // budget; the schema-aware check runs in task 13.
+        const match::expr::ConditionParseResult parsed = match::expr::ParseCondition(
+            *when, file, match::expr::AppendPointerToken(pointer, "when"));
+        for (const Diagnostic& diagnostic : parsed.diagnostics) {
+            diagnostics.push_back(diagnostic);
+        }
+    }
+
+    const auto explicit_override = value.find("explicit");
+    if (explicit_override != value.end()) {
+        if (!explicit_override->is_boolean()) {
+            AddError(diagnostics, file, match::expr::AppendPointerToken(pointer, "explicit"),
+                     "key \"explicit\" must be a boolean");
+        } else {
+            contribution.explicit_override = explicit_override->get<bool>();
+        }
+    }
+
+    const auto parameters = value.find("parameters");
+    if (parameters != value.end()) {
+        if (!parameters->is_object()) {
+            AddError(diagnostics, file, match::expr::AppendPointerToken(pointer, "parameters"),
+                     "key \"parameters\" must be an object");
+        } else {
+            contribution.parameters = *parameters;
+        }
+    }
+
+    const auto surfaces = value.find("surfaces");
+    if (surfaces != value.end()) {
+        ParseSurfaces(*surfaces, file, match::expr::AppendPointerToken(pointer, "surfaces"),
+                      diagnostics, contribution.surfaces);
+    }
+}
+
+// INFO: `contribute` maps a slot name or `all` to a contribution. The default
+// band depends on the owner: a kind and a deck back contribute at `base`, a
+// member at `attribute`.
+void ParseContributionMap(const json& contribute, Band default_band, const std::string& file,
+                          const std::string& pointer, std::vector<Diagnostic>& diagnostics,
+                          ContributionMap& out) {
+    if (!contribute.is_object()) {
+        AddError(diagnostics, file, pointer, "key \"contribute\" must be an object");
+        return;
+    }
+    for (const auto& entry : contribute.items()) {
+        Contribution contribution;
+        ParseContribution(entry.value(), default_band, file,
+                          match::expr::AppendPointerToken(pointer, entry.key()), diagnostics,
+                          contribution);
+        out[entry.key()] = std::move(contribution);
+    }
 }
 
 const std::vector<std::string>& MemberKeys(bool allow_attribute) {
@@ -532,13 +700,12 @@ bool ParseKind(const json& value, const std::string& mod_id, const std::string& 
 
     const auto contribute = value.find("contribute");
     if (contribute != value.end()) {
-        if (!contribute->is_object()) {
-            AddError(diagnostics, file,
-                     match::expr::AppendPointerToken(pointer, "contribute"),
-                     "key \"contribute\" must be an object");
-        } else {
+        if (contribute->is_object()) {
             kind.contribute_raw = *contribute;
         }
+        ParseContributionMap(*contribute, Band::kBase, file,
+                             match::expr::AppendPointerToken(pointer, "contribute"),
+                             diagnostics, kind.contribute);
     }
 
     kind.file = file;
@@ -850,13 +1017,9 @@ bool ParseDeck(const json& value, const std::string& mod_id, const std::string& 
 
     const auto contribute = value.find("contribute");
     if (contribute != value.end()) {
-        const std::string contribute_pointer =
-            match::expr::AppendPointerToken(pointer, "contribute");
-        if (!contribute->is_object()) {
-            AddError(diagnostics, file, contribute_pointer,
-                     "key \"contribute\" must be an object");
-        }
-        // TODO(task 8): parse the deck contribution into DeckSpec::contribute.
+        ParseContributionMap(*contribute, Band::kBase, file,
+                             match::expr::AppendPointerToken(pointer, "contribute"),
+                             diagnostics, deck.contribute);
     }
 
     const auto cards = value.find("cards");
@@ -1343,7 +1506,12 @@ bool ParseMember(const json& value, const std::string& default_attribute,
 
     const auto contribute = value.find("contribute");
     if (contribute != value.end()) {
-        member.contribute_raw = *contribute;
+        if (contribute->is_object()) {
+            member.contribute_raw = *contribute;
+        }
+        ParseContributionMap(*contribute, Band::kAttribute, file,
+                             match::expr::AppendPointerToken(pointer, "contribute"),
+                             diagnostics, member.contribute);
     }
 
     const auto properties = value.find("properties");
