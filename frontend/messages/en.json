@@ -489,6 +489,7 @@
 	"shop_error_not_available": "This item is no longer available.",
 	"shop_error_unknown_item": "This item does not exist.",
 	"shop_error_guest": "Register to buy.",
+	"shop_error_network": "Could not reach the server. Try again.",
 	"shop_rarity_common": "Common",
 	"shop_rarity_uncommon": "Uncommon",
 	"shop_rarity_rare": "Rare",

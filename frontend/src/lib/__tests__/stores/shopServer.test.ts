@@ -1,0 +1,161 @@
+// The server-backed shop store: it reads GET /economy/me and buys over
+// POST /shop/buy, validating every response before trusting it.
+
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ShopServer } from "$stores/shopServer.svelte";
+import type { LedgerRow } from "$stores/shopServer.svelte";
+
+global.fetch = vi.fn();
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+const LEDGER: LedgerRow[] = [
+	{ amount: 20, source: "match_base", ref: "match-1", created_at: 1_760_000_000 },
+	{ amount: -100, source: "purchase", ref: "request-1", created_at: 1_760_000_100 }
+];
+
+function jsonResponse(body: unknown, status = 200): Response {
+	return new Response(JSON.stringify(body), { status });
+}
+
+/** The body of the most recent fetch call, parsed as JSON. */
+function sentBody(call: number): { item: string; request_id: string } {
+	const init = vi.mocked(fetch).mock.calls[call]?.[1] as RequestInit | undefined;
+	return JSON.parse(String(init?.body)) as { item: string; request_id: string };
+}
+
+describe("ShopServer", () => {
+	let store: ShopServer;
+
+	beforeEach(() => {
+		vi.resetAllMocks();
+		store = new ShopServer();
+	});
+
+	describe("fetchMine", () => {
+		it("fills balance, owned and ledger from a good body", async () => {
+			vi.mocked(fetch).mockResolvedValueOnce(
+				jsonResponse({ balance: 1240, owned: ["uni:round", "uni:hat_cap"], ledger: LEDGER })
+			);
+
+			await store.fetchMine();
+
+			expect(fetch).toHaveBeenCalledWith("/economy/me", {
+				credentials: "include",
+				headers: { "Content-Type": "application/json" }
+			});
+			expect(store.balance).toBe(1240);
+			expect([...store.owned]).toEqual(["uni:round", "uni:hat_cap"]);
+			expect(store.ledger).toEqual(LEDGER);
+			expect(store.status).toBe("ready");
+			expect(store.needsLogin).toBe(false);
+		});
+
+		it("sets status error and needsLogin on a 401", async () => {
+			vi.mocked(fetch).mockResolvedValueOnce(new Response(null, { status: 401 }));
+
+			await store.fetchMine();
+
+			expect(store.status).toBe("error");
+			expect(store.needsLogin).toBe(true);
+		});
+
+		it("leaves an empty balance and status ready for a guest 403", async () => {
+			vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ error: "guest" }, 403));
+
+			await store.fetchMine();
+
+			expect(store.balance).toBe(0);
+			expect(store.owned.size).toBe(0);
+			expect(store.ledger).toEqual([]);
+			expect(store.status).toBe("ready");
+			expect(store.needsLogin).toBe(false);
+		});
+
+		it("sets status error on a malformed body", async () => {
+			vi.mocked(fetch).mockResolvedValueOnce(
+				jsonResponse({ balance: "lots", owned: "none", ledger: "none" })
+			);
+
+			await store.fetchMine();
+
+			expect(store.status).toBe("error");
+			expect(store.balance).toBe(0);
+		});
+	});
+
+	describe("buy", () => {
+		it("sends the item and a request id, then updates balance and owned on 200", async () => {
+			vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ balance: 1400, item: "uni:hat_cap" }));
+
+			const result = await store.buy("uni:hat_cap");
+
+			expect(result).toEqual({ ok: true, balance: 1400 });
+			expect(fetch).toHaveBeenCalledTimes(1);
+			const [url, init] = vi.mocked(fetch).mock.calls[0];
+			expect(url).toBe("/shop/buy");
+			expect(init).toMatchObject({
+				method: "POST",
+				credentials: "include",
+				headers: { "Content-Type": "application/json" }
+			});
+			const body = sentBody(0);
+			expect(body.item).toBe("uni:hat_cap");
+			expect(body.request_id).toMatch(UUID);
+			expect(store.balance).toBe(1400);
+			expect(store.owned.has("uni:hat_cap")).toBe(true);
+		});
+
+		it.each([
+			[402, "insufficient_cash"],
+			[409, "already_owned"],
+			[410, "not_available"],
+			[404, "unknown_item"],
+			[403, "guest"]
+		] as const)("maps a %i response to %s", async (status, reason) => {
+			vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ error: reason }, status));
+
+			const result = await store.buy("uni:hat_cap");
+
+			expect(result).toEqual({ ok: false, reason });
+			expect(store.balance).toBe(0);
+			expect(store.owned.size).toBe(0);
+		});
+
+		it("returns network and changes nothing on a network error", async () => {
+			vi.mocked(fetch).mockRejectedValueOnce(new TypeError("connection lost"));
+
+			const result = await store.buy("uni:hat_cap");
+
+			expect(result).toEqual({ ok: false, reason: "network" });
+			expect(store.balance).toBe(0);
+			expect(store.owned.size).toBe(0);
+		});
+
+		it("sends one request and one request id for two rapid buys of an item", async () => {
+			vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ balance: 1400, item: "uni:hat_cap" }));
+
+			const [first, second] = await Promise.all([
+				store.buy("uni:hat_cap"),
+				store.buy("uni:hat_cap")
+			]);
+
+			expect(fetch).toHaveBeenCalledTimes(1);
+			expect(first).toEqual({ ok: true, balance: 1400 });
+			expect(second).toEqual(first);
+			expect(store.balance).toBe(1400);
+		});
+
+		it("reuses the request id when the same click is retried after a network error", async () => {
+			vi.mocked(fetch)
+				.mockRejectedValueOnce(new TypeError("connection lost"))
+				.mockResolvedValueOnce(jsonResponse({ balance: 1400, item: "uni:hat_cap" }));
+
+			await store.buy("uni:hat_cap");
+			await store.buy("uni:hat_cap");
+
+			expect(fetch).toHaveBeenCalledTimes(2);
+			expect(sentBody(1).request_id).toBe(sentBody(0).request_id);
+		});
+	});
+});

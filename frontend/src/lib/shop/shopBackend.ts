@@ -7,9 +7,9 @@
 import { isAvailable } from "$lib/avatar/catalogue";
 import type { CatalogueItem } from "$lib/avatar/types";
 
-/** Why a purchase failed. */
+/** Why a purchase failed. `network` means the request never produced a usable answer. */
 export type BuyFailure =
-	"insufficient_cash" | "already_owned" | "not_available" | "unknown_item" | "guest";
+	"insufficient_cash" | "already_owned" | "not_available" | "unknown_item" | "guest" | "network";
 
 /** The outcome of a purchase: the new balance, or a reason it did not happen. */
 export type BuyResult = { ok: true; balance: number } | { ok: false; reason: BuyFailure };

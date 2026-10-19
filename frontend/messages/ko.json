@@ -489,6 +489,7 @@
 	"shop_error_not_available": "더 이상 구할 수 없는 아이템이에요.",
 	"shop_error_unknown_item": "존재하지 않는 아이템이에요.",
 	"shop_error_guest": "구매하려면 가입하세요.",
+	"shop_error_network": "서버에 연결하지 못했어요. 다시 시도하세요.",
 	"shop_rarity_common": "일반",
 	"shop_rarity_uncommon": "고급",
 	"shop_rarity_rare": "희귀",

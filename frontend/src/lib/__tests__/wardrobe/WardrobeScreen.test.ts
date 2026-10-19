@@ -9,6 +9,7 @@ import { flushSync } from "svelte";
 import MockThrelte from "$lib/__tests__/components/MockThrelte.svelte";
 import WardrobeScreen from "$components/wardrobe/WardrobeScreen.svelte";
 import { storeTopbarContent } from "$lib/stores/topbarContent.svelte";
+import { setShopBackend } from "$lib/stores/shop.svelte";
 import { setCatalogueForTest } from "$lib/avatar/catalogue";
 import { avatarFixture, fullLoadout } from "$lib/__tests__/avatar/avatarFixture";
 import type { Loadout } from "$lib/avatar/types";
@@ -29,11 +30,11 @@ const { shopMock } = vi.hoisted(() => ({
 	shopMock: {
 		balance: 1500,
 		owned: new Set<string>(),
-		buy: vi.fn()
+		buy: vi.fn(),
+		fetchMine: vi.fn(),
+		needsLogin: false
 	}
 }));
-
-vi.mock("$lib/stores/shopMock.svelte", () => ({ shopMock }));
 
 const { storeAuth } = vi.hoisted(() => ({
 	storeAuth: { isGuest: false, isLoggedIn: true }
@@ -73,8 +74,10 @@ function equipped(container: HTMLElement): string | null {
 beforeEach(() => {
 	vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
 	setCatalogueForTest(avatarFixture());
+	setShopBackend(shopMock);
 	shopMock.owned = new Set(STARTERS);
 	shopMock.buy.mockReset();
+	shopMock.fetchMine.mockReset();
 	storeAuth.isGuest = false;
 	storeAuth.isLoggedIn = true;
 	storeAvatar.loadout = null;
@@ -155,6 +158,21 @@ describe("WardrobeScreen", () => {
 		await vi.waitFor(() => expect(storeAvatar.save).toHaveBeenCalledTimes(1));
 		const saved = storeAvatar.save.mock.calls[0][0] as Loadout;
 		expect(saved.slots.head_top?.item).toBe("uni:hat_cap");
+	});
+
+	it("shows the save error and refreshes ownership when the server rejects an unowned item", async () => {
+		shopMock.owned = new Set([...STARTERS, "uni:hat_cap"]);
+		storeAvatar.save.mockResolvedValue({ ok: false, code: "not_owned" });
+		const { container } = render(WardrobeScreen);
+		flushSync();
+		shopMock.fetchMine.mockClear();
+
+		await fireEvent.click(screen.getByRole("tab", { name: "Hat" }));
+		await fireEvent.click(cardFor(container, "uni:hat_cap"));
+		await fireEvent.click(screen.getByRole("button", { name: "SAVE" }));
+
+		await vi.waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent(/no longer yours/i));
+		expect(shopMock.fetchMine).toHaveBeenCalledTimes(1);
 	});
 
 	it("restores the saved loadout on revert", async () => {

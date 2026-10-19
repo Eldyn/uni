@@ -37,7 +37,8 @@
 		already_owned: ["shop_error_already_owned", "You already own this."],
 		not_available: ["shop_error_not_available", "This item is no longer available."],
 		unknown_item: ["shop_error_unknown_item", "This item does not exist."],
-		guest: ["shop_error_guest", "Register to buy."]
+		guest: ["shop_error_guest", "Register to buy."],
+		network: ["shop_error_network", "Could not reach the server. Try again."]
 	};
 
 	const locale = $derived(storeI18n.locale);

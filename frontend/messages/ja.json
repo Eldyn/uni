@@ -489,6 +489,7 @@
 	"shop_error_not_available": "このアイテムはもう買えません。",
 	"shop_error_unknown_item": "このアイテムは存在しません。",
 	"shop_error_guest": "登録して購入。",
+	"shop_error_network": "サーバーに接続できませんでした。もう一度お試しください。",
 	"shop_rarity_common": "ノーマル",
 	"shop_rarity_uncommon": "アンコモン",
 	"shop_rarity_rare": "レア",

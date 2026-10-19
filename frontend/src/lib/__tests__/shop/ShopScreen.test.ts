@@ -7,6 +7,9 @@ import { cleanup, fireEvent, render, screen, within } from "@testing-library/sve
 import { flushSync } from "svelte";
 import ShopScreen from "$components/shop/ShopScreen.svelte";
 import { setCatalogueForTest } from "$lib/avatar/catalogue";
+import { setShopBackend } from "$lib/stores/shop.svelte";
+import { storeAuth } from "$stores/auth.svelte";
+import { storeNavigation } from "$stores/navigation.svelte";
 import type { BuyResult } from "$lib/shop/shopBackend";
 import type { Catalogue } from "$lib/avatar/types";
 import { avatarFixture } from "$lib/__tests__/avatar/avatarFixture";
@@ -17,13 +20,15 @@ const { shopMock } = vi.hoisted(() => ({
 	shopMock: {
 		balance: 1500,
 		owned: new Set(["uni:round", "uni:eyes_dot", "uni:mouth_smile"]),
-		buy: vi.fn()
+		buy: vi.fn(),
+		fetchMine: vi.fn(),
+		needsLogin: false
 	}
 }));
 
 const { bakedSets } = vi.hoisted(() => ({ bakedSets: [] as unknown[] }));
 
-vi.mock("$lib/stores/shopMock.svelte", () => ({ shopMock }));
+vi.mock("$stores/navigation.svelte", () => ({ storeNavigation: { gotoAuth: vi.fn() } }));
 
 vi.mock("$stores/auth.svelte", () => ({
 	storeAuth: { isGuest: false, isLoggedIn: true }
@@ -60,9 +65,15 @@ function cardFor(container: HTMLElement, id: string): HTMLElement {
 beforeEach(() => {
 	vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
 	setCatalogueForTest(fixture());
+	setShopBackend(shopMock);
 	shopMock.balance = 1500;
 	shopMock.owned = new Set(STARTERS);
 	shopMock.buy.mockReset();
+	shopMock.fetchMine.mockReset();
+	shopMock.needsLogin = false;
+	storeAuth.isGuest = false;
+	storeAuth.isLoggedIn = true;
+	storeNavigation.gotoAuth.mockReset();
 	bakedSets.length = 0;
 });
 
@@ -162,6 +173,47 @@ describe("ShopScreen", () => {
 			expect(within(dialog).getByRole("alert")).toHaveTextContent("Not enough cash.")
 		);
 		expect(container.querySelector("[data-balance]")?.getAttribute("data-balance")).toBe("1500");
+	});
+
+	it("shows the network reason and leaves the card unowned", async () => {
+		shopMock.buy.mockResolvedValue({ ok: false, reason: "network" });
+		const { container } = render(ShopScreen);
+		flushSync();
+
+		await fireEvent.click(cardFor(container, "uni:hat_cap"));
+		const dialog = screen.getByRole("dialog");
+		await fireEvent.click(within(dialog).getByRole("button", { name: "BUY" }));
+
+		await vi.waitFor(() =>
+			expect(within(dialog).getByRole("alert")).toHaveTextContent(/could not reach/i)
+		);
+		expect(container.querySelector("[data-balance]")?.getAttribute("data-balance")).toBe("1500");
+		expect(screen.getAllByText("OWNED")).toHaveLength(STARTERS.length);
+	});
+
+	it("fetches the account economy once on mount", async () => {
+		render(ShopScreen);
+		flushSync();
+
+		await vi.waitFor(() => expect(shopMock.fetchMine).toHaveBeenCalledTimes(1));
+	});
+
+	it("does not fetch the economy for a guest", () => {
+		storeAuth.isGuest = true;
+		render(ShopScreen);
+		flushSync();
+
+		expect(shopMock.fetchMine).not.toHaveBeenCalled();
+	});
+
+	it("sends an expired session to login instead of a blank shop", async () => {
+		shopMock.fetchMine.mockImplementation(async () => {
+			shopMock.needsLogin = true;
+		});
+		render(ShopScreen);
+		flushSync();
+
+		await vi.waitFor(() => expect(storeNavigation.gotoAuth).toHaveBeenCalledWith("login"));
 	});
 
 	it("shows the first featured item and hides when the list is empty", () => {
