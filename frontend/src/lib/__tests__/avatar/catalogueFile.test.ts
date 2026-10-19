@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { parseCatalogue } from "$lib/avatar/catalogueSchema";
 import type { Catalogue } from "$lib/avatar/types";
+// @ts-expect-error plain ESM helper without types
+import {
+	listCatalogueFiles,
+	readMergedCatalogue
+} from "../../../../scripts/lib/avatarCatalogue.mjs";
 
 // The catalogue and its art live outside the Vite root, so they are read from
 // disk through Node built-ins; the browser condition vitest runs with would
@@ -13,9 +18,8 @@ const { fileURLToPath } = await nodeModule("url");
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../../../..");
 const assetRoot = join(repoRoot, "frontend/public/assets/avatar");
 
-const catalogue: Catalogue = parseCatalogue(
-	JSON.parse(readFileSync(join(repoRoot, "avatar/catalogue.json"), "utf8"))
-);
+const catalogueDirectory = join(repoRoot, "avatar/catalogue");
+const catalogue: Catalogue = parseCatalogue(readMergedCatalogue(catalogueDirectory));
 
 /** PNG IHDR width and height, big-endian at bytes 16 and 20. */
 function pngSize(file: string): { width: number; height: number } {
@@ -36,6 +40,13 @@ const LAUNCH_COUNTS: Record<string, number> = {
 };
 
 describe("avatar catalogue file", () => {
+	it("every file name is lowercase letters, digits and underscores", () => {
+		const bad = listCatalogueFiles(catalogueDirectory).filter(
+			(path: string) => !/^[a-z0-9_/]+\.json$/.test(path)
+		);
+		expect(bad).toEqual([]);
+	});
+
 	it("real catalogue parses with parseCatalogue", () => {
 		expect(catalogue.version).toBe(1);
 		expect(catalogue.items.length).toBe(16);

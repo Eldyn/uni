@@ -1,8 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
-// Task 3 ships the real avatar/catalogue.json; until then the loader's static
-// import is stubbed out and each test installs its own catalogue.
-vi.mock("$avatar/catalogue.json", () => ({ default: {} }));
+// INFO: the loader imports the merged catalogue from the Vite virtual module.
+vi.mock("virtual:avatar-catalogue", () => ({ default: {} }));
 
 import {
 	featuredItems,

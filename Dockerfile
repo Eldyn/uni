@@ -11,6 +11,7 @@ COPY frontend/package.json frontend/package-lock.json ./frontend/
 RUN cd frontend && npm ci
 COPY frontend/ ./frontend/
 COPY contract/ ./contract/
+COPY avatar/ ./avatar/
 COPY VERSION ./
 RUN cd frontend && npm run build
 # → /app/public

@@ -1,4 +1,4 @@
-import catalogueJson from "$avatar/catalogue.json";
+import catalogueJson from "virtual:avatar-catalogue";
 import { parseCatalogue } from "./catalogueSchema";
 import type { AvatarSlot, Catalogue, CatalogueItem, Palette, Swatch } from "./types";
 
