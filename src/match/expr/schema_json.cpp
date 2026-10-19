@@ -17,7 +17,6 @@
 namespace match::expr {
 namespace {
 
-constexpr std::string_view kRootPointer = "/";
 constexpr std::string_view kRootKeys[] = {"seat_properties", "card_properties",
                                           "match_properties", "settings",
                                           "card_slots",      "variables"};

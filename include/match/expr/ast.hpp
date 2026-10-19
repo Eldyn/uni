@@ -9,6 +9,11 @@
 
 namespace match::expr {
 
+// INFO: the node budget of one expression, shared by the parser, the checker,
+// the condition parser and the evaluator so a tree that is accepted anywhere
+// holds at most this many nodes.
+inline constexpr size_t kMaximumExpressionNodes = 256;
+
 enum class NodeKind {
     kLiteral,
     kSelector,

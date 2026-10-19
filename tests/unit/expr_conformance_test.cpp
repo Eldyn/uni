@@ -31,6 +31,7 @@ using match::expr::ParseExpression;
 using match::expr::ParseResult;
 using match::expr::Schema;
 using match::expr::Type;
+using match::expr::TypeFromName;
 using match::expr::Value;
 using match::expr::testing::JsonWorld;
 using nlohmann::json;
@@ -70,19 +71,6 @@ json ReadJsonFile(const fs::path& path) {
     json value;
     stream >> value;
     return value;
-}
-
-std::optional<Type> TypeFromName(const std::string& name) {
-    if (name == "bool") return Type::kBool;
-    if (name == "int") return Type::kInt;
-    if (name == "float") return Type::kFloat;
-    if (name == "string") return Type::kString;
-    if (name == "member_set") return Type::kMemberSet;
-    if (name == "seat") return Type::kSeat;
-    if (name == "seat_set") return Type::kSeatSet;
-    if (name == "card") return Type::kCard;
-    if (name == "card_set") return Type::kCardSet;
-    return std::nullopt;
 }
 
 // INFO: checks the expression with the declared type and matches the verifier's

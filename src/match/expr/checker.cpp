@@ -13,20 +13,6 @@
 
 namespace match::expr {
 
-std::string_view AssignmentOperatorSymbol(AssignOp op) {
-    switch (op) {
-        case AssignOp::kSet:
-            return "=";
-        case AssignOp::kAdd:
-            return "+";
-        case AssignOp::kSubtract:
-            return "-";
-        case AssignOp::kMultiply:
-            return "*";
-    }
-    return "=";
-}
-
 namespace {
 
 // INFO: inside `[ ]` and inside the condition argument of a set function a bare
@@ -944,36 +930,6 @@ private:
 };
 
 }  // namespace
-
-std::string TypeName(Type type) {
-    switch (type) {
-        case Type::kBool:
-            return "bool";
-        case Type::kInt:
-            return "int";
-        case Type::kFloat:
-            return "float";
-        case Type::kString:
-            return "string";
-        case Type::kMemberSet:
-            return "member_set";
-        case Type::kSeat:
-            return "seat";
-        case Type::kSeatSet:
-            return "seat_set";
-        case Type::kCard:
-            return "card";
-        case Type::kCardSet:
-            return "card_set";
-        case Type::kMatch:
-            return "match";
-        case Type::kSettings:
-            return "settings";
-        case Type::kRule:
-            return "rule";
-    }
-    return "unknown";
-}
 
 CheckResult CheckExpression(std::string_view source, const Schema& schema,
                             std::optional<Type> expected, std::string_view file,

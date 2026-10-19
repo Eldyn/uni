@@ -30,7 +30,6 @@ using json = nlohmann::json;
 // INFO: the file label and pointer the verifier formats its diagnostics with;
 // the corpus uses the same pair.
 constexpr std::string_view kExpressionFileLabel = "<expression>";
-constexpr std::string_view kRootPointer = "/";
 
 constexpr std::uintmax_t kMaximumSchemaFileSize = 1024 * 1024;
 constexpr std::size_t kMaximumExpressionBytes = 65536;

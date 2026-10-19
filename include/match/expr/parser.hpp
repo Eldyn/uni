@@ -22,6 +22,11 @@ std::string FormatParseError(const ParseError& error);
 
 enum class AssignOp { kSet, kAdd, kSubtract, kMultiply };
 
+// INFO: the binary operator an assignment applies, shared by the parser's
+// callers, the checker and the evaluator. A compound operator is displayed in a
+// diagnostic with a trailing '='; kSet has no binary operator and returns "=".
+std::string_view AssignmentOperatorSymbol(AssignOp op);
+
 struct Assignment {
     NodePtr target;
     AssignOp op;

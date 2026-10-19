@@ -6,6 +6,10 @@
 
 namespace match::expr {
 
+// INFO: the RFC 6901 pointer of a root value; the schema loader and the
+// verifier both report a root-level problem against it.
+inline constexpr std::string_view kRootPointer = "/";
+
 struct Diagnostic {
     std::string file;
     std::string pointer;

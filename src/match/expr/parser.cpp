@@ -14,6 +14,20 @@ std::string FormatParseError(const ParseError& error) {
     return error.message + " (at offset " + std::to_string(error.position) + ")";
 }
 
+std::string_view AssignmentOperatorSymbol(AssignOp op) {
+    switch (op) {
+        case AssignOp::kSet:
+            return "=";
+        case AssignOp::kAdd:
+            return "+";
+        case AssignOp::kSubtract:
+            return "-";
+        case AssignOp::kMultiply:
+            return "*";
+    }
+    return "=";
+}
+
 std::string DebugString(const Node& node) {
     switch (node.kind) {
         case NodeKind::kLiteral:

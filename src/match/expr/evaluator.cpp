@@ -10,7 +10,9 @@
 #include <variant>
 #include <vector>
 
-#include <match/expr/checker.hpp>
+#include <match/expr/ast.hpp>
+#include <match/expr/parser.hpp>
+#include <match/expr/types.hpp>
 
 namespace match::expr {
 namespace {

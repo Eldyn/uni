@@ -13,16 +13,6 @@
 
 namespace match::expr {
 
-// INFO: the node budget of one expression, shared by the parser's checker, the
-// condition parser and the evaluator so a tree that is accepted anywhere holds
-// at most this many nodes.
-inline constexpr size_t kMaximumExpressionNodes = 256;
-
-// INFO: the binary operator an assignment applies, shared by the checker and
-// the evaluator. A compound operator is displayed in a diagnostic with a
-// trailing '='; kSet has no binary operator and returns "=".
-std::string_view AssignmentOperatorSymbol(AssignOp op);
-
 // INFO: the variables a guard has already bound. A leaf in a condition tree is
 // checked with the bindings its earlier siblings guarantee.
 struct GuardState {
