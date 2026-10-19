@@ -167,6 +167,38 @@ bool IsAllowedKey(std::string_view key, const AllowedKeys& allowed) {
     return false;
 }
 
+// INFO: one segment of a schema name is `[a-z_][a-z0-9_]*`.
+bool IsNameSegment(std::string_view segment) {
+    if (segment.empty()) {
+        return false;
+    }
+    const char first = segment.front();
+    if (!((first >= 'a' && first <= 'z') || first == '_')) {
+        return false;
+    }
+    for (const char character : segment) {
+        const bool lowercase = character >= 'a' && character <= 'z';
+        const bool digit = character >= '0' && character <= '9';
+        if (!lowercase && !digit && character != '_') {
+            return false;
+        }
+    }
+    return true;
+}
+
+// INFO: a schema name is one segment, optionally namespaced as two segments
+// joined by ':', so `axe:stunned` is valid and `Hand Size` is not.
+bool IsValidName(std::string_view name) {
+    const std::size_t colon = name.find(':');
+    if (colon == std::string_view::npos) {
+        return IsNameSegment(name);
+    }
+    if (name.find(':', colon + 1) != std::string_view::npos) {
+        return false;
+    }
+    return IsNameSegment(name.substr(0, colon)) && IsNameSegment(name.substr(colon + 1));
+}
+
 class SchemaLoader {
 public:
     SchemaLoader(const json& value, std::string_view file_label, const SchemaScan& scan)
@@ -219,7 +251,9 @@ private:
         }
         for (auto entry = object.begin(); entry != object.end(); ++entry) {
             if (!IsAllowedKey(entry.key(), allowed)) {
-                Add(std::string(pointer), "unknown key \"" + entry.key() + "\"",
+                std::string child(pointer);
+                AppendPointerTokenTo(child, entry.key());
+                Add(child, "unknown key \"" + entry.key() + "\"",
                     SuggestClosest(entry.key(), candidates));
             }
         }
@@ -237,6 +271,10 @@ private:
         }
         for (auto entry = found->begin(); entry != found->end(); ++entry) {
             const std::string property_pointer = AppendPointerToken(pointer, entry.key());
+            if (!IsValidName(entry.key())) {
+                Add(property_pointer, "invalid property name \"" + entry.key() + "\"");
+                continue;
+            }
             if (!entry->is_string()) {
                 Add(property_pointer, "must be a type name");
                 continue;
@@ -264,13 +302,26 @@ private:
         for (std::size_t index = 0; index < found->size(); ++index) {
             const std::string pointer =
                 AppendPointerToken(AppendPointerToken(kRootPointer, "card_slots"),
-                              std::to_string(index));
+                                   std::to_string(index));
             const json& slot = (*found)[index];
             if (!slot.is_string()) {
                 Add(pointer, "must be a name");
                 continue;
             }
-            schema_.card_slots[slot.get<std::string>()] = Type::kMemberSet;
+            const std::string name = slot.get<std::string>();
+            if (!IsValidName(name)) {
+                Add(pointer, "invalid slot name \"" + name + "\"");
+                continue;
+            }
+            if (schema_.card_slots.count(name) != 0) {
+                Add(pointer, "duplicate slot \"" + name + "\"");
+                continue;
+            }
+            if (schema_.card_properties.count(name) != 0) {
+                Add(pointer, "slot \"" + name + "\" collides with a card property");
+                continue;
+            }
+            schema_.card_slots[name] = Type::kMemberSet;
         }
     }
 
@@ -286,6 +337,10 @@ private:
         for (auto entry = found->begin(); entry != found->end(); ++entry) {
             std::string pointer = AppendPointerToken(kRootPointer, "variables");
             AppendPointerTokenTo(pointer, entry.key());
+            if (!IsValidName(entry.key())) {
+                Add(pointer, "invalid variable name \"" + entry.key() + "\"");
+                continue;
+            }
             if (!entry->is_object()) {
                 Add(pointer, "must be an object");
                 continue;
@@ -362,11 +417,7 @@ std::optional<Schema> LoadSchema(const json& value, std::string& error) {
     std::vector<Diagnostic> diagnostics;
     std::optional<Schema> schema = LoadSchema(value, "", diagnostics);
     if (!schema.has_value() && !diagnostics.empty()) {
-        const Diagnostic& first = diagnostics.front();
-        error = first.pointer + ": " + first.message;
-        if (!first.suggestion.empty()) {
-            error += " (did you mean \"" + first.suggestion + "\")";
-        }
+        error = FormatDiagnostic(diagnostics.front());
     }
     return schema;
 }

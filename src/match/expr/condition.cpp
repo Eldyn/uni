@@ -109,7 +109,7 @@ private:
                 continue;
             }
             clean = false;
-            Error(pointer + "/" + key, "unknown key \"" + key + "\"",
+            Error(AppendPointerToken(pointer, key), "unknown key \"" + key + "\"",
                   SuggestClosest(key, GroupKeyNames()));
         }
         return clean;
@@ -156,18 +156,18 @@ private:
         const std::string key(group->key);
         const json& children = value[key];
         if (!children.is_array()) {
-            Error(pointer + "/" + key, key + " must be an array of conditions");
+            Error(AppendPointerToken(pointer, key), key + " must be an array of conditions");
             return std::nullopt;
         }
         if (children.empty()) {
-            Error(pointer + "/" + key, key + " needs at least one condition");
+            Error(AppendPointerToken(pointer, key), key + " needs at least one condition");
             return std::nullopt;
         }
         Condition node{group->kind, {}, {}};
         bool ok = true;
         for (size_t index = 0; index < children.size(); ++index) {
             const std::string child_pointer =
-                pointer + "/" + key + "/" + std::to_string(index);
+                AppendPointerToken(AppendPointerToken(pointer, key), std::to_string(index));
             std::optional<Condition> child = ParseNode(children[index], child_pointer, depth + 1);
             if (child) {
                 node.children.push_back(std::move(*child));
@@ -219,9 +219,9 @@ private:
         bool ok = true;
         for (size_t index = 0; index < condition.children.size(); ++index) {
             const Condition& child = condition.children[index];
-            const std::string child_pointer = pointer + "/" +
-                                              std::string(GroupKeyName(condition.kind)) + "/" +
-                                              std::to_string(index);
+            const std::string child_pointer =
+                AppendPointerToken(AppendPointerToken(pointer, GroupKeyName(condition.kind)),
+                                   std::to_string(index));
             const std::optional<Narrowed> checked =
                 CheckNode(child, child_pointer, bound, depth + 1);
             if (!checked) {

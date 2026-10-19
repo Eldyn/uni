@@ -209,24 +209,28 @@ TEST_CASE("every_argument_and_schema_failure_reports_the_same_way") {
          1,
          "",
          unknown_root_key_path +
-             "#/: unknown key \"seat_propertes\" (did you mean \"seat_properties\")\n"},
+             "#/seat_propertes: unknown key \"seat_propertes\" (did you mean "
+             "\"seat_properties\")\n"},
         {"an_unknown_key_in_a_variable",
          {"verify", "--schema", unknown_variable_key_path, "--expression", "1"},
          1,
          "",
          unknown_variable_key_path +
-             "#/variables/played: unknown key \"optional_\" (did you mean \"optional\")\n"},
+             "#/variables/played/optional_: unknown key \"optional_\" (did you mean "
+             "\"optional\")\n"},
         {"several_diagnostics_are_all_printed",
          {"verify", "--schema", several_path, "--expression", "1"},
          1,
          "",
-         several_path + "#/: unknown key \"zzz\"\n" + several_path +
-             "#/variables/played: unknown key \"optional_\" (did you mean \"optional\")\n"},
+         several_path + "#/zzz: unknown key \"zzz\"\n" + several_path +
+             "#/variables/played/optional_: unknown key \"optional_\" (did you mean "
+             "\"optional\")\n"},
         {"an_unknown_key_and_an_unknown_type_are_both_printed",
          {"verify", "--schema", unknown_key_and_type_path, "--expression", "1"},
          1,
          "",
-         unknown_key_and_type_path + "#/: unknown key \"zzz\"\n" + unknown_key_and_type_path +
+         unknown_key_and_type_path + "#/zzz: unknown key \"zzz\"\n" +
+             unknown_key_and_type_path +
              "#/seat_properties/hand: unknown type \"unt\" (did you mean \"int\")\n"},
         {"a_duplicate_top_level_key",
          {"verify", "--schema", duplicate_root, "--expression", "1"},
@@ -242,7 +246,8 @@ TEST_CASE("every_argument_and_schema_failure_reports_the_same_way") {
          {"verify", "--schema", escaped_pointer, "--expression", "1"},
          1,
          "",
-         escaped_pointer + "#/seat_properties/a~1b~0c: unknown type \"xyz\"\n"},
+         escaped_pointer +
+             "#/seat_properties/a~1b~0c: invalid property name \"a/b~c\"\n"},
         {"an_unknown_flag",
          {"verify", "--schema", valid, "--expression", "1", "--foo"},
          2,
