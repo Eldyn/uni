@@ -17,20 +17,16 @@ describe("resolveLayers", () => {
 		expect(slotsOf()).toEqual(["shape", "motif", "bodywear", "mouth", "eyes", "mask", "head_top"]);
 	});
 
-	it("a set replaces all part slots", () => {
-		expect(slotsOf({ slots: { set: { item: "uni:set_suit", colours: [] } } })).toEqual([
-			"shape",
-			"motif",
-			"set"
-		]);
+	it("a set replaces the shape, the motif and all part slots", () => {
+		expect(slotsOf({ slots: { set: { item: "uni:set_suit", colours: [] } } })).toEqual(["set"]);
 	});
 
-	it("with a set the motif still draws", () => {
+	it("with a set neither the shape nor the motif draws", () => {
 		const layers = resolveLayers(
 			fullLoadout({ slots: { set: { item: "uni:set_suit", colours: [] } } })
 		);
 
-		expect(layers.some((layer) => layer.slot === "motif")).toBe(true);
+		expect(layers.map((layer) => layer.slot)).toEqual(["set"]);
 	});
 
 	it("an unknown item id bakes the slot default", () => {
