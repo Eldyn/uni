@@ -235,8 +235,9 @@ private:
 
     std::optional<Narrowed> CheckLeaf(const Condition& condition, const std::string& pointer,
                                       const std::set<std::string>& guaranteed) {
-        const CheckResult result = CheckExpression(condition.source, schema_, std::nullopt, file_,
-                                                   pointer, GuardState{guaranteed});
+        const CheckResult result =
+            CheckParsedExpression(*condition.expression, schema_, std::nullopt, file_, pointer,
+                                  GuardState{guaranteed});
         if (!result.diagnostics.empty()) {
             Report(result.diagnostics);
             return std::nullopt;

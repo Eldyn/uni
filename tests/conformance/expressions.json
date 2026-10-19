@@ -3204,6 +3204,39 @@
             "expect": {
                 "check_error": "count needs a seat set or card set"
             }
+        },
+        {
+            "name": "if_true_branch_widens_to_float",
+            "expression": "if(true, 1, 2.5) / 2",
+            "expect": {
+                "value": 0.5
+            }
+        },
+        {
+            "name": "if_false_branch_stays_float",
+            "expression": "if(false, 1, 2.5) / 2",
+            "expect": {
+                "value": 1.25
+            }
+        },
+        {
+            "name": "default_widens_a_bound_float_variable",
+            "expression": "default($nan_value, 1) / 2",
+            "expect": {
+                "value": 0.5
+            },
+            "world": {
+                "variables": {
+                    "nan_value": 1.0
+                }
+            }
+        },
+        {
+            "name": "check_default_needs_a_matching_fallback",
+            "expression": "default($responder, 1)",
+            "expect": {
+                "check_error": "default needs a seat fallback for $responder"
+            }
         }
     ]
 }

@@ -29,6 +29,9 @@ struct Node {
     std::variant<bool, int64_t, double, std::string> literal;
     std::vector<NodePtr> children;
     size_t position;
+    // INFO: set by the checker when the checked type is float but the value may
+    // be an int, so the evaluator widens an int result to a double.
+    mutable bool widen_to_float = false;
 };
 
 std::string DebugString(const Node& node);

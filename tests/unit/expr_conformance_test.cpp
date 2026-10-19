@@ -20,6 +20,7 @@
 
 namespace fs = std::filesystem;
 using match::expr::CheckExpression;
+using match::expr::CheckParsedExpression;
 using match::expr::CheckResult;
 using match::expr::EvalError;
 using match::expr::EvalResult;
@@ -124,19 +125,22 @@ std::string RunRuntimeError(JsonWorld& world, const std::string& source, const j
     return {};
 }
 
-// INFO: checks the expression, runs it and compares the decoded value.
+// INFO: checks the expression, runs it and compares the decoded value. The
+// check and the run share one parsed tree so the checker's widening hint
+// reaches the evaluator.
 std::string RunValue(const Schema& schema, const std::string& source,
                      const std::optional<Type>& expected, JsonWorld& world, const json& value) {
-    const CheckResult checked = CheckExpression(source, schema, expected, kFile, kPointer);
+    const ParseResult parsed = ParseExpression(source);
+    if (parsed.error.has_value()) {
+        return "parse error: " + parsed.error->message;
+    }
+    const CheckResult checked = CheckParsedExpression(*parsed.root, schema, expected, kFile,
+                                                      kPointer, match::expr::GuardState{});
     if (!checked.diagnostics.empty()) {
         return "check error: " + FormatDiagnostic(checked.diagnostics.front());
     }
     if (!checked.type.has_value()) {
         return "the checker returned no type";
-    }
-    const ParseResult parsed = ParseExpression(source);
-    if (parsed.error.has_value()) {
-        return "parse error: " + parsed.error->message;
     }
     const EvalResult result = Evaluate(*parsed.root, world);
     if (const EvalError* eval_error = std::get_if<EvalError>(&result)) {

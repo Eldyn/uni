@@ -529,10 +529,24 @@ EvalResult CallValue(const Node& node, EvalContext& context,
             return Fail("type_mismatch", "default needs a $variable");
         }
         const std::optional<Value> variable = context.GetVariable(node.children[0]->text);
+        EvalResult result;
         if (variable.has_value()) {
-            return *variable;
+            result = *variable;
+        } else {
+            result = EvaluateNode(*node.children[1], context, candidate);
         }
-        return EvaluateNode(*node.children[1], context, candidate);
+        if (std::holds_alternative<EvalError>(result)) {
+            return result;
+        }
+        const Value value = std::get<Value>(result);
+        // INFO: the checker widens a mixed pair to float, so the int side of it
+        // becomes a double here.
+        if (node.widen_to_float) {
+            if (const int64_t* number = std::get_if<int64_t>(&value)) {
+                return Value(static_cast<double>(*number));
+            }
+        }
+        return value;
     }
     if (name == "if") {
         if (node.children.size() != 3) {
@@ -548,7 +562,19 @@ EvalResult CallValue(const Node& node, EvalContext& context,
         }
         // INFO: only the taken branch runs, so an unguarded read in the other
         // branch stays a verify-time error, not a runtime one.
-        return EvaluateNode(*node.children[*flag ? 1 : 2], context, candidate);
+        const EvalResult branch = EvaluateNode(*node.children[*flag ? 1 : 2], context, candidate);
+        if (std::holds_alternative<EvalError>(branch)) {
+            return branch;
+        }
+        const Value value = std::get<Value>(branch);
+        // INFO: a mixed pair checks as float; an int branch widens to double so
+        // the checked type and the runtime value agree.
+        if (node.widen_to_float) {
+            if (const int64_t* number = std::get_if<int64_t>(&value)) {
+                return Value(static_cast<double>(*number));
+            }
+        }
+        return value;
     }
     // INFO: numeric helpers
     if (name == "min" || name == "max") {

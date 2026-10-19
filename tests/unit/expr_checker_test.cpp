@@ -345,6 +345,11 @@ TEST_CASE("contains_over_a_member_set_needs_a_member_set") {
     CHECK(Mentions(Check("contains($played.color, 'uni:red')"), "contains needs a member_set"));
 }
 
+TEST_CASE("default_needs_a_fallback_of_the_variable_type") {
+    CHECK(Mentions(Check("default($responder, 1)"),
+                   "default needs a seat fallback for $responder"));
+}
+
 TEST_CASE("membership_and_tags_return_bool") {
     const CheckResult overlap = Check("shares($played.color, @match.uni:active_color)");
     REQUIRE(overlap.diagnostics.empty());

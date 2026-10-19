@@ -368,6 +368,11 @@ private:
             Error("if needs matching branch types");
             return std::nullopt;
         }
+        // INFO: the taken branch may be the int one of a mixed pair; the
+        // evaluator widens it so the checked float type holds at run time.
+        if (type == Type::kFloat) {
+            node.widen_to_float = true;
+        }
         return Narrowed{type, Intersect(then_type->when_true, else_type->when_true),
                         Intersect(then_type->when_false, else_type->when_false)};
     }
@@ -572,14 +577,30 @@ private:
             Error("default needs a $variable");
             return std::nullopt;
         }
-        if (!FindVariable(*node.children[0])) {
+        const std::optional<VariableInfo> variable = FindVariable(*node.children[0]);
+        if (!variable) {
             return std::nullopt;
         }
         const std::optional<Narrowed> fallback = Check(*node.children[1], scope, candidate, bound);
         if (!fallback) {
             return std::nullopt;
         }
-        return Narrowed{fallback->type, bound, bound};
+        // INFO: a bound variable and its fallback must agree; two numbers widen
+        // to float and the evaluator widens the int side to double.
+        Type type;
+        if (IsNumber(variable->type) && IsNumber(fallback->type)) {
+            type = Widen(variable->type, fallback->type);
+            if (type == Type::kFloat) {
+                node.widen_to_float = true;
+            }
+        } else if (variable->type == fallback->type) {
+            type = variable->type;
+        } else {
+            Error("default needs a " + TypeName(variable->type) + " fallback for $" +
+                  node.children[0]->text);
+            return std::nullopt;
+        }
+        return Narrowed{type, bound, bound};
     }
 
     std::optional<Narrowed> CheckStatusMagnitude(const Node& node, Scope scope, Type candidate,
@@ -942,14 +963,21 @@ CheckResult CheckExpression(std::string_view source, const Schema& schema,
 CheckResult CheckExpression(std::string_view source, const Schema& schema,
                             std::optional<Type> expected, std::string_view file,
                             std::string_view pointer, const GuardState& initial) {
-    CheckResult result;
     const ParseResult parsed = ParseExpression(source);
     if (parsed.error) {
+        CheckResult result;
         result.diagnostics.push_back(
             Diagnostic{std::string(file), std::string(pointer), parsed.error->message, ""});
         return result;
     }
-    result.node_count = CountNodes(*parsed.root);
+    return CheckParsedExpression(*parsed.root, schema, expected, file, pointer, initial);
+}
+
+CheckResult CheckParsedExpression(const Node& root, const Schema& schema,
+                                  std::optional<Type> expected, std::string_view file,
+                                  std::string_view pointer, const GuardState& initial) {
+    CheckResult result;
+    result.node_count = CountNodes(root);
     if (result.node_count > kMaximumNodes) {
         result.diagnostics.push_back(
             Diagnostic{std::string(file), std::string(pointer),
@@ -960,7 +988,7 @@ CheckResult CheckExpression(std::string_view source, const Schema& schema,
     }
 
     Checker checker(schema, expected, file, pointer, initial);
-    const std::optional<Type> type = checker.CheckRoot(*parsed.root);
+    const std::optional<Type> type = checker.CheckRoot(root);
     result.type = type;
     result.diagnostics = checker.TakeDiagnostics();
     result.bound_when_true = checker.BoundWhenTrue();

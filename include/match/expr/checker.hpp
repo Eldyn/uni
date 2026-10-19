@@ -48,6 +48,14 @@ CheckResult CheckExpression(std::string_view source, const Schema& schema,
                             std::optional<Type> expected, std::string_view file,
                             std::string_view pointer, const GuardState& initial);
 
+// INFO: checks an expression that was already parsed. `CheckExpression` parses
+// its source and delegates here. The checker records a widening hint on the
+// tree itself (`Node::widen_to_float`), so a caller that evaluates the same
+// tree sees the checked type of an `if` or `default` branch.
+CheckResult CheckParsedExpression(const Node& root, const Schema& schema,
+                                  std::optional<Type> expected, std::string_view file,
+                                  std::string_view pointer, const GuardState& initial);
+
 // INFO: parses `source` as an assignment and checks it against `schema`. The
 // target must be a writable property; a property without a namespace is
 // built-in and read-only, and a set-valued selector writes to every member.
