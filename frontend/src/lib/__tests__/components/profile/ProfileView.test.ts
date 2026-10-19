@@ -197,4 +197,15 @@ describe("ProfileView", () => {
 
 		expect(screen.queryByRole("button", { name: "Edit look" })).not.toBeInTheDocument();
 	});
+
+	it("marks the four plain stat numbers white and leaves the rank number alone", () => {
+		const { container } = render(ProfileView, {
+			props: { profile: makeProfile(makeStats()), isOwn: true, status: "ready" }
+		});
+
+		const values = container.querySelectorAll(".stat-value");
+		expect(values).toHaveLength(5);
+		expect(container.querySelectorAll(".stat-value--white")).toHaveLength(4);
+		expect(values[4]).not.toHaveClass("stat-value--white");
+	});
 });

@@ -126,19 +126,23 @@
 				<div class="profile-stats">
 					<div class="stat-cell">
 						<span class="stat-label">{m.leaderboard_wins({}, options)}</span>
-						<span class="stat-value title-stats">{statValue(profile.stats?.total_wins)}</span>
+						<span class="stat-value stat-value--white title-stats"
+							>{statValue(profile.stats?.total_wins)}</span
+						>
 					</div>
 					<div class="stat-cell">
 						<span class="stat-label">{m.leaderboard_losses({}, options)}</span>
-						<span class="stat-value title-stats">{statValue(profile.stats?.total_losses)}</span>
+						<span class="stat-value stat-value--white title-stats"
+							>{statValue(profile.stats?.total_losses)}</span
+						>
 					</div>
 					<div class="stat-cell">
 						<span class="stat-label">{m.profile_win_rate({}, options)}</span>
-						<span class="stat-value title-stats">{winRate}</span>
+						<span class="stat-value stat-value--white title-stats">{winRate}</span>
 					</div>
 					<div class="stat-cell">
 						<span class="stat-label">{m.profile_games_played({}, options)}</span>
-						<span class="stat-value title-stats">{games}</span>
+						<span class="stat-value stat-value--white title-stats">{games}</span>
 					</div>
 					<div class="stat-cell">
 						<span class="stat-label">{m.profile_rank({}, options)}</span>
@@ -222,6 +226,10 @@
 
 	.stat-value {
 		overflow-wrap: anywhere;
+	}
+
+	.stat-value--white {
+		color: #fff;
 	}
 
 	.profile-error {
