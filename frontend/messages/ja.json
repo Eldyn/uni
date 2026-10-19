@@ -195,7 +195,7 @@
 	"leaderboard_error": "何か問題が発生したようです！",
 	"leaderboard_you_row": "{name}（あなた）",
 	"profile_rank": "ランク",
-	"profile_leaderboard_button": "ランキングと詳細統計",
+	"profile_leaderboard_button": "ランキング",
 	"profile_settings_button": "設定",
 	"profile_cards_colours": "色",
 	"profile_cards_values": "数字",
