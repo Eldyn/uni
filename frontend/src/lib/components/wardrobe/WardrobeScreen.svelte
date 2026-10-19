@@ -58,6 +58,23 @@
 
 	let activeTab = $state<AvatarSlot>("shape");
 	let confirmOpen = $state(false);
+	/** The server's code for the last rejected save, or null when it went through. */
+	let saveError = $state<string | null>(null);
+
+	/** The English line for a rejected save, keyed by the server's error code. */
+	const SAVE_FAILURE_TEXT: Record<string, [key: string, fallback: string]> = {
+		not_owned: ["wardrobe_error_not_owned", "An item in this look is no longer yours."],
+		swatch_not_owned: [
+			"wardrobe_error_swatch_not_owned",
+			"A colour in this look is no longer yours."
+		],
+		network: ["wardrobe_error_network", "Could not reach the server. Try again."]
+	};
+
+	/** A save rejection naming an item or colour the account no longer owns. */
+	function namesUnowned(code: string): boolean {
+		return code === "not_owned" || code === "swatch_not_owned";
+	}
 
 	const dirty = $derived(isDirty(draft, saved));
 	const blocked = $derived(blockedSlots(draft, catalogue));
@@ -118,6 +135,14 @@
 	const leaveConfirm = $derived(wardrobeText("wardrobe_leave_confirm", "Leave", locale));
 	const leaveCancel = $derived(wardrobeText("wardrobe_leave_cancel", "Keep editing", locale));
 
+	const saveFailure = $derived.by(() => {
+		if (saveError === null) return null;
+		const entry = SAVE_FAILURE_TEXT[saveError];
+		return entry
+			? wardrobeText(entry[0], entry[1], locale)
+			: wardrobeText("error_generic", "Something went wrong.", locale);
+	});
+
 	/** The item worn in a slot, or null for an empty or shape-less slot. */
 	function equippedIn(loadout: Loadout, slot: AvatarSlot): string | null {
 		if (slot === "shape") return loadout.shape;
@@ -151,7 +176,15 @@
 	async function save(): Promise<void> {
 		// INFO: a successful save updates storeAvatar.loadout, which re-derives
 		// the baseline and clears the unsaved marker.
-		await storeAvatar.save(cloneLoadout(draft));
+		const result = await storeAvatar.save(cloneLoadout(draft));
+		if (result.ok) {
+			saveError = null;
+			return;
+		}
+		saveError = result.code;
+		// INFO: the server checks ownership on save; a rejection naming an item
+		// the account no longer owns is stale state, so refresh the owned list.
+		if (namesUnowned(result.code)) await storeShop.fetchMine?.();
 	}
 
 	function revert(): void {
@@ -217,6 +250,10 @@
 			<span aria-hidden="true">×</span>
 		</button>
 	</header>
+
+	{#if !guest && saveFailure}
+		<p class="wardrobe-error font-tiny" role="alert">{saveFailure}</p>
+	{/if}
 
 	{#if guest}
 		<p class="wardrobe-guest font-tiny">{guestLabel}</p>
@@ -308,6 +345,7 @@
 
 	.wardrobe-header,
 	.wardrobe-body,
+	.wardrobe-error,
 	.wardrobe-guest {
 		position: relative;
 		z-index: 1;
@@ -368,6 +406,12 @@
 		padding: 2rem 1rem;
 		text-align: center;
 		color: var(--text);
+	}
+
+	.wardrobe-error {
+		margin: 0;
+		color: var(--danger, #ff6b6b);
+		text-align: center;
 	}
 
 	.wardrobe-confirm {

@@ -160,6 +160,21 @@ describe("WardrobeScreen", () => {
 		expect(saved.slots.head_top?.item).toBe("uni:hat_cap");
 	});
 
+	it("shows the save error and refreshes ownership when the server rejects an unowned item", async () => {
+		shopMock.owned = new Set([...STARTERS, "uni:hat_cap"]);
+		storeAvatar.save.mockResolvedValue({ ok: false, code: "not_owned" });
+		const { container } = render(WardrobeScreen);
+		flushSync();
+		shopMock.fetchMine.mockClear();
+
+		await fireEvent.click(screen.getByRole("tab", { name: "Hat" }));
+		await fireEvent.click(cardFor(container, "uni:hat_cap"));
+		await fireEvent.click(screen.getByRole("button", { name: "SAVE" }));
+
+		await vi.waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent(/no longer yours/i));
+		expect(shopMock.fetchMine).toHaveBeenCalledTimes(1);
+	});
+
 	it("restores the saved loadout on revert", async () => {
 		shopMock.owned = new Set([...STARTERS, "uni:eyes_wide"]);
 		storeAvatar.loadout = fullLoadout();
