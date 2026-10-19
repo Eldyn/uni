@@ -60,6 +60,7 @@ struct MemberDef {
     json contribute_raw = json();       // parsed into `contribute` in a later step
     json properties = json::object();   // typed data, e.g. points
     std::string identifier_alias;
+    std::string attribute_pointer;   // JSON pointer of "attribute", for errors
     std::string file;
 };
 
@@ -129,6 +130,8 @@ struct PropertyDef {
     std::vector<std::string> writable_by;   // empty means "owner"
     std::vector<std::string> values;        // string enum
     std::string member_attribute;           // type member
+    std::string type_pointer;               // JSON pointer of "type", for errors
+    std::string attribute_pointer;          // JSON pointer of "attribute", for errors
     std::string file;
 };
 

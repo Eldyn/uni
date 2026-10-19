@@ -14,6 +14,7 @@
 #include <vector>
 
 #include <match/cardschema/identifier.hpp>
+#include <match/cardschema/internal.hpp>
 #include <match/cardschema/resolve.hpp>
 #include <match/expr/checker.hpp>
 #include <match/expr/diagnostic.hpp>
@@ -24,9 +25,8 @@ namespace match::cardschema {
 
 namespace {
 
-// INFO: the catalog reports at most this many diagnostics; a hostile mod set
-// cannot flood the report.
-constexpr std::size_t kMaximumDiagnostics = 100;
+using internal::AddError;
+using internal::MemberLocal;
 
 // INFO: an attribute with more members than this is a loader bug or a hostile
 // input; the whole attribute is dropped and reported once.
@@ -48,24 +48,6 @@ constexpr std::uint64_t kMaximumCopiesValue = 4096;
 // INFO: the count of a rejected template; it is above every cap, so it consumes
 // the host budget for the templates that follow.
 constexpr std::uint64_t kOverBudgetCount = kMaximumGeneratedKinds + 1;
-
-void AddError(std::vector<Diagnostic>& diagnostics, const std::string& file,
-              const std::string& pointer, std::string message, std::string suggestion = {}) {
-    if (diagnostics.size() >= kMaximumDiagnostics) {
-        return;
-    }
-    diagnostics.push_back(
-        Diagnostic{file, pointer, std::move(message), std::move(suggestion)});
-}
-
-// INFO: the name a member contributes to an identifier and a title: its alias
-// when it sets one, otherwise the local part of its identifier.
-std::string MemberLocal(const MemberDef& member) {
-    if (!member.identifier_alias.empty()) {
-        return member.identifier_alias;
-    }
-    return LocalNameOf(member.identifier);
-}
 
 std::string CapitalizeFirst(std::string value) {
     if (!value.empty() && value.front() >= 'a' && value.front() <= 'z') {
@@ -535,13 +517,6 @@ std::optional<GeneratedCard> BuildCard(
     return card;
 }
 
-void AddDiagnostic(std::vector<Diagnostic>& diagnostics, const Diagnostic& diagnostic) {
-    if (diagnostics.size() >= kMaximumDiagnostics) {
-        return;
-    }
-    diagnostics.push_back(diagnostic);
-}
-
 // INFO: the deck of `deck_id` across every mod, or nullptr when no loaded mod
 // declares it.
 const DeckSpec* FindDeck(const std::vector<ModSchema>& mods, const std::string& deck_id) {
@@ -784,7 +759,8 @@ std::optional<int> EvaluateCopiesExpression(const std::string& source, const std
     const match::expr::CheckResult checked = match::expr::CheckParsedExpression(
         *parsed.root, schema, match::expr::Type::kInt, file, pointer, match::expr::GuardState{});
     for (const Diagnostic& diagnostic : checked.diagnostics) {
-        AddDiagnostic(diagnostics, diagnostic);
+        AddError(diagnostics, diagnostic.file, diagnostic.pointer, diagnostic.message,
+                 diagnostic.suggestion);
     }
     if (!checked.diagnostics.empty()) {
         return std::nullopt;
@@ -867,9 +843,11 @@ CatalogResult ExpandCards(const std::vector<ModSchema>& mods) {
     // sorted by `order`, then identifier. A slot resolves its member through the
     // pair (attribute, local name), so two members of different attributes that
     // share a local name do not overwrite each other. Two members of ONE
-    // attribute that share a local name are a collision and are reported naming
-    // both identifiers; the check is local here, not CheckIdentifierCollisions,
-    // because that helper compares generated card ids rather than member names.
+    // attribute that share a local name collide: the first keeps the name, the
+    // later one is dropped, and a same-mod collision is reported naming both
+    // identifiers (a cross-mod collision is reported by ValidateCatalog). The
+    // check is local here, not CheckIdentifierCollisions, because that helper
+    // compares generated card ids rather than member names.
     std::map<std::string, std::vector<const MemberDef*>> members_by_attribute;
     std::map<std::pair<std::string, std::string>, const MemberDef*> first_member_by_local;
     std::set<std::string> over_cap_attributes;
@@ -893,10 +871,22 @@ CatalogResult ExpandCards(const std::vector<ModSchema>& mods) {
             const auto insertion =
                 first_member_by_local.emplace(std::make_pair(member.attribute, local), &member);
             if (!insertion.second) {
-                AddError(result.diagnostics, member.file, std::string(match::expr::kRootPointer),
-                         "member \"" + member.identifier + "\" has the same local name \"" +
-                             local + "\" as \"" + insertion.first->second->identifier + "\" in " +
-                             insertion.first->second->file);
+                const MemberDef* first = insertion.first->second;
+                // INFO: two members of ONE mod that share a local name are
+                // reported here, naming both identifiers. A collision across two
+                // mods is a catalog-wide rule and is left to ValidateCatalog, so
+                // the same input is worded once for a caller that concatenates
+                // both reports.
+                if (NamespaceOf(first->identifier) == NamespaceOf(member.identifier)) {
+                    AddError(result.diagnostics, member.file,
+                             std::string(match::expr::kRootPointer),
+                             "member \"" + member.identifier + "\" has the same local name \"" +
+                                 local + "\" as \"" + first->identifier + "\" in " + first->file);
+                }
+                // INFO: keep the first member of the load order and drop the
+                // later one, so no card is built from a member whose local name
+                // is ambiguous.
+                continue;
             }
             members_by_attribute[member.attribute].push_back(&member);
         }

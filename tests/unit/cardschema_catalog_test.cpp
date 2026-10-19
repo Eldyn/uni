@@ -7,15 +7,19 @@
 
 #include <match/cardschema/catalog.hpp>
 #include <match/cardschema/model.hpp>
+#include <match/cardschema/resolve.hpp>
+#include <match/cardschema/validate.hpp>
 #include <match/expr/diagnostic.hpp>
 
 using match::cardschema::CatalogResult;
+using match::cardschema::DedupeDiagnostics;
 using match::cardschema::ExpandCards;
 using match::cardschema::GeneratedCard;
 using match::cardschema::KindTemplate;
 using match::cardschema::MemberDef;
 using match::cardschema::ModSchema;
 using match::cardschema::SlotBinding;
+using match::cardschema::ValidateCatalog;
 using match::expr::Diagnostic;
 using match::expr::FormatDiagnostic;
 
@@ -322,7 +326,26 @@ TEST_CASE("extends_cycle") {
           "mods/uni/kinds/b.json#/kind/extends: extends cycle: uni:b -> uni:a -> uni:b");
 }
 
-TEST_CASE("member_local_collision_names_both") {
+TEST_CASE("same_mod_local_collision_names_both") {
+    ModSchema mod = MiniUni();
+    MemberDef alias_member;
+    alias_member.attribute = "uni:color";
+    alias_member.identifier = "uni:crimson";
+    alias_member.identifier_alias = "red";
+    alias_member.display_name = "test";
+    alias_member.order = 2;
+    alias_member.file = "mods/uni/attributes/color/crimson.json";
+    mod.members.push_back(alias_member);
+
+    const CatalogResult result = ExpandCards({mod});
+
+    REQUIRE(result.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(result.diagnostics[0]) ==
+          "mods/uni/attributes/color/crimson.json#/: member \"uni:crimson\" has the same local "
+          "name \"red\" as \"uni:red\" in mods/uni/attributes/test.json");
+}
+
+TEST_CASE("cross_mod_local_collision_is_left_to_validate") {
     ModSchema other;
     other.mod_id = "other";
     other.directory = "mods/other";
@@ -330,15 +353,58 @@ TEST_CASE("member_local_collision_names_both") {
     member.attribute = "uni:color";
     member.identifier = "other:red";
     member.display_name = "test";
+    member.attribute_pointer = "/attribute_member/attribute";
     member.file = "mods/other/attributes/color/red.json";
     other.members = {member};
 
     const CatalogResult result = ExpandCards({MiniUni(), other});
 
-    REQUIRE(result.diagnostics.size() == 1);
-    CHECK(FormatDiagnostic(result.diagnostics[0]) ==
-          "mods/other/attributes/color/red.json#/: member \"other:red\" has the same local name "
-          "\"red\" as \"uni:red\" in mods/uni/attributes/test.json");
+    CHECK(result.diagnostics.empty());
+}
+
+TEST_CASE("cross_mod_collision_dedupes_to_one_line") {
+    ModSchema other;
+    other.mod_id = "other";
+    other.directory = "mods/other";
+    MemberDef member;
+    member.attribute = "uni:color";
+    member.identifier = "other:red";
+    member.display_name = "test";
+    member.attribute_pointer = "/attribute_member/attribute";
+    member.file = "mods/other/attributes/color/red.json";
+    other.members = {member};
+
+    std::vector<Diagnostic> diagnostics = ExpandCards({MiniUni(), other}).diagnostics;
+    const std::vector<Diagnostic> validated = ValidateCatalog({MiniUni(), other});
+    diagnostics.insert(diagnostics.end(), validated.begin(), validated.end());
+    DedupeDiagnostics(diagnostics);
+
+    REQUIRE(diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(diagnostics[0]) ==
+          "mods/other/attributes/color/red.json#/attribute_member/attribute: members \"uni:red\" "
+          "and \"other:red\" share the local name \"red\"; set identifier_alias on one");
+}
+
+TEST_CASE("same_mod_collision_dedupes_to_one_line") {
+    ModSchema mod = MiniUni();
+    MemberDef alias_member;
+    alias_member.attribute = "uni:color";
+    alias_member.identifier = "uni:crimson";
+    alias_member.identifier_alias = "red";
+    alias_member.display_name = "test";
+    alias_member.order = 2;
+    alias_member.file = "mods/uni/attributes/color/crimson.json";
+    mod.members.push_back(alias_member);
+
+    std::vector<Diagnostic> diagnostics = ExpandCards({mod}).diagnostics;
+    const std::vector<Diagnostic> validated = ValidateCatalog({mod});
+    diagnostics.insert(diagnostics.end(), validated.begin(), validated.end());
+    DedupeDiagnostics(diagnostics);
+
+    REQUIRE(diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(diagnostics[0]) ==
+          "mods/uni/attributes/color/crimson.json#/: member \"uni:crimson\" has the same local "
+          "name \"red\" as \"uni:red\" in mods/uni/attributes/test.json");
 }
 
 TEST_CASE("same_local_in_two_attributes_is_not_a_collision") {

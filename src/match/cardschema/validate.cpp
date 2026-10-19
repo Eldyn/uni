@@ -8,52 +8,57 @@
 #include <utility>
 #include <vector>
 
+#include <match/cardschema/internal.hpp>
 #include <match/cardschema/resolve.hpp>
 #include <match/expr/checker.hpp>
 #include <match/expr/diagnostic.hpp>
+#include <match/expr/parser.hpp>
 #include <match/expr/types.hpp>
 
 namespace match::cardschema {
 
 namespace {
 
-// INFO: a hostile mod set cannot flood the report; the same cap the catalog uses.
-constexpr std::size_t kMaximumDiagnostics = 100;
+using internal::AddError;
+using internal::kMaximumDiagnostics;
+using internal::MemberLocal;
 
-void AddError(std::vector<Diagnostic>& diagnostics, const std::string& file,
-              const std::string& pointer, std::string message, std::string suggestion = {}) {
-    if (diagnostics.size() >= kMaximumDiagnostics) {
-        return;
+// INFO: the pointer a member error is reported at: the member's `attribute` key
+// when the loader recorded one, the root pointer for an in-memory member.
+std::string MemberPointer(const MemberDef& member) {
+    if (!member.attribute_pointer.empty()) {
+        return member.attribute_pointer;
     }
-    diagnostics.push_back(
-        Diagnostic{file, pointer, std::move(message), std::move(suggestion)});
+    return std::string(match::expr::kRootPointer);
 }
 
-// INFO: the name a member takes in an identifier: its alias when it sets one,
-// otherwise the local part of its identifier. Two members collide only when the
-// names they actually use are equal.
-std::string MemberLocal(const MemberDef& member) {
-    if (!member.identifier_alias.empty()) {
-        return member.identifier_alias;
+// INFO: a property stores no pointer to its own object; a property error is
+// reported at the recorded key it concerns, or at the root pointer for an
+// in-memory property that carries none.
+std::string PropertyTypePointer(const PropertyDef& property) {
+    if (!property.type_pointer.empty()) {
+        return property.type_pointer;
     }
-    return LocalNameOf(member.identifier);
+    return std::string(match::expr::kRootPointer);
+}
+
+std::string PropertyAttributePointer(const PropertyDef& property) {
+    if (!property.attribute_pointer.empty()) {
+        return property.attribute_pointer;
+    }
+    return std::string(match::expr::kRootPointer);
 }
 
 std::optional<match::expr::Type> PropertyTypeOf(const std::string& type) {
-    if (type == "int") {
-        return match::expr::Type::kInt;
-    }
-    if (type == "float") {
-        return match::expr::Type::kFloat;
-    }
-    if (type == "boolean") {
-        return match::expr::Type::kBool;
-    }
-    if (type == "string") {
-        return match::expr::Type::kString;
-    }
-    if (type == "member") {
-        return match::expr::Type::kMemberSet;
+    static const std::pair<const char*, match::expr::Type> table[] = {
+        {"int", match::expr::Type::kInt},        {"float", match::expr::Type::kFloat},
+        {"boolean", match::expr::Type::kBool},   {"string", match::expr::Type::kString},
+        {"member", match::expr::Type::kMemberSet},
+    };
+    for (const auto& [name, expr_type] : table) {
+        if (type == name) {
+            return expr_type;
+        }
     }
     return std::nullopt;
 }
@@ -77,15 +82,29 @@ std::vector<Diagnostic> ValidateCatalog(const std::vector<ModSchema>& mods) {
     std::map<std::string, const AttributeDef*> attributes;
     for (const ModSchema& mod : mods) {
         for (const AttributeDef& attribute : mod.attributes) {
+            // INFO: the index keeps the first declaration of an identifier; the
+            // loader rejects a duplicate, so the first is the only one.
             attributes.emplace(attribute.identifier, &attribute);
         }
     }
     const std::vector<std::string> attribute_names = MapKeys(attributes);
 
+    // INFO: the slot names of a kind are collected once, when the kind enters
+    // the index, instead of once per deck entry that names it.
     std::map<std::string, const KindTemplate*> kinds;
+    std::map<std::string, std::set<std::string>> kind_slot_names;
     for (const ModSchema& mod : mods) {
         for (const KindTemplate& kind : mod.kinds) {
-            kinds.emplace(kind.identifier, &kind);
+            // INFO: the index keeps the first declaration of an identifier; the
+            // loader rejects a duplicate, so the first is the only one.
+            if (!kinds.emplace(kind.identifier, &kind).second) {
+                continue;
+            }
+            std::set<std::string> slot_names;
+            for (const SlotBinding& binding : kind.slots) {
+                slot_names.insert(binding.name);
+            }
+            kind_slot_names.emplace(kind.identifier, std::move(slot_names));
         }
     }
     const std::vector<std::string> kind_names = MapKeys(kinds);
@@ -99,13 +118,13 @@ std::vector<Diagnostic> ValidateCatalog(const std::vector<ModSchema>& mods) {
         for (const MemberDef& member : mod.members) {
             const auto attribute = attributes.find(member.attribute);
             if (attribute == attributes.end()) {
-                AddError(diagnostics, member.file, std::string(match::expr::kRootPointer),
+                AddError(diagnostics, member.file, MemberPointer(member),
                          "unknown attribute \"" + member.attribute + "\"",
                          match::expr::SuggestClosest(member.attribute, attribute_names));
             } else if (!attribute->second->extensible &&
                        NamespaceOf(member.identifier) !=
                            NamespaceOf(attribute->second->identifier)) {
-                AddError(diagnostics, member.file, std::string(match::expr::kRootPointer),
+                AddError(diagnostics, member.file, MemberPointer(member),
                          "attribute \"" + attribute->second->identifier +
                              "\" is not extensible; member \"" + member.identifier +
                              "\" belongs to another mod");
@@ -121,7 +140,7 @@ std::vector<Diagnostic> ValidateCatalog(const std::vector<ModSchema>& mods) {
             if (NamespaceOf(first->identifier) == NamespaceOf(member.identifier)) {
                 continue;
             }
-            AddError(diagnostics, member.file, std::string(match::expr::kRootPointer),
+            AddError(diagnostics, member.file, MemberPointer(member),
                      "members \"" + first->identifier + "\" and \"" + member.identifier +
                          "\" share the local name \"" + local +
                          "\"; set identifier_alias on one");
@@ -129,19 +148,19 @@ std::vector<Diagnostic> ValidateCatalog(const std::vector<ModSchema>& mods) {
     }
 
     // INFO: a property identifier is namespaced, so it can only be declared
-    // twice inside one mod; that duplicate is reported. A `type: member`
-    // property must name an attribute some mod declares.
+    // twice inside one mod. The duplicate is reported at the property's `type`
+    // key and an unknown `type: member` attribute at its `attribute` key.
     for (const ModSchema& mod : mods) {
         std::set<std::string> seen;
         for (const PropertyDef& property : mod.properties) {
             if (!seen.insert(property.identifier).second) {
-                AddError(diagnostics, property.file, std::string(match::expr::kRootPointer),
+                AddError(diagnostics, property.file, PropertyTypePointer(property),
                          "property \"" + property.identifier + "\" is declared twice in mod \"" +
                              mod.mod_id + "\"");
             }
             if (property.type == "member" &&
                 attributes.find(property.member_attribute) == attributes.end()) {
-                AddError(diagnostics, property.file, std::string(match::expr::kRootPointer),
+                AddError(diagnostics, property.file, PropertyAttributePointer(property),
                          "property \"" + property.identifier + "\" names unknown attribute \"" +
                              property.member_attribute + "\"",
                          match::expr::SuggestClosest(property.member_attribute, attribute_names));
@@ -168,18 +187,11 @@ std::vector<Diagnostic> ValidateCatalog(const std::vector<ModSchema>& mods) {
                              "kind \"" + entry.kind + "\" is abstract");
                     continue;
                 }
-                std::vector<std::string> slot_names;
-                slot_names.reserve(kind.slots.size());
-                for (const SlotBinding& binding : kind.slots) {
-                    slot_names.push_back(binding.name);
-                }
+                const std::set<std::string>& slot_names = kind_slot_names.at(entry.kind);
+                const std::vector<std::string> slot_candidates(slot_names.begin(),
+                                                               slot_names.end());
                 for (const auto& [slot, selector] : entry.members) {
-                    const bool known = std::find_if(
-                                           kind.slots.begin(), kind.slots.end(),
-                                           [&slot](const SlotBinding& binding) {
-                                               return binding.name == slot;
-                                           }) != kind.slots.end();
-                    if (known) {
+                    if (slot_names.count(slot) != 0) {
                         continue;
                     }
                     const std::string pointer =
@@ -189,7 +201,7 @@ std::vector<Diagnostic> ValidateCatalog(const std::vector<ModSchema>& mods) {
                             : selector.pointer;
                     AddError(diagnostics, deck.file, pointer,
                              "unknown slot \"" + slot + "\" for kind \"" + entry.kind + "\"",
-                             match::expr::SuggestClosest(slot, slot_names));
+                             match::expr::SuggestClosest(slot, slot_candidates));
                 }
             }
         }
@@ -222,17 +234,31 @@ std::vector<Diagnostic> ValidateCatalog(const std::vector<ModSchema>& mods) {
         if (!contribution.when) {
             return;
         }
+        // INFO: once the report holds the cap plus the truncation marker there is
+        // nothing left to add, so the remaining contributions are skipped.
+        if (diagnostics.size() > kMaximumDiagnostics) {
+            return;
+        }
         const std::string pointer = match::expr::AppendPointerToken(
             contribution.pointer.empty() ? std::string(match::expr::kRootPointer)
                                          : contribution.pointer,
             "when");
-        const match::expr::CheckResult checked = match::expr::CheckExpression(
-            *contribution.when, schema, match::expr::Type::kBool, file, pointer);
+        // INFO: the loader already parses every `when` and owns its syntax error.
+        // Re-checking the source here would emit the same line a second time for
+        // a caller that concatenates both reports.
+        const match::expr::ParseResult parsed = match::expr::ParseExpression(*contribution.when);
+        if (parsed.error) {
+            return;
+        }
+        const match::expr::CheckResult checked = match::expr::CheckParsedExpression(
+            *parsed.root, schema, match::expr::Type::kBool, file, pointer,
+            match::expr::GuardState{});
         for (const Diagnostic& diagnostic : checked.diagnostics) {
-            if (diagnostics.size() >= kMaximumDiagnostics) {
+            AddError(diagnostics, diagnostic.file, diagnostic.pointer, diagnostic.message,
+                     diagnostic.suggestion);
+            if (diagnostics.size() > kMaximumDiagnostics) {
                 return;
             }
-            diagnostics.push_back(diagnostic);
         }
     };
 

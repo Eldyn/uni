@@ -18,6 +18,11 @@ namespace match::cardschema {
 // expansion reports its own diagnostics; ValidateCatalog reports the remaining
 // cross-mod rules and reuses ExpandDeck's wording for an unknown or abstract
 // deck kind so the caller's DedupeDiagnostics removes the exact repeats.
+//
+// INFO: the whole `mods` vector is treated as one catalog: every attribute,
+// template, deck and property of every mod participates, whatever their mod.
+// `GeneratedCard.requires_mods` and `DeckSpec.mods` are ignored here; whether a
+// deck's `mods` list restricts the catalog it may name is decided by Task 15.
 std::vector<Diagnostic> ValidateCatalog(const std::vector<ModSchema>& mods);
 
 }  // namespace match::cardschema

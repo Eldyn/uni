@@ -6,12 +6,17 @@
 
 #include <match/cardschema/catalog.hpp>
 #include <match/cardschema/loader.hpp>
+#include <match/cardschema/resolve.hpp>
+#include <match/cardschema/validate.hpp>
 #include <match/expr/diagnostic.hpp>
 
 #include "cardschema_test_support.hpp"
 
+using match::cardschema::DedupeDiagnostics;
 using match::cardschema::ExpandCards;
 using match::cardschema::LoadModSchema;
+using match::cardschema::ValidateCatalog;
+using match::expr::Diagnostic;
 using match::expr::FormatDiagnostic;
 
 TEST_SUITE("cardschema loader") {
@@ -601,6 +606,26 @@ TEST_CASE("diagnostics_are_capped") {
 
     REQUIRE(outcome.diagnostics.size() == 101);
     CHECK(outcome.diagnostics[100].message == "more errors not shown");
+}
+
+TEST_CASE("when_syntax_error_is_reported_once") {
+    CardSchemaTempDir dir;
+    dir.Write("uni/kinds/draw2.json",
+              R"({"format_version":"1.0.0","kind":{"identifier":"uni:draw2",)"
+              R"("contribute":{"base":{"when":"1 +"}}}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "uni", "uni");
+    REQUIRE(outcome.diagnostics.size() == 1);
+
+    std::vector<Diagnostic> diagnostics = outcome.diagnostics;
+    const std::vector<Diagnostic> validated = ValidateCatalog({outcome.schema});
+    diagnostics.insert(diagnostics.end(), validated.begin(), validated.end());
+    DedupeDiagnostics(diagnostics);
+
+    REQUIRE(diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(diagnostics[0]) ==
+          "mods/uni/kinds/draw2.json#/kind/contribute/base/when: expected an expression after '+' "
+          "(at offset 3)");
 }
 
 TEST_CASE("rejected_duplicate_attribute_drops_its_members") {

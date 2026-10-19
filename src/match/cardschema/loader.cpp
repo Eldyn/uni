@@ -16,6 +16,7 @@
 #include <vector>
 
 #include <match/cardschema/identifier.hpp>
+#include <match/cardschema/internal.hpp>
 #include <match/expr/condition.hpp>
 #include <match/expr/diagnostic.hpp>
 #include <match/expr/parser.hpp>
@@ -27,16 +28,14 @@ namespace {
 
 namespace fs = std::filesystem;
 
+using internal::AddError;
+
 constexpr const char* kFormatVersion = "1.0.0";
 
 // INFO: the loader reads at most this many bytes per file; a larger file is
 // rejected before it is read, and the read is capped one byte past the limit so
 // a file that grows between the size check and the read cannot slip through.
 constexpr std::uintmax_t kMaximumCardFileBytes = 1048576;
-
-// INFO: a hopeless file can produce thousands of errors; after this many the
-// loader emits one final marker instead, so a bad mod cannot flood the report.
-constexpr std::size_t kMaximumDiagnostics = 100;
 
 // INFO: a kind orders its slots in `slot_order`; a longer list is rejected so a
 // hostile kind cannot make the resolver walk an unbounded slot list.
@@ -87,19 +86,6 @@ std::string PathLabel(const std::string& mod_id, const fs::path& relative) {
 std::string RelativeLabel(const std::string& mod_id, const fs::path& mod_directory,
                           const fs::path& path) {
     return PathLabel(mod_id, path.lexically_relative(mod_directory));
-}
-
-void AddError(std::vector<Diagnostic>& diagnostics, const std::string& file,
-              const std::string& pointer, std::string message,
-              std::string suggestion = {}) {
-    if (diagnostics.size() >= kMaximumDiagnostics) {
-        if (diagnostics.size() == kMaximumDiagnostics) {
-            diagnostics.push_back(Diagnostic{file, pointer, "more errors not shown", {}});
-        }
-        return;
-    }
-    diagnostics.push_back(
-        Diagnostic{file, pointer, std::move(message), std::move(suggestion)});
 }
 
 void CheckUnknownKeys(const json& object, const std::vector<std::string>& known,
@@ -1461,6 +1447,8 @@ bool ParseProperty(const json& value, const std::string& mod_id, const std::stri
     ParsePropertyWritableBy(value, file, pointer, diagnostics, property);
     ParsePropertyAttribute(value, mod_id, file, pointer, diagnostics, property, type_known);
 
+    property.type_pointer = match::expr::AppendPointerToken(pointer, "type");
+    property.attribute_pointer = match::expr::AppendPointerToken(pointer, "attribute");
     property.file = file;
     return usable && diagnostics.size() == initial_diagnostics;
 }
@@ -1593,6 +1581,8 @@ bool ParseMember(const json& value, const std::string& default_attribute,
     }
 
     member.attribute = attribute;
+    member.attribute_pointer =
+        allow_attribute ? match::expr::AppendPointerToken(pointer, "attribute") : std::string{};
     member.file = file;
     return diagnostics.size() == initial_diagnostics;
 }
@@ -1675,6 +1665,11 @@ bool ParseAttribute(const json& value, const std::string& mod_id, const std::str
                                  member_pointer, diagnostics, member)) {
                     continue;
                 }
+                // INFO: an inline member does not carry its own `attribute` key;
+                // its attribute is the enclosing attribute's identifier, so the
+                // member error pointer points at that identifier.
+                member.attribute_pointer =
+                    match::expr::AppendPointerToken(pointer, "identifier");
                 pending_members.push_back(PendingMember{std::move(member), member_pointer});
             }
         }
