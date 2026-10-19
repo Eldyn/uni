@@ -7,6 +7,7 @@
 #include <exception>
 #include <filesystem>
 #include <fstream>
+#include <iterator>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -44,6 +45,7 @@ struct Options {
     std::optional<Type> expected;
     bool has_schema = false;
     bool has_expression = false;
+    bool has_expected = false;
 };
 
 // INFO: consumes the value that follows `flag`; `index` stops on it.
@@ -72,11 +74,17 @@ std::optional<std::string> ParseArgs(const std::vector<std::string>& args, Optio
             }
             options.has_schema = true;
         } else if (arg == "--expression") {
+            if (options.has_expression) {
+                return std::string("flag \"--expression\" given twice");
+            }
             if (!TakeValue(args, index, "--expression", options.expression, error)) {
                 return error;
             }
             options.has_expression = true;
         } else if (arg == "--expect") {
+            if (options.has_expected) {
+                return std::string("flag \"--expect\" given twice");
+            }
             std::string name;
             if (!TakeValue(args, index, "--expect", name, error)) {
                 return error;
@@ -86,6 +94,7 @@ std::optional<std::string> ParseArgs(const std::vector<std::string>& args, Optio
                 return "unknown type \"" + name + "\" for --expect";
             }
             options.expected = expected;
+            options.has_expected = true;
         } else {
             return "unknown flag \"" + arg + "\"";
         }
@@ -97,39 +106,47 @@ std::optional<std::string> ParseArgs(const std::vector<std::string>& args, Optio
 }
 
 // INFO: a regular file at `path` whose contents fit the size limit. Streams the
-// reason to `err` and returns false otherwise.
-bool ReadSchemaFile(const std::string& path, json& value, std::ostream& err) {
+// reason to `err` and returns false otherwise. `duplicates` collects every key
+// repeated inside one JSON object.
+bool ReadSchemaFile(const std::string& path, json& value, std::vector<DuplicateKey>& duplicates,
+                    std::ostream& err) {
     std::error_code status_error;
     const fs::file_status status = fs::status(path, status_error);
     if (status_error) {
-        err << "cannot read " << path << ": " << status_error.message() << "\n";
+        err << "cannot read \"" << path << "\": " << status_error.message() << "\n";
         return false;
     }
     if (!fs::is_regular_file(status)) {
         if (!fs::exists(status)) {
-            err << "cannot read " << path << ": " << std::strerror(ENOENT) << "\n";
+            err << "cannot read \"" << path << "\": " << std::strerror(ENOENT) << "\n";
         } else {
-            err << "cannot read " << path << ": not a regular file\n";
+            err << "cannot read \"" << path << "\": not a regular file\n";
         }
         return false;
     }
     std::error_code size_error;
     const std::uintmax_t size = fs::file_size(path, size_error);
-    if (!size_error && size > kMaximumSchemaFileSize) {
+    if (size_error) {
+        err << "cannot read \"" << path << "\": " << size_error.message() << "\n";
+        return false;
+    }
+    if (size > kMaximumSchemaFileSize) {
         err << "schema file is too large\n";
         return false;
     }
-    std::ifstream stream(path);
+    std::ifstream stream(path, std::ios::binary);
     if (!stream) {
-        err << "cannot read " << path << ": " << std::strerror(errno) << "\n";
+        err << "cannot read \"" << path << "\": " << std::strerror(errno) << "\n";
         return false;
     }
-    try {
-        stream >> value;
-    } catch (const json::exception&) {
+    const std::istreambuf_iterator<char> first(stream);
+    const std::string text{first, std::istreambuf_iterator<char>()};
+    const std::optional<json> parsed = ParseSchemaJson(text, duplicates);
+    if (!parsed.has_value()) {
         err << "the schema file \"" << path << "\" is not valid JSON\n";
         return false;
     }
+    value = *parsed;
     return true;
 }
 
@@ -144,13 +161,14 @@ int RunVerifyImpl(const std::vector<std::string>& args, std::ostream& out, std::
     }
 
     json value;
-    if (!ReadSchemaFile(options.schema_path, value, err)) {
+    std::vector<DuplicateKey> duplicates;
+    if (!ReadSchemaFile(options.schema_path, value, duplicates, err)) {
         return 3;
     }
 
     std::vector<Diagnostic> schema_diagnostics;
     const std::optional<Schema> schema =
-        LoadSchema(value, options.schema_path, schema_diagnostics);
+        LoadSchema(value, options.schema_path, duplicates, schema_diagnostics);
     if (!schema.has_value()) {
         for (const Diagnostic& diagnostic : schema_diagnostics) {
             err << FormatDiagnostic(diagnostic) << "\n";

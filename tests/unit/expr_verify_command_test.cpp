@@ -164,6 +164,20 @@ TEST_CASE("every_argument_and_schema_failure_reports_the_same_way") {
     several["variables"]["played"]["optional_"] = true;
     const std::string several_path = temp.Write("several.json", several.dump(2));
 
+    json unknown_key_and_type = ReadSchema();
+    unknown_key_and_type["zzz"] = 1;
+    unknown_key_and_type["seat_properties"]["hand"] = "unt";
+    const std::string unknown_key_and_type_path =
+        temp.Write("unknown_key_and_type.json", unknown_key_and_type.dump(2));
+
+    const std::string duplicate_root =
+        temp.Write("duplicate_root.json", R"({"seat_properties": {}, "seat_properties": {}})");
+    const std::string duplicate_nested = temp.Write(
+        "duplicate_nested.json",
+        R"({"seat_properties": {"hand_size": "int", "hand_size": "bool"}})");
+    const std::string escaped_pointer = temp.Write(
+        "escaped_pointer.json", R"({"seat_properties": {"a/b~c": "xyz"}})");
+
     const std::string too_large =
         temp.Write("too_large.json", std::string(1024 * 1024 + 8, ' '));
 
@@ -172,12 +186,12 @@ TEST_CASE("every_argument_and_schema_failure_reports_the_same_way") {
          {"verify", "--schema", missing, "--expression", "1"},
          3,
          "",
-         "cannot read " + missing + ": No such file or directory\n"},
+         "cannot read \"" + missing + "\": No such file or directory\n"},
         {"a_directory_as_schema",
          {"verify", "--schema", directory, "--expression", "1"},
          3,
          "",
-         "cannot read " + directory + ": not a regular file\n"},
+         "cannot read \"" + directory + "\": not a regular file\n"},
         {"invalid_json_schema",
          {"verify", "--schema", invalid_json, "--expression", "1"},
          3,
@@ -207,6 +221,27 @@ TEST_CASE("every_argument_and_schema_failure_reports_the_same_way") {
          "",
          several_path + "#/: unknown key \"zzz\"\n" + several_path +
              "#/variables/played: unknown key \"optional_\" (did you mean \"optional\")\n"},
+        {"an_unknown_key_and_an_unknown_type_are_both_printed",
+         {"verify", "--schema", unknown_key_and_type_path, "--expression", "1"},
+         1,
+         "",
+         unknown_key_and_type_path + "#/: unknown key \"zzz\"\n" + unknown_key_and_type_path +
+             "#/seat_properties/hand: unknown type \"unt\" (did you mean \"int\")\n"},
+        {"a_duplicate_top_level_key",
+         {"verify", "--schema", duplicate_root, "--expression", "1"},
+         1,
+         "",
+         duplicate_root + "#/: duplicate key \"seat_properties\"\n"},
+        {"a_duplicate_key_in_a_nested_object",
+         {"verify", "--schema", duplicate_nested, "--expression", "1"},
+         1,
+         "",
+         duplicate_nested + "#/seat_properties: duplicate key \"hand_size\"\n"},
+        {"a_pointer_escapes_special_characters",
+         {"verify", "--schema", escaped_pointer, "--expression", "1"},
+         1,
+         "",
+         escaped_pointer + "#/seat_properties/a~1b~0c: unknown type \"xyz\"\n"},
         {"an_unknown_flag",
          {"verify", "--schema", valid, "--expression", "1", "--foo"},
          2,
@@ -222,6 +257,16 @@ TEST_CASE("every_argument_and_schema_failure_reports_the_same_way") {
          2,
          "",
          std::string("flag \"--schema\" given twice\n") + std::string(kUsage)},
+        {"a_repeated_expression_flag",
+         {"verify", "--schema", valid, "--expression", "1", "--expression", "1"},
+         2,
+         "",
+         std::string("flag \"--expression\" given twice\n") + std::string(kUsage)},
+        {"a_repeated_expect_flag",
+         {"verify", "--schema", valid, "--expression", "1", "--expect", "int", "--expect", "int"},
+         2,
+         "",
+         std::string("flag \"--expect\" given twice\n") + std::string(kUsage)},
         {"an_unknown_expect_type",
          {"verify", "--schema", valid, "--expression", "1", "--expect", "unt"},
          2,

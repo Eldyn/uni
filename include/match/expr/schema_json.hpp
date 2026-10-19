@@ -14,6 +14,20 @@ namespace match::expr {
 
 using json = nlohmann::json;
 
+// INFO: a key that occurs more than once inside one JSON object, with the RFC
+// 6901 pointer of the object that holds it. nlohmann keeps the last value of a
+// repeated key, so a schema with a duplicate loses data unless the repeat is
+// reported.
+struct DuplicateKey {
+    std::string pointer;
+    std::string key;
+};
+
+// INFO: parses `text` as JSON and records every key repeated inside one object;
+// returns an empty optional when the text is not valid JSON.
+std::optional<json> ParseSchemaJson(const std::string& text,
+                                    std::vector<DuplicateKey>& duplicates);
+
 // INFO: builds the Schema the conformance corpus and the verifier share. The
 // JSON keys are `seat_properties`, `card_properties`, `match_properties` and
 // `settings` (an object from a property key to a type name), `card_slots` (an
@@ -26,6 +40,12 @@ using json = nlohmann::json;
 // and an RFC 6901 pointer under `file_label`; it is empty exactly when a schema
 // is returned.
 std::optional<Schema> LoadSchema(const json& value, std::string_view file_label,
+                                 std::vector<Diagnostic>& diagnostics);
+
+// INFO: also reports every key listed in `duplicates` as a diagnostic, with the
+// pointer of the object that holds it.
+std::optional<Schema> LoadSchema(const json& value, std::string_view file_label,
+                                 const std::vector<DuplicateKey>& duplicates,
                                  std::vector<Diagnostic>& diagnostics);
 
 // INFO: the readable-error overload for callers that only need one message; the

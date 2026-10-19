@@ -1,5 +1,6 @@
 #include <match/expr/schema_json.hpp>
 
+#include <algorithm>
 #include <cstddef>
 #include <map>
 #include <optional>
@@ -48,6 +49,117 @@ std::string AppendPointer(std::string_view pointer, std::string_view token) {
     return result;
 }
 
+// INFO: scans JSON text for keys that repeat inside one object. nlohmann keeps
+// the last value of a repeated key when it builds a value, so the repeats have
+// to be seen while the text is parsed. The scan tracks the RFC 6901 pointer of
+// every open container and the keys already seen in each open object; the value
+// itself is discarded.
+class DuplicateKeyScanner final : public nlohmann::json_sax<json> {
+public:
+    explicit DuplicateKeyScanner(std::vector<DuplicateKey>& duplicates)
+        : duplicates_(duplicates) {}
+
+    bool null() override { return ReadScalar(); }
+    bool boolean(bool) override { return ReadScalar(); }
+    bool number_integer(number_integer_t) override { return ReadScalar(); }
+    bool number_unsigned(number_unsigned_t) override { return ReadScalar(); }
+    bool number_float(number_float_t, const string_t&) override { return ReadScalar(); }
+    bool string(string_t&) override { return ReadScalar(); }
+    bool binary(binary_t&) override { return ReadScalar(); }
+
+    bool start_object(std::size_t) override {
+        return OpenContainer(true);
+    }
+
+    bool key(string_t& name) override {
+        Container& container = containers_.back();
+        const bool repeated =
+            std::find(container.keys.begin(), container.keys.end(), name) != container.keys.end();
+        if (repeated) {
+            duplicates_.push_back(DuplicateKey{CurrentPointer(), name});
+        } else {
+            container.keys.push_back(name);
+        }
+        pending_key_ = name;
+        has_pending_key_ = true;
+        return true;
+    }
+
+    bool end_object() override { return CloseContainer(); }
+
+    bool start_array(std::size_t) override {
+        return OpenContainer(false);
+    }
+
+    bool end_array() override { return CloseContainer(); }
+
+    bool parse_error(std::size_t, const std::string&, const nlohmann::detail::exception&) override {
+        return false;
+    }
+
+private:
+    // INFO: one open object or array; `pushed_token` says whether its own token
+    // is on `tokens_`, and `next_index` counts the elements of an array.
+    struct Container {
+        bool is_object;
+        bool pushed_token;
+        std::vector<std::string> keys;
+        std::size_t next_index;
+    };
+
+    bool OpenContainer(bool is_object) {
+        const bool pushed_token = BeginValue();
+        containers_.push_back(Container{is_object, pushed_token, {}, 0});
+        return true;
+    }
+
+    bool CloseContainer() {
+        const Container& container = containers_.back();
+        if (container.pushed_token) {
+            tokens_.pop_back();
+        }
+        containers_.pop_back();
+        return true;
+    }
+
+    bool ReadScalar() {
+        const bool pushed_token = BeginValue();
+        if (pushed_token) {
+            tokens_.pop_back();
+        }
+        return true;
+    }
+
+    // INFO: pushes the token of the value that starts here: the key an object
+    // set, or the next index of an array; the root value has no token.
+    bool BeginValue() {
+        if (has_pending_key_) {
+            tokens_.push_back(pending_key_);
+            has_pending_key_ = false;
+            return true;
+        }
+        if (!containers_.empty() && !containers_.back().is_object) {
+            tokens_.push_back(std::to_string(containers_.back().next_index++));
+            return true;
+        }
+        return false;
+    }
+
+    std::string CurrentPointer() const {
+        std::string pointer;
+        for (const std::string& token : tokens_) {
+            pointer = AppendPointer(pointer, token);
+        }
+        return pointer.empty() ? std::string(kRootPointer) : pointer;
+    }
+
+    std::vector<DuplicateKey>& duplicates_;
+    std::vector<Container> containers_;
+    std::vector<std::string> tokens_;
+    std::string pending_key_;
+    bool has_pending_key_ = false;
+};
+
 std::string SuggestClosestType(std::string_view name) {
     std::vector<std::string> candidates;
     for (const auto& [text, type] : kTypeNames) {
@@ -68,10 +180,12 @@ bool IsAllowedKey(std::string_view key, const AllowedKeys& allowed) {
 
 class SchemaLoader {
 public:
-    SchemaLoader(const json& value, std::string_view file_label)
-        : value_(value), file_label_(file_label) {}
+    SchemaLoader(const json& value, std::string_view file_label,
+                 const std::vector<DuplicateKey>& duplicates)
+        : value_(value), file_label_(file_label), duplicates_(duplicates) {}
 
     std::optional<Schema> Load() {
+        AddDuplicates();
         if (!value_.is_object()) {
             Add(kRootPointer, "the schema must be an object");
             return std::nullopt;
@@ -95,6 +209,14 @@ private:
     void Add(std::string_view pointer, std::string message, std::string suggestion = {}) {
         diagnostics_.push_back(Diagnostic{std::string(file_label_), std::string(pointer),
                                           std::move(message), std::move(suggestion)});
+    }
+
+    // INFO: a repeated key is reported against the object that holds it, since
+    // that is where the losing value was written.
+    void AddDuplicates() {
+        for (const DuplicateKey& duplicate : duplicates_) {
+            Add(duplicate.pointer, "duplicate key \"" + duplicate.key + "\"");
+        }
     }
 
     template <typename AllowedKeys>
@@ -210,18 +332,39 @@ private:
 
     const json& value_;
     std::string_view file_label_;
+    const std::vector<DuplicateKey>& duplicates_;
     Schema schema_;
     std::vector<Diagnostic> diagnostics_;
 };
 
 }  // namespace
 
+std::optional<json> ParseSchemaJson(const std::string& text,
+                                    std::vector<DuplicateKey>& duplicates) {
+    const json value = json::parse(text, nullptr, false);
+    if (value.is_discarded()) {
+        return std::nullopt;
+    }
+    // INFO: the parse above proved the text is valid JSON, so the scan for
+    // repeated keys cannot reject it and its result is discarded on purpose.
+    DuplicateKeyScanner scanner(duplicates);
+    static_cast<void>(json::sax_parse(text, &scanner));
+    return value;
+}
+
 std::optional<Schema> LoadSchema(const json& value, std::string_view file_label,
+                                 const std::vector<DuplicateKey>& duplicates,
                                  std::vector<Diagnostic>& diagnostics) {
-    SchemaLoader loader(value, file_label);
+    SchemaLoader loader(value, file_label, duplicates);
     std::optional<Schema> schema = loader.Load();
     diagnostics = loader.TakeDiagnostics();
     return schema;
+}
+
+std::optional<Schema> LoadSchema(const json& value, std::string_view file_label,
+                                 std::vector<Diagnostic>& diagnostics) {
+    const std::vector<DuplicateKey> no_duplicates;
+    return LoadSchema(value, file_label, no_duplicates, diagnostics);
 }
 
 std::optional<Schema> LoadSchema(const json& value, std::string& error) {
