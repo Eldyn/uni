@@ -3,9 +3,7 @@
      asks the screen to open the item's detail panel. -->
 <script module lang="ts">
 	import * as messages from "$lib/paraglide/messages.js";
-	import { FRAME_SIZE, STRIP_WIDTH } from "$lib/avatar/types";
 	import type { CatalogueItem } from "$lib/avatar/types";
-	import { assetUrl } from "$lib/utils/assetUrl";
 
 	/** The paraglide key that names a catalogue item: `uni:eyes_dot` -> `shop_item_uni_eyes_dot`. */
 	export function itemLabelKey(id: string): string {
@@ -24,16 +22,6 @@
 			{ locale }
 		);
 		return typeof value === "string" && value.length > 0 ? value : fallback;
-	}
-
-	/** Frame 0 of a strip asset, or the still itself, as a background style. */
-	export function itemArtStyle(entry: CatalogueItem): string {
-		const url = assetUrl(`/assets/avatar/${entry.asset.path}`);
-		const size =
-			entry.asset.kind === "strip"
-				? `${STRIP_WIDTH}px ${FRAME_SIZE}px`
-				: `${FRAME_SIZE}px ${FRAME_SIZE}px`;
-		return `background-image: url('${url}'); background-size: ${size};`;
 	}
 </script>
 

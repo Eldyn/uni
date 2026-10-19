@@ -1,6 +1,6 @@
-// The featured hero: the preview must never be an empty box. When the avatar
-// bake is ready it shows the baked sprite; otherwise it falls back to the
-// featured item's own art on the stage tile. BUY is primary, TRY ON secondary.
+// The featured hero: the preview must never show the raw mask file. When the
+// avatar bake is ready it shows the baked sprite; otherwise it shows an empty
+// stage tile. BUY is primary, TRY ON secondary.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/svelte";
@@ -54,11 +54,11 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("FeaturedBanner", () => {
-	it("shows the item art on the stage tile while the avatar bake is pending", () => {
+	it("shows an empty stage tile, never the raw mask, while the bake is pending", () => {
 		const { container } = renderBanner();
-		const art = container.querySelector<HTMLElement>(".featured-item-art");
-		expect(art).toBeTruthy();
-		expect(art?.style.getPropertyValue("background-image")).toContain("head_top/uni_hat_cap.png");
+		const tile = container.querySelector<HTMLElement>(".featured-item-art");
+		expect(tile).toBeTruthy();
+		expect(tile?.getAttribute("style") ?? "").not.toContain("background-image");
 		expect(container.querySelector(".avatar-sprite")).toBeNull();
 	});
 
