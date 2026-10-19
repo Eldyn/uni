@@ -1,6 +1,7 @@
 #pragma once
 
 #include <optional>
+#include <string>
 #include <string_view>
 
 #include <match/expr/ast.hpp>
@@ -14,6 +15,10 @@ struct ParseResult {
 };
 
 ParseResult ParseExpression(std::string_view source);
+
+// INFO: the user-facing text of a parse error, with the byte offset it points
+// at, so two errors that share a message are still distinguishable.
+std::string FormatParseError(const ParseError& error);
 
 enum class AssignOp { kSet, kAdd, kSubtract, kMultiply };
 

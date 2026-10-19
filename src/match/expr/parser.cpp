@@ -10,6 +10,10 @@
 
 namespace match::expr {
 
+std::string FormatParseError(const ParseError& error) {
+    return error.message + " (at offset " + std::to_string(error.position) + ")";
+}
+
 std::string DebugString(const Node& node) {
     switch (node.kind) {
         case NodeKind::kLiteral:

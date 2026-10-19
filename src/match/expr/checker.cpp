@@ -988,7 +988,8 @@ CheckResult CheckExpression(std::string_view source, const Schema& schema,
     if (parsed.error) {
         CheckResult result;
         result.diagnostics.push_back(
-            Diagnostic{std::string(file), std::string(pointer), parsed.error->message, ""});
+            Diagnostic{std::string(file), std::string(pointer), FormatParseError(*parsed.error),
+                       ""});
         return result;
     }
     return CheckParsedExpression(*parsed.root, schema, expected, file, pointer, initial);

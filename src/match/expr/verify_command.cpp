@@ -7,7 +7,6 @@
 #include <exception>
 #include <filesystem>
 #include <fstream>
-#include <iterator>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -138,8 +137,15 @@ bool ReadSchemaFile(const std::string& path, json& value, SchemaScan& scan, std:
         err << "cannot read \"" << path << "\": " << std::strerror(errno) << "\n";
         return false;
     }
-    const std::istreambuf_iterator<char> first(stream);
-    const std::string text{first, std::istreambuf_iterator<char>()};
+    // INFO: read one byte past the limit rather than the whole file: the size
+    // check above can be stale if the file grows between the two.
+    std::string text(kMaximumSchemaFileSize + 1, '\0');
+    stream.read(text.data(), static_cast<std::streamsize>(text.size()));
+    text.resize(static_cast<std::size_t>(stream.gcount()));
+    if (text.size() > kMaximumSchemaFileSize) {
+        err << "schema file is too large\n";
+        return false;
+    }
     const std::optional<json> parsed = ParseSchemaJson(text, scan);
     if (!parsed.has_value()) {
         err << "the schema file \"" << path << "\" is not valid JSON\n";
@@ -150,6 +156,14 @@ bool ReadSchemaFile(const std::string& path, json& value, SchemaScan& scan, std:
 }
 
 int RunVerifyImpl(const std::vector<std::string>& args, std::ostream& out, std::ostream& err) {
+    if (args.empty()) {
+        err << kUsage;
+        return 2;
+    }
+    if (args[0] != "verify") {
+        err << "unknown command \"" << args[0] << "\"\n" << kUsage;
+        return 2;
+    }
     Options options;
     if (const std::optional<std::string> error = ParseArgs(args, options)) {
         if (!error->empty()) {
@@ -182,7 +196,12 @@ int RunVerifyImpl(const std::vector<std::string>& args, std::ostream& out, std::
     }
 
     if (options.expression.size() > kMaximumExpressionBytes) {
-        err << "expression is too long\n";
+        const Diagnostic too_long{std::string(kExpressionFileLabel),
+                                  std::string(kRootPointer),
+                                  "expression is too long (more than " +
+                                      std::to_string(kMaximumExpressionBytes) + " bytes)",
+                                  ""};
+        err << FormatDiagnostic(too_long) << "\n";
         return 1;
     }
 

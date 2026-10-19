@@ -121,8 +121,8 @@ private:
             const std::string source = value.get<std::string>();
             ParseResult parsed = ParseExpression(source);
             if (parsed.error.has_value() || !parsed.root) {
-                Error(pointer, parsed.error.has_value() ? parsed.error->message
-                                                        : "condition expression is empty");
+                Error(pointer, parsed.error.has_value() ? FormatParseError(*parsed.error)
+                                                       : "condition expression is empty");
                 return std::nullopt;
             }
             const size_t node_count = CountNodes(*parsed.root);
