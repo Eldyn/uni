@@ -129,6 +129,10 @@
 		await storeAuth.checkSession();
 		sessionChecked = true;
 
+		// A guarded deep link (e.g. /wardrobe) lost its guard race at
+		// construction because the session was not restored yet; apply it now.
+		storeNavigation.applyInitialScreen();
+
 		if (
 			storeAuth.isLoggedIn &&
 			!storeAuth.emailVerified &&

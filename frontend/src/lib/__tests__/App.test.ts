@@ -55,6 +55,19 @@ describe("App", () => {
 		storeNavigation.pendingVerifyCode = null;
 		storeNavigation.activeVerifyCode = null;
 		storeNavigation.current = "main";
+		storeNavigation.initialScreen = null;
+		storeNavigation.deferredScreen = null;
+	});
+
+	it("applies a deferred /wardrobe deep link once the session resolves", async () => {
+		vi.mocked(storeAuth).isLoggedIn = true;
+		storeNavigation.deferredScreen = "wardrobe";
+
+		render(App);
+
+		await vi.waitFor(() => {
+			expect(storeNavigation.current).toBe("wardrobe");
+		});
 	});
 
 	it("opens verification modal on session load for unverified users", async () => {

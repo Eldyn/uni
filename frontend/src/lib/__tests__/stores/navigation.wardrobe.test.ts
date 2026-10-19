@@ -61,4 +61,31 @@ describe("wardrobe navigation", () => {
 		expect(nav.goto("wardrobe")).toBe(false);
 		expect(nav.current).not.toBe("wardrobe");
 	});
+
+	it("defers a cold load of /wardrobe until the account session resolves", () => {
+		const nav = new StoreNavigation("/wardrobe");
+		// The guard fails at construction: auth has not been restored yet.
+		expect(nav.current).toBe("main");
+		expect(nav.initialScreen).toBe("wardrobe");
+
+		authState.isLoggedIn = true;
+		nav.applyInitialScreen();
+
+		expect(nav.current).toBe("wardrobe");
+	});
+
+	it("lands a guest who cold loads /wardrobe on the wardrobe", () => {
+		const nav = new StoreNavigation("/wardrobe");
+		authState.isGuest = true;
+		nav.applyInitialScreen();
+
+		expect(nav.current).toBe("wardrobe");
+	});
+
+	it("keeps an anonymous cold load of /wardrobe on home", () => {
+		const nav = new StoreNavigation("/wardrobe");
+		nav.applyInitialScreen();
+
+		expect(nav.current).toBe("main");
+	});
 });

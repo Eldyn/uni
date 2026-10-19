@@ -115,7 +115,8 @@ const PERSISTED_SCREENS = new Set<AppScreen>([
 	"profile",
 	"stats",
 	"decks",
-	"shop"
+	"shop",
+	"wardrobe"
 ]);
 
 /**
@@ -133,6 +134,13 @@ export class StoreNavigation {
 
 	/** The screen initially requested on page load / hard refresh. */
 	initialScreen = $state<AppScreen | null>(null);
+
+	/**
+	 * A guarded screen the URL asked for before the session existed, so its
+	 * guard refused at construction and the deep link could not be applied yet.
+	 * Applied once by `applyInitialScreen` after `checkSession()`.
+	 */
+	deferredScreen = $state<AppScreen | null>(null);
 
 	/** Whether the AuthScreen modal is open, overlaid on top of whatever screen is current. */
 	isAuthModalOpen = $state(false);
@@ -228,6 +236,10 @@ export class StoreNavigation {
 			const guard = SCREEN_GUARDS[deepLinkedScreen];
 			if (!guard || guard()) {
 				this.current = deepLinkedScreen;
+			} else {
+				// INFO: the guard depends on the session, which is restored
+				// after this store is built; remember the link and retry then.
+				this.deferredScreen = deepLinkedScreen;
 			}
 		}
 
@@ -366,6 +378,23 @@ export class StoreNavigation {
 		});
 		window.history.pushState(this.#historyState, "", pathForScreen(this.current));
 		return true;
+	}
+
+	/**
+	 * @brief Re-applies the screen the URL requested on load, once the session
+	 * is known.
+	 *
+	 * A deep link to a guarded screen (e.g. `/wardrobe`) is resolved in the
+	 * constructor before the auth session has been restored, so its guard
+	 * refuses and the requested screen is only remembered on `deferredScreen`.
+	 * Calling this after `checkSession()` lands on it; the same guard still
+	 * applies, so an anonymous visitor stays on `main`.
+	 */
+	applyInitialScreen(): void {
+		const initial = this.deferredScreen;
+		if (!initial) return;
+		this.deferredScreen = null;
+		if (this.current !== initial) this.goto(initial);
 	}
 
 	/**
