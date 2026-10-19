@@ -29,6 +29,7 @@
         "responder": { "type": "seat", "optional": true },
         "choice": { "type": "member_set", "optional": true },
         "colors": { "type": "member_set", "optional": false },
-        "nan_value": { "type": "float", "optional": false }
+        "nan_value": { "type": "float", "optional": false },
+        "f": { "type": "float", "optional": true }
     }
 }

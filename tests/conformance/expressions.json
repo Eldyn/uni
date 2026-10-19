@@ -3237,7 +3237,7 @@
             }
         },
         {
-            "name": "default_widens_a_bound_float_variable",
+            "name": "default_returns_a_bound_float_variable",
             "expression": "default($nan_value, 1) / 2",
             "expect": {
                 "value": 0.5
@@ -3246,6 +3246,13 @@
                 "variables": {
                     "nan_value": 1.0
                 }
+            }
+        },
+        {
+            "name": "default_unbound_float_variable_widens",
+            "expression": "default($f, 1) / 2",
+            "expect": {
+                "value": 0.5
             }
         },
         {

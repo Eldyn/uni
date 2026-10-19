@@ -57,6 +57,22 @@ inline Schema MakeTestSchema() {
     return schema;
 }
 
+// INFO: the only keys a world object and a seat object may carry; an unknown
+// key is a typo the loader reports instead of dropping.
+constexpr std::string_view kWorldKeys[] = {"seats",   "self",    "match",
+                                           "settings", "variables", "random"};
+constexpr std::string_view kSeatKeys[] = {"name", "properties", "tags"};
+
+template <size_t Count>
+bool IsKnownKey(std::string_view key, const std::string_view (&keys)[Count]) {
+    for (const std::string_view candidate : keys) {
+        if (candidate == key) {
+            return true;
+        }
+    }
+    return false;
+}
+
 // INFO: the EvalContext a conformance case builds from its JSON `world`. Seats
 // come from `seats` (each with a `name`, a `properties` map and optional
 // `tags`); `self` is the acting seat index; `match` and `settings` are property
@@ -247,6 +263,12 @@ private:
             error_ = "the world must be an object";
             return;
         }
+        for (auto entry = world.begin(); entry != world.end(); ++entry) {
+            if (!IsKnownKey(entry.key(), kWorldKeys)) {
+                error_ = "unknown world key \"" + entry.key() + "\"";
+                return;
+            }
+        }
         if (const auto seats = world.find("seats"); seats != world.end()) {
             if (!LoadSeats(*seats)) {
                 return;
@@ -304,6 +326,12 @@ private:
             if (!seat.is_object()) {
                 error_ = "a seat must be an object";
                 return false;
+            }
+            for (auto entry = seat.begin(); entry != seat.end(); ++entry) {
+                if (!IsKnownKey(entry.key(), kSeatKeys)) {
+                    error_ = "unknown seat key \"" + entry.key() + "\"";
+                    return false;
+                }
             }
             SeatData data;
             if (const auto name = seat.find("name"); name != seat.end()) {

@@ -38,6 +38,7 @@ using match::expr::Type;
 using match::expr::TypeFromName;
 using match::expr::Value;
 using match::expr::testing::JsonWorld;
+using match::expr::testing::MakeTestSchema;
 using nlohmann::json;
 
 namespace {
@@ -65,7 +66,7 @@ bool IsAllowedKey(std::string_view key, const std::string_view (&keys)[Count]) {
 
 // INFO: a corpus below this many cases is a mistake, not a passing run, so an
 // empty or truncated `cases` array cannot pass vacuously.
-constexpr size_t kMinimumCorpusCases = 184;
+constexpr size_t kMinimumCorpusCases = 190;
 
 // INFO: walks up from this source file to the repository root, the same way the
 // golden tests find their fixtures.
@@ -92,16 +93,8 @@ std::string ReadTextFile(const fs::path& path) {
                        std::istreambuf_iterator<char>());
 }
 
-json ReadJsonFile(const fs::path& path) {
-    std::ifstream stream(path);
-    REQUIRE(stream.good());
-    json value;
-    stream >> value;
-    return value;
-}
-
-// INFO: parses the corpus text with the duplicate-key scanner the schema loader
-// uses, so a repeated key cannot lose a case or an expectation silently.
+// INFO: parses any JSON fixture with the duplicate-key scanner the schema
+// loader uses, so a repeated key cannot lose data silently.
 std::optional<json> ParseCorpusText(const std::string& text, std::string& error) {
     SchemaScan scan;
     const std::optional<json> value = ParseSchemaJson(text, scan);
@@ -121,13 +114,15 @@ std::optional<json> ParseCorpusText(const std::string& text, std::string& error)
     return value;
 }
 
-json ReadCorpusFile(const fs::path& path) {
+json ReadScannedJsonFile(const fs::path& path) {
     const std::string text = ReadTextFile(path);
     std::string error;
     const std::optional<json> value = ParseCorpusText(text, error);
     REQUIRE_MESSAGE(value.has_value(), error);
     return *value;
 }
+
+json ReadCorpusFile(const fs::path& path) { return ReadScannedJsonFile(path); }
 
 // INFO: checks the shape of one case before it runs: only known keys, a name
 // and an expression, and exactly one expectation.
@@ -333,10 +328,22 @@ TEST_CASE("the runner rejects more than one expectation") {
     CHECK_FALSE(ValidateCase(item).empty());
 }
 
+TEST_CASE("the world loader rejects an unknown world key") {
+    JsonWorld world(MakeTestSchema(), json{{"seat", 0}});
+    CHECK_FALSE(world.error().empty());
+}
+
+TEST_CASE("the world loader rejects an unknown seat key") {
+    JsonWorld world(MakeTestSchema(),
+                    json{{"seats", json::array({json{{"nmae", "Ana"}}})}});
+    CHECK_FALSE(world.error().empty());
+}
+
 TEST_CASE("the shared corpus passes in the C++ evaluator") {
     const fs::path root = ProjectRoot();
     REQUIRE_FALSE(root.empty());
-    const json schema_value = ReadJsonFile(root / "tests" / "conformance" / "schema.json");
+    const json schema_value =
+        ReadScannedJsonFile(root / "tests" / "conformance" / "schema.json");
     std::string error;
     const std::optional<Schema> schema = LoadSchema(schema_value, error);
     REQUIRE_MESSAGE(schema.has_value(), error);
