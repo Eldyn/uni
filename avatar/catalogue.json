@@ -1,6 +1,12 @@
 {
 	"version": 1,
 	"shape_sockets": {
+		"uni:classic": {
+			"eyes": [36, 26],
+			"mouth": [42, 40],
+			"head_top": [32, 12],
+			"body_centre": [48, 62]
+		},
 		"uni:round": {
 			"eyes": [36, 26],
 			"mouth": [42, 40],
@@ -63,6 +69,16 @@
 		}
 	],
 	"items": [
+		{
+			"id": "uni:classic",
+			"slot": "shape",
+			"name": "Classic",
+			"asset": { "kind": "strip", "path": "shapes/uni_classic.png" },
+			"regions": 0,
+			"rarity": "common",
+			"price": 0,
+			"starter": true
+		},
 		{
 			"id": "uni:round",
 			"slot": "shape",

@@ -368,7 +368,7 @@ TEST_CASE("avatar catalogue: the real avatar/catalogue.json loads") {
     CHECK(catalogue.IsStarterSwatch("basic:red"));
     CHECK(catalogue.HasSwatch("uni:neon:hot"));
     REQUIRE(catalogue.SlotDefault("shape") != nullptr);
-    CHECK(catalogue.SlotDefault("shape")->id == "uni:round");
+    CHECK(catalogue.SlotDefault("shape")->id == "uni:classic");
     REQUIRE(catalogue.SlotDefault("mouth") != nullptr);
     CHECK(catalogue.SlotDefault("mouth")->id == "uni:mouth_smile");
 
