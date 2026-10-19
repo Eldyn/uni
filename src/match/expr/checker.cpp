@@ -374,21 +374,6 @@ private:
         return Narrowed{Type::kInt, bound, bound};
     }
 
-    std::optional<Narrowed> CheckIntegerArguments(const Node& node, Scope scope, Type candidate,
-                                                  const std::set<std::string>& bound) {
-        for (const NodePtr& child : node.children) {
-            const std::optional<Narrowed> type = Check(*child, scope, candidate, bound);
-            if (!type) {
-                return std::nullopt;
-            }
-            if (type->type != Type::kInt) {
-                Error(node.text + " needs ints");
-                return std::nullopt;
-            }
-        }
-        return Narrowed{Type::kInt, bound, bound};
-    }
-
     // INFO: a set call shares its first argument, the set, and a condition that
     // runs per candidate; the candidate is the entity the set holds. Each
     // aggregation is its own table entry, so every call has a handler and none
@@ -626,6 +611,37 @@ private:
             return std::nullopt;
         }
         return Narrowed{Type::kInt, bound, bound};
+    }
+
+    // INFO: `random(low, high)` draws from the seeded RNG; two literal bounds
+    // that are already inverted can never be a valid range, so the checker
+    // rejects them instead of deferring to a run-time `invalid_range`.
+    std::optional<Narrowed> CheckRandom(const Node& node, Scope scope, Type candidate,
+                                        const std::set<std::string>& bound) {
+        for (const NodePtr& child : node.children) {
+            const std::optional<Narrowed> type = Check(*child, scope, candidate, bound);
+            if (!type) {
+                return std::nullopt;
+            }
+            if (type->type != Type::kInt) {
+                Error("random needs ints");
+                return std::nullopt;
+            }
+        }
+        const int64_t* low = IntegerLiteral(*node.children[0]);
+        const int64_t* high = IntegerLiteral(*node.children[1]);
+        if (low != nullptr && high != nullptr && *low > *high) {
+            Error("random needs low <= high");
+            return std::nullopt;
+        }
+        return Narrowed{Type::kInt, bound, bound};
+    }
+
+    static const int64_t* IntegerLiteral(const Node& node) {
+        if (node.kind != NodeKind::kLiteral) {
+            return nullptr;
+        }
+        return std::get_if<int64_t>(&node.literal);
     }
 
     std::optional<Narrowed> CheckSelector(const Node& node,
@@ -878,7 +894,7 @@ private:
             {"defined", 1, 1, &Checker::CheckDefined},
             {"default", 2, 2, &Checker::CheckDefault},
             {"status_magnitude", 2, 2, &Checker::CheckStatusMagnitude},
-            {"random", 2, 2, &Checker::CheckIntegerArguments},
+            {"random", 2, 2, &Checker::CheckRandom},
         };
         return functions;
     }

@@ -384,6 +384,22 @@ TEST_CASE("status_magnitude_and_random_return_int") {
     CHECK(Mentions(Check("random(1)"), "random takes 2 arguments, got 1"));
 }
 
+TEST_CASE("a_literal_random_range_needs_low_at_most_high") {
+    const CheckResult ordered = Check("random(1, 6)");
+    REQUIRE(ordered.diagnostics.empty());
+    CHECK(ordered.type == Type::kInt);
+
+    const CheckResult equal = Check("random(3, 3)");
+    REQUIRE(equal.diagnostics.empty());
+    CHECK(equal.type == Type::kInt);
+
+    CHECK(Mentions(Check("random(6, 1)"), "random needs low <= high"));
+
+    const CheckResult computed = Check("random(@next.hand_size, 6)");
+    REQUIRE(computed.diagnostics.empty());
+    CHECK(computed.type == Type::kInt);
+}
+
 TEST_CASE("an_unknown_function_is_reported_with_a_suggestion") {
     CHECK(Mentions(Check("frobnicate(1)"), "unknown function \"frobnicate\""));
 
