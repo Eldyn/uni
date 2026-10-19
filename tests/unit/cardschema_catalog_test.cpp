@@ -1166,6 +1166,51 @@ TEST_CASE("max_cards_below_total") {
           "the limit is 10");
 }
 
+TEST_CASE("deck_expansion_reuses_the_given_catalog") {
+    ModSchema mod = ClassicMod();
+    const CatalogResult catalog = ExpandCards({mod});
+
+    // INFO: the given catalog is the id set the deck is checked against, so a
+    // pruned catalog must make the wild entry fail even though a fresh
+    // expansion over the same mod would generate it.
+    CatalogResult pruned;
+    for (const GeneratedCard& card : catalog.cards) {
+        if (card.kind_id != "uni:wild") {
+            pruned.cards.push_back(card);
+        }
+    }
+
+    const ExpandedDeck result =
+        ExpandDeck(pruned, {mod}, "uni:classic", {}, DefaultSettings());
+
+    REQUIRE(result.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(result.diagnostics[0]) ==
+          "mods/uni/decks/classic.json#/deck/cards/2: card \"uni:wild\" is not generated "
+          "by the active mods");
+}
+
+TEST_CASE("deck_expansion_filters_the_catalog_by_active_mods") {
+    ModSchema magenta;
+    magenta.mod_id = "magenta";
+    magenta.directory = "mods/magenta";
+    magenta.members = {ColorMember("magenta:magenta", {"colored", "magenta"}, 2,
+                                   "mods/magenta/attributes/color/magenta.json")};
+    const CatalogResult catalog = ExpandCards({ClassicMod(), magenta});
+
+    const ExpandedDeck only_uni =
+        ExpandDeck(catalog, {ClassicMod(), magenta}, "uni:classic", {"uni"},
+                   DefaultSettings());
+
+    CHECK(only_uni.diagnostics.empty());
+    CHECK(only_uni.total == 42);
+    CHECK(CountOf(only_uni, "uni:magenta_5") == 0);
+}
+
+TEST_CASE("deck_cap_constants") {
+    CHECK(match::cardschema::kMaximumDecksPerMod == 64);
+    CHECK(match::cardschema::kMaximumDecksTotal == 256);
+}
+
 TEST_CASE("card_not_in_active_catalog") {
     ModSchema mod = ClassicMod();
     // INFO: a broken `extends` chain makes ExpandCards skip the template, so the

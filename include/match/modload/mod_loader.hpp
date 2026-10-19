@@ -82,4 +82,30 @@ std::string NamespaceRuleViolation(const std::string& mod_id,
 /** @brief Parses an integer from a JSON scalar (int or numeric string). */
 bool ParseApiVersion(const nlohmann::json& value, int& out);
 
+/**
+ * @brief The mod a cardschema diagnostic belongs to, read from its
+ *        `mods/<id>/` file label; empty when the label is not mod-prefixed.
+ *
+ * @param file The diagnostic file label.
+ */
+std::string CatalogDiagnosticModId(const std::string& file);
+
+/**
+ * @brief The mods a cardschema diagnostic is charged to, read from its
+ *        `mods/<id>/` file label.
+ *
+ * A catalog diagnostic carries the label of the file that caused it, so the
+ * loader charges it to the mod the label names and drops that mod. A label
+ * that does not name a mod folder is not attributable; the returned list then
+ * holds every loaded mod id, which makes the caller fail closed: the
+ * diagnostic goes to the flat report and every mod that contributed to the
+ * catalog is dropped.
+ *
+ * @param file           The diagnostic file label.
+ * @param loaded_mod_ids The mods that contributed to the catalog.
+ * @return The owners; empty only when no mod contributed.
+ */
+std::vector<std::string> CatalogDiagnosticOwners(
+    const std::string& file, const std::vector<std::string>& loaded_mod_ids);
+
 }  // namespace match::modload

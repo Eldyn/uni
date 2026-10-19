@@ -1083,9 +1083,16 @@ CatalogResult ExpandCards(const std::vector<ModSchema>& mods) {
     return result;
 }
 
-ExpandedDeck ExpandDeck(const std::vector<ModSchema>& mods, const std::string& deck_id,
-                        const std::set<std::string>& active_mods,
-                        const std::map<std::string, int64_t>& settings) {
+namespace {
+
+// INFO: the shared body of the two public overloads. `active_kind_ids` is the
+// id set every expanded card must belong to; the caller builds it from the
+// catalog it already holds, or from a fresh expansion.
+ExpandedDeck ExpandDeckWithKindIds(const std::vector<ModSchema>& mods,
+                                   const std::string& deck_id,
+                                   const std::set<std::string>& active_mods,
+                                   const std::map<std::string, int64_t>& settings,
+                                   const std::set<std::string>& active_kind_ids) {
     ExpandedDeck result;
     result.deck_id = deck_id;
 
@@ -1114,15 +1121,6 @@ ExpandedDeck ExpandDeck(const std::vector<ModSchema>& mods, const std::string& d
     }
     for (auto& [attribute, members] : members_by_attribute) {
         std::sort(members.begin(), members.end(), CompareMembers);
-    }
-
-    // INFO: the deck may only deal cards the active mods generate, so the
-    // catalog of the active mods is the id set every expanded id is checked
-    // against. Its diagnostics are the caller's business, not the deck's.
-    const CatalogResult active_catalog = ExpandCards(active_schemas);
-    std::set<std::string> active_kind_ids;
-    for (const GeneratedCard& card : active_catalog.cards) {
-        active_kind_ids.insert(card.kind_id);
     }
 
     std::map<std::string, const KindTemplate*> kinds_by_id;
@@ -1259,6 +1257,50 @@ ExpandedDeck ExpandDeck(const std::vector<ModSchema>& mods, const std::string& d
     result.total = static_cast<int>(total);
     DedupeDiagnostics(result.diagnostics);
     return result;
+}
+
+}  // namespace
+
+ExpandedDeck ExpandDeck(const std::vector<ModSchema>& mods, const std::string& deck_id,
+                        const std::set<std::string>& active_mods,
+                        const std::map<std::string, int64_t>& settings) {
+    // INFO: the deck may only deal cards the active mods generate, so the
+    // catalog of the active mods is the id set every expanded id is checked
+    // against. Its diagnostics are the caller's business, not the deck's.
+    std::vector<ModSchema> active_schemas;
+    for (const ModSchema& mod : mods) {
+        if (active_mods.empty() || active_mods.count(mod.mod_id) != 0) {
+            active_schemas.push_back(mod);
+        }
+    }
+    const CatalogResult active_catalog = ExpandCards(active_schemas);
+    std::set<std::string> active_kind_ids;
+    for (const GeneratedCard& card : active_catalog.cards) {
+        active_kind_ids.insert(card.kind_id);
+    }
+    return ExpandDeckWithKindIds(mods, deck_id, active_mods, settings, active_kind_ids);
+}
+
+ExpandedDeck ExpandDeck(const CatalogResult& catalog, const std::vector<ModSchema>& mods,
+                        const std::string& deck_id,
+                        const std::set<std::string>& active_mods,
+                        const std::map<std::string, int64_t>& settings) {
+    std::set<std::string> active_kind_ids;
+    for (const GeneratedCard& card : catalog.cards) {
+        // INFO: a card over a member of a mod outside the active set is not a
+        // card the active mods generate, exactly as a fresh expansion over the
+        // active schemas alone would not build it.
+        const bool host_active = active_mods.count(card.host_mod) != 0;
+        const bool all_required_active =
+            std::all_of(card.requires_mods.begin(), card.requires_mods.end(),
+                        [&active_mods](const std::string& mod_id) {
+                            return active_mods.count(mod_id) != 0;
+                        });
+        if (active_mods.empty() || (host_active && all_required_active)) {
+            active_kind_ids.insert(card.kind_id);
+        }
+    }
+    return ExpandDeckWithKindIds(mods, deck_id, active_mods, settings, active_kind_ids);
 }
 
 }  // namespace match::cardschema

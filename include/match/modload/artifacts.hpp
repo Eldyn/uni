@@ -134,7 +134,17 @@ struct CardDef {
     std::string description_key;        /**< Empty: derived by the glossary. */
     FaceSpec face;
     std::vector<std::string> tags;
-    std::vector<std::string> requires_mods; /**< Mods whose members the card uses. */
+    /**
+     * Mods whose members the generated card uses, excluding its host mod.
+     *
+     * The loader expands every template over the members of every loaded mod,
+     * so a card of one mod may need another. `LoadedMod.cards` therefore holds
+     * those cards unfiltered on purpose: a match that does not enable one of
+     * these mods must not deal the card. Plan 2a-2 Task 1 adds `CardActive` and
+     * filters the readers; until then every reader sees the card.
+     * TODO(2a-2 T1): filter the readers listed in the Plan 2a-2 Task 1 notes.
+     */
+    std::vector<std::string> requires_mods;
     std::string template_id;                /**< Kind template the card came from. */
     std::vector<BehaviorEntry> behaviors;
     std::optional<WindowSpec> window;
