@@ -29,8 +29,6 @@ std::string_view AssignmentOperatorSymbol(AssignOp op) {
 
 namespace {
 
-constexpr size_t kMaximumNodes = 256;
-
 // INFO: inside `[ ]` and inside the condition argument of a set function a bare
 // name is a property of the candidate; the candidate entity is only meaningful
 // in that scope.
@@ -964,11 +962,11 @@ CheckResult CheckParsedExpression(const Node& root, const Schema& schema,
                                   std::string_view pointer, const GuardState& initial) {
     CheckResult result;
     result.node_count = CountNodes(root);
-    if (result.node_count > kMaximumNodes) {
+    if (result.node_count > kMaximumExpressionNodes) {
         result.diagnostics.push_back(
             Diagnostic{std::string(file), std::string(pointer),
                       "expression has " + std::to_string(result.node_count) +
-                          " nodes; the limit is " + std::to_string(kMaximumNodes),
+                          " nodes; the limit is " + std::to_string(kMaximumExpressionNodes),
                       ""});
         return result;
     }
@@ -990,10 +988,10 @@ std::vector<Diagnostic> CheckAssignment(std::string_view source, const Schema& s
     }
     const size_t node_count =
         CountNodes(*parsed.assignment->target) + CountNodes(*parsed.assignment->value);
-    if (node_count > kMaximumNodes) {
+    if (node_count > kMaximumExpressionNodes) {
         return {Diagnostic{std::string(file), std::string(pointer),
                            "expression has " + std::to_string(node_count) +
-                               " nodes; the limit is " + std::to_string(kMaximumNodes),
+                               " nodes; the limit is " + std::to_string(kMaximumExpressionNodes),
                            ""}};
     }
     Checker checker(schema, std::nullopt, file, pointer, GuardState{});

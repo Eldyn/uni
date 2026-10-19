@@ -60,6 +60,22 @@ TEST_CASE("a_leaf_expression_that_does_not_parse_is_rejected") {
     CHECK(FirstPointer(parsed.diagnostics) == "/when");
 }
 
+TEST_CASE("a_leaf_over_the_node_budget_is_rejected") {
+    std::string source = "1";
+    for (int index = 0; index < 128; ++index) {
+        source += " + 1";
+    }
+    const ConditionParseResult parsed = Parse(json(source));
+    CHECK_FALSE(parsed.condition.has_value());
+    REQUIRE_FALSE(parsed.diagnostics.empty());
+    CHECK(parsed.diagnostics.front().message == "expression has 257 nodes; the limit is 256");
+    CHECK(parsed.diagnostics.front().pointer == "/when");
+
+    const ConditionParseResult nested = Parse(json{{"all_of", json::array({source})}});
+    REQUIRE_FALSE(nested.diagnostics.empty());
+    CHECK(nested.diagnostics.front().pointer == "/when/all_of/0");
+}
+
 TEST_CASE("an_all_of_parses_to_one_child_per_entry") {
     const ConditionParseResult parsed =
         Parse(json::parse(R"json({"all_of":["a","b"]})json"));

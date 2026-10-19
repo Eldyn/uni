@@ -84,6 +84,16 @@ TEST_CASE("deep_nesting_is_rejected_without_crashing") {
     CHECK(result.error->message == "expression is nested deeper than 64 levels");
 }
 
+TEST_CASE("a_long_postfix_chain_exceeds_the_depth_limit") {
+    std::string source = "@self";
+    for (int index = 0; index < 300; ++index) {
+        source += ".hand_size";
+    }
+    const auto result = match::expr::ParseExpression(source);
+    REQUIRE(result.error.has_value());
+    CHECK(result.error->message == "expression is nested deeper than 64 levels");
+}
+
 TEST_CASE("binary_operators_are_left_associative") {
     CHECK(Debug("1 - 2 - 3") == "(- (- 1 2) 3)");
     CHECK(Debug("-a * b") == "(* (neg a) b)");

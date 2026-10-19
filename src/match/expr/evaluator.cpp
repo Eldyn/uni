@@ -951,6 +951,15 @@ EvalResult EvaluateNode(const Node& node, EvalContext& context,
 }  // namespace
 
 EvalResult Evaluate(const Node& root, EvalContext& context) {
+    // INFO: a caller may evaluate a tree the checker never saw, so the node
+    // budget is applied here too, counted once for the whole tree.
+    const size_t node_count = CountNodes(root);
+    if (node_count > kMaximumExpressionNodes) {
+        return EvalError{"expression_too_large",
+                         "expression has " + std::to_string(node_count) +
+                             " nodes; the limit is " +
+                             std::to_string(kMaximumExpressionNodes)};
+    }
     return EvaluateNode(root, context, std::nullopt);
 }
 

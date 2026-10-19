@@ -60,6 +60,10 @@ constexpr size_t kMaximumDepth = 64;
 constexpr size_t kMaximumParseNodes = 4096;
 constexpr int kUnaryBindingPower = 7;
 
+std::string NestingMessage() {
+    return "expression is nested deeper than " + std::to_string(kMaximumDepth) + " levels";
+}
+
 int BinaryBindingPower(std::string_view symbol) {
     if (symbol == "||") {
         return 1;
@@ -213,7 +217,7 @@ private:
 
     NodePtr ParseBinary(int minimum_binding_power) {
         if (++depth_ > kMaximumDepth) {
-            SetError(Peek().position, "expression is nested deeper than 64 levels");
+            SetError(Peek().position, NestingMessage());
             return nullptr;
         }
         NodePtr left = ParsePrefix();
@@ -277,8 +281,16 @@ private:
         return ParsePostfix(std::move(atom));
     }
 
+    // INFO: a postfix chain is iterative, but each link adds a nested property
+    // node, so the chain is bounded like the recursive parse: a link past the
+    // depth limit cannot build a tree the rest of the pipeline could walk.
     NodePtr ParsePostfix(NodePtr base) {
+        size_t links = 0;
         while (!error_ && Peek().kind == TokenKind::kDot) {
+            if (++links > kMaximumDepth) {
+                SetError(Peek().position, NestingMessage());
+                return nullptr;
+            }
             ++index_;
             if (Peek().kind != TokenKind::kIdentifier) {
                 SetError(Peek().position, "expected a property name after '.'");

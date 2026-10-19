@@ -44,6 +44,14 @@ EvalError ErrorOf(std::string_view source, match::expr::testing::FakeContext& co
     return std::get<EvalError>(result);
 }
 
+std::string RepeatedAddition(size_t repetitions) {
+    std::string source = "1";
+    for (size_t index = 0; index < repetitions; ++index) {
+        source += " + 1";
+    }
+    return source;
+}
+
 }  // namespace
 
 TEST_SUITE("expr evaluator") {
@@ -55,6 +63,26 @@ TEST_CASE("arithmetic_follows_precedence_and_int_division_truncates") {
     CHECK(std::get<int64_t>(ValueOf("-7 / 2", context)) == -3);
     CHECK(std::get<double>(ValueOf("7.0 / 2", context)) == 3.5);
     CHECK(std::get<int64_t>(ValueOf("10 % 3", context)) == 1);
+}
+
+TEST_CASE("a_tree_over_the_node_budget_is_rejected") {
+    match::expr::testing::FakeContext context;
+    const match::expr::ParseResult parsed = ParseExpression(RepeatedAddition(128));
+    REQUIRE_FALSE(parsed.error.has_value());
+    REQUIRE(parsed.root != nullptr);
+    CHECK(match::expr::CountNodes(*parsed.root) == 257);
+    const EvalResult result = Evaluate(*parsed.root, context);
+    REQUIRE(std::holds_alternative<EvalError>(result));
+    CHECK(std::get<EvalError>(result).code == "expression_too_large");
+}
+
+TEST_CASE("a_tree_at_the_node_budget_still_evaluates") {
+    match::expr::testing::FakeContext context;
+    const match::expr::ParseResult parsed = ParseExpression(RepeatedAddition(127));
+    REQUIRE_FALSE(parsed.error.has_value());
+    REQUIRE(parsed.root != nullptr);
+    CHECK(match::expr::CountNodes(*parsed.root) == 255);
+    CHECK(std::get<int64_t>(ValueOf(RepeatedAddition(127), context)) == 128);
 }
 
 TEST_CASE("division_by_zero_on_a_zero_hand") {

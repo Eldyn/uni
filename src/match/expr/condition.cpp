@@ -125,6 +125,13 @@ private:
                                                         : "condition expression is empty");
                 return std::nullopt;
             }
+            const size_t node_count = CountNodes(*parsed.root);
+            if (node_count > kMaximumExpressionNodes) {
+                Error(pointer, "expression has " + std::to_string(node_count) +
+                                   " nodes; the limit is " +
+                                   std::to_string(kMaximumExpressionNodes));
+                return std::nullopt;
+            }
             Condition condition{Condition::Kind::kExpression, source, {}};
             condition.expression = std::shared_ptr<const Node>(std::move(parsed.root));
             return condition;
