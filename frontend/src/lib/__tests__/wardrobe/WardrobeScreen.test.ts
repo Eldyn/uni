@@ -8,6 +8,7 @@ import { cleanup, fireEvent, render, screen, within } from "@testing-library/sve
 import { flushSync } from "svelte";
 import MockThrelte from "$lib/__tests__/components/MockThrelte.svelte";
 import WardrobeScreen from "$components/wardrobe/WardrobeScreen.svelte";
+import { storeTopbarContent } from "$lib/stores/topbarContent.svelte";
 import { setCatalogueForTest } from "$lib/avatar/catalogue";
 import { avatarFixture, fullLoadout } from "$lib/__tests__/avatar/avatarFixture";
 import type { Loadout } from "$lib/avatar/types";
@@ -79,6 +80,7 @@ beforeEach(() => {
 	storeAvatar.loadout = null;
 	storeAvatar.save.mockReset();
 	storeAvatar.save.mockResolvedValue({ ok: true });
+	storeTopbarContent.current = undefined;
 });
 
 afterEach(() => {
@@ -87,6 +89,15 @@ afterEach(() => {
 });
 
 describe("WardrobeScreen", () => {
+	it("hands its title to the top bar while mounted", () => {
+		const { unmount } = render(WardrobeScreen);
+		flushSync();
+		expect(storeTopbarContent.current).toBeTruthy();
+
+		unmount();
+		expect(storeTopbarContent.current).toBeUndefined();
+	});
+
 	it("lists the account's owned items per slot plus the starters", async () => {
 		shopMock.owned = new Set(["uni:hat_cap"]);
 		const { container } = render(WardrobeScreen);

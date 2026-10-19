@@ -25,6 +25,7 @@
 	import { storeAuth } from "$stores/auth.svelte";
 	import { storeAvatar } from "$stores/avatar.svelte";
 	import { storeI18n } from "$stores/i18n.svelte";
+	import { storeTopbarContent } from "$stores/topbarContent.svelte";
 
 	let { onleave = () => {} }: { onleave?: () => void } = $props();
 
@@ -168,7 +169,20 @@
 		window.addEventListener("keydown", handleKeydown);
 		return () => window.removeEventListener("keydown", handleKeydown);
 	});
+
+	// TopBar has no title for the wardrobe screen (and is not ours to edit), so
+	// hand it this screen's title through the shared topbar content slot.
+	$effect(() => {
+		storeTopbarContent.current = wardrobeTopbarTitle;
+		return () => {
+			storeTopbarContent.current = undefined;
+		};
+	});
 </script>
+
+{#snippet wardrobeTopbarTitle()}
+	<span class="wardrobe-topbar-title font-heading">{title}</span>
+{/snippet}
 
 <div class="wardrobe-screen">
 	<ShopBackdrop dim={0.45} />
@@ -264,11 +278,18 @@
 	.wardrobe-screen {
 		position: relative;
 		display: flex;
-		flex: 1;
 		flex-direction: column;
 		gap: 1rem;
-		overflow: auto;
+		/* Fill the shell's main pane and scroll inside it, so the shader
+		   backdrop and the layout never spill past the TopBar/NavBar chrome. */
+		height: 100%;
+		min-height: 0;
+		overflow-y: auto;
 		padding: 1rem;
+	}
+
+	.wardrobe-topbar-title {
+		font-size: var(--text-title);
 	}
 
 	.wardrobe-header,

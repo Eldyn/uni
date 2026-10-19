@@ -241,10 +241,13 @@
 	.shop-screen {
 		position: relative;
 		display: flex;
-		flex: 1;
 		flex-direction: column;
 		gap: 1rem;
-		overflow: auto;
+		/* Fill the shell's main pane and scroll inside it, so the backdrop and
+		   the grid never spill past the TopBar/NavBar chrome. */
+		height: 100%;
+		min-height: 0;
+		overflow-y: auto;
 		padding: 1rem;
 	}
 
