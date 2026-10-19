@@ -430,6 +430,23 @@ private:
             Error(name + " needs a set");
             return std::nullopt;
         }
+        if (set_type->type == Type::kMemberSet) {
+            // INFO: a member set is its own kind; only count and any accept it,
+            // and only without a condition or value argument.
+            if (name == "count" || name == "any") {
+                if (node.children.size() > 1) {
+                    Error(name + " needs a seat set or card set for a condition");
+                    return std::nullopt;
+                }
+                return Narrowed{name == "count" ? Type::kInt : Type::kBool, bound, bound};
+            }
+            if (name == "all" && node.children.size() < 2) {
+                Error("all needs a condition");
+                return std::nullopt;
+            }
+            Error(name + " needs a seat set or card set for a condition");
+            return std::nullopt;
+        }
         const Type entity = EntityOf(set_type->type);
         if (name == "count" || name == "any") {
             if (!CheckOptionalCondition(node, 1, entity, bound)) {

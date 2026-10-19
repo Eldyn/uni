@@ -317,6 +317,34 @@ TEST_CASE("set_aggregations_return_their_types") {
     CHECK(summed.type == Type::kInt);
 }
 
+TEST_CASE("member_set_aggregations_take_no_condition") {
+    const CheckResult counted = Check("count($played.color)");
+    REQUIRE(counted.diagnostics.empty());
+    CHECK(counted.type == Type::kInt);
+
+    const CheckResult any = Check("any($played.color)");
+    REQUIRE(any.diagnostics.empty());
+    CHECK(any.type == Type::kBool);
+
+    CHECK(Mentions(Check("count($played.color, true)"),
+                   "count needs a seat set or card set for a condition"));
+    CHECK(Mentions(Check("any($played.color, true)"),
+                   "any needs a seat set or card set for a condition"));
+    CHECK(Mentions(Check("all($played.color, true)"),
+                   "all needs a seat set or card set for a condition"));
+    CHECK(Mentions(Check("sum($played.color, 1)"),
+                   "sum needs a seat set or card set for a condition"));
+    CHECK(Mentions(Check("all($played.color)"), "all needs a condition"));
+}
+
+TEST_CASE("contains_over_a_member_set_needs_a_member_set") {
+    const CheckResult subset = Check("contains($played.color, @match.uni:active_color)");
+    REQUIRE(subset.diagnostics.empty());
+    CHECK(subset.type == Type::kBool);
+
+    CHECK(Mentions(Check("contains($played.color, 'uni:red')"), "contains needs a member_set"));
+}
+
 TEST_CASE("membership_and_tags_return_bool") {
     const CheckResult overlap = Check("shares($played.color, @match.uni:active_color)");
     REQUIRE(overlap.diagnostics.empty());

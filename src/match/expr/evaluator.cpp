@@ -412,15 +412,20 @@ EvalResult EvaluateSetFunction(const std::string& name, const Node& node, EvalCo
         return set_result;
     }
     const Value set_value = std::get<Value>(set_result);
-    std::vector<EntityRef> entities;
+    if (const std::set<std::string>* members = std::get_if<std::set<std::string>>(&set_value)) {
+        if (name == "count" && node.children.size() == 1) {
+            return Value(static_cast<int64_t>(members->size()));
+        }
+        if (name == "any" && node.children.size() == 1) {
+            return Value(!members->empty());
+        }
+        return Fail("type_mismatch", name + " needs a seat set or card set for a condition");
+    }
     const std::vector<EntityRef>* seats = std::get_if<std::vector<EntityRef>>(&set_value);
-    if (const EntityRef* entity = std::get_if<EntityRef>(&set_value)) {
-        entities.push_back(*entity);
-    } else if (seats != nullptr) {
-        entities = *seats;
-    } else {
+    if (seats == nullptr) {
         return Fail("type_mismatch", name + " needs a set");
     }
+    const std::vector<EntityRef>& entities = *seats;
 
     if (name == "count") {
         if (node.children.size() == 1) {
@@ -730,11 +735,16 @@ EvalResult CallValue(const Node& node, EvalContext& context,
             return Value(*entity == std::get<EntityRef>(std::get<Value>(single)));
         }
         if (const std::set<std::string>* members = std::get_if<std::set<std::string>>(&set_value)) {
-            const std::string* member = std::get_if<std::string>(&member_value);
-            if (member == nullptr) {
-                return Fail("type_mismatch", "contains needs a member");
+            const std::set<std::string>* subset = std::get_if<std::set<std::string>>(&member_value);
+            if (subset == nullptr) {
+                return Fail("type_mismatch", "contains needs a member_set");
             }
-            return Value(members->count(*member) > 0);
+            for (const std::string& member : *subset) {
+                if (members->count(member) == 0) {
+                    return Value(false);
+                }
+            }
+            return Value(true);
         }
         return Fail("type_mismatch", "contains needs a set");
     }

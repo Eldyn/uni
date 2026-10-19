@@ -320,11 +320,26 @@ TEST_CASE("condition_leaf_errors_are_returned_and_groups_short_circuit") {
     CHECK(std::get<bool>(ConditionValueOf(any_of, context)) == true);
 }
 
-TEST_CASE("member_sets_are_rejected_by_the_seat_set_functions") {
+TEST_CASE("contains_over_a_member_set_is_a_subset_test") {
     match::expr::testing::FakeContext context;
-    context.variables["colors"] = Value{std::set<std::string>{"uni:red"}};
-    CHECK(ErrorOf("count($colors)", context).code == "type_mismatch");
-    CHECK(ErrorOf("any($colors)", context).code == "type_mismatch");
+    context.variables["colors"] = Value{std::set<std::string>{"uni:red", "uni:blue"}};
+    context.variables["choice"] = Value{std::set<std::string>{"uni:red"}};
+    context.variables["empty"] = Value{std::set<std::string>{}};
+    CHECK(std::get<bool>(ValueOf("contains($colors, $choice)", context)) == true);
+    CHECK(std::get<bool>(ValueOf("contains($colors, $empty)", context)) == true);
+    context.variables["choice"] = Value{std::set<std::string>{"uni:green"}};
+    CHECK(std::get<bool>(ValueOf("contains($colors, $choice)", context)) == false);
+    CHECK(ErrorOf("contains($colors, 1)", context).code == "type_mismatch");
+}
+
+TEST_CASE("count_and_any_over_a_member_set") {
+    match::expr::testing::FakeContext context;
+    context.variables["colors"] = Value{std::set<std::string>{"uni:red", "uni:blue"}};
+    context.variables["empty"] = Value{std::set<std::string>{}};
+    CHECK(std::get<int64_t>(ValueOf("count($colors)", context)) == 2);
+    CHECK(std::get<bool>(ValueOf("any($colors)", context)) == true);
+    CHECK(std::get<int64_t>(ValueOf("count($empty)", context)) == 0);
+    CHECK(std::get<bool>(ValueOf("any($empty)", context)) == false);
     CHECK(ErrorOf("all($colors, true)", context).code == "type_mismatch");
     CHECK(ErrorOf("sum($colors, 1)", context).code == "type_mismatch");
 }

@@ -3092,6 +3092,118 @@
             "expect": {
                 "check_error": "number out of range"
             }
+        },
+        {
+            "name": "contains_member_set_subset_true",
+            "expression": "contains($colors, @match.uni:active_color)",
+            "expect": {
+                "value": true
+            },
+            "world": {
+                "variables": {
+                    "colors": [
+                        "uni:red",
+                        "uni:blue"
+                    ]
+                },
+                "match": {
+                    "uni:active_color": [
+                        "uni:red"
+                    ]
+                }
+            }
+        },
+        {
+            "name": "contains_member_set_subset_false",
+            "expression": "contains($colors, @match.uni:active_color)",
+            "expect": {
+                "value": false
+            },
+            "world": {
+                "variables": {
+                    "colors": [
+                        "uni:red",
+                        "uni:blue"
+                    ]
+                },
+                "match": {
+                    "uni:active_color": [
+                        "uni:green"
+                    ]
+                }
+            }
+        },
+        {
+            "name": "contains_member_set_empty_subset_is_true",
+            "expression": "contains($colors, @match.uni:active_color)",
+            "expect": {
+                "value": true
+            },
+            "world": {
+                "variables": {
+                    "colors": [
+                        "uni:red"
+                    ]
+                },
+                "match": {
+                    "uni:active_color": []
+                }
+            }
+        },
+        {
+            "name": "check_contains_member_set_needs_a_member_set",
+            "expression": "contains($colors, 'uni:red')",
+            "expect": {
+                "check_error": "contains needs a member_set"
+            }
+        },
+        {
+            "name": "count_member_set",
+            "expression": "count($colors)",
+            "expect": {
+                "value": 2
+            },
+            "world": {
+                "variables": {
+                    "colors": [
+                        "uni:red",
+                        "uni:blue"
+                    ]
+                }
+            }
+        },
+        {
+            "name": "any_member_set",
+            "expression": "any($colors)",
+            "expect": {
+                "value": true
+            },
+            "world": {
+                "variables": {
+                    "colors": [
+                        "uni:blue"
+                    ]
+                }
+            }
+        },
+        {
+            "name": "count_empty_member_set",
+            "expression": "count($colors)",
+            "expect": {
+                "value": 0
+            },
+            "world": {
+                "variables": {
+                    "colors": []
+                }
+            }
+        },
+        {
+            "name": "check_count_member_set_rejects_a_condition",
+            "expression": "count($colors, true)",
+            "expect": {
+                "check_error": "count needs a seat set or card set"
+            }
         }
     ]
 }
