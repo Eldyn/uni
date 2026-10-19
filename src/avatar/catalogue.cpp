@@ -246,6 +246,57 @@ std::vector<Palette> ParsePalettes(const json& doc) {
     return parsed_palettes;
 }
 
+/**
+ * @brief The optional `default_colors` list of an item node.
+ *
+ * Entry N is the default of the N-th stored color. A shape takes none (its
+ * color is the skin); a motif stores one color less than it has regions.
+ * Whether each entry is a hex or a known swatch is checked later, once the
+ * palettes are parsed (`ValidateDefaultColours`).
+ */
+std::vector<std::string> ParseDefaultColours(const json& node, const Item& item,
+                                             const std::string& where) {
+    std::vector<std::string> parsed;
+    const auto colours = node.find("default_colors");
+    if (colours == node.end() || colours->is_null()) return parsed;
+    if (!colours->is_array()) Reject(where + ".default_colors must be an array");
+
+    int limit = item.regions;
+    if (item.slot == "shape") limit = 0;
+    if (item.slot == "motif") limit = std::max(0, item.regions - 1);
+    if (item.slot == "shape"
+        || static_cast<int>(colours->size()) > limit) {
+        Reject(where + ".default_colors holds at most "
+               + std::to_string(limit) + " entries");
+    }
+    for (const json& entry : *colours) {
+        if (!entry.is_string()) {
+            Reject(where + ".default_colors must hold strings");
+        }
+        parsed.push_back(entry.get<std::string>());
+    }
+    return parsed;
+}
+
+/** @brief Every default color is a `#rrggbb` hex or a palette swatch id. */
+void ValidateDefaultColours(const std::vector<Item>& items,
+                            const std::vector<Palette>& palettes) {
+    std::unordered_set<std::string> swatch_ids;
+    for (const Palette& palette : palettes) {
+        for (const Swatch& swatch : palette.swatches) {
+            swatch_ids.insert(swatch.id);
+        }
+    }
+    for (const Item& item : items) {
+        for (const std::string& entry : item.default_colors) {
+            if (!IsHexColour(entry) && !swatch_ids.contains(entry)) {
+                Reject("item '" + item.id + "' default color '" + entry
+                       + "' is neither #rrggbb nor a swatch id");
+            }
+        }
+    }
+}
+
 std::vector<Item> ParseItems(const json& doc) {
     const json& items = RequireField(doc, "items", "catalogue");
     if (!items.is_array()) Reject("'items' must be an array");
@@ -293,6 +344,26 @@ std::vector<Item> ParseItems(const json& doc) {
                    + " needs more 'masks' files (capacity "
                    + std::to_string(region_capacity) + ")");
         }
+
+        const auto tint_node = node.find("tint");
+        if (tint_node != node.end() && !tint_node->is_null()) {
+            if (!tint_node->is_string()) {
+                Reject(where + " 'tint' must be a string");
+            }
+            item.tint = tint_node->get<std::string>();
+        }
+        if (item.tint != "mask" && item.tint != "multiply") {
+            Reject(where + ".tint '" + item.tint + "' must be mask or multiply");
+        }
+        if (item.tint == "multiply") {
+            if (item.regions != 1) {
+                Reject(where + ".tint multiply needs exactly 1 region");
+            }
+            if (extra_masks != 0) {
+                Reject(where + ".tint multiply takes no 'masks' files");
+            }
+        }
+        item.default_colors = ParseDefaultColours(node, item, where);
 
         const std::string rarity = StringField(node, "rarity", where);
         if (!Contains(Rarities(), rarity)) {
@@ -410,6 +481,7 @@ Catalogue Catalogue::ParseDoc(const json& doc) {
     Catalogue catalogue;
     catalogue.items_ = ParseItems(doc);
     catalogue.palettes_ = ParsePalettes(doc);
+    ValidateDefaultColours(catalogue.items_, catalogue.palettes_);
 
     std::unordered_set<std::string> item_ids;
     for (const Item& item : catalogue.items_) item_ids.insert(item.id);
