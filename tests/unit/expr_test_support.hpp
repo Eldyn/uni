@@ -1,5 +1,6 @@
 #pragma once
 
+#include <charconv>
 #include <cstdint>
 #include <limits>
 #include <map>
@@ -394,12 +395,28 @@ private:
     }
 
     bool DecodeInt(const json& value, Value& out, std::string& error) const {
-        if (!value.is_number_integer()) {
-            error = "expected an int";
-            return false;
+        if (value.is_number_integer()) {
+            out = Value(value.get<int64_t>());
+            return true;
         }
-        out = Value(value.get<int64_t>());
-        return true;
+        // INFO: an expected int outside +-2^53 is written as {"int": "<digits>"}
+        // because JSON.parse in the TypeScript client cannot read it losslessly.
+        if (value.is_object() && value.size() == 1) {
+            const auto encoded = value.find("int");
+            if (encoded != value.end() && encoded->is_string()) {
+                const std::string text = encoded->get<std::string>();
+                int64_t number = 0;
+                const auto result =
+                    std::from_chars(text.data(), text.data() + text.size(), number);
+                if (result.ec == std::errc() &&
+                    result.ptr == text.data() + text.size()) {
+                    out = Value(number);
+                    return true;
+                }
+            }
+        }
+        error = "expected an int or {\"int\": \"<decimal digits>\"}";
+        return false;
     }
 
     bool DecodeFloat(const json& value, Value& out, std::string& error) const {

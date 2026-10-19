@@ -10,6 +10,7 @@
 
 #include <filesystem>
 #include <fstream>
+#include <iterator>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -22,6 +23,7 @@ namespace fs = std::filesystem;
 using match::expr::CheckExpression;
 using match::expr::CheckParsedExpression;
 using match::expr::CheckResult;
+using match::expr::DuplicateKey;
 using match::expr::EvalError;
 using match::expr::EvalResult;
 using match::expr::Evaluate;
@@ -29,7 +31,9 @@ using match::expr::FormatDiagnostic;
 using match::expr::LoadSchema;
 using match::expr::ParseExpression;
 using match::expr::ParseResult;
+using match::expr::ParseSchemaJson;
 using match::expr::Schema;
+using match::expr::SchemaScan;
 using match::expr::Type;
 using match::expr::TypeFromName;
 using match::expr::Value;
@@ -43,9 +47,25 @@ namespace {
 constexpr std::string_view kFile = "<expression>";
 constexpr std::string_view kPointer = "/";
 
+// INFO: the only keys a corpus case and its expectation may carry. An unknown
+// key is a typo the runner must report, not a silently ignored field.
+constexpr std::string_view kCaseKeys[] = {"name", "expression", "expected_type", "world",
+                                          "expect"};
+constexpr std::string_view kExpectKeys[] = {"value", "error", "check_error"};
+
+template <size_t Count>
+bool IsAllowedKey(std::string_view key, const std::string_view (&keys)[Count]) {
+    for (const std::string_view candidate : keys) {
+        if (candidate == key) {
+            return true;
+        }
+    }
+    return false;
+}
+
 // INFO: a corpus below this many cases is a mistake, not a passing run, so an
 // empty or truncated `cases` array cannot pass vacuously.
-constexpr size_t kMinimumCorpusCases = 150;
+constexpr size_t kMinimumCorpusCases = 184;
 
 // INFO: walks up from this source file to the repository root, the same way the
 // golden tests find their fixtures.
@@ -65,6 +85,13 @@ fs::path ProjectRoot() {
     return {};
 }
 
+std::string ReadTextFile(const fs::path& path) {
+    std::ifstream stream(path, std::ios::binary);
+    REQUIRE(stream.good());
+    return std::string(std::istreambuf_iterator<char>(stream),
+                       std::istreambuf_iterator<char>());
+}
+
 json ReadJsonFile(const fs::path& path) {
     std::ifstream stream(path);
     REQUIRE(stream.good());
@@ -73,8 +100,87 @@ json ReadJsonFile(const fs::path& path) {
     return value;
 }
 
+// INFO: parses the corpus text with the duplicate-key scanner the schema loader
+// uses, so a repeated key cannot lose a case or an expectation silently.
+std::optional<json> ParseCorpusText(const std::string& text, std::string& error) {
+    SchemaScan scan;
+    const std::optional<json> value = ParseSchemaJson(text, scan);
+    if (!value.has_value()) {
+        error = "the corpus is not valid JSON";
+        return std::nullopt;
+    }
+    if (!scan.duplicates.empty()) {
+        const DuplicateKey& duplicate = scan.duplicates.front();
+        error = "duplicate key \"" + duplicate.key + "\" at " + duplicate.pointer;
+        return std::nullopt;
+    }
+    if (scan.nested_too_deep) {
+        error = "the corpus nests too deeply";
+        return std::nullopt;
+    }
+    return value;
+}
+
+json ReadCorpusFile(const fs::path& path) {
+    const std::string text = ReadTextFile(path);
+    std::string error;
+    const std::optional<json> value = ParseCorpusText(text, error);
+    REQUIRE_MESSAGE(value.has_value(), error);
+    return *value;
+}
+
+// INFO: checks the shape of one case before it runs: only known keys, a name
+// and an expression, and exactly one expectation.
+std::string ValidateCase(const json& item) {
+    if (!item.is_object()) {
+        return "the case must be an object";
+    }
+    for (auto iterator = item.begin(); iterator != item.end(); ++iterator) {
+        if (!IsAllowedKey(iterator.key(), kCaseKeys)) {
+            return "the case has the unknown key \"" + iterator.key() + "\"";
+        }
+    }
+    if (!item.contains("name") || !item.contains("expression")) {
+        return "the case needs a name and an expression";
+    }
+    if (!item.at("name").is_string()) {
+        return "the name must be a string";
+    }
+    if (!item.at("expression").is_string()) {
+        return "the expression must be a string";
+    }
+    const auto expected_type = item.find("expected_type");
+    if (expected_type != item.end() && !expected_type->is_string()) {
+        return "expected_type must be a string";
+    }
+    const auto world = item.find("world");
+    if (world != item.end() && !world->is_object()) {
+        return "world must be an object";
+    }
+    const auto expect = item.find("expect");
+    if (expect == item.end() || !expect->is_object()) {
+        return "the case needs an expect object";
+    }
+    for (auto iterator = expect->begin(); iterator != expect->end(); ++iterator) {
+        if (!IsAllowedKey(iterator.key(), kExpectKeys)) {
+            return "the case has the unknown expect key \"" + iterator.key() + "\"";
+        }
+    }
+    size_t expectation_count = 0;
+    for (const std::string_view key : kExpectKeys) {
+        if (expect->contains(std::string(key))) {
+            ++expectation_count;
+        }
+    }
+    if (expectation_count != 1) {
+        return "the case needs exactly one expectation";
+    }
+    return {};
+}
+
 // INFO: checks the expression with the declared type and matches the verifier's
-// formatted diagnostic, so a `check_error` case also asserts any suggestion.
+// formatted diagnostic exactly, so a `check_error` case also asserts any
+// suggestion and cannot pass on a truncated message.
 std::string RunCheckError(const Schema& schema, const std::string& source,
                           const std::optional<Type>& expected, const json& check_error) {
     if (!check_error.is_string()) {
@@ -86,8 +192,13 @@ std::string RunCheckError(const Schema& schema, const std::string& source,
     }
     const std::string wanted = check_error.get<std::string>();
     const std::string message = FormatDiagnostic(result.diagnostics.front());
-    if (message.find(wanted) == std::string::npos) {
-        return "the error \"" + message + "\" does not contain \"" + wanted + "\"";
+    const std::string prefix = std::string(kFile) + "#" + std::string(kPointer) + ": ";
+    if (message.rfind(prefix, 0) != 0) {
+        return "the diagnostic has no file and pointer prefix: " + message;
+    }
+    const std::string text = message.substr(prefix.size());
+    if (text != wanted) {
+        return "the error \"" + text + "\" is not \"" + wanted + "\"";
     }
     return {};
 }
@@ -150,11 +261,9 @@ std::string RunValue(const Schema& schema, const std::string& source,
 // `error` case runs it and matches the EvalError code; a `value` case checks it,
 // runs it and compares the result.
 std::string RunCase(const Schema& schema, const json& item) {
-    if (!item.is_object()) {
-        return "the case must be an object";
-    }
-    if (!item.contains("name") || !item.contains("expression")) {
-        return "the case needs a name and an expression";
+    const std::string invalid = ValidateCase(item);
+    if (!invalid.empty()) {
+        return invalid;
     }
     const std::string source = item.at("expression").get<std::string>();
 
@@ -190,6 +299,35 @@ std::string RunCase(const Schema& schema, const json& item) {
 
 TEST_SUITE("expr conformance") {
 
+TEST_CASE("the corpus reader rejects a duplicate key") {
+    const std::string text =
+        "{\"cases\": [{\"name\": \"a\", \"expression\": \"1\", "
+        "\"expect\": {\"value\": 1}, \"expect\": {\"value\": 2}}]}";
+    std::string error;
+    CHECK_FALSE(ParseCorpusText(text, error).has_value());
+    CHECK_FALSE(error.empty());
+}
+
+TEST_CASE("the corpus reader accepts valid text") {
+    std::string error;
+    const std::optional<json> value = ParseCorpusText("{\"cases\": []}", error);
+    REQUIRE_MESSAGE(value.has_value(), error);
+    CHECK(value->at("cases").is_array());
+}
+
+TEST_CASE("the runner rejects an unknown case key") {
+    json item = {{"name", "a"}, {"expression", "1"}, {"expect", {{"value", 1}}}};
+    item["extra"] = true;
+    CHECK_FALSE(ValidateCase(item).empty());
+}
+
+TEST_CASE("the runner rejects more than one expectation") {
+    json item = {{"name", "a"},
+                 {"expression", "1"},
+                 {"expect", {{"value", 1}, {"error", "division_by_zero"}}}};
+    CHECK_FALSE(ValidateCase(item).empty());
+}
+
 TEST_CASE("the shared corpus passes in the C++ evaluator") {
     const fs::path root = ProjectRoot();
     REQUIRE_FALSE(root.empty());
@@ -198,7 +336,7 @@ TEST_CASE("the shared corpus passes in the C++ evaluator") {
     const std::optional<Schema> schema = LoadSchema(schema_value, error);
     REQUIRE_MESSAGE(schema.has_value(), error);
 
-    const json corpus = ReadJsonFile(root / "tests" / "conformance" / "expressions.json");
+    const json corpus = ReadCorpusFile(root / "tests" / "conformance" / "expressions.json");
     const json& cases = corpus.at("cases");
     REQUIRE(cases.is_array());
     REQUIRE(cases.size() >= kMinimumCorpusCases);
