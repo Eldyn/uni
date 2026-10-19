@@ -1,5 +1,6 @@
 #include <doctest/doctest.h>
 
+#include <match/expr/checker.hpp>
 #include <match/expr/condition.hpp>
 #include <match/expr/diagnostic.hpp>
 #include <match/expr/types.hpp>
@@ -29,7 +30,8 @@ std::vector<match::expr::Diagnostic> Check(const json& value) {
     const ConditionParseResult parsed = Parse(value);
     REQUIRE(parsed.condition.has_value());
     return match::expr::CheckCondition(*parsed.condition, match::expr::testing::MakeTestSchema(),
-                                       kFile, "/when");
+                                       kFile, "/when")
+        .diagnostics;
 }
 
 std::string FirstMessage(const std::vector<match::expr::Diagnostic>& diagnostics) {
@@ -276,6 +278,50 @@ TEST_CASE("a_failing_check_points_into_the_nested_group") {
     REQUIRE_FALSE(diagnostics.empty());
     CHECK(diagnostics.front().pointer == "/when/all_of/1/any_of/0");
     CHECK(diagnostics.front().message == "condition must be bool, got int");
+}
+
+TEST_CASE("the_bindings_of_a_condition_flow_into_the_set_that_follows_it") {
+    const json when = json::parse(
+        R"json({"all_of":["defined($responder)","$responder.hand_size > 0"]})json");
+    const ConditionParseResult parsed = Parse(when);
+    REQUIRE(parsed.condition.has_value());
+    const match::expr::ConditionCheckResult checked = match::expr::CheckCondition(
+        *parsed.condition, match::expr::testing::MakeTestSchema(), kFile, "/when");
+    REQUIRE(checked.diagnostics.empty());
+    CHECK(checked.bound_when_true.count("responder") == 1);
+
+    const std::vector<match::expr::Diagnostic> unguarded =
+        match::expr::CheckAssignment("$responder.axe:stunned = true",
+                                     match::expr::testing::MakeTestSchema(), kFile,
+                                     "/steps/0/set");
+    REQUIRE_FALSE(unguarded.empty());
+    CHECK(unguarded.front().message.find("may be unbound") != std::string::npos);
+
+    const std::vector<match::expr::Diagnostic> guarded = match::expr::CheckAssignment(
+        "$responder.axe:stunned = true", match::expr::testing::MakeTestSchema(), kFile,
+        "/steps/0/set", match::expr::GuardState{checked.bound_when_true});
+    CHECK(guarded.empty());
+}
+
+TEST_CASE("an_any_of_condition_binds_only_what_every_branch_binds") {
+    const ConditionParseResult both = Parse(json::parse(
+        R"json({"any_of":["defined($responder) && defined($choice)","defined($choice)"]})json"));
+    REQUIRE(both.condition.has_value());
+    const match::expr::ConditionCheckResult checked = match::expr::CheckCondition(
+        *both.condition, match::expr::testing::MakeTestSchema(), kFile, "/when");
+    REQUIRE(checked.diagnostics.empty());
+    CHECK(checked.bound_when_true.count("choice") == 1);
+    CHECK(checked.bound_when_true.count("responder") == 0);
+}
+
+TEST_CASE("a_none_of_condition_binds_the_variables_its_leaves_rule_out") {
+    const ConditionParseResult parsed =
+        Parse(json::parse(R"json({"none_of":["!defined($choice)"]})json"));
+    REQUIRE(parsed.condition.has_value());
+    const match::expr::ConditionCheckResult checked = match::expr::CheckCondition(
+        *parsed.condition, match::expr::testing::MakeTestSchema(), kFile, "/when");
+    REQUIRE(checked.diagnostics.empty());
+    CHECK(checked.bound_when_true.count("choice") == 1);
 }
 
 }  // TEST_SUITE

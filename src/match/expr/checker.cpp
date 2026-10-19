@@ -982,6 +982,12 @@ CheckResult CheckParsedExpression(const Node& root, const Schema& schema,
 
 std::vector<Diagnostic> CheckAssignment(std::string_view source, const Schema& schema,
                                         std::string_view file, std::string_view pointer) {
+    return CheckAssignment(source, schema, file, pointer, GuardState{});
+}
+
+std::vector<Diagnostic> CheckAssignment(std::string_view source, const Schema& schema,
+                                        std::string_view file, std::string_view pointer,
+                                        const GuardState& initial) {
     const AssignmentResult parsed = ParseAssignment(source);
     if (parsed.error) {
         return {Diagnostic{std::string(file), std::string(pointer), parsed.error->message, ""}};
@@ -994,7 +1000,7 @@ std::vector<Diagnostic> CheckAssignment(std::string_view source, const Schema& s
                                " nodes; the limit is " + std::to_string(kMaximumExpressionNodes),
                            ""}};
     }
-    Checker checker(schema, std::nullopt, file, pointer, GuardState{});
+    Checker checker(schema, std::nullopt, file, pointer, initial);
     return checker.CheckAssignment(*parsed.assignment);
 }
 

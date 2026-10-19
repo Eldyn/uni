@@ -54,8 +54,13 @@ CheckResult CheckParsedExpression(const Node& root, const Schema& schema,
 // INFO: parses `source` as an assignment and checks it against `schema`. The
 // target must be a writable property; a property without a namespace is
 // built-in and read-only, and a set-valued selector writes to every member.
-// The value must fit the declared type of the property.
+// The value must fit the declared type of the property. `initial` supplies the
+// variables a preceding guard, such as a `when`, has already bound.
 std::vector<Diagnostic> CheckAssignment(std::string_view source, const Schema& schema,
                                         std::string_view file, std::string_view pointer);
+
+std::vector<Diagnostic> CheckAssignment(std::string_view source, const Schema& schema,
+                                        std::string_view file, std::string_view pointer,
+                                        const GuardState& initial);
 
 }  // namespace match::expr

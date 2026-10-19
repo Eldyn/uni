@@ -77,12 +77,54 @@ std::optional<GroupKey> FindGroup(const json& object) {
     return std::nullopt;
 }
 
-// INFO: the guard bindings a checked condition guarantees. A group returns
-// nothing of its own; only its leaves guard the leaves that follow them.
+// INFO: the guard bindings a checked condition node guarantees. A group
+// combines its children: an `all_of` is true when every child is, so it unions
+// the children's when_true and intersects their when_false; `any_of` is the
+// other way round; `none_of` is NOT OR, so its when_true swaps in the
+// children's when_false.
 struct Narrowed {
     std::set<std::string> when_true;
     std::set<std::string> when_false;
 };
+
+std::set<std::string> Union(std::set<std::string> left, const std::set<std::string>& right) {
+    left.insert(right.begin(), right.end());
+    return left;
+}
+
+std::set<std::string> Intersect(std::set<std::string> left,
+                                const std::set<std::string>& right) {
+    for (auto entry = left.begin(); entry != left.end();) {
+        if (right.count(*entry) == 0) {
+            entry = left.erase(entry);
+        } else {
+            ++entry;
+        }
+    }
+    return left;
+}
+
+Narrowed CombineGroup(Condition::Kind kind, const std::vector<Narrowed>& children) {
+    Narrowed combined;
+    bool first = true;
+    for (const Narrowed& child : children) {
+        if (kind == Condition::Kind::kAllOf) {
+            combined.when_true = Union(combined.when_true, child.when_true);
+            combined.when_false = first ? child.when_false
+                                        : Intersect(combined.when_false, child.when_false);
+        } else if (kind == Condition::Kind::kAnyOf) {
+            combined.when_true =
+                first ? child.when_true : Intersect(combined.when_true, child.when_true);
+            combined.when_false = Union(combined.when_false, child.when_false);
+        } else {
+            combined.when_true = Union(combined.when_true, child.when_false);
+            combined.when_false =
+                first ? child.when_true : Intersect(combined.when_false, child.when_true);
+        }
+        first = false;
+    }
+    return combined;
+}
 
 class ConditionParser {
 public:
@@ -191,8 +233,8 @@ public:
                      std::vector<Diagnostic>& diagnostics)
         : schema_(schema), file_(file), diagnostics_(diagnostics) {}
 
-    void Check(const Condition& condition, const std::string& pointer) {
-        CheckNode(condition, pointer, {}, 1);
+    std::optional<Narrowed> Check(const Condition& condition, const std::string& pointer) {
+        return CheckNode(condition, pointer, {}, 1);
     }
 
 private:
@@ -216,6 +258,7 @@ private:
         }
         const bool binds_when_true = condition.kind == Condition::Kind::kAllOf;
         std::set<std::string> bound = guaranteed;
+        std::vector<Narrowed> checked_children;
         bool ok = true;
         for (size_t index = 0; index < condition.children.size(); ++index) {
             const Condition& child = condition.children[index];
@@ -228,6 +271,7 @@ private:
                 ok = false;
                 continue;
             }
+            checked_children.push_back(*checked);
             if (child.kind == Condition::Kind::kExpression) {
                 const std::set<std::string>& branch =
                     binds_when_true ? checked->when_true : checked->when_false;
@@ -237,7 +281,7 @@ private:
         if (!ok) {
             return std::nullopt;
         }
-        return Narrowed{};
+        return CombineGroup(condition.kind, checked_children);
     }
 
     std::optional<Narrowed> CheckLeaf(const Condition& condition, const std::string& pointer,
@@ -286,12 +330,17 @@ ConditionParseResult ParseCondition(const json& value, std::string_view file,
     return parser.Parse(value, std::string(pointer));
 }
 
-std::vector<Diagnostic> CheckCondition(const Condition& condition, const Schema& schema,
-                                       std::string_view file, std::string_view pointer) {
+ConditionCheckResult CheckCondition(const Condition& condition, const Schema& schema,
+                                    std::string_view file, std::string_view pointer) {
     std::vector<Diagnostic> diagnostics;
     ConditionChecker checker(schema, file, diagnostics);
-    checker.Check(condition, std::string(pointer));
-    return diagnostics;
+    const std::optional<Narrowed> narrowed = checker.Check(condition, std::string(pointer));
+    ConditionCheckResult result;
+    result.diagnostics = std::move(diagnostics);
+    if (narrowed) {
+        result.bound_when_true = narrowed->when_true;
+    }
+    return result;
 }
 
 EvalResult EvaluateCondition(const Condition& condition, EvalContext& context) {

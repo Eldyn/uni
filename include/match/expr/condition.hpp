@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <optional>
+#include <set>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -42,9 +43,18 @@ ConditionParseResult ParseCondition(const json& value, std::string_view file,
 // INFO: every leaf must check as a bool. A leaf is checked with the variables
 // the earlier siblings guarantee: in `all_of` the variables the leaves before
 // it bind when true, in `any_of` and `none_of` the ones they bind when false.
-// Evaluating the tree is the evaluator's job.
-std::vector<Diagnostic> CheckCondition(const Condition& condition, const Schema& schema,
-                                       std::string_view file, std::string_view pointer);
+// `bound_when_true` carries the variables the whole tree guarantees to be bound
+// when it is true, so a `set` guarded by this `when` can be checked with them:
+// all_of is the union of its children, any_of the intersection, none_of the
+// union of the variables its children bind when false.
+struct ConditionCheckResult {
+    std::vector<Diagnostic> diagnostics;
+    std::set<std::string> bound_when_true;
+};
+
+// INFO: checks the tree; evaluating it is the evaluator's job.
+ConditionCheckResult CheckCondition(const Condition& condition, const Schema& schema,
+                                    std::string_view file, std::string_view pointer);
 
 // INFO: evaluates a condition tree against a context. all_of is AND, any_of is
 // OR, none_of is NOT OR; leaves short-circuit left to right. A leaf error is
