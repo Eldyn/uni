@@ -8,9 +8,9 @@
 	import { defaultItemChoice } from "$lib/avatar/previewLoadout";
 	import { onMount, tick } from "svelte";
 	import { isBuyableNow, isSwatchBuyable } from "$lib/shop/shopBackend";
-	import { compareRarity } from "$lib/shop/rarity";
+	import { compareRarity, paletteRarity } from "$lib/shop/rarity";
 	import type { BuyFailure, SwatchEntry } from "$lib/shop/shopBackend";
-	import type { AvatarSlot, CatalogueItem, Loadout, Palette, Swatch } from "$lib/avatar/types";
+	import type { AvatarSlot, CatalogueItem, Loadout, Palette } from "$lib/avatar/types";
 	import { storeShop } from "$lib/stores/shop.svelte";
 	import { storeAuth } from "$stores/auth.svelte";
 	import { storeAvatar } from "$stores/avatar.svelte";
@@ -23,7 +23,7 @@
 	import { HOME_BACKGROUND_HINT_CSS } from "$lib/shaders/homePalette";
 	import FeaturedBanner from "$components/shop/FeaturedBanner.svelte";
 	import SlotTabs from "$components/shop/SlotTabs.svelte";
-	import SwatchCard from "$components/shop/SwatchCard.svelte";
+	import PaletteCard from "$components/shop/PaletteCard.svelte";
 	import SwatchDetail from "$components/shop/SwatchDetail.svelte";
 
 	/** A tab either filters to one catalogue slot, or to palettes, or to all. */
@@ -96,16 +96,25 @@
 			.sort((a, b) => compareRarity(a.rarity, b.rarity));
 	});
 
-	const swatchEntries = $derived(
-		catalogue.palettes.flatMap((palette: Palette) =>
-			palette.swatches.map((swatch: Swatch): SwatchEntry => ({ swatch, palette }))
-		)
-	);
+	/** Paid palettes with a swatch for sale or owned, lowest rarity first. */
 	const paletteCards = $derived(
-		swatchEntries
-			.filter((entry) => isSwatchBuyable(entry) || owned.has(entry.swatch.id))
-			.sort((a, b) => compareRarity(a.swatch.rarity ?? "common", b.swatch.rarity ?? "common"))
+		catalogue.palettes
+			.filter((palette) => palette.starter !== true)
+			.filter((palette) =>
+				palette.swatches.some(
+					(swatch) => isSwatchBuyable({ swatch, palette }) || owned.has(swatch.id)
+				)
+			)
+			.sort((a, b) => compareRarity(paletteRarity(a), paletteRarity(b)))
 	);
+
+	/** The lowest price still for sale, or null when nothing is left to buy. */
+	function lowestPrice(palette: Palette): number | null {
+		const prices = palette.swatches
+			.filter((swatch) => isSwatchBuyable({ swatch, palette }) && !owned.has(swatch.id))
+			.map((swatch) => swatch.price ?? 0);
+		return prices.length > 0 ? Math.min(...prices) : null;
+	}
 	const showingPalettes = $derived(activeTab === "palettes");
 	const cardCount = $derived(showingPalettes ? paletteCards.length : items.length);
 
@@ -139,10 +148,14 @@
 		card?.focus();
 	}
 
-	function openSwatch(entry: SwatchEntry): void {
-		triggerId = entry.swatch.id;
+	function openPalette(palette: Palette): void {
+		triggerId = palette.id;
 		selected = null;
-		selectedSwatch = entry;
+		const swatch =
+			palette.swatches.find(
+				(entry) => isSwatchBuyable({ swatch: entry, palette }) && !owned.has(entry.id)
+			) ?? palette.swatches[0];
+		selectedSwatch = swatch ? { swatch, palette } : null;
 		buyError = null;
 	}
 
@@ -324,13 +337,12 @@
 			onkeydown={handleGridKeydown}
 		>
 			{#if showingPalettes}
-				{#each paletteCards as entry, index (entry.swatch.id)}
-					<SwatchCard
-						swatch={entry.swatch}
-						palette={entry.palette}
-						owned={owned.has(entry.swatch.id)}
+				{#each paletteCards as palette, index (palette.id)}
+					<PaletteCard
+						{palette}
+						price={lowestPrice(palette)}
 						selected={index === focusedCard}
-						onselect={() => openSwatch(entry)}
+						onselect={() => openPalette(palette)}
 					/>
 				{/each}
 			{:else}

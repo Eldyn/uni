@@ -1,31 +1,23 @@
-<!-- One palette swatch on the shop stage: a color tile, the swatch name, the
-     palette name, and either the price or an OWNED ribbon. -->
+<!-- One paid palette on the shop stage: its colors as a pixel grid, the
+     name, and the lowest price still for sale or an OWNED ribbon. -->
 <script lang="ts">
 	import RarityFrame from "$components/shop/RarityFrame.svelte";
+	import PaletteSwatches from "$components/shop/PaletteSwatches.svelte";
 	import { shopItemText } from "$components/shop/ItemCard.svelte";
-	import { swatchName } from "$lib/shop/swatchText";
-	import type { Palette, Swatch } from "$lib/avatar/types";
+	import { paletteRarity } from "$lib/shop/rarity";
+	import type { Palette } from "$lib/avatar/types";
 	import { storeI18n } from "$stores/i18n.svelte";
 
 	let {
-		swatch,
 		palette,
-		owned,
+		price,
 		selected,
 		onselect
-	}: {
-		swatch: Swatch;
-		palette: Palette;
-		owned: boolean;
-		selected: boolean;
-		onselect: () => void;
-	} = $props();
+	}: { palette: Palette; price: number | null; selected: boolean; onselect: () => void } = $props();
 
 	const locale = $derived(storeI18n.locale);
-	const name = $derived(swatchName(swatch.id));
 	const paletteKey = $derived(`shop_palette_${palette.id.replaceAll(":", "_")}`);
-	const paletteName = $derived(shopItemText(paletteKey, palette.name, locale));
-	const rarity = $derived(swatch.rarity ?? "common");
+	const name = $derived(shopItemText(paletteKey, palette.name, locale));
 	const ownedLabel = $derived(shopItemText("shop_owned", "OWNED", locale));
 
 	function activate(event: KeyboardEvent): void {
@@ -37,30 +29,28 @@
 
 <button
 	type="button"
-	class="swatch-card"
-	data-item-id={swatch.id}
+	class="palette-card"
+	data-item-id={palette.id}
 	data-selected={selected ? "true" : "false"}
 	tabindex={selected ? 0 : -1}
 	onclick={onselect}
 	onkeydown={activate}
 >
-	<RarityFrame {rarity}>
-		<span class="swatch-tile pixel-bordered" style="--swatch: {swatch.hex}" aria-hidden="true"
-		></span>
-		<span class="swatch-name font-tiny">{name}</span>
-		<span class="swatch-palette font-tiny">{paletteName}</span>
-		{#if owned}
-			<span class="swatch-owned font-tiny">{ownedLabel}</span>
+	<RarityFrame rarity={paletteRarity(palette)}>
+		<span class="palette-card-art"><PaletteSwatches swatches={palette.swatches} size={14} /></span>
+		<span class="palette-card-name font-tiny">{name}</span>
+		{#if price === null}
+			<span class="palette-card-owned font-tiny">{ownedLabel}</span>
 		{:else}
-			<span class="swatch-price font-pixel">
-				<span class="coin" aria-hidden="true"></span>{swatch.price}
+			<span class="palette-card-price font-pixel">
+				<span class="coin" aria-hidden="true"></span>{price}
 			</span>
 		{/if}
 	</RarityFrame>
 </button>
 
 <style>
-	.swatch-card {
+	.palette-card {
 		display: block;
 		width: 100%;
 		padding: 0;
@@ -71,7 +61,7 @@
 		clip-path: none;
 	}
 
-	.swatch-card :global(.rarity-frame) {
+	.palette-card :global(.rarity-frame) {
 		background: repeating-linear-gradient(
 			135deg,
 			color-mix(in srgb, var(--rarity-colour) 22%, var(--surface-deep)) 0 9px,
@@ -83,37 +73,29 @@
 			filter 0.12s ease;
 	}
 
-	.swatch-card:hover :global(.rarity-frame),
-	.swatch-card:focus-visible :global(.rarity-frame) {
+	.palette-card:hover :global(.rarity-frame),
+	.palette-card:focus-visible :global(.rarity-frame) {
 		filter: brightness(1.12);
 		transform: translateY(-2px);
 		box-shadow: 0 0 14px color-mix(in srgb, var(--rarity-colour) 65%, transparent);
 	}
 
-	.swatch-tile {
-		display: block;
+	.palette-card-art {
+		display: grid;
+		place-items: center;
 		width: 100%;
 		aspect-ratio: 1;
-		background: var(--swatch);
-		--pc-fill: var(--surface);
 	}
 
-	.swatch-name {
+	.palette-card-name {
 		padding: 0.35rem 0.4rem 0;
 		overflow-wrap: anywhere;
 		text-align: center;
 		color: var(--text-h);
 	}
 
-	.swatch-palette {
-		padding: 0.1rem 0.4rem 0;
-		overflow-wrap: anywhere;
-		text-align: center;
-		color: var(--text);
-	}
-
-	.swatch-price,
-	.swatch-owned {
+	.palette-card-price,
+	.palette-card-owned {
 		display: flex;
 		align-items: center;
 		justify-content: center;
@@ -122,11 +104,11 @@
 		font-size: 0.85rem;
 	}
 
-	.swatch-price {
+	.palette-card-price {
 		color: var(--gold);
 	}
 
-	.swatch-owned {
+	.palette-card-owned {
 		color: var(--accent);
 		letter-spacing: 0.06em;
 	}
