@@ -1,13 +1,14 @@
 <!-- The 3D avatar stage: a Threlte orthographic canvas showing the baked strip
      on a textured plane, with a ground glow disc under it. The pose is static;
-     the strip steps through its 5 frames on the shared 120 ms clock, stopping
-     while the tab is hidden. Without WebGL the plain Avatar is the fallback,
-     so the preview never blocks the screen. -->
+     the strip steps through its 5 frames on the shared 120 ms clock and asks
+     for a render on each step, stopping while the tab is hidden. Without WebGL
+     the plain Avatar is the fallback, so the preview never blocks the screen. -->
 <script lang="ts">
 	import { onDestroy, onMount } from "svelte";
 	import { Canvas, T } from "@threlte/core";
 	import type { CanvasTexture } from "three";
 	import Avatar from "$components/common/Avatar.svelte";
+	import AvatarStageStrip from "$components/shop/AvatarStageStrip.svelte";
 	import { loadAvatarTexture } from "$components/game/three/avatarTexture";
 	import { FRAME_COUNT, FRAME_MS, type Loadout } from "$lib/avatar/types";
 
@@ -64,18 +65,11 @@
 		};
 	});
 
-	// The strip's frame cursor is its own effect: reading `frame` inside the
-	// load effect above would re-run the bake on every animation frame.
-	$effect(() => {
-		if (texture) texture.offset.x = frame / FRAME_COUNT;
-	});
-
 	function stepFrames(deltaMs: number): void {
 		frameElapsed += deltaMs;
 		while (frameElapsed >= FRAME_MS) {
 			frameElapsed -= FRAME_MS;
 			frame = (frame + 1) % FRAME_COUNT;
-			if (texture) texture.offset.x = frame / FRAME_COUNT;
 		}
 	}
 
@@ -133,16 +127,7 @@
 
 			<T.Group>
 				{#if texture}
-					<T.Mesh position.y={0.04}>
-						<T.PlaneGeometry args={[1, 1]} />
-						<T.MeshBasicMaterial
-							map={texture}
-							transparent
-							alphaTest={0.05}
-							depthWrite={false}
-							toneMapped={false}
-						/>
-					</T.Mesh>
+					<AvatarStageStrip {texture} {frame} />
 				{/if}
 			</T.Group>
 
