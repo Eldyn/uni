@@ -217,8 +217,9 @@ const std::vector<std::string>& SlotKeys() {
 }
 
 void ReadStringArray(const json& object, const char* key, const char* element_error,
-                     const std::string& file, const std::string& pointer,
-                     std::vector<Diagnostic>& diagnostics, std::vector<std::string>& out) {
+                     const char* duplicate_prefix, const std::string& file,
+                     const std::string& pointer, std::vector<Diagnostic>& diagnostics,
+                     std::vector<std::string>& out) {
     const auto entry = object.find(key);
     if (entry == object.end()) {
         return;
@@ -229,20 +230,28 @@ void ReadStringArray(const json& object, const char* key, const char* element_er
                  "key \"" + std::string(key) + "\" must be an array");
         return;
     }
+    std::set<std::string> seen;
     for (std::size_t index = 0; index < entry->size(); ++index) {
         const json& item = (*entry)[index];
+        const std::string element_pointer =
+            match::expr::AppendPointerToken(array_pointer, std::to_string(index));
         if (!item.is_string() || item.get<std::string>().empty()) {
-            AddError(diagnostics, file,
-                     match::expr::AppendPointerToken(array_pointer, std::to_string(index)),
-                     element_error);
+            AddError(diagnostics, file, element_pointer, element_error);
             continue;
         }
-        out.push_back(item.get<std::string>());
+        const std::string text = item.get<std::string>();
+        if (!seen.insert(text).second) {
+            AddError(diagnostics, file, element_pointer,
+                     std::string(duplicate_prefix) + " \"" + text + "\"");
+            continue;
+        }
+        out.push_back(text);
     }
 }
 
 void ParseKindSlots(const json& value, const std::string& file, const std::string& pointer,
-                    std::vector<Diagnostic>& diagnostics, KindTemplate& kind) {
+                    std::vector<Diagnostic>& diagnostics, KindTemplate& kind,
+                    std::set<std::string>& declared_slot_names) {
     const auto attributes = value.find("attributes");
     if (attributes == value.end()) {
         return;
@@ -268,6 +277,19 @@ void ParseKindSlots(const json& value, const std::string& file, const std::strin
 
         const std::optional<std::string> attribute =
             ReadString(binding, "attribute", file, binding_pointer, diagnostics, true);
+        const std::optional<std::string> declared_name =
+            ReadString(binding, "name", file, binding_pointer, diagnostics, false);
+
+        // INFO: the intended slot name is recorded even when a later check
+        // rejects the binding, so a symmetric group that names it does not
+        // report a second, cascading "unknown slot" error for a slot the author
+        // did declare.
+        if (declared_name) {
+            declared_slot_names.insert(*declared_name);
+        } else if (attribute) {
+            declared_slot_names.insert(LocalNameOf(*attribute));
+        }
+
         if (!attribute) {
             continue;
         }
@@ -278,8 +300,6 @@ void ParseKindSlots(const json& value, const std::string& file, const std::strin
             continue;
         }
 
-        const std::optional<std::string> declared_name =
-            ReadString(binding, "name", file, binding_pointer, diagnostics, false);
         const std::string slot_name = declared_name ? *declared_name : LocalNameOf(*attribute);
         if (declared_name && !IsValidLocalName(*declared_name)) {
             AddError(diagnostics, file,
@@ -317,6 +337,7 @@ void ParseKindSymmetric(const json& value, const std::string& file, const std::s
         AddError(diagnostics, file, symmetric_pointer, "key \"symmetric\" must be an array");
         return;
     }
+    std::set<std::string> grouped_slots;
     for (std::size_t group_index = 0; group_index < symmetric->size(); ++group_index) {
         const json& group = (*symmetric)[group_index];
         const std::string group_pointer =
@@ -327,38 +348,60 @@ void ParseKindSymmetric(const json& value, const std::string& file, const std::s
             continue;
         }
         std::vector<std::string> names;
+        std::set<std::string> names_in_group;
+        bool group_valid = true;
         for (std::size_t name_index = 0; name_index < group.size(); ++name_index) {
             const json& name = group[name_index];
+            const std::string name_pointer =
+                match::expr::AppendPointerToken(group_pointer, std::to_string(name_index));
             if (!name.is_string() || name.get<std::string>().empty()) {
-                AddError(diagnostics, file,
-                         match::expr::AppendPointerToken(group_pointer,
-                                                         std::to_string(name_index)),
+                AddError(diagnostics, file, name_pointer,
                          "symmetric group entry must be a non-empty string");
+                group_valid = false;
                 continue;
             }
-            names.push_back(name.get<std::string>());
+            const std::string text = name.get<std::string>();
+            if (!names_in_group.insert(text).second) {
+                AddError(diagnostics, file, name_pointer,
+                         "duplicate slot name \"" + text + "\" in symmetric group");
+                group_valid = false;
+                continue;
+            }
+            if (grouped_slots.count(text) != 0) {
+                AddError(diagnostics, file, name_pointer,
+                         "slot \"" + text + "\" appears in more than one symmetric group");
+                group_valid = false;
+                continue;
+            }
+            names.push_back(text);
+        }
+        // INFO: a group with a bad entry is dropped; pushing it would trigger a
+        // second, misleading "at least 2 slots" error for the same group.
+        if (!group_valid) {
+            continue;
         }
         if (names.size() < 2) {
             AddError(diagnostics, file, group_pointer,
                      "symmetric group must name at least 2 slots");
+            continue;
+        }
+        for (const std::string& name : names) {
+            grouped_slots.insert(name);
         }
         kind.symmetric_groups.push_back(std::move(names));
     }
 }
 
 void CheckSymmetricSlots(const std::string& file, const std::string& pointer,
-                         std::vector<Diagnostic>& diagnostics, const KindTemplate& kind) {
-    std::set<std::string> declared;
-    for (const SlotBinding& slot : kind.slots) {
-        declared.insert(slot.name);
-    }
+                         std::vector<Diagnostic>& diagnostics, const KindTemplate& kind,
+                         const std::set<std::string>& declared_slot_names) {
     const std::string symmetric_pointer =
         match::expr::AppendPointerToken(pointer, "symmetric");
     for (std::size_t group_index = 0; group_index < kind.symmetric_groups.size();
          ++group_index) {
         const std::vector<std::string>& group = kind.symmetric_groups[group_index];
         for (std::size_t name_index = 0; name_index < group.size(); ++name_index) {
-            if (declared.count(group[name_index]) != 0) {
+            if (declared_slot_names.count(group[name_index]) != 0) {
                 continue;
             }
             AddError(diagnostics, file,
@@ -411,18 +454,24 @@ bool ParseKind(const json& value, const std::string& mod_id, const std::string& 
                      "extends \"" + *parent +
                          "\" is not a valid identifier; a local name uses [a-z0-9_] "
                          "(1 to 32 characters)");
+        } else if (*parent == kind.identifier) {
+            AddError(diagnostics, file,
+                     match::expr::AppendPointerToken(pointer, "extends"),
+                     "a kind cannot extend itself");
         }
     }
 
-    ReadStringArray(value, "tags", "tag must be a non-empty string", file, pointer,
-                    diagnostics, kind.tags);
-    ParseKindSlots(value, file, pointer, diagnostics, kind);
+    ReadStringArray(value, "tags", "tag must be a non-empty string", "duplicate tag", file,
+                    pointer, diagnostics, kind.tags);
+    std::set<std::string> declared_slot_names;
+    ParseKindSlots(value, file, pointer, diagnostics, kind, declared_slot_names);
     ParseKindSymmetric(value, file, pointer, diagnostics, kind);
-    CheckSymmetricSlots(file, pointer, diagnostics, kind);
+    CheckSymmetricSlots(file, pointer, diagnostics, kind, declared_slot_names);
 
-    ReadStringArray(value, "slot_order", "slot_order entry must be a non-empty string", file,
-                    pointer, diagnostics, kind.slot_order);
+    ReadStringArray(value, "slot_order", "slot_order entry must be a non-empty string",
+                    "duplicate slot_order entry", file, pointer, diagnostics, kind.slot_order);
 
+    // TODO(task 10): check {slot} placeholder syntax of identifier_format and title_format
     if (const std::optional<std::string> format =
             ReadString(value, "identifier_format", file, pointer, diagnostics, false)) {
         kind.identifier_format = *format;
@@ -472,10 +521,14 @@ bool ParseKind(const json& value, const std::string& mod_id, const std::string& 
     }
 
     const auto contribute = value.find("contribute");
-    if (contribute != value.end() && !contribute->is_object()) {
-        AddError(diagnostics, file,
-                 match::expr::AppendPointerToken(pointer, "contribute"),
-                 "key \"contribute\" must be an object");
+    if (contribute != value.end()) {
+        if (!contribute->is_object()) {
+            AddError(diagnostics, file,
+                     match::expr::AppendPointerToken(pointer, "contribute"),
+                     "key \"contribute\" must be an object");
+        } else {
+            kind.contribute_raw = *contribute;
+        }
     }
 
     kind.file = file;

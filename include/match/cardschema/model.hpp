@@ -68,6 +68,7 @@ struct KindTemplate {
     std::string label_key, description_key;
     json properties = json::object();
     ContributionMap contribute;
+    json contribute_raw = json();       // parsed into `contribute` in a later step
     std::string file;
 };
 

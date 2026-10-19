@@ -719,4 +719,400 @@ TEST_CASE("foreign_kind_namespace") {
           "kind identifier \"other:x\" must use the namespace \"uni\"");
 }
 
+TEST_CASE("kind_symmetric_group_too_short") {
+    CardSchemaTempDir dir;
+    dir.Write("uni/kinds/split.json",
+              R"({"format_version":"1.0.0","kind":{"identifier":"uni:split",)"
+              R"("attributes":[{"attribute":"uni:color","name":"left"}],)"
+              R"("symmetric":[["left"]]}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "uni", "uni");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/uni/kinds/split.json#/kind/symmetric/0: "
+          "symmetric group must name at least 2 slots");
+}
+
+TEST_CASE("kind_symmetric_must_be_array") {
+    CardSchemaTempDir dir;
+    dir.Write("uni/kinds/split.json",
+              R"({"format_version":"1.0.0","kind":{"identifier":"uni:split",)"
+              R"("symmetric":"left"}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "uni", "uni");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/uni/kinds/split.json#/kind/symmetric: "
+          "key \"symmetric\" must be an array");
+}
+
+TEST_CASE("kind_symmetric_entry_must_be_array") {
+    CardSchemaTempDir dir;
+    dir.Write("uni/kinds/split.json",
+              R"({"format_version":"1.0.0","kind":{"identifier":"uni:split",)"
+              R"("symmetric":["left"]}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "uni", "uni");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/uni/kinds/split.json#/kind/symmetric/0: "
+          "symmetric entry must be an array");
+}
+
+TEST_CASE("kind_symmetric_invalid_entry") {
+    CardSchemaTempDir dir;
+    dir.Write("uni/kinds/split.json",
+              R"({"format_version":"1.0.0","kind":{"identifier":"uni:split",)"
+              R"("attributes":[{"attribute":"uni:color","name":"left"}],)"
+              R"("symmetric":[["left",5]]}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "uni", "uni");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/uni/kinds/split.json#/kind/symmetric/0/1: "
+          "symmetric group entry must be a non-empty string");
+}
+
+TEST_CASE("kind_symmetric_duplicate_slot") {
+    CardSchemaTempDir dir;
+    dir.Write("uni/kinds/split.json",
+              R"({"format_version":"1.0.0","kind":{"identifier":"uni:split",)"
+              R"("attributes":[{"attribute":"uni:color","name":"left"},)"
+              R"({"attribute":"uni:shade","name":"right"}],)"
+              R"("symmetric":[["left","left"]]}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "uni", "uni");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/uni/kinds/split.json#/kind/symmetric/0/1: "
+          "duplicate slot name \"left\" in symmetric group");
+}
+
+TEST_CASE("kind_slot_in_two_symmetric_groups") {
+    CardSchemaTempDir dir;
+    dir.Write("uni/kinds/split.json",
+              R"({"format_version":"1.0.0","kind":{"identifier":"uni:split",)"
+              R"("attributes":[{"attribute":"uni:color","name":"left"},)"
+              R"({"attribute":"uni:shade","name":"right"},)"
+              R"({"attribute":"uni:value","name":"other"}],)"
+              R"("symmetric":[["left","right"],["left","other"]]}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "uni", "uni");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/uni/kinds/split.json#/kind/symmetric/1/0: "
+          "slot \"left\" appears in more than one symmetric group");
+}
+
+TEST_CASE("kind_tag_must_be_non_empty_string") {
+    CardSchemaTempDir dir;
+    dir.Write("uni/kinds/numbered.json",
+              R"({"format_version":"1.0.0","kind":{"identifier":"uni:numbered",)"
+              R"("tags":[7]}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "uni", "uni");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/uni/kinds/numbered.json#/kind/tags/0: "
+          "tag must be a non-empty string");
+}
+
+TEST_CASE("kind_duplicate_tag") {
+    CardSchemaTempDir dir;
+    dir.Write("uni/kinds/numbered.json",
+              R"({"format_version":"1.0.0","kind":{"identifier":"uni:numbered",)"
+              R"("tags":["colored","colored"]}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "uni", "uni");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/uni/kinds/numbered.json#/kind/tags/1: duplicate tag \"colored\"");
+}
+
+TEST_CASE("kind_slot_order_entries_rejected") {
+    CardSchemaTempDir dir;
+    dir.Write("uni/kinds/numbered.json",
+              R"({"format_version":"1.0.0","kind":{"identifier":"uni:numbered",)"
+              R"("slot_order":[5,""]}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "uni", "uni");
+
+    REQUIRE(outcome.diagnostics.size() == 2);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/uni/kinds/numbered.json#/kind/slot_order/0: "
+          "slot_order entry must be a non-empty string");
+    CHECK(FormatDiagnostic(outcome.diagnostics[1]) ==
+          "mods/uni/kinds/numbered.json#/kind/slot_order/1: "
+          "slot_order entry must be a non-empty string");
+}
+
+TEST_CASE("kind_duplicate_slot_order") {
+    CardSchemaTempDir dir;
+    dir.Write("uni/kinds/numbered.json",
+              R"({"format_version":"1.0.0","kind":{"identifier":"uni:numbered",)"
+              R"("slot_order":["left","left"]}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "uni", "uni");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/uni/kinds/numbered.json#/kind/slot_order/1: "
+          "duplicate slot_order entry \"left\"");
+}
+
+TEST_CASE("kind_slot_name_invalid") {
+    CardSchemaTempDir dir;
+    dir.Write("uni/kinds/split.json",
+              R"({"format_version":"1.0.0","kind":{"identifier":"uni:split",)"
+              R"("attributes":[{"attribute":"uni:color","name":"Left"}]}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "uni", "uni");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/uni/kinds/split.json#/kind/attributes/0/name: "
+          "slot name \"Left\" must use [a-z0-9_] (1 to 32 characters)");
+}
+
+TEST_CASE("kind_attribute_binding_must_be_object") {
+    CardSchemaTempDir dir;
+    dir.Write("uni/kinds/split.json",
+              R"({"format_version":"1.0.0","kind":{"identifier":"uni:split",)"
+              R"("attributes":["uni:color"]}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "uni", "uni");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/uni/kinds/split.json#/kind/attributes/0: "
+          "attribute binding must be an object");
+}
+
+TEST_CASE("kind_slot_unknown_key") {
+    CardSchemaTempDir dir;
+    dir.Write("uni/kinds/split.json",
+              R"({"format_version":"1.0.0","kind":{"identifier":"uni:split",)"
+              R"("attributes":[{"attribute":"uni:color","surfac":"left"}]}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "uni", "uni");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/uni/kinds/split.json#/kind/attributes/0/surfac: "
+          "unknown key \"surfac\" (did you mean \"surface\")");
+}
+
+TEST_CASE("kind_slot_attribute_not_identifier") {
+    CardSchemaTempDir dir;
+    dir.Write("uni/kinds/split.json",
+              R"({"format_version":"1.0.0","kind":{"identifier":"uni:split",)"
+              R"("attributes":[{"attribute":"color"}]}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "uni", "uni");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/uni/kinds/split.json#/kind/attributes/0/attribute: "
+          "attribute \"color\" is not a valid identifier");
+}
+
+TEST_CASE("kind_extends_must_be_string") {
+    CardSchemaTempDir dir;
+    dir.Write("uni/kinds/split.json",
+              R"({"format_version":"1.0.0","kind":{"identifier":"uni:split",)"
+              R"("extends":5}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "uni", "uni");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/uni/kinds/split.json#/kind/extends: key \"extends\" must be a string");
+}
+
+TEST_CASE("kind_extends_not_identifier") {
+    CardSchemaTempDir dir;
+    dir.Write("uni/kinds/split.json",
+              R"({"format_version":"1.0.0","kind":{"identifier":"uni:split",)"
+              R"("extends":"uni:Left"}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "uni", "uni");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/uni/kinds/split.json#/kind/extends: extends \"uni:Left\" is not a valid "
+          "identifier; a local name uses [a-z0-9_] (1 to 32 characters)");
+}
+
+TEST_CASE("kind_extends_itself") {
+    CardSchemaTempDir dir;
+    dir.Write("uni/kinds/split.json",
+              R"({"format_version":"1.0.0","kind":{"identifier":"uni:split",)"
+              R"("extends":"uni:split"}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "uni", "uni");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/uni/kinds/split.json#/kind/extends: a kind cannot extend itself");
+}
+
+TEST_CASE("kind_abstract_must_be_boolean") {
+    CardSchemaTempDir dir;
+    dir.Write("uni/kinds/split.json",
+              R"({"format_version":"1.0.0","kind":{"identifier":"uni:split",)"
+              R"("abstract":"yes"}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "uni", "uni");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/uni/kinds/split.json#/kind/abstract: key \"abstract\" must be a boolean");
+}
+
+TEST_CASE("kind_face_must_be_object") {
+    CardSchemaTempDir dir;
+    dir.Write("uni/kinds/split.json",
+              R"({"format_version":"1.0.0","kind":{"identifier":"uni:split",)"
+              R"("face":[]}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "uni", "uni");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/uni/kinds/split.json#/kind/face: key \"face\" must be an object");
+}
+
+TEST_CASE("kind_properties_must_be_object") {
+    CardSchemaTempDir dir;
+    dir.Write("uni/kinds/split.json",
+              R"({"format_version":"1.0.0","kind":{"identifier":"uni:split",)"
+              R"("properties":[]}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "uni", "uni");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/uni/kinds/split.json#/kind/properties: "
+          "key \"properties\" must be an object");
+}
+
+TEST_CASE("kind_identifier_must_match_file") {
+    CardSchemaTempDir dir;
+    dir.Write("uni/kinds/a.json",
+              R"({"format_version":"1.0.0","kind":{"identifier":"uni:b"}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "uni", "uni");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/uni/kinds/a.json#/kind/identifier: "
+          "identifier \"uni:b\" does not match the file name \"a.json\"");
+}
+
+TEST_CASE("duplicate_kind_identifier") {
+    CardSchemaTempDir dir;
+    dir.Write("uni/kinds/numbered.json",
+              R"({"format_version":"1.0.0","kind":{"identifier":"uni:numbered"}})");
+    // INFO: kinds/ is flat, so the second file cannot share the first file's stem;
+    // the loader reports the id/file mismatch and then the duplicate id.
+    dir.Write("uni/kinds/other.json",
+              R"({"format_version":"1.0.0","kind":{"identifier":"uni:numbered"}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "uni", "uni");
+
+    REQUIRE(outcome.diagnostics.size() == 2);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/uni/kinds/other.json#/kind/identifier: "
+          "identifier \"uni:numbered\" does not match the file name \"other.json\"");
+    CHECK(FormatDiagnostic(outcome.diagnostics[1]) ==
+          "mods/uni/kinds/other.json#/kind/identifier: "
+          "duplicate kind identifier \"uni:numbered\" in mods/uni/kinds/other.json; "
+          "first declared in mods/uni/kinds/numbered.json");
+}
+
+TEST_CASE("bad_binding_does_not_cascade_symmetric") {
+    CardSchemaTempDir dir;
+    dir.Write("uni/kinds/split.json",
+              R"({"format_version":"1.0.0","kind":{"identifier":"uni:split",)"
+              R"("attributes":[{"attribute":"uni:color","name":"Left"},)"
+              R"({"attribute":"uni:shade","name":"right"}],)"
+              R"("symmetric":[["Left","right"]]}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "uni", "uni");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/uni/kinds/split.json#/kind/attributes/0/name: "
+          "slot name \"Left\" must use [a-z0-9_] (1 to 32 characters)");
+}
+
+TEST_CASE("kind_optional_fields") {
+    CardSchemaTempDir dir;
+    dir.Write("uni/kinds/parent.json",
+              R"({"format_version":"1.0.0","kind":{"identifier":"uni:parent",)"
+              R"("abstract":true}})");
+    dir.Write("uni/kinds/split.json",
+              R"({"format_version":"1.0.0","kind":{"identifier":"uni:split",)"
+              R"("extends":"uni:parent","abstract":false,)"
+              R"("attributes":[{"attribute":"uni:color","name":"left","surface":"left"},)"
+              R"({"attribute":"uni:shade","name":"right","surface":"right"}],)"
+              R"("symmetric":[["left","right"]],)"
+              R"("window":{"from":1,"until":3},)"
+              R"("auto_trigger":{"op":"skip"}}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "uni", "uni");
+
+    REQUIRE(outcome.ok());
+    REQUIRE(outcome.schema.kinds.size() == 2);
+    CHECK(outcome.schema.kinds[0].identifier == "uni:parent");
+    CHECK(outcome.schema.kinds[0].is_abstract);
+    const match::cardschema::KindTemplate& split = outcome.schema.kinds[1];
+    CHECK(split.identifier == "uni:split");
+    CHECK(split.extends == "uni:parent");
+    CHECK_FALSE(split.is_abstract);
+    REQUIRE(split.slots.size() == 2);
+    CHECK(split.slots[0].surface == "left");
+    CHECK(split.slots[1].surface == "right");
+    CHECK(split.symmetric_groups ==
+          std::vector<std::vector<std::string>>{{"left", "right"}});
+    CHECK(split.window == match::cardschema::json::parse(R"({"from":1,"until":3})"));
+    CHECK(split.auto_trigger == match::cardschema::json::parse(R"({"op":"skip"})"));
+}
+
+TEST_CASE("kind_contribute_raw") {
+    CardSchemaTempDir dir;
+    dir.Write("uni/kinds/numbered.json",
+              R"({"format_version":"1.0.0","kind":{"identifier":"uni:numbered",)"
+              R"("contribute":{"color":{"sprite":"red.png"}}}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "uni", "uni");
+
+    REQUIRE(outcome.ok());
+    REQUIRE(outcome.schema.kinds.size() == 1);
+    CHECK(outcome.schema.kinds[0].contribute_raw ==
+          match::cardschema::json::parse(R"({"color":{"sprite":"red.png"}})"));
+}
+
+TEST_CASE("kind_contribute_must_be_object") {
+    CardSchemaTempDir dir;
+    dir.Write("uni/kinds/numbered.json",
+              R"({"format_version":"1.0.0","kind":{"identifier":"uni:numbered",)"
+              R"("contribute":[]}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "uni", "uni");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/uni/kinds/numbered.json#/kind/contribute: "
+          "key \"contribute\" must be an object");
+}
+
 }  // TEST_SUITE("cardschema loader")
