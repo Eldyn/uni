@@ -982,7 +982,15 @@ std::optional<EvalError> ApplyAssignment(const Assignment& assignment, EvalConte
     pending.reserve(entities.size());
     for (const EntityRef entity : entities) {
         if (assignment.op == AssignOp::kSet) {
-            pending.emplace_back(entity, value);
+            // INFO: a float slot receives a double, so an int value widens when
+            // the property already holds a double.
+            const std::optional<Value> current = context.ReadProperty(entity, key);
+            if (current.has_value() && std::holds_alternative<double>(*current) &&
+                std::holds_alternative<int64_t>(value)) {
+                pending.emplace_back(entity, Value(static_cast<double>(std::get<int64_t>(value))));
+            } else {
+                pending.emplace_back(entity, value);
+            }
             continue;
         }
         const std::optional<Value> current = context.ReadProperty(entity, key);

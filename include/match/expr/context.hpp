@@ -19,6 +19,8 @@ public:
 
     virtual std::vector<EntityRef> ResolveSelector(std::string_view name) const = 0;
     virtual std::optional<Value> ReadProperty(EntityRef entity, std::string_view key) const = 0;
+    // INFO: a float slot receives a double. An assignment widens an int value to
+    // double when the property the write targets already holds a double.
     virtual bool WriteProperty(EntityRef entity, std::string_view key, const Value& value) = 0;
     virtual std::optional<Value> GetVariable(std::string_view name) const = 0;
     virtual bool HasTag(EntityRef entity, std::string_view tag) const = 0;

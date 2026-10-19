@@ -39,6 +39,7 @@ constexpr std::string_view kPointer = "/rule/steps/0/set";
 Schema MakeSchema() {
     Schema schema = match::expr::testing::MakeTestSchema();
     schema.seat_properties["seat:score"] = Type::kFloat;
+    schema.seat_properties["seat:multiplier"] = Type::kFloat;
     schema.seat_properties["seat:ready"] = Type::kBool;
     schema.seat_properties["seat:nickname"] = Type::kString;
     schema.card_slots["uni:marker"] = Type::kMemberSet;
@@ -172,6 +173,15 @@ TEST_CASE("collect_written_keys_is_the_target_property_once") {
 
 TEST_CASE("an_int_is_accepted_where_a_float_property_is_expected") {
     CHECK(Check("@next.seat:score = 1").empty());
+}
+
+TEST_CASE("an_int_assigned_to_a_float_property_widens_to_double") {
+    AssignmentContext context;
+    context.multipliers[AssignmentContext::kAna] = 0.0;
+    const Assignment assignment = Parse("@next.seat:multiplier = 1");
+    CHECK_FALSE(ApplyAssignment(assignment, context).has_value());
+    REQUIRE(context.multipliers.count(AssignmentContext::kAna) == 1);
+    CHECK(context.multipliers.at(AssignmentContext::kAna) == 1.0);
 }
 
 TEST_CASE("compound_assignment_rejects_a_non_number_property") {
