@@ -10,8 +10,10 @@
 #include <match/expr/diagnostic.hpp>
 
 using match::cardschema::CanonicalizeSymmetric;
+using match::cardschema::CheckIdentifierCollisions;
 using match::cardschema::FillTemplate;
 using match::cardschema::FillTitle;
+using match::cardschema::GeneratedIdentifier;
 using match::cardschema::GenerateIdentifier;
 using match::cardschema::KindTemplate;
 using match::cardschema::SameCard;
@@ -233,8 +235,26 @@ TEST_CASE("bad_character") {
     CHECK_FALSE(identifier.has_value());
     REQUIRE(diagnostics.size() == 1);
     CHECK(FormatDiagnostic(diagnostics[0]) ==
-          "kinds/numbered.json#/kind/identifier_format: card identifier \"uni:a-b\" is not a "
-          "valid identifier; a local name uses [a-z0-9_] (1 to 32 characters)");
+          "kinds/numbered.json#/kind/identifier_format: slot \"color\" gives invalid local "
+          "name \"a-b\"");
+}
+
+TEST_CASE("default_format_bad_value_names_the_slot") {
+    KindTemplate kind;
+    kind.identifier = "uni:numbered";
+    kind.slot_order = {"color"};
+    kind.slots = {SlotBinding{"uni:color", "color", "", ""}};
+    kind.file = "kinds/numbered.json";
+
+    std::vector<Diagnostic> diagnostics;
+    const std::optional<std::string> identifier =
+        GenerateIdentifier(kind, {{"color", "a-b"}}, diagnostics);
+
+    CHECK_FALSE(identifier.has_value());
+    REQUIRE(diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(diagnostics[0]) ==
+          "kinds/numbered.json#/kind/identifier: slot \"color\" gives invalid local name "
+          "\"a-b\"");
 }
 
 TEST_CASE("alias_used") {
@@ -263,7 +283,7 @@ TEST_CASE("unclosed_placeholder") {
     CHECK_FALSE(filled.has_value());
     REQUIRE(diagnostics.size() == 1);
     CHECK(FormatDiagnostic(diagnostics[0]) ==
-          "kinds/numbered.json#/kind/identifier_format: unclosed placeholder \"{\"");
+          "kinds/numbered.json#/kind/identifier_format: unclosed \"{\"");
 }
 
 TEST_CASE("title_fill") {
@@ -282,6 +302,175 @@ TEST_CASE("title_fill") {
     CHECK(diagnostics.empty());
     REQUIRE(title.has_value());
     CHECK(*title == "Red 5");
+}
+
+TEST_CASE("generates_legacy_engine_identifiers") {
+    struct LegacyCase {
+        std::string identifier;
+        std::string identifier_format;
+        std::vector<std::string> slot_order;
+        std::map<std::string, std::string> slot_values;
+        std::string expected;
+    };
+    const std::vector<LegacyCase> cases = {
+        {"uni:numbered", "{color}_{value}", {"color", "value"},
+         {{"color", "red"}, {"value", "0"}}, "uni:red_0"},
+        {"uni:numbered", "{color}_{value}", {"color", "value"},
+         {{"color", "red"}, {"value", "9"}}, "uni:red_9"},
+        {"uni:skip", "{color}_skip", {"color"}, {{"color", "red"}}, "uni:red_skip"},
+        {"uni:reverse", "{color}_reverse", {"color"}, {{"color", "red"}},
+         "uni:red_reverse"},
+        {"uni:draw2", "{color}_draw2", {"color"}, {{"color", "red"}}, "uni:red_draw2"},
+        {"uni:wild", "", {}, {}, "uni:wild"},
+    };
+
+    for (const LegacyCase& legacy : cases) {
+        KindTemplate kind;
+        kind.identifier = legacy.identifier;
+        kind.identifier_format = legacy.identifier_format;
+        kind.slot_order = legacy.slot_order;
+        kind.file = "kinds/" + legacy.identifier + ".json";
+
+        std::vector<Diagnostic> diagnostics;
+        const std::optional<std::string> identifier =
+            GenerateIdentifier(kind, legacy.slot_values, diagnostics);
+
+        CHECK(diagnostics.empty());
+        REQUIRE(identifier.has_value());
+        CHECK(*identifier == legacy.expected);
+    }
+}
+
+TEST_CASE("local_name_of_32_characters_passes") {
+    KindTemplate kind;
+    kind.identifier = "uni:numbered";
+    kind.identifier_format = "{value}";
+    kind.file = "kinds/numbered.json";
+
+    const std::string value(32, 'a');
+    std::vector<Diagnostic> diagnostics;
+    const std::optional<std::string> identifier =
+        GenerateIdentifier(kind, {{"value", value}}, diagnostics);
+
+    CHECK(diagnostics.empty());
+    REQUIRE(identifier.has_value());
+    CHECK(*identifier == "uni:" + value);
+}
+
+TEST_CASE("local_name_of_33_characters_fails") {
+    KindTemplate kind;
+    kind.identifier = "uni:numbered";
+    kind.identifier_format = "{value}";
+    kind.file = "kinds/numbered.json";
+
+    const std::string value(33, 'a');
+    std::vector<Diagnostic> diagnostics;
+    const std::optional<std::string> identifier =
+        GenerateIdentifier(kind, {{"value", value}}, diagnostics);
+
+    CHECK_FALSE(identifier.has_value());
+    REQUIRE(diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(diagnostics[0]) ==
+          "kinds/numbered.json#/kind/identifier_format: slot \"value\" gives invalid local "
+          "name \"" +
+              value + "\"");
+}
+
+TEST_CASE("empty_local_name_fails") {
+    KindTemplate kind;
+    kind.identifier = "uni:numbered";
+    kind.identifier_format = "{value}";
+    kind.file = "kinds/numbered.json";
+
+    std::vector<Diagnostic> diagnostics;
+    const std::optional<std::string> identifier =
+        GenerateIdentifier(kind, {{"value", ""}}, diagnostics);
+
+    CHECK_FALSE(identifier.has_value());
+    REQUIRE(diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(diagnostics[0]) ==
+          "kinds/numbered.json#/kind/identifier_format: slot \"value\" gives invalid local "
+          "name \"\"");
+}
+
+TEST_CASE("format_syntax_diagnostics") {
+    struct SyntaxCase {
+        std::string format;
+        std::string message;
+    };
+    const std::vector<SyntaxCase> cases = {
+        {"{}", "empty placeholder"},
+        {"{a{b}}", "nested \"{\" in placeholder"},
+        {"a}b", "unmatched \"}\""},
+        {"{a", "unclosed \"{\""},
+    };
+
+    for (const SyntaxCase& syntax : cases) {
+        std::vector<Diagnostic> diagnostics;
+        const std::optional<std::string> filled =
+            FillTemplate(syntax.format, {{"a", "1"}}, "kinds/numbered.json",
+                         "/kind/title_format", diagnostics);
+
+        CHECK_FALSE(filled.has_value());
+        REQUIRE(diagnostics.size() == 1);
+        CHECK(FormatDiagnostic(diagnostics[0]) ==
+              "kinds/numbered.json#/kind/title_format: " + syntax.message);
+    }
+}
+
+TEST_CASE("generation_reports_at_most_twenty_diagnostics") {
+    KindTemplate kind;
+    kind.identifier = "uni:numbered";
+    kind.file = "kinds/numbered.json";
+    for (int index = 0; index < 30; ++index) {
+        if (index != 0) {
+            kind.identifier_format += "_";
+        }
+        kind.identifier_format += "{missing_" + std::to_string(index) + "}";
+    }
+
+    std::vector<Diagnostic> diagnostics;
+    const std::optional<std::string> identifier = GenerateIdentifier(kind, {}, diagnostics);
+
+    CHECK_FALSE(identifier.has_value());
+    CHECK(diagnostics.size() == 20);
+}
+
+TEST_CASE("collision_names_both_sources") {
+    const std::vector<GeneratedIdentifier> generated = {
+        {"uni:numbered_red", "mods/uni/kinds/numbered.json", "/kind/identifier_format"},
+        {"uni:numbered_red", "mods/other/kinds/numbered.json", "/kind/identifier_format"},
+    };
+
+    const std::vector<Diagnostic> diagnostics = CheckIdentifierCollisions(generated);
+
+    REQUIRE(diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(diagnostics[0]) ==
+          "mods/other/kinds/numbered.json#/kind/identifier_format: identifier "
+          "\"uni:numbered_red\" is generated twice: mods/uni/kinds/numbered.json"
+          "#/kind/identifier_format and mods/other/kinds/numbered.json"
+          "#/kind/identifier_format");
+}
+
+TEST_CASE("collisions_are_capped_at_one_hundred") {
+    std::vector<GeneratedIdentifier> generated;
+    for (int index = 0; index < 150; ++index) {
+        const std::string identifier = "uni:x_" + std::to_string(index);
+        generated.push_back({identifier, "mods/a/kinds/x.json", "/kind/identifier_format"});
+        generated.push_back({identifier, "mods/b/kinds/x.json", "/kind/identifier_format"});
+    }
+
+    const std::vector<Diagnostic> diagnostics = CheckIdentifierCollisions(generated);
+
+    REQUIRE(diagnostics.size() == 100);
+    CHECK(FormatDiagnostic(diagnostics.front()) ==
+          "mods/b/kinds/x.json#/kind/identifier_format: identifier \"uni:x_0\" is generated "
+          "twice: mods/a/kinds/x.json#/kind/identifier_format and "
+          "mods/b/kinds/x.json#/kind/identifier_format");
+    CHECK(FormatDiagnostic(diagnostics.back()) ==
+          "mods/b/kinds/x.json#/kind/identifier_format: identifier \"uni:x_99\" is generated "
+          "twice: mods/a/kinds/x.json#/kind/identifier_format and "
+          "mods/b/kinds/x.json#/kind/identifier_format");
 }
 
 }  // TEST_SUITE("cardschema identifier")

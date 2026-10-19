@@ -15,6 +15,7 @@
 #include <utility>
 #include <vector>
 
+#include <match/cardschema/identifier.hpp>
 #include <match/expr/condition.hpp>
 #include <match/expr/diagnostic.hpp>
 #include <match/expr/parser.hpp>
@@ -612,6 +613,29 @@ void CheckSymmetricSlots(const std::string& file, const std::string& pointer,
     }
 }
 
+// INFO: a format string is checked before the kind is used: the placeholder
+// grammar first, then every placeholder name against the kind's declared slots.
+// A syntax error is the only diagnostic for that field, so a malformed format
+// does not also report each name inside it as unknown.
+void CheckKindFormat(const std::string& format, const char* key, const std::string& file,
+                     const std::string& pointer, const std::set<std::string>& declared_slots,
+                     std::vector<Diagnostic>& diagnostics) {
+    const std::string field_pointer = match::expr::AppendPointerToken(pointer, key);
+    if (const std::optional<std::string> syntax = ValidateFormatSyntax(format); syntax) {
+        AddError(diagnostics, file, field_pointer, *syntax);
+        return;
+    }
+    const std::vector<std::string> candidates(declared_slots.begin(), declared_slots.end());
+    for (const std::string& name : FormatPlaceholderNames(format)) {
+        if (declared_slots.count(name) != 0) {
+            continue;
+        }
+        AddError(diagnostics, file, field_pointer,
+                 "unknown placeholder \"" + name + "\"",
+                 match::expr::SuggestClosest(name, candidates));
+    }
+}
+
 bool ParseKind(const json& value, const std::string& mod_id, const std::string& file,
                const std::string& pointer, std::vector<Diagnostic>& diagnostics,
                KindTemplate& kind) {
@@ -674,14 +698,17 @@ bool ParseKind(const json& value, const std::string& mod_id, const std::string& 
                  "a kind may have at most " + std::to_string(kMaximumSlotsPerKind) + " slots");
     }
 
-    // TODO(task 10): check {slot} placeholder syntax of identifier_format and title_format
     if (const std::optional<std::string> format =
             ReadString(value, "identifier_format", file, pointer, diagnostics, false)) {
         kind.identifier_format = *format;
+        CheckKindFormat(*format, "identifier_format", file, pointer, declared_slot_names,
+                        diagnostics);
     }
     if (const std::optional<std::string> format =
             ReadString(value, "title_format", file, pointer, diagnostics, false)) {
         kind.title_format = *format;
+        CheckKindFormat(*format, "title_format", file, pointer, declared_slot_names,
+                        diagnostics);
     }
     if (const std::optional<std::string> label_key =
             ReadString(value, "label_key", file, pointer, diagnostics, false)) {

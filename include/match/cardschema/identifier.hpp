@@ -3,6 +3,7 @@
 #include <map>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include <match/cardschema/model.hpp>
@@ -26,10 +27,10 @@ bool SameCard(const KindTemplate& kind, const std::map<std::string, std::string>
               const std::map<std::string, std::string>& b);
 
 // INFO: fills the "{slot}" placeholders of `format` with the member local names
-// in `slot_values`; every other character is copied verbatim. An unknown
-// placeholder and a placeholder with no closing brace each add a diagnostic
-// against `file` and `pointer` (the pointer of `format`) and make the result
-// nullopt; every other placeholder is still checked.
+// in `slot_values`; every other character is copied verbatim. A syntax error and
+// an unknown placeholder each add a diagnostic against `file` and `pointer` (the
+// pointer of `format`) and make the result nullopt; the syntax error is the only
+// diagnostic, while every unknown placeholder is still checked.
 std::optional<std::string> FillTemplate(const std::string& format,
                                         const std::map<std::string, std::string>& slot_values,
                                         const std::string& file, const std::string& pointer,
@@ -52,5 +53,33 @@ std::optional<std::string> FillTitle(const std::string& format,
 std::optional<std::string> GenerateIdentifier(const KindTemplate& kind,
                                               const std::map<std::string, std::string>& slot_values,
                                               std::vector<Diagnostic>& diagnostics);
+
+// INFO: checks the placeholder grammar of `format` without filling it: a
+// placeholder is "{" name "}". Returns nullopt when `format` is well formed and
+// otherwise the message of the first syntax error, one of `empty placeholder`,
+// `nested "{" in placeholder`, `unmatched "}"` and `unclosed "{"`. The loader
+// reports the message at the field pointer and `FillTemplate` adds it as a
+// diagnostic.
+std::optional<std::string> ValidateFormatSyntax(std::string_view format);
+
+// INFO: the placeholder names of a well-formed `format`, in order of appearance.
+// A caller that needs the names checks ValidateFormatSyntax first; on a malformed
+// format the scan stops at the error and returns the names read so far.
+std::vector<std::string> FormatPlaceholderNames(std::string_view format);
+
+// INFO: one generated card id and the place it was generated from, so a
+// diagnostic can name both sources of a collision.
+struct GeneratedIdentifier {
+    std::string id;
+    std::string file;
+    std::string pointer;
+};
+
+// INFO: one diagnostic per id generated more than once, at the second source's
+// file and pointer, naming both sources. The lookup is a map from id to the
+// index of its first source, so the pass is linear in the input size; at most
+// the first 100 collisions are reported.
+std::vector<Diagnostic> CheckIdentifierCollisions(
+    const std::vector<GeneratedIdentifier>& generated);
 
 }  // namespace match::cardschema

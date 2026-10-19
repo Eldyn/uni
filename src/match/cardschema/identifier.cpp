@@ -5,6 +5,7 @@
 #include <map>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -32,14 +33,75 @@ std::string CapitalizeFirst(std::string value) {
     return value;
 }
 
-// INFO: fills one format; `capitalize` upper cases the first letter of every
-// substituted value, which the transitional title form uses. A placeholder is
-// looked up in `slot_values`; the candidates of the suggestion are the slot
-// names the caller passed.
+// INFO: the diagnostic cap of one GenerateIdentifier call; a hostile format
+// cannot flood the report.
+constexpr std::size_t kMaximumGenerationDiagnostics = 20;
+
+// INFO: the collision diagnostics are bounded like the loader's: a mod pair that
+// reuses a local name everywhere reports the first 100 collisions only.
+constexpr std::size_t kMaximumCollisionDiagnostics = 100;
+
+// INFO: which character case a format fill uses: an identifier keeps the member
+// value as it is, a title upper cases the first letter of every value.
+enum class FormatKind { kIdentifier, kTitle };
+
+// INFO: the placeholder scan a format fill and a syntax check share. A
+// placeholder is "{" name "}"; the scan stops at the first error so exactly one
+// diagnostic names the offending construct.
+struct FormatScan {
+    std::optional<std::string> error;
+    std::vector<std::string> names;
+};
+
+FormatScan ScanFormat(std::string_view format) {
+    FormatScan scan;
+    std::string name;
+    bool in_placeholder = false;
+    for (const char character : format) {
+        if (!in_placeholder) {
+            if (character == '{') {
+                in_placeholder = true;
+                name.clear();
+            } else if (character == '}') {
+                scan.error = "unmatched \"}\"";
+                return scan;
+            }
+            continue;
+        }
+        if (character == '{') {
+            scan.error = "nested \"{\" in placeholder";
+            return scan;
+        }
+        if (character != '}') {
+            name += character;
+            continue;
+        }
+        if (name.empty()) {
+            scan.error = "empty placeholder";
+            return scan;
+        }
+        scan.names.push_back(name);
+        name.clear();
+        in_placeholder = false;
+    }
+    if (in_placeholder) {
+        scan.error = "unclosed \"{\"";
+    }
+    return scan;
+}
+
+// INFO: fills one format; `kind` selects the character case of a substituted
+// value. A placeholder is looked up in `slot_values`; the candidates of the
+// suggestion are the slot names the caller passed.
 std::optional<std::string> FillFormat(const std::string& format,
                                       const std::map<std::string, std::string>& slot_values,
                                       const std::string& file, const std::string& pointer,
-                                      bool capitalize, std::vector<Diagnostic>& diagnostics) {
+                                      FormatKind kind, std::vector<Diagnostic>& diagnostics) {
+    if (const std::optional<std::string> syntax = ValidateFormatSyntax(format); syntax) {
+        AddError(diagnostics, file, pointer, *syntax);
+        return std::nullopt;
+    }
+
     std::vector<std::string> candidates;
     candidates.reserve(slot_values.size());
     for (const auto& entry : slot_values) {
@@ -47,6 +109,7 @@ std::optional<std::string> FillFormat(const std::string& format,
     }
 
     const std::size_t initial_diagnostics = diagnostics.size();
+    const bool capitalize = kind == FormatKind::kTitle;
     std::string filled;
     filled.reserve(format.size());
     std::size_t index = 0;
@@ -58,10 +121,6 @@ std::optional<std::string> FillFormat(const std::string& format,
             continue;
         }
         const std::size_t end = format.find('}', index + 1);
-        if (end == std::string::npos) {
-            AddError(diagnostics, file, pointer, "unclosed placeholder \"{\"");
-            return std::nullopt;
-        }
         const std::string name = format.substr(index + 1, end - index - 1);
         const auto found = slot_values.find(name);
         if (found == slot_values.end()) {
@@ -104,6 +163,20 @@ std::vector<std::string> OrderedSlotNames(const KindTemplate& kind,
     return order;
 }
 
+// INFO: the first slot, in the order the default format uses, whose value is not
+// a valid local name; a diagnostic can then name the member that spoiled the id
+// instead of blaming the format alone.
+std::optional<std::string> FirstInvalidSlotValue(
+    const KindTemplate& kind, const std::map<std::string, std::string>& slot_values) {
+    for (const std::string& slot : OrderedSlotNames(kind, slot_values)) {
+        const auto found = slot_values.find(slot);
+        if (found != slot_values.end() && !IsValidLocalName(found->second)) {
+            return slot;
+        }
+    }
+    return std::nullopt;
+}
+
 }  // namespace
 
 std::map<std::string, std::string> CanonicalizeSymmetric(
@@ -140,19 +213,20 @@ std::optional<std::string> FillTemplate(const std::string& format,
                                         const std::map<std::string, std::string>& slot_values,
                                         const std::string& file, const std::string& pointer,
                                         std::vector<Diagnostic>& diagnostics) {
-    return FillFormat(format, slot_values, file, pointer, false, diagnostics);
+    return FillFormat(format, slot_values, file, pointer, FormatKind::kIdentifier, diagnostics);
 }
 
 std::optional<std::string> FillTitle(const std::string& format,
                                      const std::map<std::string, std::string>& slot_values,
                                      const std::string& file, const std::string& pointer,
                                      std::vector<Diagnostic>& diagnostics) {
-    return FillFormat(format, slot_values, file, pointer, true, diagnostics);
+    return FillFormat(format, slot_values, file, pointer, FormatKind::kTitle, diagnostics);
 }
 
 std::optional<std::string> GenerateIdentifier(const KindTemplate& kind,
                                               const std::map<std::string, std::string>& slot_values,
                                               std::vector<Diagnostic>& diagnostics) {
+    const std::size_t initial_diagnostics = diagnostics.size();
     const std::map<std::string, std::string> canonical =
         CanonicalizeSymmetric(kind, slot_values);
     std::string format = kind.identifier_format;
@@ -166,20 +240,64 @@ std::optional<std::string> GenerateIdentifier(const KindTemplate& kind,
     }
 
     const std::optional<std::string> filled =
-        FillFormat(format, canonical, kind.file, pointer, false, diagnostics);
+        FillFormat(format, canonical, kind.file, pointer, FormatKind::kIdentifier, diagnostics);
+    if (diagnostics.size() > initial_diagnostics + kMaximumGenerationDiagnostics) {
+        diagnostics.resize(initial_diagnostics + kMaximumGenerationDiagnostics);
+    }
     if (!filled) {
         return std::nullopt;
     }
 
     const std::string identifier = NamespaceOf(kind.identifier) + ":" + *filled;
     if (!IsValidLocalName(*filled)) {
-        AddError(diagnostics, kind.file, pointer,
-                 "card identifier \"" + identifier +
-                     "\" is not a valid identifier; a local name uses [a-z0-9_] "
-                     "(1 to 32 characters)");
+        const std::optional<std::string> bad_slot =
+            FirstInvalidSlotValue(kind, canonical);
+        if (bad_slot) {
+            AddError(diagnostics, kind.file, pointer,
+                     "slot \"" + *bad_slot + "\" gives invalid local name \"" +
+                         canonical.find(*bad_slot)->second + "\"");
+        } else {
+            AddError(diagnostics, kind.file, pointer,
+                     "card identifier \"" + identifier +
+                         "\" is not a valid identifier; a local name uses [a-z0-9_] "
+                         "(1 to 32 characters)");
+        }
         return std::nullopt;
     }
     return identifier;
+}
+
+std::optional<std::string> ValidateFormatSyntax(std::string_view format) {
+    return ScanFormat(format).error;
+}
+
+std::vector<std::string> FormatPlaceholderNames(std::string_view format) {
+    return ScanFormat(format).names;
+}
+
+std::vector<Diagnostic> CheckIdentifierCollisions(
+    const std::vector<GeneratedIdentifier>& generated) {
+    std::vector<Diagnostic> diagnostics;
+    std::map<std::string, std::size_t> first_source;
+    for (std::size_t index = 0; index < generated.size(); ++index) {
+        if (diagnostics.size() >= kMaximumCollisionDiagnostics) {
+            break;
+        }
+        const GeneratedIdentifier& candidate = generated[index];
+        const auto found = first_source.find(candidate.id);
+        if (found == first_source.end()) {
+            first_source.emplace(candidate.id, index);
+            continue;
+        }
+        const GeneratedIdentifier& first = generated[found->second];
+        diagnostics.push_back(
+            Diagnostic{candidate.file, candidate.pointer,
+                       "identifier \"" + candidate.id + "\" is generated twice: " +
+                           first.file + "#" + first.pointer + " and " + candidate.file + "#" +
+                           candidate.pointer,
+                       {}});
+    }
+    return diagnostics;
 }
 
 }  // namespace match::cardschema

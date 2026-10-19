@@ -2433,4 +2433,61 @@ TEST_CASE("kind_slot_order_at_limit") {
     CHECK(outcome.ok());
 }
 
+TEST_CASE("kind_identifier_format_unknown_placeholder") {
+    CardSchemaTempDir dir;
+    dir.Write("uni/kinds/numbered.json",
+              R"({"format_version":"1.0.0","kind":{"identifier":"uni:numbered",)"
+              R"("attributes":[{"attribute":"uni:color"}],)"
+              R"("identifier_format":"{colour}_x"}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "uni", "uni");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/uni/kinds/numbered.json#/kind/identifier_format: "
+          "unknown placeholder \"colour\" (did you mean \"color\")");
+}
+
+TEST_CASE("kind_title_format_unknown_placeholder") {
+    CardSchemaTempDir dir;
+    dir.Write("uni/kinds/numbered.json",
+              R"({"format_version":"1.0.0","kind":{"identifier":"uni:numbered",)"
+              R"("attributes":[{"attribute":"uni:color"}],)"
+              R"("title_format":"{colour}"}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "uni", "uni");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/uni/kinds/numbered.json#/kind/title_format: "
+          "unknown placeholder \"colour\" (did you mean \"color\")");
+}
+
+TEST_CASE("kind_identifier_format_syntax_errors") {
+    struct SyntaxCase {
+        std::string format;
+        std::string message;
+    };
+    const std::vector<SyntaxCase> cases = {
+        {"{", "unclosed \"{\""},
+        {"{}", "empty placeholder"},
+        {"{a{b}}", "nested \"{\" in placeholder"},
+        {"a}b", "unmatched \"}\""},
+    };
+
+    for (const SyntaxCase& syntax : cases) {
+        CardSchemaTempDir dir;
+        dir.Write("uni/kinds/draw2.json",
+                  "{\"format_version\":\"1.0.0\",\"kind\":{\"identifier\":\"uni:draw2\","
+                  "\"identifier_format\":\"" +
+                      syntax.format + "\"}}");
+
+        const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "uni", "uni");
+
+        REQUIRE(outcome.diagnostics.size() == 1);
+        CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+              "mods/uni/kinds/draw2.json#/kind/identifier_format: " + syntax.message);
+    }
+}
+
 }  // TEST_SUITE("cardschema loader")
