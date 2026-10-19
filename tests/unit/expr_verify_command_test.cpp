@@ -4,6 +4,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include <chrono>
 #include <filesystem>
 #include <fstream>
 #include <random>
@@ -305,6 +306,24 @@ TEST_CASE("every_argument_and_schema_failure_reports_the_same_way") {
         CHECK_MESSAGE(outcome.out == item.expected_out, item.name, ": stdout");
         CHECK_MESSAGE(outcome.err == item.expected_err, item.name, ": stderr");
     }
+}
+
+TEST_CASE("a_schema_object_with_many_keys_loads_quickly") {
+    TempSchemas schemas;
+    std::string text = "{\"seat_properties\":{";
+    constexpr int kKeyCount = 50000;
+    for (int index = 0; index < kKeyCount; ++index) {
+        text += (index == 0 ? "" : ",");
+        text += "\"p" + std::to_string(index) + "\":\"int\"";
+    }
+    text += "}}";
+    REQUIRE(text.size() < 1024 * 1024);
+    const std::string path = schemas.Write("many.json", text);
+    const auto started = std::chrono::steady_clock::now();
+    const Outcome outcome = Run({"verify", "--schema", path, "--expression", "1"});
+    const auto elapsed = std::chrono::steady_clock::now() - started;
+    CHECK(outcome.code == 0);
+    CHECK(elapsed < std::chrono::seconds(2));
 }
 
 }  // TEST_SUITE

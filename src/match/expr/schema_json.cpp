@@ -5,6 +5,7 @@
 #include <map>
 #include <optional>
 #include <string>
+#include <unordered_set>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -73,12 +74,9 @@ public:
 
     bool key(string_t& name) override {
         Container& container = containers_.back();
-        const bool repeated =
-            std::find(container.keys.begin(), container.keys.end(), name) != container.keys.end();
+        const bool repeated = !container.keys.insert(name).second;
         if (repeated) {
             duplicates_.push_back(DuplicateKey{CurrentPointer(), name});
-        } else {
-            container.keys.push_back(name);
         }
         pending_key_ = name;
         has_pending_key_ = true;
@@ -103,7 +101,7 @@ private:
     struct Container {
         bool is_object;
         bool pushed_token;
-        std::vector<std::string> keys;
+        std::unordered_set<std::string> keys;
         std::size_t next_index;
     };
 
