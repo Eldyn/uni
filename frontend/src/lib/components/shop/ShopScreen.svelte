@@ -8,6 +8,7 @@
 	import { defaultItemChoice } from "$lib/avatar/previewLoadout";
 	import { onMount, tick } from "svelte";
 	import { isBuyableNow, isSwatchBuyable } from "$lib/shop/shopBackend";
+	import { compareRarity } from "$lib/shop/rarity";
 	import type { BuyFailure, SwatchEntry } from "$lib/shop/shopBackend";
 	import type { AvatarSlot, CatalogueItem, Loadout, Palette, Swatch } from "$lib/avatar/types";
 	import { storeShop } from "$lib/stores/shop.svelte";
@@ -86,10 +87,12 @@
 	/** The chosen tab's buyable-now items, plus every owned item, as OWNED. */
 	const items = $derived.by(() => {
 		const tab = TAB_DEFS.find((entry) => entry.id === activeTab);
-		return catalogue.items.filter((item) => {
-			if (tab && tab.slot !== null && item.slot !== tab.slot) return false;
-			return isBuyableNow(item, nowMs) || owned.has(item.id);
-		});
+		return catalogue.items
+			.filter((item) => {
+				if (tab && tab.slot !== null && item.slot !== tab.slot) return false;
+				return isBuyableNow(item, nowMs) || owned.has(item.id);
+			})
+			.sort((a, b) => compareRarity(a.rarity, b.rarity));
 	});
 
 	const swatchEntries = $derived(
@@ -98,7 +101,9 @@
 		)
 	);
 	const paletteCards = $derived(
-		swatchEntries.filter((entry) => isSwatchBuyable(entry) || owned.has(entry.swatch.id))
+		swatchEntries
+			.filter((entry) => isSwatchBuyable(entry) || owned.has(entry.swatch.id))
+			.sort((a, b) => compareRarity(a.swatch.rarity ?? "common", b.swatch.rarity ?? "common"))
 	);
 	const showingPalettes = $derived(activeTab === "palettes");
 	const cardCount = $derived(showingPalettes ? paletteCards.length : items.length);

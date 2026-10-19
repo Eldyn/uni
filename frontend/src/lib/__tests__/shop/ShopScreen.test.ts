@@ -97,8 +97,8 @@ describe("ShopScreen", () => {
 		expect(cardIds(container)).toEqual([
 			"uni:round",
 			"uni:eyes_dot",
-			"uni:eyes_wide",
 			"uni:mouth_smile",
+			"uni:eyes_wide",
 			"uni:hat_cap",
 			"uni:hat_float",
 			"uni:mask_bandit",

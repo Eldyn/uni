@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { RARITY_COLOURS, rarityLabelColour, rarityLabelKey } from "$lib/shop/rarity";
+import { RARITY_COLOURS, compareRarity, rarityLabelColour, rarityLabelKey } from "$lib/shop/rarity";
 import type { Rarity } from "$lib/avatar/types";
 
 describe("RARITY_COLOURS", () => {
@@ -18,6 +18,19 @@ describe("rarityLabelColour", () => {
 	it("uses the text color for basic and the rarity color otherwise", () => {
 		expect(rarityLabelColour("basic")).toBe("var(--text)");
 		expect(rarityLabelColour("special")).toBe("#c084fc");
+	});
+});
+
+describe("compareRarity", () => {
+	it("orders basic, common, rare, epic, special", () => {
+		const shuffled: Rarity[] = ["special", "rare", "basic", "epic", "common"];
+		expect([...shuffled].sort(compareRarity)).toEqual([
+			"basic",
+			"common",
+			"rare",
+			"epic",
+			"special"
+		]);
 	});
 });
 

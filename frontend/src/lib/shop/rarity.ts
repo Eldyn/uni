@@ -3,6 +3,7 @@
  * @brief Rarity colours and paraglide label keys for the shop and wardrobe.
  */
 
+import { RARITIES } from "$lib/avatar/types";
 import type { Rarity } from "$lib/avatar/types";
 import { HOME_BACKGROUND_HINT_HEX, hexToCss } from "$lib/shaders/homePalette";
 
@@ -18,6 +19,11 @@ export const RARITY_COLOURS: Record<Rarity, string> = {
 /** The rarity label color. Basic is too dark to read as text. */
 export function rarityLabelColour(rarity: Rarity): string {
 	return rarity === "basic" ? "var(--text)" : RARITY_COLOURS[rarity];
+}
+
+/** Sort order: basic, common, rare, epic, special. */
+export function compareRarity(a: Rarity, b: Rarity): number {
+	return RARITIES.indexOf(a) - RARITIES.indexOf(b);
 }
 
 /** The paraglide message key that names a rarity. */
