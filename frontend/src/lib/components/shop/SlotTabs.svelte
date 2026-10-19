@@ -85,25 +85,29 @@
 		display: flex;
 		flex-wrap: wrap;
 		gap: 0.35rem;
+		/* INFO: the row sits above the screen's absolutely-positioned shader
+		   backdrop, which would otherwise paint over this static content. */
+		position: relative;
+		z-index: 1;
 	}
 
 	.slot-tab {
 		padding: 0.35rem 0.7rem;
-		border: 2px solid transparent;
-		background: var(--surface-deep);
-		color: var(--text);
+		border: 2px solid var(--border);
+		background: var(--surface);
+		color: var(--text-h);
 		cursor: pointer;
 		/* INFO: tabs are square tiles, so they opt out of the global notch clip. */
 		clip-path: none;
 	}
 
 	.slot-tab:hover {
-		color: var(--text-h);
+		border-color: var(--accent);
 	}
 
 	.slot-tab[aria-selected="true"] {
 		border-color: var(--accent);
 		background: var(--accent-bg);
-		color: var(--text-h);
+		color: var(--accent);
 	}
 </style>
