@@ -146,3 +146,77 @@ describe("loadoutHash", () => {
 		expect(loadoutHash(loadout)).not.toBe(hashWithMask);
 	});
 });
+
+describe("default colors", () => {
+	function withDefaults(id: string, defaults: string[]) {
+		const catalogue = avatarFixture();
+		const item = catalogue.items.find((entry) => entry.id === id);
+		if (!item) throw new Error(`no item ${id}`);
+		item.default_colors = defaults;
+		setCatalogueForTest(catalogue);
+	}
+
+	function eyesColours(colours: string[]) {
+		const layers = resolveLayers(
+			fullLoadout({ slots: { eyes: { item: "uni:eyes_dot", colours } } })
+		);
+		return layers.find((layer) => layer.slot === "eyes")?.colours;
+	}
+
+	it("an item with no chosen colors uses its hex default", () => {
+		withDefaults("uni:eyes_dot", ["#102030"]);
+
+		expect(eyesColours([])?.[0]).toEqual([16, 32, 48]);
+	});
+
+	it("a swatch id default resolves through the palette", () => {
+		withDefaults("uni:eyes_dot", ["basic:green"]);
+
+		expect(eyesColours([])?.[0]).toEqual(hexToRgb("#4aa85a"));
+	});
+
+	it("a chosen swatch wins over the default", () => {
+		withDefaults("uni:eyes_dot", ["basic:green"]);
+
+		expect(eyesColours(["basic:red"])?.[0]).toEqual(hexToRgb("#e84a4a"));
+	});
+
+	it("an empty chosen entry falls back to the default", () => {
+		withDefaults("uni:eyes_dot", ["basic:green"]);
+
+		expect(eyesColours([""])?.[0]).toEqual(hexToRgb("#4aa85a"));
+	});
+
+	it("an item with no defaults and no choice stays uncolored", () => {
+		setCatalogueForTest(avatarFixture());
+
+		expect(eyesColours([])?.[0]).toBeUndefined();
+	});
+
+	it("a motif default starts at region 2", () => {
+		withDefaults("uni:motif_patches", ["basic:green", "basic:red"]);
+		const layers = resolveLayers(
+			fullLoadout({ slots: { motif: { item: "uni:motif_patches", colours: [] } } })
+		);
+		const motif = layers.find((layer) => layer.slot === "motif")?.colours;
+
+		expect(motif?.[1]).toEqual(hexToRgb("#4aa85a"));
+		expect(motif?.[2]).toEqual(hexToRgb("#e84a4a"));
+	});
+
+	it("the loadout hash changes with the tint mode", () => {
+		const loadout = fullLoadout();
+		setCatalogueForTest(avatarFixture());
+		const before = loadoutHash(loadout);
+		const catalogue = avatarFixture();
+		const shape = catalogue.items.find((entry) => entry.id === "uni:round");
+		if (shape) shape.tint = "multiply";
+		setCatalogueForTest(catalogue);
+
+		expect(loadoutHash(loadout)).not.toBe(before);
+	});
+
+	it("ART_VERSION is 2", () => {
+		expect(ART_VERSION).toBe(2);
+	});
+});
