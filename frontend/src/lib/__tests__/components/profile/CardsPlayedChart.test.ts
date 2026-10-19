@@ -210,4 +210,20 @@ describe("CardsPlayedChart", () => {
 		const card = container.querySelector('.podium-card [data-testid="loader-card"]');
 		expect(card?.getAttribute("style")).toContain("--card-color: #2c354d");
 	});
+
+	it("draws the tabs and the podium cards with the pixel border", async () => {
+		render(CardsPlayedChart, { props: { groups: allGroups() } });
+
+		for (const tab of screen.getAllByRole("tab")) {
+			expect(tab).toHaveClass("pixel-bordered");
+		}
+
+		await fireEvent.click(screen.getByRole("tab", { name: "Actions" }));
+
+		const cards = document.querySelectorAll(".podium-card");
+		expect(cards.length).toBeGreaterThan(0);
+		for (const card of cards) {
+			expect(card).toHaveClass("pixel-bordered");
+		}
+	});
 });

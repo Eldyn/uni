@@ -126,7 +126,7 @@
 				type="button"
 				role="tab"
 				id="cards-played-tab-{group.id}"
-				class="group-tab"
+				class="group-tab pixel-bordered"
 				aria-selected={group.id === activeGroup.id}
 				tabindex={group.id === activeGroup.id ? 0 : -1}
 				bind:this={tabEls[index]}
@@ -144,7 +144,7 @@
 					{@const faceValue = actionCardValue(row.key)}
 					<button
 						type="button"
-						class="podium-card"
+						class="podium-card pixel-bordered"
 						aria-pressed={row.key === centreKey}
 						style="transform: scale({podiumScale(index)});"
 						onclick={() => (selectedAction = row.key)}
@@ -196,13 +196,13 @@
 
 	.group-tab {
 		padding: var(--space-1) var(--space-3);
-		border: 1px solid var(--border);
 		color: var(--text);
 		cursor: pointer;
+		--pc-fill: var(--surface-deep);
 	}
 
 	.group-tab[aria-selected="true"] {
-		border-color: var(--accent);
+		--pc-border: var(--accent);
 		color: var(--text-h);
 	}
 
@@ -262,13 +262,13 @@
 		align-items: center;
 		gap: var(--space-1);
 		padding: var(--space-2) var(--space-3);
-		border: 1px solid var(--border);
 		color: var(--text);
 		cursor: pointer;
+		--pc-fill: var(--surface-deep);
 	}
 
 	.podium-card[aria-pressed="true"] {
-		border-color: var(--accent);
+		--pc-border: var(--accent);
 		color: var(--text-h);
 	}
 
