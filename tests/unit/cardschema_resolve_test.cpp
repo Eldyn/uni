@@ -188,7 +188,8 @@ TEST_CASE("extends_cycle") {
 
     CHECK(chain.empty());
     REQUIRE(diagnostics.size() == 1);
-    CHECK(diagnostics[0].message == "extends cycle: uni:a -> uni:b -> uni:a");
+    CHECK(FormatDiagnostic(diagnostics[0]) ==
+          "kinds/a.json#/kind/extends: extends cycle: uni:a -> uni:b -> uni:a");
 }
 
 TEST_CASE("missing_parent_suggestion") {
@@ -210,8 +211,370 @@ TEST_CASE("missing_parent_suggestion") {
 
     CHECK(chain.empty());
     REQUIRE(diagnostics.size() == 1);
-    CHECK(diagnostics[0].message == "unknown parent \"uni:cardd\"");
-    CHECK(diagnostics[0].suggestion == "uni:card");
+    CHECK(FormatDiagnostic(diagnostics[0]) ==
+          "kinds/a.json#/kind/extends: unknown parent \"uni:cardd\" "
+          "(did you mean \"uni:card\")");
+}
+
+TEST_CASE("parent_slot_outside_slot_order_reports_the_parent_file") {
+    KindTemplate parent;
+    parent.identifier = "uni:card";
+    parent.file = "kinds/card.json";
+    parent.contribute["extra"] = Tint("#111111", Band::kBase);
+    parent.contribute["extra"].pointer = "/kind/contribute/extra";
+
+    KindTemplate child;
+    child.identifier = "uni:draw2";
+    child.file = "kinds/draw2.json";
+    child.slot_order = {"base"};
+
+    const std::vector<const KindTemplate*> chain = {&child, &parent};
+    const std::vector<const MemberDef*> members;
+    const ResolvedFace face = ResolveTemplateSlots(chain, members, "kinds/draw2.json");
+
+    REQUIRE(face.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(face.diagnostics[0]) ==
+          "kinds/card.json#/kind/contribute/extra: "
+          "contribution to slot \"extra\" which is not in slot_order");
+}
+
+TEST_CASE("member_slot_outside_slot_order_reports_the_member_file") {
+    KindTemplate kind;
+    kind.identifier = "uni:draw2";
+    kind.file = "kinds/draw2.json";
+    kind.slot_order = {"base"};
+
+    MemberDef member;
+    member.identifier = "uni:red";
+    member.file = "attributes/color/red.json";
+    member.contribute["nope"] = Tint("#e5383b", Band::kAttribute);
+    member.contribute["nope"].pointer = "/attribute_member/contribute/nope";
+
+    const std::vector<const KindTemplate*> chain = {&kind};
+    const std::vector<const MemberDef*> members = {&member};
+    const ResolvedFace face = ResolveTemplateSlots(chain, members, "kinds/draw2.json");
+
+    REQUIRE(face.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(face.diagnostics[0]) ==
+          "attributes/color/red.json#/attribute_member/contribute/nope: "
+          "contribution to slot \"nope\" which is not in slot_order");
+}
+
+TEST_CASE("conflict_reports_the_first_candidate_file") {
+    KindTemplate kind;
+    kind.identifier = "uni:card";
+    kind.file = "kinds/card.json";
+    kind.slot_order = {"border"};
+
+    MemberDef first;
+    first.identifier = "uni:red";
+    first.file = "attributes/color/red.json";
+    first.contribute["border"] = Tint("#111111", Band::kAttribute);
+    first.contribute["border"].pointer = "/attribute_member/contribute/border";
+
+    MemberDef second;
+    second.identifier = "uni:blue";
+    second.file = "attributes/color/blue.json";
+    second.contribute["border"] = Tint("#e5383b", Band::kAttribute);
+    second.contribute["border"].pointer = "/attribute_member/contribute/border";
+
+    const std::vector<const KindTemplate*> chain = {&kind};
+    const std::vector<const MemberDef*> members = {&first, &second};
+    const ResolvedFace face = ResolveTemplateSlots(chain, members, "kinds/card.json");
+
+    REQUIRE(face.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(face.diagnostics[0]) ==
+          "attributes/color/red.json#/attribute_member/contribute/border: "
+          "slot \"border\" has two contributions in band \"attribute\" (uni:red, uni:blue); "
+          "set \"explicit\": true on one");
+}
+
+TEST_CASE("two_explicit_candidates_are_an_error") {
+    KindTemplate kind;
+    kind.identifier = "uni:card";
+    kind.slot_order = {"border"};
+
+    MemberDef first;
+    first.identifier = "uni:red";
+    first.contribute["border"] = Tint("#111111", Band::kAttribute);
+    first.contribute["border"].explicit_override = true;
+
+    MemberDef second;
+    second.identifier = "uni:blue";
+    second.contribute["border"] = Tint("#e5383b", Band::kAttribute);
+    second.contribute["border"].explicit_override = true;
+
+    const std::vector<const KindTemplate*> chain = {&kind};
+    const std::vector<const MemberDef*> members = {&first, &second};
+    const ResolvedFace face = ResolveTemplateSlots(chain, members, "kinds/card.json");
+
+    REQUIRE(face.diagnostics.size() == 1);
+    CHECK(face.diagnostics[0].message ==
+          "slot \"border\" has 2 explicit contributions in band \"attribute\" "
+          "(uni:red, uni:blue)");
+    CHECK(face.slots.count("border") == 0);
+}
+
+TEST_CASE("three_conflicting_candidates_report_every_owner") {
+    KindTemplate kind;
+    kind.identifier = "uni:card";
+    kind.slot_order = {"border"};
+
+    MemberDef first;
+    first.identifier = "uni:red";
+    first.contribute["border"] = Tint("#111111", Band::kAttribute);
+
+    MemberDef second;
+    second.identifier = "uni:blue";
+    second.contribute["border"] = Tint("#e5383b", Band::kAttribute);
+
+    MemberDef third;
+    third.identifier = "uni:green";
+    third.contribute["border"] = Tint("#222b45", Band::kAttribute);
+
+    const std::vector<const KindTemplate*> chain = {&kind};
+    const std::vector<const MemberDef*> members = {&first, &second, &third};
+    const ResolvedFace face = ResolveTemplateSlots(chain, members, "kinds/card.json");
+
+    REQUIRE(face.diagnostics.size() == 1);
+    CHECK(face.diagnostics[0].message ==
+          "slot \"border\" has 3 contributions in band \"attribute\" "
+          "(uni:red, uni:blue, uni:green); set \"explicit\": true on one");
+    CHECK(face.slots.count("border") == 0);
+}
+
+TEST_CASE("too_many_members_is_rejected") {
+    KindTemplate kind;
+    kind.identifier = "uni:draw2";
+    kind.slot_order = {"base"};
+
+    std::vector<MemberDef> storage(33);
+    std::vector<const MemberDef*> members;
+    members.reserve(storage.size());
+    for (std::size_t index = 0; index < storage.size(); ++index) {
+        storage[index].identifier = "uni:m" + std::to_string(index);
+        members.push_back(&storage[index]);
+    }
+
+    const std::vector<const KindTemplate*> chain = {&kind};
+    const ResolvedFace face = ResolveTemplateSlots(chain, members, "kinds/draw2.json");
+
+    REQUIRE(face.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(face.diagnostics[0]) ==
+          "kinds/draw2.json#/: a card may have at most 32 members");
+    CHECK(face.slot_order.empty());
+    CHECK(face.slots.empty());
+}
+
+TEST_CASE("thirty_two_members_are_allowed") {
+    KindTemplate kind;
+    kind.identifier = "uni:draw2";
+    kind.slot_order = {"base"};
+
+    std::vector<MemberDef> storage(32);
+    std::vector<const MemberDef*> members;
+    members.reserve(storage.size());
+    for (std::size_t index = 0; index < storage.size(); ++index) {
+        storage[index].identifier = "uni:m" + std::to_string(index);
+        members.push_back(&storage[index]);
+    }
+
+    const std::vector<const KindTemplate*> chain = {&kind};
+    const ResolvedFace face = ResolveTemplateSlots(chain, members, "kinds/draw2.json");
+
+    CHECK(face.diagnostics.empty());
+}
+
+TEST_CASE("same_member_listed_twice_is_deduped") {
+    KindTemplate kind;
+    kind.identifier = "uni:card";
+    kind.slot_order = {"border"};
+
+    MemberDef member;
+    member.identifier = "uni:red";
+    member.contribute["border"] = Tint("#111111", Band::kAttribute);
+
+    const std::vector<const KindTemplate*> chain = {&kind};
+    const std::vector<const MemberDef*> members = {&member, &member};
+    const ResolvedFace face = ResolveTemplateSlots(chain, members, "kinds/card.json");
+
+    CHECK(face.diagnostics.empty());
+    REQUIRE(face.slots.count("border") == 1);
+    CHECK(face.slots.at("border").source == "uni:red");
+    CHECK(face.slots.at("border").winner.tint == "#111111");
+}
+
+TEST_CASE("dedupe_diagnostics_keeps_the_first_of_each_triple") {
+    std::vector<Diagnostic> diagnostics = {
+        {"kinds/a.json", "/kind/extends", "one", ""},
+        {"kinds/a.json", "/kind/slot_order", "one", ""},
+        {"kinds/a.json", "/kind/extends", "one", ""},
+        {"kinds/a.json", "/kind/extends", "two", ""},
+    };
+
+    match::cardschema::DedupeDiagnostics(diagnostics);
+
+    REQUIRE(diagnostics.size() == 3);
+    CHECK(diagnostics[0].pointer == "/kind/extends");
+    CHECK(diagnostics[0].message == "one");
+    CHECK(diagnostics[1].pointer == "/kind/slot_order");
+    CHECK(diagnostics[2].message == "two");
+}
+
+TEST_CASE("slot_order_inherited_from_parent") {
+    KindTemplate parent;
+    parent.identifier = "uni:card";
+    parent.slot_order = {"base", "border"};
+
+    KindTemplate child;
+    child.identifier = "uni:draw2";
+
+    const std::vector<const KindTemplate*> chain = {&child, &parent};
+    const std::vector<const MemberDef*> members;
+    const ResolvedFace face = ResolveTemplateSlots(chain, members, "kinds/draw2.json");
+
+    CHECK(face.slot_order == std::vector<std::string>{"base", "border"});
+}
+
+TEST_CASE("child_slot_order_wins_over_parent") {
+    KindTemplate parent;
+    parent.identifier = "uni:card";
+    parent.slot_order = {"base"};
+
+    KindTemplate child;
+    child.identifier = "uni:draw2";
+    child.slot_order = {"border"};
+
+    const std::vector<const KindTemplate*> chain = {&child, &parent};
+    const std::vector<const MemberDef*> members;
+    const ResolvedFace face = ResolveTemplateSlots(chain, members, "kinds/draw2.json");
+
+    CHECK(face.slot_order == std::vector<std::string>{"border"});
+}
+
+TEST_CASE("back_slot_is_not_a_slot_order_error") {
+    KindTemplate kind;
+    kind.identifier = "uni:card";
+    kind.file = "kinds/card.json";
+    kind.slot_order = {"base"};
+    Contribution back;
+    back.sprite = "cards/back";
+    back.pointer = "/kind/contribute/back";
+    kind.contribute["back"] = back;
+
+    const std::vector<const KindTemplate*> chain = {&kind};
+    const std::vector<const MemberDef*> members;
+    const ResolvedFace face = ResolveTemplateSlots(chain, members, "kinds/card.json");
+
+    CHECK(face.diagnostics.empty());
+    CHECK(face.slots.empty());
+}
+
+TEST_CASE("slot_specific_key_replaces_all") {
+    KindTemplate kind;
+    kind.identifier = "uni:card";
+    kind.slot_order = {"base", "border"};
+    Contribution all;
+    all.sprite = "cards/all";
+    kind.contribute["all"] = all;
+    Contribution border;
+    border.sprite = "cards/border";
+    kind.contribute["border"] = border;
+
+    const std::vector<const KindTemplate*> chain = {&kind};
+    const std::vector<const MemberDef*> members;
+    const ResolvedFace face = ResolveTemplateSlots(chain, members, "kinds/card.json");
+
+    CHECK(face.diagnostics.empty());
+    REQUIRE(face.slots.count("base") == 1);
+    REQUIRE(face.slots.count("border") == 1);
+    CHECK(face.slots.at("base").winner.sprite == "cards/all");
+    CHECK(face.slots.at("border").winner.sprite == "cards/border");
+}
+
+TEST_CASE("kind_and_member_conflict_in_base_band") {
+    KindTemplate kind;
+    kind.identifier = "uni:draw2";
+    kind.file = "kinds/draw2.json";
+    kind.slot_order = {"base"};
+    kind.contribute["base"] = Tint("#111111", Band::kBase);
+    kind.contribute["base"].pointer = "/kind/contribute/base";
+
+    MemberDef member;
+    member.identifier = "uni:red";
+    member.file = "attributes/color/red.json";
+    member.contribute["base"] = Tint("#e5383b", Band::kBase);
+    member.contribute["base"].pointer = "/attribute_member/contribute/base";
+
+    const std::vector<const KindTemplate*> chain = {&kind};
+    const std::vector<const MemberDef*> members = {&member};
+    const ResolvedFace face = ResolveTemplateSlots(chain, members, "kinds/draw2.json");
+
+    REQUIRE(face.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(face.diagnostics[0]) ==
+          "kinds/draw2.json#/kind/contribute/base: "
+          "slot \"base\" has two contributions in band \"base\" (uni:draw2, uni:red); "
+          "set \"explicit\": true on one");
+    CHECK(face.slots.count("base") == 0);
+}
+
+TEST_CASE("extends_chain_at_the_limit_has_no_diagnostic") {
+    std::vector<KindTemplate> kinds(16);
+    for (std::size_t index = 0; index < kinds.size(); ++index) {
+        kinds[index].identifier = "uni:k" + std::to_string(index);
+        kinds[index].file = "kinds/k" + std::to_string(index) + ".json";
+    }
+    for (std::size_t index = 0; index + 1 < kinds.size(); ++index) {
+        kinds[index].extends = kinds[index + 1].identifier;
+    }
+    std::map<std::string, const KindTemplate*> by_id;
+    for (const KindTemplate& kind : kinds) {
+        by_id.emplace(kind.identifier, &kind);
+    }
+
+    std::vector<Diagnostic> diagnostics;
+    const std::vector<const KindTemplate*> chain = BuildExtendsChain(kinds[0], by_id, diagnostics);
+
+    CHECK(diagnostics.empty());
+    CHECK(chain.size() == 16);
+}
+
+TEST_CASE("extends_chain_over_the_limit_fails") {
+    std::vector<KindTemplate> kinds(17);
+    for (std::size_t index = 0; index < kinds.size(); ++index) {
+        kinds[index].identifier = "uni:k" + std::to_string(index);
+        kinds[index].file = "kinds/k" + std::to_string(index) + ".json";
+    }
+    for (std::size_t index = 0; index + 1 < kinds.size(); ++index) {
+        kinds[index].extends = kinds[index + 1].identifier;
+    }
+    std::map<std::string, const KindTemplate*> by_id;
+    for (const KindTemplate& kind : kinds) {
+        by_id.emplace(kind.identifier, &kind);
+    }
+
+    std::vector<Diagnostic> diagnostics;
+    const std::vector<const KindTemplate*> chain = BuildExtendsChain(kinds[0], by_id, diagnostics);
+
+    CHECK(chain.empty());
+    REQUIRE(diagnostics.size() == 1);
+    CHECK(diagnostics[0].message == "extends chain is longer than 16 kinds");
+}
+
+TEST_CASE("self_extends_is_a_cycle") {
+    KindTemplate kind;
+    kind.identifier = "uni:a";
+    kind.extends = "uni:a";
+    kind.file = "kinds/a.json";
+
+    const std::map<std::string, const KindTemplate*> by_id = {{"uni:a", &kind}};
+    std::vector<Diagnostic> diagnostics;
+    const std::vector<const KindTemplate*> chain = BuildExtendsChain(kind, by_id, diagnostics);
+
+    CHECK(chain.empty());
+    REQUIRE(diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(diagnostics[0]) ==
+          "kinds/a.json#/kind/extends: extends cycle: uni:a -> uni:a");
 }
 
 }  // TEST_SUITE("cardschema resolve")
@@ -331,9 +694,30 @@ TEST_CASE("contribution_bad_when") {
     const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "uni", "uni");
 
     REQUIRE(outcome.diagnostics.size() == 1);
-    CHECK(outcome.diagnostics[0].file == "mods/uni/kinds/draw2.json");
-    CHECK(outcome.diagnostics[0].pointer == "/kind/contribute/base/when");
-    CHECK_FALSE(outcome.diagnostics[0].message.empty());
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/uni/kinds/draw2.json#/kind/contribute/base/when: "
+          "expected an expression after '+' (at offset 3)");
+}
+
+TEST_CASE("when_diagnostics_are_capped") {
+    CardSchemaTempDir dir;
+    std::string contribute = "\"contribute\":{";
+    for (int index = 0; index < 500; ++index) {
+        if (index != 0) {
+            contribute += ",";
+        }
+        contribute += "\"s" + std::to_string(index) + "\":{\"when\":\"1 +\"}";
+    }
+    contribute += "}";
+    const std::string document =
+        "{\"format_version\":\"1.0.0\",\"kind\":{\"identifier\":\"uni:draw2\"," + contribute +
+        "}}";
+    dir.Write("uni/kinds/draw2.json", document);
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "uni", "uni");
+
+    REQUIRE(outcome.diagnostics.size() == 101);
+    CHECK(outcome.diagnostics.back().message == "more errors not shown");
 }
 
 TEST_CASE("contribution_surfaces_parsed") {
@@ -367,6 +751,94 @@ TEST_CASE("member_contribution_must_be_object") {
     CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
           "mods/uni/attributes/color/red.json#/attribute_member/contribute: "
           "key \"contribute\" must be an object");
+}
+
+TEST_CASE("contribution_must_be_object") {
+    CardSchemaTempDir dir;
+    dir.Write("uni/kinds/draw2.json",
+              R"({"format_version":"1.0.0","kind":{"identifier":"uni:draw2",)"
+              R"("contribute":{"base":[]}}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "uni", "uni");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/uni/kinds/draw2.json#/kind/contribute/base: "
+          "contribution must be an object");
+}
+
+TEST_CASE("contribution_explicit_must_be_boolean") {
+    CardSchemaTempDir dir;
+    dir.Write("uni/kinds/draw2.json",
+              R"({"format_version":"1.0.0","kind":{"identifier":"uni:draw2",)"
+              R"("contribute":{"base":{"explicit":1}}}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "uni", "uni");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/uni/kinds/draw2.json#/kind/contribute/base/explicit: "
+          "key \"explicit\" must be a boolean");
+}
+
+TEST_CASE("contribution_parameters_must_be_object") {
+    CardSchemaTempDir dir;
+    dir.Write("uni/kinds/draw2.json",
+              R"({"format_version":"1.0.0","kind":{"identifier":"uni:draw2",)"
+              R"("contribute":{"base":{"parameters":3}}}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "uni", "uni");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/uni/kinds/draw2.json#/kind/contribute/base/parameters: "
+          "key \"parameters\" must be an object");
+}
+
+TEST_CASE("contribution_surfaces_must_be_object") {
+    CardSchemaTempDir dir;
+    dir.Write("uni/kinds/draw2.json",
+              R"({"format_version":"1.0.0","kind":{"identifier":"uni:draw2",)"
+              R"("contribute":{"base":{"surfaces":[]}}}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "uni", "uni");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/uni/kinds/draw2.json#/kind/contribute/base/surfaces: "
+          "key \"surfaces\" must be an object");
+}
+
+TEST_CASE("contribution_surface_must_be_object") {
+    CardSchemaTempDir dir;
+    dir.Write("uni/kinds/draw2.json",
+              R"({"format_version":"1.0.0","kind":{"identifier":"uni:draw2",)"
+              R"("contribute":{"base":{"surfaces":{"left":[]}}}}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "uni", "uni");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/uni/kinds/draw2.json#/kind/contribute/base/surfaces/left: "
+          "surface must be an object");
+}
+
+TEST_CASE("contribution_when_over_node_budget") {
+    CardSchemaTempDir dir;
+    std::string source = "1";
+    for (int index = 0; index < 128; ++index) {
+        source += " + 1";
+    }
+    dir.Write("uni/kinds/draw2.json",
+              R"({"format_version":"1.0.0","kind":{"identifier":"uni:draw2",)"
+              R"("contribute":{"base":{"sprite":"s","when":")" + source + R"("}}}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "uni", "uni");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/uni/kinds/draw2.json#/kind/contribute/base/when: "
+          "expression has 257 nodes; the limit is 256");
 }
 
 }  // TEST_SUITE("cardschema contribute")

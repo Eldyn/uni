@@ -37,6 +37,10 @@ constexpr std::uintmax_t kMaximumCardFileBytes = 1048576;
 // loader emits one final marker instead, so a bad mod cannot flood the report.
 constexpr std::size_t kMaximumDiagnostics = 100;
 
+// INFO: a kind orders its slots in `slot_order`; a longer list is rejected so a
+// hostile kind cannot make the resolver walk an unbounded slot list.
+constexpr std::size_t kMaximumSlotsPerKind = 64;
+
 const std::vector<std::string>& RootKeys() {
     static const std::vector<std::string> keys = {"attribute", "attribute_member", "kind",
                                                   "deck", "property"};
@@ -320,7 +324,8 @@ void ParseContribution(const json& value, Band default_band, const std::string& 
         const match::expr::ConditionParseResult parsed = match::expr::ParseCondition(
             *when, file, match::expr::AppendPointerToken(pointer, "when"));
         for (const Diagnostic& diagnostic : parsed.diagnostics) {
-            diagnostics.push_back(diagnostic);
+            AddError(diagnostics, diagnostic.file, diagnostic.pointer, diagnostic.message,
+                     diagnostic.suggestion);
         }
     }
 
@@ -626,6 +631,7 @@ bool ParseKind(const json& value, const std::string& mod_id, const std::string& 
     if (const std::optional<std::string> parent =
             ReadString(value, "extends", file, pointer, diagnostics, false)) {
         kind.extends = *parent;
+        kind.extends_pointer = match::expr::AppendPointerToken(pointer, "extends");
         if (!IsValidIdentifier(*parent)) {
             AddError(diagnostics, file,
                      match::expr::AppendPointerToken(pointer, "extends"),
@@ -648,6 +654,10 @@ bool ParseKind(const json& value, const std::string& mod_id, const std::string& 
 
     ReadStringArray(value, "slot_order", "slot_order entry must be a non-empty string",
                     "duplicate slot_order entry", file, pointer, diagnostics, kind.slot_order);
+    if (kind.slot_order.size() > kMaximumSlotsPerKind) {
+        AddError(diagnostics, file, match::expr::AppendPointerToken(pointer, "slot_order"),
+                 "a kind may have at most " + std::to_string(kMaximumSlotsPerKind) + " slots");
+    }
 
     // TODO(task 10): check {slot} placeholder syntax of identifier_format and title_format
     if (const std::optional<std::string> format =

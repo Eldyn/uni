@@ -2360,4 +2360,46 @@ TEST_CASE("property_int_default_for_float_loads") {
     CHECK(outcome.schema.properties[0].default_value == 1);
 }
 
+TEST_CASE("kind_slot_order_over_limit") {
+    CardSchemaTempDir dir;
+    std::string slot_order = "[";
+    for (int index = 0; index < 65; ++index) {
+        if (index != 0) {
+            slot_order += ",";
+        }
+        slot_order += "\"s" + std::to_string(index) + "\"";
+    }
+    slot_order += "]";
+    dir.Write("uni/kinds/draw2.json",
+              "{\"format_version\":\"1.0.0\",\"kind\":{\"identifier\":\"uni:draw2\","
+              "\"slot_order\":" +
+                  slot_order + "}}");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "uni", "uni");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/uni/kinds/draw2.json#/kind/slot_order: a kind may have at most 64 slots");
+}
+
+TEST_CASE("kind_slot_order_at_limit") {
+    CardSchemaTempDir dir;
+    std::string slot_order = "[";
+    for (int index = 0; index < 64; ++index) {
+        if (index != 0) {
+            slot_order += ",";
+        }
+        slot_order += "\"s" + std::to_string(index) + "\"";
+    }
+    slot_order += "]";
+    dir.Write("uni/kinds/draw2.json",
+              "{\"format_version\":\"1.0.0\",\"kind\":{\"identifier\":\"uni:draw2\","
+              "\"slot_order\":" +
+                  slot_order + "}}");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "uni", "uni");
+
+    CHECK(outcome.ok());
+}
+
 }  // TEST_SUITE("cardschema loader")

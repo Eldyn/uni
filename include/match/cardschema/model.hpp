@@ -73,6 +73,7 @@ struct KindTemplate {
     std::string identifier;   // "uni:draw2"
     bool is_abstract = false;
     std::string extends;
+    std::string extends_pointer;   // JSON pointer of the "extends" key, for diagnostics
     std::vector<std::string> tags;
     std::vector<SlotBinding> slots;
     std::vector<std::vector<std::string>> symmetric_groups;

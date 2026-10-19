@@ -1,10 +1,10 @@
 #include <match/cardschema/resolve.hpp>
 
-#include <algorithm>
 #include <cstddef>
 #include <map>
 #include <set>
 #include <string>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -18,6 +18,10 @@ namespace {
 // rejected instead of walked, so a hostile `extends` graph cannot bound the
 // work from below.
 constexpr std::size_t kMaximumExtendsChain = 16;
+
+// INFO: a card holds one bound member per slot name; a longer list is a loader
+// bug or a hostile input, so it is rejected before any expansion work.
+constexpr std::size_t kMaximumMembersPerCard = 32;
 
 void AddError(std::vector<Diagnostic>& diagnostics, const std::string& file,
               const std::string& pointer, std::string message, std::string suggestion = {}) {
@@ -39,18 +43,13 @@ std::string BandName(Band band) {
     return "base";
 }
 
-int BandRank(Band band) { return static_cast<int>(band); }
-
 // INFO: one owner's winning contribution for a slot together with the
-// identifier of that owner.
+// identifier of that owner and the file the contribution's pointer belongs to.
 struct Candidate {
     const Contribution* contribution = nullptr;
     std::string source;
+    std::string file;
 };
-
-bool HasSlot(const std::vector<std::string>& slot_order, const std::string& slot) {
-    return std::find(slot_order.begin(), slot_order.end(), slot) != slot_order.end();
-}
 
 std::string PointerFor(const Contribution& contribution, const std::string& slot) {
     if (!contribution.pointer.empty()) {
@@ -59,58 +58,85 @@ std::string PointerFor(const Contribution& contribution, const std::string& slot
     return match::expr::AppendPointerToken(match::expr::kRootPointer, slot);
 }
 
+std::string JoinSources(const std::vector<const Candidate*>& candidates) {
+    std::string text;
+    for (std::size_t index = 0; index < candidates.size(); ++index) {
+        if (index != 0) {
+            text += ", ";
+        }
+        text += candidates[index]->source;
+    }
+    return text;
+}
+
 // INFO: expands one owner's contribution map against `slot_order`: the `all`
 // key covers every slot a slot-specific key does not name. A contribution to a
 // slot outside `slot_order` is an error; the `back` slot is left to ResolveBack.
+// The error names `owner_file`, because a contribution's pointer belongs to the
+// file of the owner that wrote it, not to the file passed by the caller.
+// `slot_set` holds the same slots as `slot_order`, built once by the caller so
+// membership is not a scan per owner contribution.
 void ExpandContributions(const ContributionMap& contributions,
                          const std::vector<std::string>& slot_order,
-                         const std::string& file_label, const std::string& source,
-                         std::vector<Diagnostic>& diagnostics,
+                         const std::set<std::string>& slot_set, const std::string& owner_file,
+                         const std::string& source, std::vector<Diagnostic>& diagnostics,
                          std::map<std::string, Candidate>& out) {
     const auto all = contributions.find("all");
     for (const std::string& slot : slot_order) {
         const auto specific = contributions.find(slot);
         if (specific != contributions.end()) {
-            out[slot] = Candidate{&specific->second, source};
+            out[slot] = Candidate{&specific->second, source, owner_file};
         } else if (all != contributions.end()) {
-            out[slot] = Candidate{&all->second, source};
+            out[slot] = Candidate{&all->second, source, owner_file};
         }
     }
 
     for (const auto& entry : contributions) {
         const std::string& slot = entry.first;
-        if (slot == "all" || slot == "back" || HasSlot(slot_order, slot)) {
+        if (slot == "all" || slot == "back" || slot_set.count(slot) != 0) {
             continue;
         }
-        AddError(diagnostics, file_label, PointerFor(entry.second, slot),
+        AddError(diagnostics, owner_file, PointerFor(entry.second, slot),
                  "contribution to slot \"" + slot + "\" which is not in slot_order");
     }
 }
 
 // INFO: the band group of a slot decides its winner: the highest band wins. A
-// group of two or more is a conflict unless exactly one member is explicit, in
-// which case that one wins with no error.
+// group of two or more is a conflict: exactly one explicit member wins, two or
+// more explicit members are an error, and none explicit is an error that names
+// every owner. A conflict returns no winner.
 const Candidate* SelectBandWinner(const std::vector<const Candidate*>& group,
-                                  const std::string& slot, const std::string& file_label,
+                                  const std::string& slot, const std::string& fallback_file,
                                   std::vector<Diagnostic>& diagnostics) {
-    const Candidate* explicit_candidate = nullptr;
-    std::size_t explicit_count = 0;
+    if (group.size() < 2) {
+        return group.front();
+    }
+    std::vector<const Candidate*> explicit_candidates;
     for (const Candidate* candidate : group) {
         if (candidate->contribution->explicit_override) {
-            explicit_candidate = candidate;
-            ++explicit_count;
+            explicit_candidates.push_back(candidate);
         }
     }
-    if (group.size() >= 2 && explicit_count == 1) {
-        return explicit_candidate;
+    const std::string band = BandName(group.front()->contribution->band);
+    const std::string& file = group.front()->file.empty() ? fallback_file : group.front()->file;
+    const std::string pointer = PointerFor(*group.front()->contribution, slot);
+    if (explicit_candidates.size() == 1) {
+        return explicit_candidates.front();
     }
-    if (group.size() >= 2) {
-        AddError(diagnostics, file_label, PointerFor(*group[0]->contribution, slot),
-                 "slot \"" + slot + "\" has two contributions in band \"" +
-                     BandName(group[0]->contribution->band) + "\" (" + group[0]->source +
-                     ", " + group[1]->source + "); set \"explicit\": true on one");
+    if (explicit_candidates.size() >= 2) {
+        AddError(diagnostics, file, pointer,
+                 "slot \"" + slot + "\" has " +
+                     std::to_string(explicit_candidates.size()) +
+                     " explicit contributions in band \"" + band + "\" (" +
+                     JoinSources(explicit_candidates) + ")");
+        return nullptr;
     }
-    return group[0];
+    const std::string count =
+        group.size() == 2 ? std::string("two") : std::to_string(group.size());
+    AddError(diagnostics, file, pointer,
+             "slot \"" + slot + "\" has " + count + " contributions in band \"" + band + "\" (" +
+                 JoinSources(group) + "); set \"explicit\": true on one");
+    return nullptr;
 }
 
 }  // namespace
@@ -120,6 +146,12 @@ ResolvedFace ResolveTemplateSlots(const std::vector<const KindTemplate*>& chain_
                                   const std::string& file_label) {
     ResolvedFace face;
     if (chain_child_first.empty()) {
+        return face;
+    }
+    if (members.size() > kMaximumMembersPerCard) {
+        AddError(face.diagnostics, file_label, std::string(match::expr::kRootPointer),
+                 "a card may have at most " + std::to_string(kMaximumMembersPerCard) +
+                     " members");
         return face;
     }
 
@@ -134,23 +166,38 @@ ResolvedFace ResolveTemplateSlots(const std::vector<const KindTemplate*>& chain_
     }
     face.slot_order = slot_order != nullptr ? *slot_order : std::vector<std::string>{};
 
+    // INFO: one lookup set for the whole resolve, so a contribution to a slot
+    // outside `slot_order` is not a linear scan per owner.
+    const std::set<std::string> slot_set(face.slot_order.begin(), face.slot_order.end());
+
+    // INFO: a member listed twice binds once; the first occurrence wins, so the
+    // duplicate does not look like a cross-owner conflict.
+    std::vector<const MemberDef*> unique_members;
+    unique_members.reserve(members.size());
+    std::set<std::string> seen_members;
+    for (const MemberDef* member : members) {
+        if (seen_members.insert(member->identifier).second) {
+            unique_members.push_back(member);
+        }
+    }
+
     // INFO: the kind chain is collapsed per slot before members join, so a
     // child's contribution replaces a parent's without a conflict.
     std::vector<std::map<std::string, Candidate>> kind_expansions;
     kind_expansions.reserve(chain_child_first.size());
     for (const KindTemplate* kind : chain_child_first) {
         std::map<std::string, Candidate> expansion;
-        ExpandContributions(kind->contribute, face.slot_order, file_label, kind->identifier,
-                            face.diagnostics, expansion);
+        ExpandContributions(kind->contribute, face.slot_order, slot_set, kind->file,
+                            kind->identifier, face.diagnostics, expansion);
         kind_expansions.push_back(std::move(expansion));
     }
 
     std::vector<std::map<std::string, Candidate>> member_expansions;
-    member_expansions.reserve(members.size());
-    for (const MemberDef* member : members) {
+    member_expansions.reserve(unique_members.size());
+    for (const MemberDef* member : unique_members) {
         std::map<std::string, Candidate> expansion;
-        ExpandContributions(member->contribute, face.slot_order, file_label, member->identifier,
-                            face.diagnostics, expansion);
+        ExpandContributions(member->contribute, face.slot_order, slot_set, member->file,
+                            member->identifier, face.diagnostics, expansion);
         member_expansions.push_back(std::move(expansion));
     }
 
@@ -173,16 +220,19 @@ ResolvedFace ResolveTemplateSlots(const std::vector<const KindTemplate*>& chain_
             continue;
         }
 
-        std::map<int, std::vector<const Candidate*>> by_band;
+        // INFO: the ordered `Band` enum is the rank, so the reverse iterator
+        // visits the highest band first.
+        std::map<Band, std::vector<const Candidate*>> by_band;
         for (const Candidate* candidate : candidates) {
-            by_band[BandRank(candidate->contribution->band)].push_back(candidate);
+            by_band[candidate->contribution->band].push_back(candidate);
         }
 
-        const Candidate* winner = nullptr;
-        for (auto group = by_band.rbegin(); group != by_band.rend(); ++group) {
-            winner = SelectBandWinner(group->second, slot, file_label, face.diagnostics);
-            break;
+        const auto group = by_band.rbegin();
+        if (group == by_band.rend()) {
+            continue;
         }
+        const Candidate* winner =
+            SelectBandWinner(group->second, slot, file_label, face.diagnostics);
         if (winner == nullptr) {
             continue;
         }
@@ -190,6 +240,17 @@ ResolvedFace ResolveTemplateSlots(const std::vector<const KindTemplate*>& chain_
     }
 
     return face;
+}
+
+// INFO: the loader always records the real pointer of an `extends` key, which is
+// `/kind/extends`; the fallback covers an in-memory kind built by a caller that
+// did not set it.
+std::string ExtendsPointer(const KindTemplate& kind) {
+    if (!kind.extends_pointer.empty()) {
+        return kind.extends_pointer;
+    }
+    return match::expr::AppendPointerToken(
+        match::expr::AppendPointerToken(match::expr::kRootPointer, "kind"), "extends");
 }
 
 std::vector<const KindTemplate*> BuildExtendsChain(
@@ -207,15 +268,13 @@ std::vector<const KindTemplate*> BuildExtendsChain(
                 path += " -> ";
             }
             path += current->identifier;
-            AddError(diagnostics, current->file,
-                     match::expr::AppendPointerToken(match::expr::kRootPointer, "extends"),
+            AddError(diagnostics, current->file, ExtendsPointer(*current),
                      "extends cycle: " + path);
             return {};
         }
         chain.push_back(current);
         if (chain.size() > kMaximumExtendsChain) {
-            AddError(diagnostics, current->file,
-                     match::expr::AppendPointerToken(match::expr::kRootPointer, "extends"),
+            AddError(diagnostics, current->file, ExtendsPointer(*current),
                      "extends chain is longer than " + std::to_string(kMaximumExtendsChain) +
                          " kinds");
             return {};
@@ -230,8 +289,7 @@ std::vector<const KindTemplate*> BuildExtendsChain(
             for (const auto& entry : by_id) {
                 candidates.push_back(entry.first);
             }
-            AddError(diagnostics, current->file,
-                     match::expr::AppendPointerToken(match::expr::kRootPointer, "extends"),
+            AddError(diagnostics, current->file, ExtendsPointer(*current),
                      "unknown parent \"" + current->extends + "\"",
                      match::expr::SuggestClosest(current->extends, candidates));
             return {};
@@ -240,6 +298,21 @@ std::vector<const KindTemplate*> BuildExtendsChain(
     }
 
     return chain;
+}
+
+void DedupeDiagnostics(std::vector<Diagnostic>& diagnostics) {
+    std::vector<Diagnostic> unique;
+    unique.reserve(diagnostics.size());
+    std::set<std::tuple<std::string, std::string, std::string>> seen;
+    for (Diagnostic& diagnostic : diagnostics) {
+        const bool first = seen
+                               .emplace(diagnostic.file, diagnostic.pointer, diagnostic.message)
+                               .second;
+        if (first) {
+            unique.push_back(std::move(diagnostic));
+        }
+    }
+    diagnostics = std::move(unique);
 }
 
 }  // namespace match::cardschema
