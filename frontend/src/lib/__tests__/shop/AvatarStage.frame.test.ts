@@ -23,4 +23,10 @@ describe("AvatarStage frame", () => {
 		expect(rule).not.toBe("");
 		expect(rule).not.toMatch(/border|background/);
 	});
+
+	it("has no rotation, drag or tilt code", () => {
+		expect(stageSource).not.toContain("rotation.y");
+		expect(stageSource).not.toContain("onpointerdown");
+		expect(stageSource).not.toContain("cursor: grab");
+	});
 });
