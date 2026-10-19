@@ -125,6 +125,13 @@ describe("WardrobeScreen", () => {
 		expect(cardFor(container, "uni:hat_cap")).toBeDisabled();
 	});
 
+	it("styles SAVE as the primary button and Revert as the secondary button", () => {
+		render(WardrobeScreen);
+		flushSync();
+		expect(screen.getByRole("button", { name: "SAVE" })).toHaveClass("btn");
+		expect(screen.getByRole("button", { name: "Revert" })).toHaveClass("btn-secondary");
+	});
+
 	it("saves the draft through storeAvatar", async () => {
 		shopMock.owned = new Set([...STARTERS, "uni:hat_cap"]);
 		const { container } = render(WardrobeScreen);

@@ -41,6 +41,12 @@ describe("ItemDetail", () => {
 		expect(screen.getByText(/not enough cash/i)).toBeInTheDocument();
 	});
 
+	it("styles BUY as the primary button and TRY ON as the secondary button", () => {
+		renderDetail(makeItem());
+		expect(screen.getByRole("button", { name: /buy/i })).toHaveClass("btn");
+		expect(screen.getByRole("button", { name: /try on/i })).toHaveClass("btn-secondary");
+	});
+
 	it("enables BUY when the balance covers the price and calls onbuy", async () => {
 		const { onbuy } = renderDetail(makeItem());
 		const buy = screen.getByRole("button", { name: /buy/i });

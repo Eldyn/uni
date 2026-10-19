@@ -180,8 +180,8 @@
 			{#if dirty}
 				<span class="wardrobe-unsaved font-tiny" data-unsaved="true">{unsavedLabel}</span>
 			{/if}
-			<button type="button" class="btn pixel-bordered" onclick={revert}>{revertLabel}</button>
-			<button type="button" class="btn pixel-bordered" onclick={save}>{saveLabel}</button>
+			<button type="button" class="btn-secondary" onclick={revert}>{revertLabel}</button>
+			<button type="button" class="btn" onclick={save}>{saveLabel}</button>
 		{/if}
 
 		<button
@@ -249,10 +249,10 @@
 			<h2 class="wardrobe-confirm-title font-heading">{leaveTitle}</h2>
 			<p class="wardrobe-confirm-text font-tiny">{leaveMessage}</p>
 			<div class="wardrobe-confirm-actions">
-				<button type="button" class="btn pixel-bordered" onclick={() => (confirmOpen = false)}>
+				<button type="button" class="btn-secondary" onclick={() => (confirmOpen = false)}>
 					{leaveCancel}
 				</button>
-				<button type="button" class="btn pixel-bordered" onclick={confirmLeave}>
+				<button type="button" class="btn" onclick={confirmLeave}>
 					{leaveConfirm}
 				</button>
 			</div>

@@ -80,7 +80,7 @@
 		<div class="featured-actions">
 			<button
 				type="button"
-				class="btn pixel-bordered"
+				class="btn"
 				disabled={buyDisabled}
 				onclick={() => {
 					if (!buyDisabled) onbuy();
@@ -88,7 +88,7 @@
 			>
 				{buyLabel}
 			</button>
-			<button type="button" class="btn pixel-bordered" onclick={ontry}>{tryLabel}</button>
+			<button type="button" class="btn-secondary" onclick={ontry}>{tryLabel}</button>
 		</div>
 	</div>
 {/if}

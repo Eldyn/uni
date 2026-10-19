@@ -99,7 +99,7 @@
 	<div class="detail-actions">
 		<button
 			type="button"
-			class="btn pixel-bordered detail-buy"
+			class="btn detail-buy"
 			disabled={buyDisabled}
 			onclick={() => {
 				if (!buyDisabled) onbuy();
@@ -107,7 +107,7 @@
 		>
 			{buyLabel}
 		</button>
-		<button type="button" class="btn pixel-bordered detail-try" onclick={ontry}>{tryLabel}</button>
+		<button type="button" class="btn-secondary detail-try" onclick={ontry}>{tryLabel}</button>
 	</div>
 
 	{#if reason}
