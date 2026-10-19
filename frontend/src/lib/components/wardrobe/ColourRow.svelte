@@ -15,7 +15,8 @@
 		regionLabels = [],
 		locked = new Set<string>(),
 		skinFirst = false,
-		skinHex = "#000000"
+		skinHex = "#000000",
+		skinLabel = undefined
 	}: {
 		regions: number;
 		colours: string[];
@@ -26,6 +27,8 @@
 		locked?: ReadonlySet<string>;
 		skinFirst?: boolean;
 		skinHex?: string;
+		/** Visible label of the locked skin row of a motif. */
+		skinLabel?: string;
 	} = $props();
 
 	const pickable = $derived(skinFirst ? Math.max(0, regions - 1) : regions);
@@ -40,7 +43,7 @@
 <div class="colour-rows" role="group" aria-label={label}>
 	{#if skinFirst}
 		<div class="colour-row" data-region="skin">
-			<span class="colour-row-label font-tiny">{regionLabels[0] ?? "Region 1"}</span>
+			<span class="colour-row-label font-tiny">{skinLabel ?? regionLabels[0] ?? "Region 1"}</span>
 			<span class="colour-swatch colour-swatch--skin" style="--swatch: {skinHex}" aria-hidden="true"
 			></span>
 		</div>

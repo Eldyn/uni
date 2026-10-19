@@ -254,7 +254,7 @@
 					colours={[draft.skin]}
 					{swatches}
 					locked={lockedSwatches}
-					{regionLabels}
+					regionLabels={[skinLabel]}
 					label={skinLabel}
 					onpick={(_region, swatchId) => pickColour("shape", 0, swatchId)}
 				/>
@@ -288,6 +288,7 @@
 						label={coloursLabel}
 						skinFirst={activeTab === "motif"}
 						{skinHex}
+						{skinLabel}
 						onpick={(region, swatchId) => pickColour(activeTab, region, swatchId)}
 					/>
 				{/if}

@@ -292,4 +292,16 @@ describe("WardrobeScreen", () => {
 
 		expect(container.querySelectorAll(".colour-rows")).toHaveLength(2);
 	});
+
+	it("labels the skin row Skin so it does not repeat the item's Region 1 row", async () => {
+		const { container } = render(WardrobeScreen);
+		flushSync();
+
+		await fireEvent.click(screen.getByRole("tab", { name: "Eyes" }));
+		await fireEvent.click(cardFor(container, "uni:eyes_dot"));
+
+		expect(container.querySelectorAll(".colour-rows")).toHaveLength(2);
+		expect(screen.getAllByText("Skin")).toHaveLength(1);
+		expect(screen.getAllByText("Region 1")).toHaveLength(1);
+	});
 });
