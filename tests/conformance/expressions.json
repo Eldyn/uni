@@ -3284,6 +3284,32 @@
                 "seats": [],
                 "self": 0
             }
+        },
+        {
+            "name": "string_ordering_type_mismatch",
+            "expression": "'a' < 'b'",
+            "expect": {
+                "error": "type_mismatch"
+            }
+        },
+        {
+            "name": "floor_not_a_number",
+            "expression": "floor(@match.uni:ratio)",
+            "expect": {
+                "error": "not_a_number"
+            },
+            "world": {
+                "match": {
+                    "uni:ratio": "nan"
+                }
+            }
+        },
+        {
+            "name": "check_set_condition_needs_a_boolean",
+            "expression": "count(@all, hand_size + 1)",
+            "expect": {
+                "check_error": "condition must be a boolean, got int"
+            }
         }
     ]
 }

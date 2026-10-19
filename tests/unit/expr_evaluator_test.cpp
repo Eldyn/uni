@@ -152,13 +152,44 @@ TEST_CASE("if_evaluates_only_taken_branch") {
     CHECK(std::get<int64_t>(ValueOf("if(false, $nope.x, 2)", context)) == 2);
 }
 
-TEST_CASE("string_ordering_and_member_set_equality") {
+TEST_CASE("string_ordering_is_not_supported_and_member_sets_compare_as_sets") {
     match::expr::testing::FakeContext context;
-    CHECK(std::get<bool>(ValueOf("'a' < 'b'", context)) == true);
+    CHECK(ErrorOf("'a' < 'b'", context).code == "type_mismatch");
     context.variables["a"] = Value{std::set<std::string>{"x", "y"}};
     context.variables["b"] = Value{std::set<std::string>{"x", "y"}};
     CHECK(std::get<bool>(ValueOf("$a == $b", context)) == true);
     CHECK(std::get<bool>(ValueOf("$a != $b", context)) == false);
+}
+
+TEST_CASE("value_names_describe_a_seat_set") {
+    match::expr::testing::FakeContext context;
+    const EvalError error = ErrorOf("1 == @all", context);
+    CHECK(error.code == "type_mismatch");
+    CHECK(error.message.find("seat set") != std::string::npos);
+}
+
+TEST_CASE("has_tag_and_status_magnitude_name_their_string_argument") {
+    match::expr::testing::FakeContext context;
+    context.variables["played"] = Value{context.played_card};
+    CHECK(ErrorOf("has_tag($played, 1)", context).message.find("has_tag needs a string tag") !=
+          std::string::npos);
+    CHECK(ErrorOf("status_magnitude(@next, 1)", context)
+              .message.find("status_magnitude needs a string status") != std::string::npos);
+}
+
+TEST_CASE("rounding_a_not_a_number_reports_not_a_number") {
+    match::expr::testing::FakeContext context;
+    context.variables["x"] = Value{std::numeric_limits<double>::quiet_NaN()};
+    CHECK(ErrorOf("floor($x)", context).code == "not_a_number");
+    CHECK(ErrorOf("ceil($x)", context).code == "not_a_number");
+    CHECK(ErrorOf("round($x)", context).code == "not_a_number");
+}
+
+TEST_CASE("a_set_function_condition_names_its_bad_type") {
+    match::expr::testing::FakeContext context;
+    const EvalError error = ErrorOf("count(@all, 1 + 1)", context);
+    CHECK(error.code == "type_mismatch");
+    CHECK(error.message.find("condition must be a boolean, got int") != std::string::npos);
 }
 
 TEST_CASE("logical_evaluation_of_right_side_when_needed") {
@@ -307,6 +338,13 @@ TEST_CASE("runtime_errors_in_set_functions") {
     CHECK(std::get<bool>(ValueOf("any(" + no_seats + ", hand_size > 0)", empty)) == false);
     CHECK(std::get<bool>(ValueOf("all(" + no_seats + ", hand_size > 0)", empty)) == true);
     CHECK(ErrorOf("sum(@all, @next.hand_size)", empty).code == "empty_selector");
+}
+
+TEST_CASE("a_root_condition_leaf_must_evaluate_to_bool") {
+    match::expr::testing::FakeContext context;
+    const EvalResult leaf = ConditionOf(json("1 + 1"), context);
+    REQUIRE(std::holds_alternative<EvalError>(leaf));
+    CHECK(std::get<EvalError>(leaf).code == "type_mismatch");
 }
 
 TEST_CASE("condition_leaf_errors_are_returned_and_groups_short_circuit") {

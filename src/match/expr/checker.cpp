@@ -474,7 +474,7 @@ private:
         if (node.children.size() <= index) {
             return true;
         }
-        return CheckCondition(*node.children[index], entity, bound).has_value();
+        return CheckCondition(*node.children[index], entity, bound, false).has_value();
     }
 
     std::optional<Narrowed> CheckContains(const Node& node, Scope scope, Type candidate,
@@ -616,7 +616,7 @@ private:
             return std::nullopt;
         }
         for (const NodePtr& filter : node.children) {
-            if (!CheckCondition(*filter, EntityOf(*type), bound)) {
+            if (!CheckCondition(*filter, EntityOf(*type), bound, true)) {
                 return std::nullopt;
             }
         }
@@ -624,15 +624,18 @@ private:
     }
 
     // INFO: a filter and the condition argument of a set function are both
-    // boolean predicates over the candidate, so they share one rule.
+    // boolean predicates over the candidate, so they share one rule; only the
+    // message differs.
     std::optional<Type> CheckCondition(const Node& node, Type candidate,
-                                       const std::set<std::string>& bound) {
+                                       const std::set<std::string>& bound, bool is_filter) {
         const std::optional<Narrowed> type = Check(node, Scope::kCandidate, candidate, bound);
         if (!type) {
             return std::nullopt;
         }
         if (type->type != Type::kBool) {
-            Error("filter must be a boolean condition, got " + TypeName(type->type));
+            const std::string prefix =
+                is_filter ? "filter must be a boolean condition" : "condition must be a boolean";
+            Error(prefix + ", got " + TypeName(type->type));
             return std::nullopt;
         }
         return type->type;
@@ -888,8 +891,8 @@ private:
         }
         const size_t maximum = *function.maximum_arguments;
         if (minimum == maximum) {
-            return name + " takes " + std::to_string(minimum) + " arguments, got " +
-                   std::to_string(arity);
+            const std::string noun = minimum == 1 ? " argument, got " : " arguments, got ";
+            return name + " takes " + std::to_string(minimum) + noun + std::to_string(arity);
         }
         return name + " takes between " + std::to_string(minimum) + " and " +
                std::to_string(maximum) + " arguments, got " + std::to_string(arity);

@@ -406,6 +406,15 @@ TEST_CASE("function_signature_errors_name_their_expectation") {
     CHECK(Mentions(Check("abs('a')"), "abs needs numbers"));
 }
 
+TEST_CASE("abs_arity_uses_the_singular_argument") {
+    CHECK(Mentions(Check("abs(1, 2)"), "abs takes 1 argument, got 2"));
+}
+
+TEST_CASE("a_set_function_condition_must_be_a_boolean") {
+    CHECK(Mentions(Check("count(@all, hand_size + 1)"),
+                   "condition must be a boolean, got int"));
+}
+
 TEST_CASE("membership_and_numeric_functions_accept_their_kinds") {
     const CheckResult hand = Check("contains(@next.hand, $played)");
     REQUIRE(hand.diagnostics.empty());

@@ -53,6 +53,12 @@ std::string ValueName(const Value& value) {
     if (std::holds_alternative<std::set<std::string>>(value)) {
         return "member_set";
     }
+    if (const std::vector<EntityRef>* entities = std::get_if<std::vector<EntityRef>>(&value)) {
+        if (entities->empty()) {
+            return "set";
+        }
+        return entities->front().kind == Type::kSeat ? "seat set" : "card set";
+    }
     return "set";
 }
 
@@ -109,15 +115,20 @@ EvalResult VariableValue(const Node& node, EvalContext& context) {
 }
 
 // INFO: a per-candidate predicate. A leaf error is returned as-is; a
-// non-boolean result reports the caller's `mismatch_message`.
+// non-boolean result reports the caller's `mismatch_message`, with the value's
+// type appended when `describe_value` is set.
 EvalResult EvaluatePredicate(const Node& predicate, EvalContext& context, EntityRef entity,
-                             const std::string& mismatch_message) {
+                             const std::string& mismatch_message, bool describe_value) {
     const EvalResult result = EvaluateNode(predicate, context, entity);
     if (std::holds_alternative<EvalError>(result)) {
         return result;
     }
     const bool* flag = std::get_if<bool>(&std::get<Value>(result));
     if (flag == nullptr) {
+        if (describe_value) {
+            return Fail("type_mismatch", mismatch_message + ", got " +
+                                            ValueName(std::get<Value>(result)));
+        }
         return Fail("type_mismatch", mismatch_message);
     }
     return Value(*flag);
@@ -135,7 +146,7 @@ EvalResult SelectorValue(const Node& node, EvalContext& context) {
         }
         const EvalResult predicate =
             EvaluatePredicate(*node.children[0], context, entity,
-                              "filter on @" + node.text + " must be a boolean");
+                              "filter on @" + node.text + " must be a boolean", false);
         if (std::holds_alternative<EvalError>(predicate)) {
             return predicate;
         }
@@ -154,11 +165,6 @@ EvalResult SelectorValue(const Node& node, EvalContext& context) {
         return Fail("empty_selector", "@" + node.text + " selects no seats");
     }
     return Value(result.front());
-}
-
-EvalResult ReadEntityProperty(EntityRef entity, const std::string& key) {
-    return Fail("unknown_property",
-                "unknown property \"" + key + "\" on " + TypeName(entity.kind));
 }
 
 // INFO: a single-entity argument must yield exactly one entity. An empty
@@ -206,7 +212,8 @@ EvalResult PropertyValue(const Node& node, EvalContext& context,
     const EntityRef entity = std::get<EntityRef>(std::get<Value>(single));
     const std::optional<Value> property = context.ReadProperty(entity, key);
     if (!property.has_value()) {
-        return ReadEntityProperty(entity, key);
+        return Fail("unknown_property",
+                    "unknown property \"" + key + "\" on " + TypeName(entity.kind));
     }
     return *property;
 }
@@ -325,13 +332,7 @@ EvalResult Compare(const std::string& symbol, const Value& left, const Value& ri
         const double right_value = AsFloat(right);
         return OrderedCompare(symbol, left_value, right_value);
     }
-    if (std::holds_alternative<std::string>(left) &&
-        std::holds_alternative<std::string>(right)) {
-        const std::string& left_value = std::get<std::string>(left);
-        const std::string& right_value = std::get<std::string>(right);
-        return OrderedCompare(symbol, left_value, right_value);
-    }
-    return Fail("type_mismatch", "operator " + symbol + " needs numbers or strings");
+    return Fail("type_mismatch", "operator " + symbol + " needs numbers");
 }
 
 EvalResult ApplyBinary(const std::string& symbol, const Value& left, const Value& right) {
@@ -421,8 +422,9 @@ EvalResult BinaryValue(const Node& node, EvalContext& context,
                        std::get<Value>(right_result));
 }
 
-// INFO: count, any, all and sum share the first argument, a seat set. A member
-// set is not a seat set here, so the function rejects it up front.
+// INFO: count, any, all and sum share the first argument, a set. A member set
+// only supports count and any, without a condition; a seat set or card set
+// supports all four, with or without a condition.
 EvalResult EvaluateSetFunction(const std::string& name, const Node& node, EvalContext& context,
                               std::optional<EntityRef> candidate) {
     if (node.children.empty()) {
@@ -447,6 +449,7 @@ EvalResult EvaluateSetFunction(const std::string& name, const Node& node, EvalCo
         return Fail("type_mismatch", name + " needs a set");
     }
     const std::vector<EntityRef>& entities = *seats;
+    const std::string condition_message = "condition must be a boolean";
 
     if (name == "count") {
         if (node.children.size() == 1) {
@@ -455,7 +458,7 @@ EvalResult EvaluateSetFunction(const std::string& name, const Node& node, EvalCo
         int64_t matches = 0;
         for (const EntityRef entity : entities) {
             const EvalResult predicate = EvaluatePredicate(*node.children[1], context, entity,
-                                                           name + " condition must be bool");
+                                                           condition_message, true);
             if (std::holds_alternative<EvalError>(predicate)) {
                 return predicate;
             }
@@ -471,7 +474,7 @@ EvalResult EvaluateSetFunction(const std::string& name, const Node& node, EvalCo
         }
         for (const EntityRef entity : entities) {
             const EvalResult predicate = EvaluatePredicate(*node.children[1], context, entity,
-                                                           name + " condition must be bool");
+                                                           condition_message, true);
             if (std::holds_alternative<EvalError>(predicate)) {
                 return predicate;
             }
@@ -487,7 +490,7 @@ EvalResult EvaluateSetFunction(const std::string& name, const Node& node, EvalCo
         }
         for (const EntityRef entity : entities) {
             const EvalResult predicate = EvaluatePredicate(*node.children[1], context, entity,
-                                                           name + " condition must be bool");
+                                                           condition_message, true);
             if (std::holds_alternative<EvalError>(predicate)) {
                 return predicate;
             }
@@ -729,6 +732,11 @@ EvalResult CallValue(const Node& node, EvalContext& context,
             } else {
                 result = std::round(*number);
             }
+            // INFO: a NaN result cannot convert to an int; report it as a not a
+            // number, not as an overflow.
+            if (std::isnan(result)) {
+                return Fail("not_a_number", "rounding produced not a number");
+            }
             // INFO: a double outside [INT64_MIN, 2^63) cannot be an int64; the
             // upper bound is exclusive because 2^63 itself is out of range.
             if (!(result >= -9223372036854775808.0 && result < 9223372036854775808.0)) {
@@ -833,7 +841,7 @@ EvalResult CallValue(const Node& node, EvalContext& context,
         const Value tag = std::get<Value>(tag_result);
         const std::string* tag_name = std::get_if<std::string>(&tag);
         if (tag_name == nullptr) {
-            return Fail("type_mismatch", "has_tag needs a card or a rule");
+            return Fail("type_mismatch", "has_tag needs a string tag");
         }
         const EvalResult entity_result =
             ExpectSingleEntity(target, *node.children[0], "has_tag needs a card or a rule");
@@ -861,7 +869,7 @@ EvalResult CallValue(const Node& node, EvalContext& context,
         const Value status = std::get<Value>(status_result);
         const std::string* status_name = std::get_if<std::string>(&status);
         if (status_name == nullptr) {
-            return Fail("type_mismatch", "status_magnitude needs a seat");
+            return Fail("type_mismatch", "status_magnitude needs a string status");
         }
         const EvalResult entity_result =
             ExpectSingleEntity(seat, *node.children[0], "status_magnitude needs a seat");
@@ -902,6 +910,21 @@ EvalResult CallValue(const Node& node, EvalContext& context,
     return Fail("type_mismatch", "unknown function \"" + name + "\"");
 }
 
+EvalResult BareNameValue(const Node& node, EvalContext& context,
+                         std::optional<EntityRef> candidate) {
+    if (!candidate.has_value()) {
+        return Fail("type_mismatch", "bare name '" + node.text +
+                                        "' is only valid inside [ ] or a set function "
+                                        "condition");
+    }
+    const std::optional<Value> property = context.ReadProperty(*candidate, node.text);
+    if (!property.has_value()) {
+        return Fail("unknown_property", "unknown property \"" + node.text + "\" on " +
+                                           TypeName(candidate->kind));
+    }
+    return *property;
+}
+
 EvalResult EvaluateNode(const Node& node, EvalContext& context,
                        std::optional<EntityRef> candidate) {
     switch (node.kind) {
@@ -920,21 +943,7 @@ EvalResult EvaluateNode(const Node& node, EvalContext& context,
         case NodeKind::kBinary:
             return BinaryValue(node, context, candidate);
         case NodeKind::kBareName:
-            if (!candidate.has_value()) {
-                return Fail("type_mismatch", "bare name '" + node.text +
-                                                "' is only valid inside [ ] or a set function "
-                                                "condition");
-            }
-            {
-                const std::optional<Value> property =
-                    context.ReadProperty(*candidate, node.text);
-                if (!property.has_value()) {
-                    return Fail("unknown_property",
-                                "unknown property \"" + node.text + "\" on " +
-                                    TypeName(candidate->kind));
-                }
-                return *property;
-            }
+            return BareNameValue(node, context, candidate);
     }
     return Fail("type_mismatch", "unsupported expression");
 }

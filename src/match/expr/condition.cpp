@@ -293,7 +293,8 @@ EvalResult EvaluateCondition(const Condition& condition, EvalContext& context) {
         if (!condition.expression) {
             return EvalError{"type_mismatch", "condition leaf is not parsed"};
         }
-        return Evaluate(*condition.expression, context);
+        // INFO: a root leaf must be a bool just like a group child.
+        return ExpectConditionBool(Evaluate(*condition.expression, context));
     }
     if (condition.kind == Condition::Kind::kAllOf) {
         for (const Condition& child : condition.children) {
