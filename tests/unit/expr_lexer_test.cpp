@@ -78,6 +78,18 @@ TEST_CASE("empty_source_is_an_error") {
     CHECK(result.error->message == "empty expression");
 }
 
+TEST_CASE("a_bare_prefix_reports_the_start_of_the_token") {
+    const auto at_result = match::expr::Lex("@");
+    REQUIRE(at_result.error.has_value());
+    CHECK(at_result.error->position == 0);
+    CHECK(at_result.error->message == "unexpected character '@'");
+
+    const auto dollar_result = match::expr::Lex("1 + $");
+    REQUIRE(dollar_result.error.has_value());
+    CHECK(dollar_result.error->position == 4);
+    CHECK(dollar_result.error->message == "unexpected character '$'");
+}
+
 TEST_CASE("non_ascii_identifier_is_an_error") {
     const auto result = match::expr::Lex("hand_síze");
     REQUIRE(result.error.has_value());

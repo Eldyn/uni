@@ -2,7 +2,10 @@
 
 #include <charconv>
 #include <cmath>
+#include <initializer_list>
+#include <string>
 #include <string_view>
+#include <utility>
 
 namespace match::expr {
 namespace {
@@ -144,7 +147,7 @@ std::optional<ParseError> LexAfterPrefix(std::string_view source, size_t& positi
         return ParseError{position, std::string(kSnakeCaseMessage)};
     }
     if (position >= source.size() || !IsIdentifierStart(source[position])) {
-        return ParseError{position, UnexpectedCharacterMessage(source[start])};
+        return ParseError{start, UnexpectedCharacterMessage(source[start])};
     }
     std::string text;
     if (const std::optional<ParseError> error = LexIdentifier(source, position, text)) {
@@ -163,6 +166,28 @@ bool MatchesAny(std::string_view text, std::initializer_list<std::string_view> w
     return false;
 }
 
+// INFO: the single-character tokens that need no lookahead; one table so a new
+// punctuation mark is one entry rather than one more branch in the loop.
+struct SingleCharacterToken {
+    char character;
+    TokenKind kind;
+};
+
+constexpr SingleCharacterToken kSingleCharacterTokens[] = {
+    {'(', TokenKind::kLeftParen},   {')', TokenKind::kRightParen},
+    {'[', TokenKind::kLeftBracket}, {']', TokenKind::kRightBracket},
+    {',', TokenKind::kComma},       {'.', TokenKind::kDot},
+};
+
+std::optional<TokenKind> SingleCharacterTokenKind(char character) {
+    for (const SingleCharacterToken& entry : kSingleCharacterTokens) {
+        if (entry.character == character) {
+            return entry.kind;
+        }
+    }
+    return std::nullopt;
+}
+
 }  // namespace
 
 LexResult Lex(std::string_view source) {
@@ -179,33 +204,8 @@ LexResult Lex(std::string_view source) {
         std::string text;
         std::optional<ParseError> error;
 
-        if (character == '(') {
-            result.tokens.push_back(Token{TokenKind::kLeftParen, "(", start});
-            ++position;
-            continue;
-        }
-        if (character == ')') {
-            result.tokens.push_back(Token{TokenKind::kRightParen, ")", start});
-            ++position;
-            continue;
-        }
-        if (character == '[') {
-            result.tokens.push_back(Token{TokenKind::kLeftBracket, "[", start});
-            ++position;
-            continue;
-        }
-        if (character == ']') {
-            result.tokens.push_back(Token{TokenKind::kRightBracket, "]", start});
-            ++position;
-            continue;
-        }
-        if (character == ',') {
-            result.tokens.push_back(Token{TokenKind::kComma, ",", start});
-            ++position;
-            continue;
-        }
-        if (character == '.') {
-            result.tokens.push_back(Token{TokenKind::kDot, ".", start});
+        if (const std::optional<TokenKind> kind = SingleCharacterTokenKind(character)) {
+            result.tokens.push_back(Token{*kind, std::string(1, character), start});
             ++position;
             continue;
         }

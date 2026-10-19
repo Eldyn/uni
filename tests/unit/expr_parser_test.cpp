@@ -58,7 +58,7 @@ TEST_CASE("unary_negation_and_literals") {
     CHECK(Debug("'uni:draw2'") == "'uni:draw2'");
 }
 
-TEST_CASE("missing_operand_reports_operator_position") {
+TEST_CASE("missing_operand_reports_the_position_after_the_operator") {
     const auto result = match::expr::ParseExpression("1 +");
     REQUIRE(result.error.has_value());
     CHECK(result.error->position == 3);

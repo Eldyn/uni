@@ -33,11 +33,11 @@ std::string DebugString(const Node& node) {
         case NodeKind::kProperty:
             return "(prop " + DebugString(*node.children[0]) + " " + node.text + ")";
         case NodeKind::kCall: {
-            std::string out = "(call " + node.text;
+            std::string result = "(call " + node.text;
             for (const NodePtr& child : node.children) {
-                out += " " + DebugString(*child);
+                result += " " + DebugString(*child);
             }
-            return out + ")";
+            return result + ")";
         }
         case NodeKind::kUnary: {
             const std::string symbol = node.text == "-" ? "neg" : node.text;
@@ -315,7 +315,7 @@ private:
     }
 
     NodePtr ParseAtom() {
-        const Token token = Peek();
+        const Token& token = Peek();
         switch (token.kind) {
             case TokenKind::kNumber:
                 ++index_;
@@ -378,7 +378,7 @@ private:
     }
 
     NodePtr ParseIdentifier() {
-        const Token token = Peek();
+        const Token& token = Peek();
         ++index_;
         if (token.text == "true" || token.text == "false") {
             NodePtr node = MakeSimpleNode(NodeKind::kLiteral, token);
@@ -425,7 +425,7 @@ private:
     }
 
     NodePtr ParseSelector() {
-        const Token token = Peek();
+        const Token& token = Peek();
         ++index_;
         NodePtr node = MakeSimpleNode(NodeKind::kSelector, token);
         if (!node) {
