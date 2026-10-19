@@ -169,4 +169,24 @@ describe("CardsPlayedChart", () => {
 		expect(screen.getByRole("tab", { name: "Colors" })).toHaveAttribute("aria-selected", "true");
 		expect(screen.getByText("Red")).toBeInTheDocument();
 	});
+
+	it("paints each color bar with the card color it describes", () => {
+		const { container } = render(CardsPlayedChart, { props: { groups: allGroups() } });
+
+		const styles = [...container.querySelectorAll(".bar")].map((bar) => bar.getAttribute("style"));
+		expect(styles[0]).toContain("#bd3130");
+		expect(styles[1]).toContain("#0470dd");
+		expect(styles[2]).toContain("#4aab42");
+		expect(styles[3]).toContain("#f2cc47");
+	});
+
+	it("keeps the accent color for value bars", async () => {
+		const { container } = render(CardsPlayedChart, { props: { groups: allGroups() } });
+
+		await fireEvent.click(screen.getByRole("tab", { name: "Values" }));
+
+		for (const bar of container.querySelectorAll(".bar")) {
+			expect(bar.getAttribute("style")).toContain("var(--accent)");
+		}
+	});
 });

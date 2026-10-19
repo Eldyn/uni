@@ -13,6 +13,7 @@
 		type CardsPlayedGroup,
 		type CardsPlayedGroupId
 	} from "$components/profile/profileModel";
+	import { CARD_PALETTE, type CardColorName } from "$lib/palette";
 
 	type CardsPlayedChartProps = { groups: CardsPlayedGroup[] };
 
@@ -78,6 +79,12 @@
 			default:
 				return key;
 		}
+	}
+
+	/** Color bars use the card color they describe; other bars use the accent. */
+	function barColor(key: string): string {
+		if (key in CARD_PALETTE) return CARD_PALETTE[key as CardColorName].base;
+		return "var(--accent)";
 	}
 
 	function onTablistKeydown(event: KeyboardEvent): void {
@@ -153,7 +160,7 @@
 							<div
 								class="bar"
 								aria-hidden="true"
-								style="height: max(2px, {row.ratio * 100}%);"
+								style="height: max(2px, {row.ratio * 100}%); --bar-color: {barColor(row.key)};"
 							></div>
 						</div>
 						<span class="bar-label">{rowLabel(row.key)}</span>
@@ -226,7 +233,7 @@
 
 	.bar {
 		width: 100%;
-		background: var(--accent);
+		background: var(--bar-color);
 	}
 
 	.podium {
