@@ -51,8 +51,16 @@ const { storeAvatar } = vi.hoisted(() => ({
 
 vi.mock("$stores/avatar.svelte", () => ({ storeAvatar }));
 
+const baked = vi.hoisted(() => ({ set: vi.fn(), destroy: vi.fn() }));
+
 vi.mock("$lib/avatar/useBakedAvatar.svelte", () => ({
-	createBakedAvatar: () => ({ url: null, set: vi.fn(), destroy: vi.fn() })
+	createBakedAvatar: () => ({
+		get url() {
+			return "blob:wardrobe";
+		},
+		set: baked.set,
+		destroy: baked.destroy
+	})
 }));
 
 function itemIds(container: HTMLElement): string[] {
@@ -99,6 +107,24 @@ describe("WardrobeScreen", () => {
 
 		unmount();
 		expect(storeTopbarContent.current).toBeUndefined();
+	});
+
+	it("bakes each item tile with default colors on the draft shape and skin", async () => {
+		baked.set.mockClear();
+		render(WardrobeScreen);
+		flushSync();
+
+		await fireEvent.click(screen.getByRole("tab", { name: "Eyes" }));
+
+		const tileLoadouts = baked.set.mock.calls.map((call) => call[0]);
+		expect(
+			tileLoadouts.some(
+				(loadout) =>
+					loadout &&
+					loadout.slots.eyes?.item === "uni:eyes_dot" &&
+					loadout.slots.eyes.colours.length === 1
+			)
+		).toBe(true);
 	});
 
 	it("lists the account's owned items per slot plus the starters", async () => {

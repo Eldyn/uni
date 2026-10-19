@@ -21,10 +21,12 @@
 </script>
 
 <script lang="ts">
+	import Avatar from "$components/common/Avatar.svelte";
 	import RarityFrame from "$components/shop/RarityFrame.svelte";
-	import { itemArtStyle, itemLabelKey, shopItemText } from "$components/shop/ItemCard.svelte";
+	import { itemLabelKey, shopItemText } from "$components/shop/ItemCard.svelte";
+	import { itemPreviewLoadout } from "$lib/avatar/previewLoadout";
 	import { storeI18n } from "$stores/i18n.svelte";
-	import type { CatalogueItem } from "$lib/avatar/types";
+	import type { CatalogueItem, Loadout } from "$lib/avatar/types";
 
 	let {
 		items,
@@ -34,6 +36,7 @@
 		noneLabel,
 		blockNote,
 		label,
+		loadout,
 		onselect,
 		onnone
 	}: {
@@ -44,6 +47,8 @@
 		noneLabel: string;
 		blockNote: string;
 		label: string;
+		/** The draft look: its shape and skin dress each preview. */
+		loadout: Loadout;
 		onselect: (item: CatalogueItem) => void;
 		onnone: () => void;
 	} = $props();
@@ -146,7 +151,9 @@
 		>
 			<RarityFrame rarity={item.rarity}>
 				<span class="slot-art-tile pixel-bordered">
-					<span class="slot-art" style={itemArtStyle(item)} aria-hidden="true"></span>
+					<span class="slot-art" aria-hidden="true">
+						<Avatar loadout={itemPreviewLoadout(item, loadout, true)} size={96} />
+					</span>
 				</span>
 				<span class="slot-name font-tiny">
 					{shopItemText(itemLabelKey(item.id), item.name, locale)}
@@ -210,11 +217,9 @@
 	}
 
 	.slot-art {
+		display: block;
 		width: 96px;
 		height: 96px;
-		background-repeat: no-repeat;
-		background-position: 0 0;
-		image-rendering: pixelated;
 	}
 
 	.slot-name {

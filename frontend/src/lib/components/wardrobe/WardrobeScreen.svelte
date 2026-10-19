@@ -289,6 +289,7 @@
 						{noneLabel}
 						{blockNote}
 						label={activeLabel}
+						loadout={draft}
 						onselect={equipCard}
 						onnone={clearSlot}
 					/>
