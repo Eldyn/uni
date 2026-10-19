@@ -1,4 +1,4 @@
-<!-- The shop's featured hero: a wide card with a slight skew, the live preview
+<!-- The shop's featured hero: a wide flat card, the live preview
      avatar wearing the item, the name, rarity and price, and the BUY / TRY ON
      actions. It renders nothing when the catalogue has no featured item. -->
 <script lang="ts">
@@ -59,7 +59,7 @@
 		data-featured-id={item.id}
 		style="--rarity-colour: {RARITY_COLOURS[item.rarity]}"
 	>
-		<span class="featured-tag font-tiny">{featuredLabel}</span>
+		<span class="featured-tag">{featuredLabel}</span>
 
 		<div class="featured-preview pixel-bordered">
 			{#if baked.url}
@@ -71,9 +71,9 @@
 		</div>
 
 		<div class="featured-info">
-			<h2 class="featured-name font-heading">{name}</h2>
-			<p class="featured-rarity font-tiny">{rarityName}</p>
-			<p class="featured-price font-pixel">
+			<h2 class="featured-name">{name}</h2>
+			<p class="featured-rarity">{rarityName}</p>
+			<p class="featured-price">
 				<span class="coin" aria-hidden="true"></span>{item.price}
 			</p>
 		</div>
@@ -98,16 +98,17 @@
 	.featured-banner {
 		position: relative;
 		display: flex;
+		flex-wrap: wrap;
 		align-items: center;
 		gap: 1rem;
 		padding: 1rem;
-		/* A deliberate break from the grid: the hero leans a little. */
-		transform: skewX(-2deg);
 		border: 2px solid var(--rarity-colour);
 		background: linear-gradient(135deg, var(--surface-violet), var(--surface-deep));
 	}
 
 	.featured-tag {
+		font-family: var(--pypx);
+		font-weight: 800;
 		position: absolute;
 		top: 0;
 		left: 0;
@@ -135,20 +136,27 @@
 
 	.featured-info {
 		display: flex;
-		flex: 1;
+		flex: 1 1 8rem;
 		flex-direction: column;
 		gap: 0.25rem;
-		min-width: 0;
+		/* INFO: never narrower than 8rem, or the whole row when it is
+		   narrower, so a long button label wraps the buttons instead of
+		   squeezing the name. */
+		min-width: min(8rem, 100%);
 	}
 
 	.featured-name {
+		font-family: var(--pypx);
+		font-weight: 800;
 		margin: 0;
 		min-width: 0;
-		overflow-wrap: anywhere;
+		overflow-wrap: break-word;
 		color: var(--text-h);
 	}
 
 	.featured-rarity {
+		font-family: var(--pypx);
+		font-weight: 800;
 		margin: 0;
 		text-transform: uppercase;
 		letter-spacing: 0.08em;
@@ -156,6 +164,8 @@
 	}
 
 	.featured-price {
+		font-family: var(--pypx);
+		font-weight: 800;
 		display: flex;
 		align-items: center;
 		gap: 0.3rem;
