@@ -1115,4 +1115,187 @@ TEST_CASE("kind_contribute_must_be_object") {
           "key \"contribute\" must be an object");
 }
 
+TEST_CASE("loads_deck") {
+    CardSchemaTempDir dir;
+    dir.Write("uni/decks/mini.json",
+              R"({"format_version":"1.0.0","deck":{"identifier":"uni:mini","name":"Mini",)"
+              R"("cards":[{"kind":"uni:numbered","copies":1,"members":{"color":{"tag":"colored"},)"
+              R"("value":{"identifiers":["uni:0"]}}},)"
+              R"({"kind":"uni:wild","copies":"@settings.count_wild"}]}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "uni", "uni");
+
+    REQUIRE(outcome.ok());
+    REQUIRE(outcome.schema.decks.size() == 1);
+    const match::cardschema::DeckSpec& deck = outcome.schema.decks[0];
+    CHECK(deck.identifier == "uni:mini");
+    CHECK(deck.name == "Mini");
+    REQUIRE(deck.cards.size() == 2);
+    CHECK(deck.cards[0].kind == "uni:numbered");
+    CHECK(deck.cards[0].copies.is_number_integer());
+    CHECK(deck.cards[0].copies.get<int>() == 1);
+    REQUIRE(deck.cards[0].members.count("color") == 1);
+    CHECK(deck.cards[0].members.at("color").mode == "tag");
+    CHECK(deck.cards[0].members.at("color").tag == "colored");
+    REQUIRE(deck.cards[0].members.count("value") == 1);
+    CHECK(deck.cards[0].members.at("value").mode == "identifiers");
+    CHECK(deck.cards[0].members.at("value").identifiers ==
+          std::vector<std::string>{"uni:0"});
+    CHECK(deck.cards[1].kind == "uni:wild");
+    CHECK(deck.cards[1].copies.is_string());
+    CHECK(deck.cards[1].copies.get<std::string>() == "@settings.count_wild");
+}
+
+TEST_CASE("max_cards_over_limit") {
+    CardSchemaTempDir dir;
+    dir.Write("uni/decks/mini.json",
+              R"({"format_version":"1.0.0","deck":{"identifier":"uni:mini","max_cards":2000}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "uni", "uni");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/uni/decks/mini.json#/deck/max_cards: "
+          "key \"max_cards\" must be between 1 and 1024");
+}
+
+TEST_CASE("selector_all") {
+    CardSchemaTempDir dir;
+    dir.Write("uni/decks/mini.json",
+              R"({"format_version":"1.0.0","deck":{"identifier":"uni:mini",)"
+              R"("cards":[{"kind":"uni:numbered","copies":1,"members":{"color":"all"}}]}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "uni", "uni");
+
+    REQUIRE(outcome.ok());
+    REQUIRE(outcome.schema.decks.size() == 1);
+    REQUIRE(outcome.schema.decks[0].cards.size() == 1);
+    CHECK(outcome.schema.decks[0].cards[0].members.at("color").mode == "all");
+}
+
+TEST_CASE("bad_selector") {
+    CardSchemaTempDir dir;
+    dir.Write("uni/decks/mini.json",
+              R"({"format_version":"1.0.0","deck":{"identifier":"uni:mini",)"
+              R"("cards":[{"kind":"uni:numbered","copies":1,)"
+              R"("members":{"color":{"colour":"x"}}}]}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "uni", "uni");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/uni/decks/mini.json#/deck/cards/0/members/color: "
+          "member selector must be \"all\", {\"tag\": ...}, or {\"identifiers\": [...]}");
+}
+
+TEST_CASE("bad_combine") {
+    CardSchemaTempDir dir;
+    dir.Write("uni/decks/mini.json",
+              R"({"format_version":"1.0.0","deck":{"identifier":"uni:mini",)"
+              R"("cards":[{"kind":"uni:numbered","copies":1,"combine":"cross"}]}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "uni", "uni");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/uni/decks/mini.json#/deck/cards/0/combine: "
+          "key \"combine\" must be one of \"product\", \"unique_pairs\", \"zip\" "
+          "(did you mean \"product\")");
+}
+
+TEST_CASE("deck_requires_identifier") {
+    CardSchemaTempDir dir;
+    dir.Write("uni/decks/mini.json", R"({"format_version":"1.0.0","deck":{"name":"Mini"}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "uni", "uni");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/uni/decks/mini.json#/deck/identifier: "
+          "missing required key \"identifier\"");
+}
+
+TEST_CASE("deck_identifier_must_match_file") {
+    CardSchemaTempDir dir;
+    dir.Write("uni/decks/mini.json",
+              R"({"format_version":"1.0.0","deck":{"identifier":"uni:other"}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "uni", "uni");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/uni/decks/mini.json#/deck/identifier: "
+          "identifier \"uni:other\" does not match the file name \"mini.json\"");
+}
+
+TEST_CASE("deck_unknown_key") {
+    CardSchemaTempDir dir;
+    dir.Write("uni/decks/mini.json",
+              R"({"format_version":"1.0.0","deck":{"identifier":"uni:mini","cardz":[]}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "uni", "uni");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/uni/decks/mini.json#/deck/cardz: "
+          "unknown key \"cardz\" (did you mean \"cards\")");
+}
+
+TEST_CASE("copies_must_be_integer_or_string") {
+    CardSchemaTempDir dir;
+    dir.Write("uni/decks/mini.json",
+              R"({"format_version":"1.0.0","deck":{"identifier":"uni:mini",)"
+              R"("cards":[{"kind":"uni:numbered","copies":true}]}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "uni", "uni");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/uni/decks/mini.json#/deck/cards/0/copies: "
+          "key \"copies\" must be an integer or a non-empty string");
+}
+
+TEST_CASE("copies_must_not_be_negative") {
+    CardSchemaTempDir dir;
+    dir.Write("uni/decks/mini.json",
+              R"({"format_version":"1.0.0","deck":{"identifier":"uni:mini",)"
+              R"("cards":[{"kind":"uni:numbered","copies":-1}]}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "uni", "uni");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/uni/decks/mini.json#/deck/cards/0/copies: "
+          "key \"copies\" must not be negative");
+}
+
+TEST_CASE("members_must_be_object") {
+    CardSchemaTempDir dir;
+    dir.Write("uni/decks/mini.json",
+              R"({"format_version":"1.0.0","deck":{"identifier":"uni:mini",)"
+              R"("cards":[{"kind":"uni:numbered","copies":1,"members":[]}]}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "uni", "uni");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/uni/decks/mini.json#/deck/cards/0/members: "
+          "key \"members\" must be an object");
+}
+
+TEST_CASE("selector_identifiers_empty") {
+    CardSchemaTempDir dir;
+    dir.Write("uni/decks/mini.json",
+              R"({"format_version":"1.0.0","deck":{"identifier":"uni:mini",)"
+              R"("cards":[{"kind":"uni:numbered","copies":1,)"
+              R"("members":{"color":{"identifiers":[]}}}]}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "uni", "uni");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/uni/decks/mini.json#/deck/cards/0/members/color/identifiers: "
+          "identifiers must not be empty");
+}
+
 }  // TEST_SUITE("cardschema loader")

@@ -535,6 +535,288 @@ bool ParseKind(const json& value, const std::string& mod_id, const std::string& 
     return usable && diagnostics.size() == initial_diagnostics;
 }
 
+const std::vector<std::string>& DeckKeys() {
+    static const std::vector<std::string> keys = {"identifier", "name", "max_cards", "mods",
+                                                  "contribute", "cards"};
+    return keys;
+}
+
+const std::vector<std::string>& DeckEntryKeys() {
+    static const std::vector<std::string> keys = {"kind", "copies", "members", "combine"};
+    return keys;
+}
+
+const std::vector<std::string>& CombineModes() {
+    static const std::vector<std::string> modes = {"product", "unique_pairs", "zip"};
+    return modes;
+}
+
+// INFO: a member selector is one of the three forms in spec 5.4: the string
+// "all", an object with "tag", or an object with "identifiers". Any other shape
+// is a diagnostic naming the selector so the author can see the form list.
+void ParseMemberSelector(const json& value, const std::string& file, const std::string& pointer,
+                         std::vector<Diagnostic>& diagnostics, MemberSelector& selector) {
+    static const std::vector<std::string> tag_keys = {"tag"};
+    static const std::vector<std::string> identifiers_keys = {"identifiers"};
+    static const std::string kSelectorMessage =
+        "member selector must be \"all\", {\"tag\": ...}, or {\"identifiers\": [...]}";
+
+    selector.pointer = pointer;
+
+    if (value.is_string()) {
+        if (value.get<std::string>() == "all") {
+            selector.mode = "all";
+            return;
+        }
+        AddError(diagnostics, file, pointer, kSelectorMessage);
+        return;
+    }
+    if (!value.is_object()) {
+        AddError(diagnostics, file, pointer, kSelectorMessage);
+        return;
+    }
+
+    const bool has_tag = value.find("tag") != value.end();
+    const bool has_identifiers = value.find("identifiers") != value.end();
+    if (has_tag == has_identifiers) {
+        AddError(diagnostics, file, pointer, kSelectorMessage);
+        return;
+    }
+
+    if (has_tag) {
+        CheckUnknownKeys(value, tag_keys, file, pointer, diagnostics);
+        const std::optional<std::string> tag =
+            ReadString(value, "tag", file, pointer, diagnostics, true);
+        if (!tag) {
+            return;
+        }
+        if (tag->empty()) {
+            AddError(diagnostics, file, match::expr::AppendPointerToken(pointer, "tag"),
+                     "selector tag must be a non-empty string");
+            return;
+        }
+        selector.mode = "tag";
+        selector.tag = *tag;
+        return;
+    }
+
+    CheckUnknownKeys(value, identifiers_keys, file, pointer, diagnostics);
+    const std::string identifiers_pointer =
+        match::expr::AppendPointerToken(pointer, "identifiers");
+    const auto identifiers = value.find("identifiers");
+    if (!identifiers->is_array()) {
+        AddError(diagnostics, file, identifiers_pointer,
+                 "key \"identifiers\" must be an array");
+        return;
+    }
+    if (identifiers->empty()) {
+        AddError(diagnostics, file, identifiers_pointer, "identifiers must not be empty");
+        return;
+    }
+    std::set<std::string> seen;
+    for (std::size_t index = 0; index < identifiers->size(); ++index) {
+        const json& item = (*identifiers)[index];
+        const std::string item_pointer =
+            match::expr::AppendPointerToken(identifiers_pointer, std::to_string(index));
+        if (!item.is_string() || item.get<std::string>().empty()) {
+            AddError(diagnostics, file, item_pointer, "identifier must be a non-empty string");
+            continue;
+        }
+        const std::string text = item.get<std::string>();
+        if (!seen.insert(text).second) {
+            AddError(diagnostics, file, item_pointer, "duplicate identifier \"" + text + "\"");
+            continue;
+        }
+        selector.identifiers.push_back(text);
+    }
+    selector.mode = "identifiers";
+}
+
+void ParseDeckMembers(const json& value, const std::string& file, const std::string& pointer,
+                      std::vector<Diagnostic>& diagnostics, DeckEntry& entry) {
+    const auto members = value.find("members");
+    if (members == value.end()) {
+        return;
+    }
+    const std::string members_pointer = match::expr::AppendPointerToken(pointer, "members");
+    if (!members->is_object()) {
+        AddError(diagnostics, file, members_pointer, "key \"members\" must be an object");
+        return;
+    }
+    for (const auto& item : members->items()) {
+        MemberSelector selector;
+        ParseMemberSelector(item.value(), file,
+                            match::expr::AppendPointerToken(members_pointer, item.key()),
+                            diagnostics, selector);
+        entry.members[item.key()] = std::move(selector);
+    }
+}
+
+void ParseDeckCopies(const json& value, const std::string& file, const std::string& pointer,
+                     std::vector<Diagnostic>& diagnostics, DeckEntry& entry) {
+    const auto copies = value.find("copies");
+    const std::string copies_pointer = match::expr::AppendPointerToken(pointer, "copies");
+    if (copies == value.end()) {
+        AddError(diagnostics, file, copies_pointer, "missing required key \"copies\"");
+        return;
+    }
+    if (copies->is_string()) {
+        if (copies->get<std::string>().empty()) {
+            AddError(diagnostics, file, copies_pointer,
+                     "key \"copies\" must be a non-empty string");
+            return;
+        }
+        // TODO(task 12): check the expression with match::expr::CheckExpression.
+        entry.copies = *copies;
+        return;
+    }
+    if (copies->is_number_integer()) {
+        if (!copies->is_number_unsigned() && copies->get<long long>() < 0) {
+            AddError(diagnostics, file, copies_pointer, "key \"copies\" must not be negative");
+            return;
+        }
+        entry.copies = *copies;
+        return;
+    }
+    AddError(diagnostics, file, copies_pointer,
+             "key \"copies\" must be an integer or a non-empty string");
+}
+
+void ParseDeckCombine(const json& value, const std::string& file, const std::string& pointer,
+                      std::vector<Diagnostic>& diagnostics, DeckEntry& entry) {
+    const auto combine = value.find("combine");
+    if (combine == value.end()) {
+        return;
+    }
+    const std::string combine_pointer = match::expr::AppendPointerToken(pointer, "combine");
+    if (!combine->is_string()) {
+        AddError(diagnostics, file, combine_pointer, "key \"combine\" must be a string");
+        return;
+    }
+    const std::string text = combine->get<std::string>();
+    if (!Contains(CombineModes(), text)) {
+        // INFO: "product" is the default mode; the edit distance from a short
+        // typo to "unique_pairs" or "zip" is not a reliable suggestion, so the
+        // default is named instead.
+        AddError(diagnostics, file, combine_pointer,
+                 "key \"combine\" must be one of " + QuotedValues(CombineModes()), "product");
+        return;
+    }
+    entry.combine = text;
+}
+
+bool ParseDeckEntry(const json& value, const std::string& file, const std::string& pointer,
+                    std::vector<Diagnostic>& diagnostics, DeckEntry& entry) {
+    if (!value.is_object()) {
+        AddError(diagnostics, file, pointer, "deck entry must be an object");
+        return false;
+    }
+    const std::size_t initial_diagnostics = diagnostics.size();
+    CheckUnknownKeys(value, DeckEntryKeys(), file, pointer, diagnostics);
+
+    const std::optional<std::string> kind =
+        ReadString(value, "kind", file, pointer, diagnostics, true);
+    if (kind) {
+        entry.kind = *kind;
+        if (!IsValidIdentifier(*kind)) {
+            AddError(diagnostics, file, match::expr::AppendPointerToken(pointer, "kind"),
+                     "kind \"" + *kind +
+                         "\" is not a valid identifier; a local name uses [a-z0-9_] "
+                         "(1 to 32 characters)");
+        }
+    }
+
+    ParseDeckCopies(value, file, pointer, diagnostics, entry);
+    ParseDeckMembers(value, file, pointer, diagnostics, entry);
+    ParseDeckCombine(value, file, pointer, diagnostics, entry);
+    entry.pointer = pointer;
+    return diagnostics.size() == initial_diagnostics;
+}
+
+void ParseDeckMaxCards(const json& value, const std::string& file, const std::string& pointer,
+                       std::vector<Diagnostic>& diagnostics, DeckSpec& deck) {
+    const auto max_cards = value.find("max_cards");
+    if (max_cards == value.end()) {
+        return;
+    }
+    const std::string max_cards_pointer =
+        match::expr::AppendPointerToken(pointer, "max_cards");
+    if (!max_cards->is_number_integer()) {
+        AddError(diagnostics, file, max_cards_pointer, "key \"max_cards\" must be an integer");
+        return;
+    }
+    const long long number = max_cards->is_number_unsigned()
+                                 ? static_cast<long long>(max_cards->get<unsigned long long>())
+                                 : max_cards->get<long long>();
+    if (number < 1 || number > 1024) {
+        AddError(diagnostics, file, max_cards_pointer,
+                 "key \"max_cards\" must be between 1 and 1024");
+        return;
+    }
+    deck.max_cards = static_cast<int>(number);
+}
+
+bool ParseDeck(const json& value, const std::string& mod_id, const std::string& file,
+               const std::string& pointer, std::vector<Diagnostic>& diagnostics, DeckSpec& deck) {
+    if (!value.is_object()) {
+        AddError(diagnostics, file, pointer, "deck must be an object");
+        return false;
+    }
+    const std::size_t initial_diagnostics = diagnostics.size();
+    CheckUnknownKeys(value, DeckKeys(), file, pointer, diagnostics);
+
+    bool usable = false;
+    const std::optional<std::string> identifier =
+        ReadString(value, "identifier", file, pointer, diagnostics, true);
+    if (identifier) {
+        deck.identifier = *identifier;
+        usable = ValidateIdentifier(*identifier, mod_id, file,
+                                    match::expr::AppendPointerToken(pointer, "identifier"),
+                                    "deck identifier", diagnostics);
+    }
+
+    if (const std::optional<std::string> name =
+            ReadString(value, "name", file, pointer, diagnostics, false)) {
+        deck.name = *name;
+    }
+
+    ParseDeckMaxCards(value, file, pointer, diagnostics, deck);
+
+    ReadStringArray(value, "mods", "mod entry must be a non-empty string",
+                    "duplicate mod entry", file, pointer, diagnostics, deck.mods);
+
+    const auto contribute = value.find("contribute");
+    if (contribute != value.end()) {
+        const std::string contribute_pointer =
+            match::expr::AppendPointerToken(pointer, "contribute");
+        if (!contribute->is_object()) {
+            AddError(diagnostics, file, contribute_pointer,
+                     "key \"contribute\" must be an object");
+        }
+        // TODO(task 8): parse the deck contribution into DeckSpec::contribute.
+    }
+
+    const auto cards = value.find("cards");
+    if (cards != value.end()) {
+        const std::string cards_pointer = match::expr::AppendPointerToken(pointer, "cards");
+        if (!cards->is_array()) {
+            AddError(diagnostics, file, cards_pointer, "key \"cards\" must be an array");
+        } else {
+            for (std::size_t index = 0; index < cards->size(); ++index) {
+                DeckEntry entry;
+                const std::string entry_pointer =
+                    match::expr::AppendPointerToken(cards_pointer, std::to_string(index));
+                if (ParseDeckEntry((*cards)[index], file, entry_pointer, diagnostics, entry)) {
+                    deck.cards.push_back(std::move(entry));
+                }
+            }
+        }
+    }
+
+    deck.file = file;
+    return usable && diagnostics.size() == initial_diagnostics;
+}
+
 void ReadTags(const json& value, const std::string& file, const std::string& pointer,
               std::vector<Diagnostic>& diagnostics, MemberDef& member) {
     const auto tags = value.find("tags");
@@ -830,7 +1112,8 @@ void LoadFileImpl(const fs::path& path, const std::string& folder, const std::st
                   const std::string& mod_id, LoadOutcome& outcome,
                   std::map<std::string, std::string>& attribute_files,
                   std::map<std::string, std::string>& member_files,
-                  std::map<std::string, std::string>& kind_files) {
+                  std::map<std::string, std::string>& kind_files,
+                  std::map<std::string, std::string>& deck_files) {
     std::vector<Diagnostic>& diagnostics = outcome.diagnostics;
 
     const std::optional<json> document = internal::ReadCardDocument(path, label, diagnostics);
@@ -948,6 +1231,27 @@ void LoadFileImpl(const fs::path& path, const std::string& folder, const std::st
         }
         kind_files.emplace(kind.identifier, label);
         outcome.schema.kinds.push_back(std::move(kind));
+        return;
+    }
+
+    if (root == "deck") {
+        DeckSpec deck;
+        if (!ParseDeck(value, mod_id, label, pointer, diagnostics, deck)) {
+            return;
+        }
+        const std::string identifier_pointer =
+            match::expr::AppendPointerToken(pointer, "identifier");
+        CheckIdentifierMatchesFile(deck.identifier, path.stem().string(), label,
+                                   identifier_pointer, diagnostics);
+        const auto existing = deck_files.find(deck.identifier);
+        if (existing != deck_files.end()) {
+            AddError(diagnostics, label, identifier_pointer,
+                     "duplicate deck identifier \"" + deck.identifier + "\" in " + label +
+                         "; first declared in " + existing->second);
+            return;
+        }
+        deck_files.emplace(deck.identifier, label);
+        outcome.schema.decks.push_back(std::move(deck));
     }
 }
 
@@ -955,10 +1259,11 @@ void LoadFile(const fs::path& path, const std::string& folder, const std::string
               const std::string& mod_id, LoadOutcome& outcome,
               std::map<std::string, std::string>& attribute_files,
               std::map<std::string, std::string>& member_files,
-              std::map<std::string, std::string>& kind_files) {
+              std::map<std::string, std::string>& kind_files,
+              std::map<std::string, std::string>& deck_files) {
     try {
         LoadFileImpl(path, folder, label, mod_id, outcome, attribute_files, member_files,
-                     kind_files);
+                     kind_files, deck_files);
     } catch (const std::exception& error) {
         AddError(outcome.diagnostics, label, std::string(match::expr::kRootPointer),
                  std::string("internal error: ") + error.what());
@@ -1097,6 +1402,7 @@ LoadOutcome LoadModSchema(const fs::path& mod_directory, const std::string& mod_
         std::map<std::string, std::string> attribute_files;
         std::map<std::string, std::string> member_files;
         std::map<std::string, std::string> kind_files;
+        std::map<std::string, std::string> deck_files;
 
         for (const fs::path& file : files) {
             const fs::path relative = file.lexically_relative(mod_directory);
@@ -1112,7 +1418,7 @@ LoadOutcome LoadModSchema(const fs::path& mod_directory, const std::string& mod_
             const std::string folder = relative.begin()->string();
             const std::string label = PathLabel(mod_id, relative);
             LoadFile(file, folder, label, mod_id, outcome, attribute_files, member_files,
-                     kind_files);
+                     kind_files, deck_files);
         }
 
         std::stable_sort(outcome.schema.members.begin(), outcome.schema.members.end(),
