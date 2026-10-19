@@ -32,6 +32,13 @@ struct CatalogResult {
 // no slots generates one card; cross-product entries that are the same card by
 // SameCard collapse into one. A template exceeding the 4096 generated kinds of
 // its host mod is an error reported before any card is allocated.
+//
+// INFO: `extends` is walked for every concrete template with BuildExtendsChain,
+// so a missing parent or a cycle is a diagnostic; the chain is NOT applied to
+// the expansion. The spec inherits only `slot_order` and `contribute` through
+// `extends`, and the migrated data repeats the other fields (tags, face,
+// formats, behavior) on every concrete template, so the expansion uses the
+// template's own slots and fields alone.
 CatalogResult ExpandCards(const std::vector<ModSchema>& mods);
 
 }  // namespace match::cardschema

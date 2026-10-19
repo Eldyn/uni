@@ -507,6 +507,7 @@ void ParseKindSlots(const json& value, const std::string& file, const std::strin
         SlotBinding slot;
         slot.attribute = *attribute;
         slot.name = slot_name;
+        slot.attribute_pointer = match::expr::AppendPointerToken(binding_pointer, "attribute");
         if (const std::optional<std::string> surface =
                 ReadString(binding, "surface", file, binding_pointer, diagnostics, false)) {
             if (!IsValidLocalName(*surface)) {

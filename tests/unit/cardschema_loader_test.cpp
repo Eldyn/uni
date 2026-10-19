@@ -4,11 +4,13 @@
 #include <string>
 #include <vector>
 
+#include <match/cardschema/catalog.hpp>
 #include <match/cardschema/loader.hpp>
 #include <match/expr/diagnostic.hpp>
 
 #include "cardschema_test_support.hpp"
 
+using match::cardschema::ExpandCards;
 using match::cardschema::LoadModSchema;
 using match::expr::FormatDiagnostic;
 
@@ -911,6 +913,42 @@ TEST_CASE("kind_surface_pointer_recorded") {
     REQUIRE(outcome.schema.kinds[0].slots.size() == 2);
     CHECK(outcome.schema.kinds[0].slots[0].surface_pointer == "/kind/attributes/0/surface");
     CHECK(outcome.schema.kinds[0].slots[1].surface_pointer == "/kind/attributes/1/surface");
+}
+
+TEST_CASE("kind_attribute_pointer_recorded") {
+    CardSchemaTempDir dir;
+    dir.Write("uni/kinds/split.json",
+              R"({"format_version":"1.0.0","kind":{"identifier":"uni:split",)"
+              R"("attributes":[{"attribute":"uni:color","name":"left"},)"
+              R"({"attribute":"uni:shade","name":"right"}]}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "uni", "uni");
+
+    REQUIRE(outcome.ok());
+    REQUIRE(outcome.schema.kinds.size() == 1);
+    REQUIRE(outcome.schema.kinds[0].slots.size() == 2);
+    CHECK(outcome.schema.kinds[0].slots[0].attribute_pointer == "/kind/attributes/0/attribute");
+    CHECK(outcome.schema.kinds[0].slots[1].attribute_pointer == "/kind/attributes/1/attribute");
+}
+
+TEST_CASE("expansion_reports_the_file_attribute_pointer") {
+    CardSchemaTempDir dir;
+    dir.Write("uni/attributes/color.json",
+              R"({"format_version":"1.0.0","attribute":{"identifier":"uni:color"}})");
+    dir.Write("uni/kinds/split.json",
+              R"({"format_version":"1.0.0","kind":{"identifier":"uni:split",)"
+              R"("attributes":[{"attribute":"uni:colour"}]}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "uni", "uni");
+
+    REQUIRE(outcome.ok());
+
+    const match::cardschema::CatalogResult result = ExpandCards({outcome.schema});
+
+    REQUIRE(result.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(result.diagnostics[0]) ==
+          "mods/uni/kinds/split.json#/kind/attributes/0/attribute: unknown attribute "
+          "\"uni:colour\" (did you mean \"uni:color\")");
 }
 
 TEST_CASE("kind_attribute_binding_must_be_object") {

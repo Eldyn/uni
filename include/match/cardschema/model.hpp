@@ -68,6 +68,7 @@ struct SlotBinding {          // one entry of kind.attributes
     std::string name;         // slot name; default: short attribute name
     std::string surface;      // optional
     std::string surface_pointer;   // JSON pointer of "surface", for errors
+    std::string attribute_pointer;  // JSON pointer of "attribute", for errors
 };
 
 struct KindTemplate {
