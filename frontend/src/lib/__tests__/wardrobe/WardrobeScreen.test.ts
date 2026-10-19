@@ -54,7 +54,7 @@ const { storeAvatar } = vi.hoisted(() => ({
 vi.mock("$stores/avatar.svelte", () => ({ storeAvatar }));
 
 const { storeNavigation } = vi.hoisted(() => ({
-	storeNavigation: { goto: vi.fn() }
+	storeNavigation: { goto: vi.fn(), setLeaveGuard: vi.fn() }
 }));
 
 vi.mock("$stores/navigation.svelte", () => ({ storeNavigation }));
@@ -94,6 +94,11 @@ function cssBlock(source: string, selector: string): string {
 	return match[1];
 }
 
+function leaveGuard(): (to: string) => boolean {
+	const calls = storeNavigation.setLeaveGuard.mock.calls;
+	return [...calls].reverse().find((call) => call[0])?.[0];
+}
+
 beforeEach(() => {
 	vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
 	setCatalogueForTest(avatarFixture());
@@ -108,6 +113,7 @@ beforeEach(() => {
 	storeAvatar.save.mockResolvedValue({ ok: true });
 	storeTopbarContent.current = undefined;
 	storeNavigation.goto.mockReset();
+	storeNavigation.setLeaveGuard.mockReset();
 });
 
 afterEach(() => {
@@ -132,7 +138,7 @@ describe("WardrobeScreen", () => {
 		const controls = [...(header?.querySelectorAll("button") ?? [])].map(
 			(button) => button.getAttribute("aria-label") ?? button.textContent?.trim()
 		);
-		expect(controls).toEqual(["Revert", "SAVE", "Close"]);
+		expect(controls).toEqual(["Revert", "SAVE"]);
 		expect(cssBlock(wardrobeSource, ".wardrobe-header")).toMatch(/justify-content:\s*flex-end/);
 	});
 
@@ -242,32 +248,48 @@ describe("WardrobeScreen", () => {
 		expect(equipped(container)).toBe("uni:eyes_dot");
 	});
 
-	it("shows the unsaved marker and asks before leaving", async () => {
-		shopMock.owned = new Set([...STARTERS, "uni:hat_cap"]);
-		const onleave = vi.fn();
-		const { container } = render(WardrobeScreen, { props: { onleave } });
+	it("has no close button", () => {
+		render(WardrobeScreen);
 		flushSync();
-
-		await fireEvent.click(screen.getByRole("tab", { name: "Hat" }));
-		await fireEvent.click(cardFor(container, "uni:hat_cap"));
-		expect(screen.getByText(/unsaved/i)).toBeInTheDocument();
-
-		await fireEvent.click(screen.getByRole("button", { name: "Close" }));
-		expect(onleave).not.toHaveBeenCalled();
-
-		const dialog = screen.getByRole("dialog");
-		await fireEvent.click(within(dialog).getByRole("button", { name: /leave/i }));
-		expect(onleave).toHaveBeenCalledTimes(1);
+		expect(screen.queryByRole("button", { name: "Close" })).toBeNull();
 	});
 
-	it("leaves straight away when there are no unsaved changes", async () => {
-		const onleave = vi.fn();
-		render(WardrobeScreen, { props: { onleave } });
+	it("asks before it leaves to another screen with unsaved changes", async () => {
+		shopMock.owned = new Set([...STARTERS, "uni:hat_cap"]);
+		const { container } = render(WardrobeScreen);
 		flushSync();
+		await fireEvent.click(screen.getByRole("tab", { name: "Hat" }));
+		await fireEvent.click(cardFor(container, "uni:hat_cap"));
 
-		await fireEvent.click(screen.getByRole("button", { name: "Close" }));
-		expect(onleave).toHaveBeenCalledTimes(1);
+		expect(leaveGuard()("shop")).toBe(false);
+		flushSync();
+		const dialog = screen.getByRole("dialog");
+		await fireEvent.click(within(dialog).getByRole("button", { name: /^leave$/i }));
+		expect(storeNavigation.goto).toHaveBeenCalledWith("shop");
+		expect(leaveGuard()("shop")).toBe(true);
+	});
+
+	it("keeps editing when the user cancels the prompt", async () => {
+		shopMock.owned = new Set([...STARTERS, "uni:hat_cap"]);
+		const { container } = render(WardrobeScreen);
+		flushSync();
+		await fireEvent.click(screen.getByRole("tab", { name: "Hat" }));
+		await fireEvent.click(cardFor(container, "uni:hat_cap"));
+
+		leaveGuard()("shop");
+		flushSync();
+		await fireEvent.click(screen.getByRole("button", { name: /keep editing/i }));
+		expect(storeNavigation.goto).not.toHaveBeenCalled();
 		expect(screen.queryByRole("dialog")).toBeNull();
+	});
+
+	it("leaves at once without changes, never blocks a match, and clears the guard", async () => {
+		const { unmount } = render(WardrobeScreen);
+		flushSync();
+		expect(leaveGuard()("shop")).toBe(true);
+		expect(leaveGuard()("game")).toBe(true);
+		unmount();
+		expect(storeNavigation.setLeaveGuard).toHaveBeenLastCalledWith(null);
 	});
 
 	it("shows a register prompt and no stage for a guest", () => {

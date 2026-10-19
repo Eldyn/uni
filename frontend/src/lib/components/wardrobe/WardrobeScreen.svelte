@@ -1,7 +1,8 @@
 <!-- The Wardrobe screen: the live draft on the 3D stage on the left, the owned
      items per slot and their colours on the right, and Revert / SAVE in the
-     header. A worn set blocks the part slots it covers, and leaving with
-     unsaved changes asks first. Guests get a register prompt instead. -->
+     header. A worn set blocks the part slots it covers, and leaving to another
+     screen with unsaved changes asks first. Guests get a register prompt
+     instead. -->
 <script lang="ts">
 	import { onMount } from "svelte";
 	import AvatarStage from "$components/shop/AvatarStage.svelte";
@@ -27,8 +28,7 @@
 	import { storeAvatar } from "$stores/avatar.svelte";
 	import { storeI18n } from "$stores/i18n.svelte";
 	import { storeNavigation } from "$stores/navigation.svelte";
-
-	let { onleave = () => {} }: { onleave?: () => void } = $props();
+	import type { AppScreen } from "$stores/navigation.svelte";
 
 	interface TabDef {
 		id: AvatarSlot;
@@ -59,6 +59,8 @@
 
 	let activeTab = $state<AvatarSlot>("shape");
 	let confirmOpen = $state(false);
+	let pendingScreen: AppScreen | null = null;
+	let leaving = false;
 	/** The server's code for the last rejected save, or null when it went through. */
 	let saveError = $state<string | null>(null);
 
@@ -125,8 +127,6 @@
 	const blockNote = $derived(wardrobeText("wardrobe_blocked_by_set", "Blocked by set", locale));
 	const saveLabel = $derived(wardrobeText("wardrobe_save", "SAVE", locale));
 	const revertLabel = $derived(wardrobeText("wardrobe_revert", "Revert", locale));
-	const closeLabel = $derived(wardrobeText("wardrobe_close", "Close", locale));
-	const unsavedLabel = $derived(wardrobeText("wardrobe_unsaved", "Unsaved changes", locale));
 	const guestLabel = $derived(
 		wardrobeText("wardrobe_register_to_customise", "Register to customise", locale)
 	);
@@ -200,26 +200,30 @@
 		draft = cloneLoadout(saved);
 	}
 
-	function requestLeave(): void {
-		if (dirty) {
-			confirmOpen = true;
-			return;
-		}
-		onleave();
+	/** INFO: a match start never waits on the prompt; the draft is dropped. */
+	function guardLeave(to: AppScreen): boolean {
+		if (leaving || to === "game" || !dirty) return true;
+		pendingScreen = to;
+		confirmOpen = true;
+		return false;
 	}
 
 	function confirmLeave(): void {
 		confirmOpen = false;
-		onleave();
+		leaving = true;
+		if (pendingScreen) storeNavigation.goto(pendingScreen);
+		pendingScreen = null;
+	}
+
+	function cancelLeave(): void {
+		confirmOpen = false;
+		pendingScreen = null;
 	}
 
 	onMount(() => {
 		if (!guest) void storeShop.fetchMine?.();
-		function handleKeydown(event: KeyboardEvent): void {
-			if (event.key === "Escape" && !confirmOpen) requestLeave();
-		}
-		window.addEventListener("keydown", handleKeydown);
-		return () => window.removeEventListener("keydown", handleKeydown);
+		storeNavigation.setLeaveGuard(guardLeave);
+		return () => storeNavigation.setLeaveGuard(null);
 	});
 </script>
 
@@ -228,21 +232,9 @@
 
 	<header class="wardrobe-header">
 		{#if !guest}
-			{#if dirty}
-				<span class="wardrobe-unsaved font-tiny" data-unsaved="true">{unsavedLabel}</span>
-			{/if}
 			<button type="button" class="btn-secondary" onclick={revert}>{revertLabel}</button>
 			<button type="button" class="btn" onclick={save}>{saveLabel}</button>
 		{/if}
-
-		<button
-			type="button"
-			class="wardrobe-close font-tiny"
-			aria-label={closeLabel}
-			onclick={requestLeave}
-		>
-			<span aria-hidden="true">×</span>
-		</button>
 	</header>
 
 	{#if !guest && saveFailure}
@@ -314,7 +306,7 @@
 			<h2 class="wardrobe-confirm-title font-heading">{leaveTitle}</h2>
 			<p class="wardrobe-confirm-text font-tiny">{leaveMessage}</p>
 			<div class="wardrobe-confirm-actions">
-				<button type="button" class="btn-secondary" onclick={() => (confirmOpen = false)}>
+				<button type="button" class="btn-secondary" onclick={cancelLeave}>
 					{leaveCancel}
 				</button>
 				<button type="button" class="btn" onclick={confirmLeave}>
@@ -352,19 +344,6 @@
 		align-items: center;
 		justify-content: flex-end;
 		gap: 1rem;
-	}
-
-	.wardrobe-unsaved {
-		color: var(--accent);
-		letter-spacing: 0.04em;
-	}
-
-	.wardrobe-close {
-		padding: 0.1rem 0.4rem;
-		border: none;
-		background: none;
-		color: var(--text);
-		cursor: pointer;
 	}
 
 	.wardrobe-body {
