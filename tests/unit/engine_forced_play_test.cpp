@@ -270,6 +270,50 @@ TEST_CASE("engine: force-play of a playable drawn card runs the pipeline") {
     CHECK(engine->GetCurrentPlayerUsername() == "player1");
 }
 
+TEST_CASE("engine: force-played draw is not flagged as held") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    content.mods.push_back(ForcePlayMod());
+
+    // INFO: progressive and force_play both hook `after:draw`. The playable card
+    //       progressive stops on is the one force_play auto-plays, so no
+    //       play-or-keep hold ever begins.
+    DeckDef deck = content.classic;
+    deck.mods = {"vanilla", "progressive", "wp9d1_force"};
+    AssemblyResult result = MatchAssembler::Assemble(
+        content.mods, deck, Players(2, 5, 7));
+    REQUIRE_MESSAGE(result.ok(), AssemblyMessage(result));
+    std::unique_ptr<MatchInstance> engine =
+        std::make_unique<MatchInstance>(std::move(result.assembly));
+
+    const std::optional<ecs::Entity> drawn = NumericTopCard(*engine);
+    REQUIRE(drawn.has_value());
+    const ecs::FaceSpec* face = engine->Store().Get<ecs::FaceSpec>(*drawn);
+    REQUIRE(face != nullptr);
+    SetActiveType(*engine, face->color);
+
+    REQUIRE(engine->GetCurrentPlayerUsername() == "player0");
+    CHECK(engine->DrawCard("player0"));
+
+    // INFO: the card was auto-played, so the hold never started and the public
+    //       draw event must not tell clients to park a face-down card.
+    REQUIRE(engine->Store().Get<ecs::InZone>(*drawn) != nullptr);
+    CHECK(engine->Store().Get<ecs::InZone>(*drawn)->zone.kind
+          == ecs::ZoneKind::kDiscardPile);
+    CHECK(HasEvent(*engine, "card_played", *drawn));
+    CHECK_FALSE(engine->PendingPlayDrawnState().has_value());
+
+    bool any_held = false;
+    for (const json& event : engine->Events()) {
+        if (event.value("type", std::string()) != "cards_drawn") continue;
+        if (!event.contains("payload") || !event["payload"].is_object()) {
+            continue;
+        }
+        if (event["payload"].value("held", false)) any_held = true;
+    }
+    CHECK_FALSE(any_held);
+}
+
 TEST_CASE("engine: force-play rule leaves an unplayable drawn card in hand") {
     Content content;
     REQUIRE(LoadContent(content));

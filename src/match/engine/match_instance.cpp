@@ -434,7 +434,6 @@ bool MatchInstance::DrawCard(const std::string& username) {
         LastCardDrawnSince(events_before_hooks, *player).value_or(*card);
     const bool holds_turn =
         !Paused() && DrawnCardPlayable(*player, held_candidate);
-    if (holds_turn) MarkHeldDraw(held_candidate);
 
     // INFO: An `after:draw` graph may request a forced play of the
     //       drawn card (legacy force_play); route it through the normal play
@@ -446,6 +445,7 @@ bool MatchInstance::DrawCard(const std::string& username) {
     // INFO:  - a playable voluntary draw holds the turn: the player chooses to
     //       play it or keep it, or the turn clock expires.
     if (holds_turn) {
+        MarkHeldDraw(held_candidate);
         awaiting_play_drawn_ = PendingPlayDrawn{*player, held_candidate};
         return true;
     }

@@ -9,6 +9,10 @@ version; each release below corresponds to a `vX.Y.Z` git tag.
 
 ## [Unreleased]
 
+### Fixed
+
+- **A force-played drawn card is not held.** When Force Play auto-plays a drawn card, the public draw event no longer marks it held, so clients no longer leave a face-down stand-in card that is never removed.
+
 ## [0.6.3] - 2026-10-18
 
 ### Fixed
