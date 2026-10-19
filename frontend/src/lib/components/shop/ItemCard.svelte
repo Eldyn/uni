@@ -97,9 +97,9 @@
 		clip-path: none;
 	}
 
-	/* A rarity-tinted diagonal stripe behind the whole card, so a common,
-	   uncommon, rare or epic card reads at a glance while the name and price
-	   stay on a surface they remain legible on. */
+	/* A rarity-tinted diagonal stripe behind the whole card, so a card of any
+	   rarity reads at a glance while the name and price stay on a surface they
+	   remain legible on. */
 	.item-card :global(.rarity-frame) {
 		background: repeating-linear-gradient(
 			135deg,

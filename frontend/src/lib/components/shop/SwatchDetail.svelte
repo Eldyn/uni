@@ -6,7 +6,7 @@
 	import { shopItemText } from "$components/shop/ItemCard.svelte";
 	import { BUY_FAILURE_TEXT } from "$lib/shop/buyFailure";
 	import { swatchName } from "$lib/shop/swatchText";
-	import { RARITY_COLOURS, rarityLabelKey } from "$lib/shop/rarity";
+	import { RARITY_COLOURS, rarityLabelColour, rarityLabelKey } from "$lib/shop/rarity";
 	import type { BuyFailure } from "$lib/shop/shopBackend";
 	import type { Palette, Swatch } from "$lib/avatar/types";
 	import { storeI18n } from "$stores/i18n.svelte";
@@ -86,7 +86,7 @@
 
 	<h2 class="detail-name font-heading">{name}</h2>
 	<p class="detail-palette font-tiny">{paletteName}</p>
-	<p class="detail-rarity font-tiny" style="color: {RARITY_COLOURS[rarity]}">{rarityName}</p>
+	<p class="detail-rarity font-tiny" style="color: {rarityLabelColour(rarity)}">{rarityName}</p>
 	<p class="detail-price font-pixel">
 		<span class="coin" aria-hidden="true"></span>{price}
 	</p>
