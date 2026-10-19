@@ -405,6 +405,11 @@ TEST_CASE("avatar catalogue: the real avatar/catalogue folder loads") {
         Catalogue::LoadDirectory((root / "avatar" / "catalogue").string());
 
     REQUIRE(catalogue.FindItem("uni:eyes_dot") != nullptr);
+    CHECK(catalogue.FindItem("uni:eyes_dot")->rarity == "basic");
+    REQUIRE(catalogue.FindItem("uni:body_scarf") != nullptr);
+    CHECK(catalogue.FindItem("uni:body_scarf")->rarity == "rare");
+    REQUIRE(catalogue.FindItem("uni:hat_crown") != nullptr);
+    CHECK(catalogue.FindItem("uni:hat_crown")->rarity == "epic");
     CHECK(catalogue.IsStarter("uni:eyes_dot"));
     CHECK_FALSE(catalogue.IsStarter("uni:hat_crown"));
     CHECK(catalogue.IsStarterSwatch("basic:red"));

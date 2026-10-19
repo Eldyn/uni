@@ -329,13 +329,13 @@ describe("swatch metadata", () => {
 		const catalogue = validCatalogue();
 		const swatch = swatches(catalogue)[0];
 		swatch.price = 250;
-		swatch.rarity = "uncommon";
+		swatch.rarity = "special";
 		swatch.hidden = true;
 		swatch.unlisted = true;
 
 		const parsed = parseCatalogue(catalogue).palettes[0].swatches[0];
 		expect(parsed.price).toBe(250);
-		expect(parsed.rarity).toBe("uncommon");
+		expect(parsed.rarity).toBe("special");
 		expect(parsed.hidden).toBe(true);
 		expect(parsed.unlisted).toBe(true);
 	});

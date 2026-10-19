@@ -148,9 +148,21 @@ describe("avatar catalogue file", () => {
 		);
 		expect(paid).toEqual([
 			["uni:pastel:blush", 100, "common"],
-			["uni:pastel:sky", 250, "uncommon"],
-			["uni:neon:volt", 600, "rare"],
+			["uni:pastel:sky", 250, "rare"],
+			["uni:neon:volt", 600, "epic"],
 			["uni:neon:plasma", 1200, "epic"]
 		]);
+	});
+
+	it("every starter item and starter swatch is basic, and nothing else is", () => {
+		const starterItems = catalogue.items.filter((item) => item.starter === true);
+		expect(starterItems.every((item) => item.rarity === "basic")).toBe(true);
+		const others = catalogue.items.filter((item) => item.starter !== true);
+		expect(others.some((item) => item.rarity === "basic")).toBe(false);
+		for (const palette of catalogue.palettes) {
+			for (const swatch of palette.swatches) {
+				expect(swatch.rarity === "basic", swatch.id).toBe(palette.starter === true);
+			}
+		}
 	});
 });

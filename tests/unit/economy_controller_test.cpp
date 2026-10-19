@@ -74,7 +74,7 @@ json ValidDoc() {
                         "id": "uni:neon:hot",
                         "hex": "#ff2d95",
                         "price": 250,
-                        "rarity": "uncommon"
+                        "rarity": "rare"
                     },
                     {
                         "id": "uni:neon:secret",
@@ -132,7 +132,7 @@ json ValidDoc() {
                 "name": "Visor",
                 "asset": { "kind": "strip", "path": "mask/uni_mask_visor.png" },
                 "regions": 1,
-                "rarity": "uncommon",
+                "rarity": "rare",
                 "price": 250
             },
             {

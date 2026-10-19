@@ -100,7 +100,7 @@ describe("ShopMock", () => {
 				name: "Neon",
 				price: 250,
 				swatches: [
-					{ id: "uni:neon:hot", hex: "#ff2d95", price: 250, rarity: "uncommon" },
+					{ id: "uni:neon:hot", hex: "#ff2d95", price: 250, rarity: "rare" },
 					{ id: "uni:neon:secret", hex: "#00e5ff", price: 600, hidden: true },
 					{ id: "uni:neon:free", hex: "#ffffff" }
 				]
