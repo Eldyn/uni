@@ -98,6 +98,7 @@
 	.featured-banner {
 		position: relative;
 		display: flex;
+		flex-wrap: wrap;
 		align-items: center;
 		gap: 1rem;
 		padding: 1rem;
@@ -135,16 +136,19 @@
 
 	.featured-info {
 		display: flex;
-		flex: 1;
+		flex: 1 1 8rem;
 		flex-direction: column;
 		gap: 0.25rem;
-		min-width: 0;
+		/* INFO: never narrower than 8rem, or the whole row when it is
+		   narrower, so a long button label wraps the buttons instead of
+		   squeezing the name. */
+		min-width: min(8rem, 100%);
 	}
 
 	.featured-name {
 		margin: 0;
 		min-width: 0;
-		overflow-wrap: anywhere;
+		overflow-wrap: break-word;
 		color: var(--text-h);
 	}
 
