@@ -3,10 +3,13 @@
 #include <match/expr/checker.hpp>
 #include <match/expr/condition.hpp>
 #include <match/expr/diagnostic.hpp>
+#include <match/expr/parser.hpp>
 #include <match/expr/types.hpp>
 
 #include <nlohmann/json.hpp>
 
+#include <memory>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -322,6 +325,27 @@ TEST_CASE("a_none_of_condition_binds_the_variables_its_leaves_rule_out") {
         *parsed.condition, match::expr::testing::MakeTestSchema(), kFile, "/when");
     REQUIRE(checked.diagnostics.empty());
     CHECK(checked.bound_when_true.count("choice") == 1);
+}
+
+TEST_CASE("a_hand_built_condition_nested_past_the_limit_is_an_error") {
+    match::expr::ParseResult leaf = match::expr::ParseExpression("true");
+    REQUIRE_FALSE(leaf.error.has_value());
+    REQUIRE(leaf.root != nullptr);
+    Condition node;
+    node.kind = Condition::Kind::kExpression;
+    node.source = "true";
+    node.expression = std::shared_ptr<const match::expr::Node>(std::move(leaf.root));
+    for (int level = 0; level < 70; ++level) {
+        Condition group;
+        group.kind = Condition::Kind::kAllOf;
+        group.children.push_back(std::move(node));
+        node = std::move(group);
+    }
+    const match::expr::ConditionCheckResult checked = match::expr::CheckCondition(
+        node, match::expr::testing::MakeTestSchema(), kFile, "/when");
+    REQUIRE_FALSE(checked.diagnostics.empty());
+    CHECK(checked.diagnostics.front().message ==
+          "conditions are nested too deeply (more than 64 levels)");
 }
 
 }  // TEST_SUITE
