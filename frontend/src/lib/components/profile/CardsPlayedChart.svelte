@@ -7,16 +7,21 @@
 	 */
 	import { storeI18n } from "$stores/i18n.svelte";
 	import * as m from "$lib/paraglide/messages.js";
+	import LoaderCard from "$components/common/loader/LoaderCard.svelte";
 	import {
+		actionCardValue,
 		percentVersusOthers,
 		podiumOrder,
 		type CardsPlayedGroup,
 		type CardsPlayedGroupId
 	} from "$components/profile/profileModel";
+	import { CARD_PALETTE, type CardColorName } from "$lib/palette";
 
 	type CardsPlayedChartProps = { groups: CardsPlayedGroup[] };
 
 	let { groups }: CardsPlayedChartProps = $props();
+
+	const ACTION_CARD_COLOR = "#2c354d";
 
 	// null means "not chosen yet": activeGroup then falls back to the first
 	// group, so the initial value never reads props outside a derived.
@@ -80,6 +85,12 @@
 		}
 	}
 
+	/** Color bars use the card color they describe; other bars use the accent. */
+	function barColor(key: string): string {
+		if (key in CARD_PALETTE) return CARD_PALETTE[key as CardColorName].base;
+		return "var(--accent)";
+	}
+
 	function onTablistKeydown(event: KeyboardEvent): void {
 		if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
 		event.preventDefault();
@@ -115,7 +126,7 @@
 				type="button"
 				role="tab"
 				id="cards-played-tab-{group.id}"
-				class="group-tab"
+				class="group-tab pixel-bordered"
 				aria-selected={group.id === activeGroup.id}
 				tabindex={group.id === activeGroup.id ? 0 : -1}
 				bind:this={tabEls[index]}
@@ -130,15 +141,21 @@
 		{#if activeGroup.id === "actions"}
 			<div class="podium">
 				{#each podium as row, index (row.key)}
+					{@const faceValue = actionCardValue(row.key)}
 					<button
 						type="button"
-						class="podium-card"
+						class="podium-card pixel-bordered"
 						aria-pressed={row.key === centreKey}
 						style="transform: scale({podiumScale(index)});"
 						onclick={() => (selectedAction = row.key)}
 						onkeydown={(event) => onCardKeydown(event, row.key)}
 					>
-						<span class="podium-face">{rowLabel(row.key)}</span>
+						{#if faceValue}
+							<span class="podium-art" aria-hidden="true">
+								<LoaderCard face={{ type: "white", value: faceValue }} color={ACTION_CARD_COLOR} />
+							</span>
+						{/if}
+						<span class="podium-face" class:sr-only={faceValue !== null}>{rowLabel(row.key)}</span>
 						<span class="podium-count">{row.count}</span>
 					</button>
 				{/each}
@@ -153,7 +170,7 @@
 							<div
 								class="bar"
 								aria-hidden="true"
-								style="height: max(2px, {row.ratio * 100}%);"
+								style="height: max(2px, {row.ratio * 100}%); --bar-color: {barColor(row.key)};"
 							></div>
 						</div>
 						<span class="bar-label">{rowLabel(row.key)}</span>
@@ -179,13 +196,13 @@
 
 	.group-tab {
 		padding: var(--space-1) var(--space-3);
-		border: 1px solid var(--border);
 		color: var(--text);
 		cursor: pointer;
+		--pc-fill: var(--surface-deep);
 	}
 
 	.group-tab[aria-selected="true"] {
-		border-color: var(--accent);
+		--pc-border: var(--accent);
 		color: var(--text-h);
 	}
 
@@ -226,7 +243,7 @@
 
 	.bar {
 		width: 100%;
-		background: var(--accent);
+		background: var(--bar-color);
 	}
 
 	.podium {
@@ -245,18 +262,23 @@
 		align-items: center;
 		gap: var(--space-1);
 		padding: var(--space-2) var(--space-3);
-		border: 1px solid var(--border);
 		color: var(--text);
 		cursor: pointer;
+		--pc-fill: var(--surface-deep);
 	}
 
 	.podium-card[aria-pressed="true"] {
-		border-color: var(--accent);
+		--pc-border: var(--accent);
 		color: var(--text-h);
 	}
 
 	.podium-face {
 		font-weight: bold;
+	}
+
+	.podium-art {
+		display: block;
+		--loader-card-width: 3.5rem;
 	}
 
 	.podium-count {

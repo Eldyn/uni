@@ -46,7 +46,7 @@ describe("CardsPlayedChart", () => {
 	it("starts on the first group and shows its bars", () => {
 		render(CardsPlayedChart, { props: { groups: allGroups() } });
 
-		expect(screen.getByRole("tab", { name: "Colours" })).toHaveAttribute("aria-selected", "true");
+		expect(screen.getByRole("tab", { name: "Colors" })).toHaveAttribute("aria-selected", "true");
 		expect(screen.getByText("Red")).toBeInTheDocument();
 		expect(screen.getByText("41")).toBeInTheDocument();
 		expect(screen.queryByText("1")).not.toBeInTheDocument();
@@ -166,7 +166,64 @@ describe("CardsPlayedChart", () => {
 
 		expect(screen.getByRole("tablist")).toBeInTheDocument();
 		expect(screen.getAllByRole("tab")).toHaveLength(1);
-		expect(screen.getByRole("tab", { name: "Colours" })).toHaveAttribute("aria-selected", "true");
+		expect(screen.getByRole("tab", { name: "Colors" })).toHaveAttribute("aria-selected", "true");
 		expect(screen.getByText("Red")).toBeInTheDocument();
+	});
+
+	it("paints each color bar with the card color it describes", () => {
+		const { container } = render(CardsPlayedChart, { props: { groups: allGroups() } });
+
+		const styles = [...container.querySelectorAll(".bar")].map((bar) => bar.getAttribute("style"));
+		expect(styles[0]).toContain("#bd3130");
+		expect(styles[1]).toContain("#0470dd");
+		expect(styles[2]).toContain("#4aab42");
+		expect(styles[3]).toContain("#f2cc47");
+	});
+
+	it("keeps the accent color for value bars", async () => {
+		const { container } = render(CardsPlayedChart, { props: { groups: allGroups() } });
+
+		await fireEvent.click(screen.getByRole("tab", { name: "Values" }));
+
+		for (const bar of container.querySelectorAll(".bar")) {
+			expect(bar.getAttribute("style")).toContain("var(--accent)");
+		}
+	});
+
+	it("draws a real card on every action podium button", async () => {
+		const { container } = render(CardsPlayedChart, { props: { groups: allGroups() } });
+
+		await fireEvent.click(screen.getByRole("tab", { name: "Actions" }));
+
+		const buttons = container.querySelectorAll(".podium-card");
+		expect(buttons).toHaveLength(4);
+		for (const button of buttons) {
+			expect(button.querySelector('[data-testid="loader-card"]')).not.toBeNull();
+		}
+	});
+
+	it("colors the action cards #2c354d", async () => {
+		const { container } = render(CardsPlayedChart, { props: { groups: allGroups() } });
+
+		await fireEvent.click(screen.getByRole("tab", { name: "Actions" }));
+
+		const card = container.querySelector('.podium-card [data-testid="loader-card"]');
+		expect(card?.getAttribute("style")).toContain("--card-color: #2c354d");
+	});
+
+	it("draws the tabs and the podium cards with the pixel border", async () => {
+		render(CardsPlayedChart, { props: { groups: allGroups() } });
+
+		for (const tab of screen.getAllByRole("tab")) {
+			expect(tab).toHaveClass("pixel-bordered");
+		}
+
+		await fireEvent.click(screen.getByRole("tab", { name: "Actions" }));
+
+		const cards = document.querySelectorAll(".podium-card");
+		expect(cards.length).toBeGreaterThan(0);
+		for (const card of cards) {
+			expect(card).toHaveClass("pixel-bordered");
+		}
 	});
 });

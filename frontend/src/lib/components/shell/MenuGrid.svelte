@@ -10,6 +10,7 @@
 	import type { AppScreen } from "$stores/navigation.svelte";
 	import { storeI18n } from "$stores/i18n.svelte";
 	import * as m from "$lib/paraglide/messages.js";
+	import { menuLabelFontSizePx } from "./menuLabelSize";
 
 	interface MenuTile {
 		label: string;
@@ -144,7 +145,9 @@
 			onclick={() => go(tile)}
 		>
 			<i class="pia {tile.icon} text-xl leading-none" aria-hidden="true"></i>
-			<span class="menu-tile-label">{tile.label}</span>
+			<span class="menu-tile-label" style="font-size: {menuLabelFontSizePx(tile.label)}px"
+				>{tile.label}</span
+			>
 		</button>
 	{/each}
 </div>
@@ -194,6 +197,5 @@
 		text-align: center;
 		overflow-wrap: break-word;
 		line-height: 1.1;
-		font-size: 0.65rem;
 	}
 </style>

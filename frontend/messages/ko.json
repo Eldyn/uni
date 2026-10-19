@@ -195,7 +195,7 @@
 	"leaderboard_error": "문제가 발생한 것 같습니다!",
 	"leaderboard_you_row": "{name} (나)",
 	"profile_rank": "랭크",
-	"profile_leaderboard_button": "리더보드 및 상세 통계",
+	"profile_leaderboard_button": "리더보드",
 	"profile_settings_button": "설정",
 	"profile_cards_colours": "색상",
 	"profile_cards_values": "숫자",

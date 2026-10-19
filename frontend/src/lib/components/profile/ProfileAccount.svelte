@@ -28,7 +28,12 @@
 
 {#if storeAuth.isLoggedIn}
 	<div class="profile-account">
-		<p class="email-status">{emailStatus}</p>
+		<p class="email-status font-tiny">
+			{#if storeAuth.emailVerified}
+				<i class="pia pixelart-icons-font-check text-success" aria-hidden="true"></i>
+			{/if}
+			<span>{emailStatus}</span>
+		</p>
 		{#if !storeAuth.emailVerified}
 			<button
 				class="btn-secondary px-4 py-3 text-left"
@@ -63,6 +68,9 @@
 	}
 
 	.email-status {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
 		font-size: var(--text-small);
 		text-transform: uppercase;
 	}

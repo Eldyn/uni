@@ -75,7 +75,7 @@ describe("ProfileScreen", () => {
 	it("offers a Leaderboard entry point and no Settings button", async () => {
 		render(ProfileScreen);
 
-		const leaderboard = screen.getByRole("button", { name: /leaderboard|detailed stats/i });
+		const leaderboard = screen.getByRole("button", { name: "Leaderboard" });
 		expect(leaderboard).toBeInTheDocument();
 		expect(screen.queryByRole("button", { name: /settings/i })).not.toBeInTheDocument();
 

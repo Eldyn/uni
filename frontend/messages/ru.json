@@ -195,7 +195,7 @@
 	"leaderboard_error": "Кажется, что-то пошло не так!",
 	"leaderboard_you_row": "{name} (Вы)",
 	"profile_rank": "Ранг",
-	"profile_leaderboard_button": "Таблица лидеров и подробная статистика",
+	"profile_leaderboard_button": "Таблица лидеров",
 	"profile_settings_button": "Настройки",
 	"profile_cards_colours": "Цвета",
 	"profile_cards_values": "Значения",

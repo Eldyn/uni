@@ -25,7 +25,7 @@ function pngSize(file: string): { width: number; height: number } {
 
 /** Counts per slot for the launch slice in the design, section 4. */
 const LAUNCH_COUNTS: Record<string, number> = {
-	shape: 2,
+	shape: 3,
 	eyes: 3,
 	mouth: 3,
 	head_top: 2,
@@ -38,7 +38,15 @@ const LAUNCH_COUNTS: Record<string, number> = {
 describe("avatar catalogue file", () => {
 	it("real catalogue parses with parseCatalogue", () => {
 		expect(catalogue.version).toBe(1);
-		expect(catalogue.items.length).toBe(15);
+		expect(catalogue.items.length).toBe(16);
+	});
+
+	it("the default body is the original UNI body", () => {
+		const firstShapeStarter = catalogue.items.find(
+			(item) => item.slot === "shape" && item.starter === true
+		);
+		expect(firstShapeStarter?.id).toBe("uni:classic");
+		expect(firstShapeStarter?.regions).toBe(0);
 	});
 
 	it("every item asset file exists under frontend/public/assets/avatar", () => {

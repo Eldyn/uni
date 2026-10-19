@@ -83,6 +83,13 @@ afterEach(() => {
 });
 
 describe("ShopScreen", () => {
+	it("has no screen title; the top bar shows it", () => {
+		render(ShopScreen);
+		flushSync();
+
+		expect(screen.queryByRole("heading", { level: 1 })).not.toBeInTheDocument();
+	});
+
 	it("lists the buyable and owned items of the chosen tab", async () => {
 		const { container } = render(ShopScreen);
 		flushSync();
