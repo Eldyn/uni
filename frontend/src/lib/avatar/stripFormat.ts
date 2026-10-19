@@ -1,10 +1,10 @@
-import { FRAME_SIZE, STRIP_WIDTH } from "./types";
+import { FRAME_SIZE, REGIONS_PER_FILE, STRIP_WIDTH, type RegionIndex } from "./types";
 import type { PixelImage } from "./pixels";
 
 export type MaskPixel =
 	| { kind: "clear" }
 	| { kind: "grey"; value: number }
-	| { kind: "region"; index: 0 | 1 | 2; shade: number }
+	| { kind: "region"; index: RegionIndex; shade: number }
 	| { kind: "invalid" };
 
 export interface MaskProblem {
@@ -15,10 +15,18 @@ export interface MaskProblem {
 
 /**
  * Classify one mask pixel: clear, neutral grey, or a shaded tint region.
- * Region 0/1/2 is selected by the lone non-zero R/G/B channel; mixed or
- * partially transparent pixels are invalid (masks are hard-edged).
+ * The lone non-zero R/G/B channel selects the region inside the file; the
+ * region index is `3 * fileIndex + channel`, so file 0 gives regions 0-2 and
+ * file 1 (the extra mask) gives 3-5. Mixed or partially transparent pixels
+ * are invalid (masks are hard-edged).
  */
-export function classifyPixel(r: number, g: number, b: number, a: number): MaskPixel {
+export function classifyPixel(
+	r: number,
+	g: number,
+	b: number,
+	a: number,
+	fileIndex = 0
+): MaskPixel {
 	if (a === 0) return { kind: "clear" };
 	if (a !== 255) return { kind: "invalid" };
 	if (r === g && g === b) return { kind: "grey", value: r };
@@ -27,7 +35,7 @@ export function classifyPixel(r: number, g: number, b: number, a: number): MaskP
 	const lit = channels.filter((channel) => channel !== 0);
 	if (lit.length !== 1) return { kind: "invalid" };
 
-	const index = channels.indexOf(lit[0]) as 0 | 1 | 2;
+	const index = (fileIndex * REGIONS_PER_FILE + channels.indexOf(lit[0])) as RegionIndex;
 	return { kind: "region", index, shade: lit[0] / 255 };
 }
 
