@@ -48,6 +48,28 @@ describe("avatar catalogue file", () => {
 		expect(missing).toEqual([]);
 	});
 
+	it("every extra mask file exists, has the primary size and the item has enough regions", () => {
+		const problems = catalogue.items.flatMap((item) => {
+			const masks = item.asset.masks ?? [];
+			const found: string[] = [];
+			if (item.regions > 3 * (1 + masks.length)) found.push(`${item.id}: too few masks`);
+			for (const mask of masks) {
+				const file = join(assetRoot, mask);
+				if (!existsSync(file)) {
+					found.push(`${item.id}: missing ${mask}`);
+					continue;
+				}
+				const primary = pngSize(join(assetRoot, item.asset.path));
+				const size = pngSize(file);
+				if (size.width !== primary.width || size.height !== primary.height) {
+					found.push(`${item.id}: ${mask} has another size than ${item.asset.path}`);
+				}
+			}
+			return found;
+		});
+		expect(problems).toEqual([]);
+	});
+
 	it("strip assets are 480x96 and still assets are 96x96", () => {
 		const wrong = catalogue.items
 			.filter((item) => {

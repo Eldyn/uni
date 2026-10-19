@@ -15,6 +15,7 @@
  * The tint mask is painted as `(shade, 0, 0)` for region 1, `(0, shade, 0)`
  * for region 2 and `(0, 0, shade)` for region 3, so the per-channel tint in the
  * renderer can pick it up. Non-tintable items (regions 0) are painted white.
+ * Regions 4-6 live in an extra mask file; this script does not write one yet.
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -30,8 +31,16 @@ const FRAME_BOB = [0, -1, -2, -1, 0];
 
 /** Baked shade a tint channel carries; greys only darken under multiply. */
 const SHADE = 255;
-const REGION_COLOURS = [
+/**
+ * Index 0 is black. Indexes 1-3 are regions 1-3 in the R, G, B channels of the
+ * item art file. Indexes 4-6 are regions 4-6 in the R, G, B channels of the
+ * extra mask file (`asset.masks[0]`).
+ */
+export const REGION_COLOURS = [
 	[0, 0, 0],
+	[SHADE, 0, 0],
+	[0, SHADE, 0],
+	[0, 0, SHADE],
 	[SHADE, 0, 0],
 	[0, SHADE, 0],
 	[0, 0, SHADE]
