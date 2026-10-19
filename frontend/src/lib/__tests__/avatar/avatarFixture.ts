@@ -17,7 +17,7 @@ export function avatarFixture(): Catalogue {
 	return {
 		version: 1,
 		shape_sockets: {
-			"uni:round": { eyes: [10, 20], mouth: [12, 30], head_top: [8, 4], body_centre: [20, 60] }
+			"uni:round": { eyes: [10, 20], mouth: [12, 30], head_top: [8, 4], body_center: [20, 60] }
 		},
 		palettes: [
 			{

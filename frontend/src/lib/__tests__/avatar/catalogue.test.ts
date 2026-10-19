@@ -32,7 +32,7 @@ function testCatalogue(): Catalogue {
 				eyes: [0, 0],
 				mouth: [0, 10],
 				head_top: [0, -20],
-				body_centre: [0, 40]
+				body_center: [0, 40]
 			}
 		},
 		palettes: [

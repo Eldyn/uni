@@ -46,7 +46,7 @@ struct Item {
     std::vector<std::string> shapes;
 };
 
-/** @brief One colour a player can pick: a namespaced id and a `#rrggbb` hex. */
+/** @brief One color a player can pick: a namespaced id and a `#rrggbb` hex. */
 struct Swatch {
     std::string id;
     std::string hex;

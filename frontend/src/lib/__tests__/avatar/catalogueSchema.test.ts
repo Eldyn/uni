@@ -10,7 +10,7 @@ function validCatalogue(): Record<string, unknown> {
 				eyes: [0, 0],
 				mouth: [0, 10],
 				head_top: [0, -20],
-				body_centre: [0, 40]
+				body_center: [0, 40]
 			}
 		},
 		palettes: [
@@ -180,7 +180,7 @@ describe("parseCatalogue", () => {
 	it("rejects a shape_sockets entry missing a socket", () => {
 		const catalogue = validCatalogue();
 		const sockets = catalogue.shape_sockets as Record<string, Record<string, unknown>>;
-		delete sockets["uni:round"].body_centre;
+		delete sockets["uni:round"].body_center;
 		expect(() => parseCatalogue(catalogue)).toThrow(ZodError);
 	});
 

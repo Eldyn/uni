@@ -9,7 +9,7 @@ export const MAX_EXTRA_MASKS = 1; // regions 4-6 are the R, G, B of file two
 export type AvatarSlot =
 	"shape" | "eyes" | "mouth" | "head_top" | "mask" | "bodywear" | "set" | "motif";
 export type PartSlot = "eyes" | "mouth" | "head_top" | "mask" | "bodywear";
-export type Socket = "eyes" | "mouth" | "head_top" | "body_centre";
+export type Socket = "eyes" | "mouth" | "head_top" | "body_center";
 export type Rarity = "common" | "uncommon" | "rare" | "epic";
 export type RegionCount = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 export type TintMode = "mask" | "multiply";

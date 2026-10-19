@@ -65,7 +65,7 @@ const std::vector<std::string>& StarterSlots() {
 
 const std::vector<std::string>& Sockets() {
     static const std::vector<std::string> kSockets = {
-        "eyes", "mouth", "head_top", "body_centre"};
+        "eyes", "mouth", "head_top", "body_center"};
     return kSockets;
 }
 
@@ -86,7 +86,7 @@ bool IsNamespacedId(const std::string& id) {
 }
 
 /** @brief `#rrggbb`, case-insensitive digits. */
-bool IsHexColour(const std::string& hex) {
+bool IsHexColor(const std::string& hex) {
     if (hex.size() != 7 || hex.front() != '#') return false;
     for (std::size_t i = 1; i < hex.size(); ++i) {
         if (!std::isxdigit(static_cast<unsigned char>(hex[i]))) return false;
@@ -233,7 +233,7 @@ std::vector<Palette> ParsePalettes(const json& doc) {
             Swatch swatch;
             swatch.id = StringField(node_swatch, "id", swatch_where);
             swatch.hex = StringField(node_swatch, "hex", swatch_where);
-            if (!IsHexColour(swatch.hex)) {
+            if (!IsHexColor(swatch.hex)) {
                 Reject(swatch_where + ".hex '" + swatch.hex + "' must be #rrggbb");
             }
             const auto price_node = node_swatch.find("price");
@@ -312,7 +312,7 @@ void ValidateDefaultColours(const std::vector<Item>& items,
     }
     for (const Item& item : items) {
         for (const std::string& entry : item.default_colors) {
-            if (!IsHexColour(entry) && !swatch_ids.contains(entry)) {
+            if (!IsHexColor(entry) && !swatch_ids.contains(entry)) {
                 Reject("item '" + item.id + "' default color '" + entry
                        + "' is neither #rrggbb nor a swatch id");
             }

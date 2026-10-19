@@ -47,7 +47,7 @@ json ValidDoc() {
                 "eyes": [36, 26],
                 "mouth": [42, 40],
                 "head_top": [32, 4],
-                "body_centre": [48, 62]
+                "body_center": [48, 62]
             }
         },
         "palettes": [
@@ -253,7 +253,7 @@ TEST_CASE("avatar catalogue: rejects the rest of the schema rules") {
     }
     SUBCASE("a shape_sockets entry missing a socket") {
         json doc = ValidDoc();
-        doc["shape_sockets"]["uni:round"].erase("body_centre");
+        doc["shape_sockets"]["uni:round"].erase("body_center");
         CHECK_THROWS_AS(Catalogue::Parse(doc), std::runtime_error);
     }
     SUBCASE("available_until before available_from") {

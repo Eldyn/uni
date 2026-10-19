@@ -51,7 +51,7 @@ json ValidDoc() {
                 "eyes": [36, 26],
                 "mouth": [42, 40],
                 "head_top": [32, 4],
-                "body_centre": [48, 62]
+                "body_center": [48, 62]
             }
         },
         "palettes": [

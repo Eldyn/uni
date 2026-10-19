@@ -37,13 +37,13 @@ json ValidDoc() {
                 "eyes": [36, 26],
                 "mouth": [42, 40],
                 "head_top": [32, 4],
-                "body_centre": [48, 62]
+                "body_center": [48, 62]
             },
             "uni:tall": {
                 "eyes": [36, 20],
                 "mouth": [42, 34],
                 "head_top": [32, -2],
-                "body_centre": [48, 60]
+                "body_center": [48, 60]
             }
         },
         "palettes": [
