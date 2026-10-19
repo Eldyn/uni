@@ -932,12 +932,12 @@ void ParseDeckCopies(const json& value, const std::string& file, const std::stri
     }
     if (copies->is_number_integer()) {
         const bool below_minimum =
-            !copies->is_number_unsigned() && copies->get<long long>() < 0;
+            !copies->is_number_unsigned() && copies->get<std::int64_t>() < 0;
         const bool above_maximum =
             copies->is_number_unsigned()
-                ? copies->get<unsigned long long>() >
-                      static_cast<unsigned long long>(kMaximumDeckCopies)
-                : copies->get<long long>() > kMaximumDeckCopies;
+                ? copies->get<std::uint64_t>() >
+                      static_cast<std::uint64_t>(kMaximumDeckCopies)
+                : copies->get<std::int64_t>() > kMaximumDeckCopies;
         if (below_minimum || above_maximum) {
             AddError(diagnostics, file, copies_pointer,
                      "key \"copies\" must be between 0 and " +
@@ -1015,9 +1015,9 @@ void ParseDeckMaxCards(const json& value, const std::string& file, const std::st
         AddError(diagnostics, file, max_cards_pointer, "key \"max_cards\" must be an integer");
         return;
     }
-    const long long number = max_cards->is_number_unsigned()
-                                 ? static_cast<long long>(max_cards->get<unsigned long long>())
-                                 : max_cards->get<long long>();
+    const std::int64_t number = max_cards->is_number_unsigned()
+                                 ? static_cast<std::int64_t>(max_cards->get<std::uint64_t>())
+                                 : max_cards->get<std::int64_t>();
     if (number < kMinimumDeckCards || number > kMaximumDeckCards) {
         AddError(diagnostics, file, max_cards_pointer,
                  "key \"max_cards\" must be between " + std::to_string(kMinimumDeckCards) +
@@ -1127,8 +1127,8 @@ bool IntBoundsFit64Bits(const json& range) {
             return false;
         }
         if (bound.is_number_unsigned() &&
-            bound.get<unsigned long long>() >
-                static_cast<unsigned long long>(std::numeric_limits<long long>::max())) {
+            bound.get<std::uint64_t>() >
+                static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max())) {
             return false;
         }
     }
@@ -1166,8 +1166,8 @@ void ParsePropertyRange(const json& value, const std::string& file, const std::s
                      "key \"range\" must be an array of two 64-bit integers");
             return;
         }
-        const long long low = (*range)[0].get<long long>();
-        const long long high = (*range)[1].get<long long>();
+        const std::int64_t low = (*range)[0].get<std::int64_t>();
+        const std::int64_t high = (*range)[1].get<std::int64_t>();
         if (low > high) {
             AddError(diagnostics, file, range_pointer, "key \"range\" must have low <= high");
             return;
@@ -1196,9 +1196,9 @@ void CheckPropertyIntDefaultRange(const json& default_value, const json& value,
         !(*range)[0].is_number_integer() || !(*range)[1].is_number_integer()) {
         return;
     }
-    const long long number = default_value.get<long long>();
-    const long long low = (*range)[0].get<long long>();
-    const long long high = (*range)[1].get<long long>();
+    const std::int64_t number = default_value.get<std::int64_t>();
+    const std::int64_t low = (*range)[0].get<std::int64_t>();
+    const std::int64_t high = (*range)[1].get<std::int64_t>();
     if (number < low || number > high) {
         AddError(diagnostics, file, pointer,
                  "key \"default\" is outside the range [" + std::to_string(low) + ", " +
@@ -1221,8 +1221,8 @@ void ParsePropertyDefault(const json& value, const std::string& file, const std:
         return;
     }
     if (property.type == "int" && entry->is_number_unsigned() &&
-        entry->get<unsigned long long>() >
-            static_cast<unsigned long long>(std::numeric_limits<long long>::max())) {
+        entry->get<std::uint64_t>() >
+            static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max())) {
         AddError(diagnostics, file, default_pointer, "key \"default\" must be a 64-bit integer");
         return;
     }
@@ -1488,15 +1488,15 @@ void ReadOrder(const json& value, const std::string& file, const std::string& po
         return;
     }
     if (order->is_number_unsigned()) {
-        const unsigned long long order_value = order->get<unsigned long long>();
-        if (order_value > static_cast<unsigned long long>(std::numeric_limits<int>::max())) {
+        const std::uint64_t order_value = order->get<std::uint64_t>();
+        if (order_value > static_cast<std::uint64_t>(std::numeric_limits<int>::max())) {
             AddError(diagnostics, file, order_pointer, "key \"order\" is out of range");
             return;
         }
         member.order = static_cast<int>(order_value);
         return;
     }
-    const long long order_value = order->get<long long>();
+    const std::int64_t order_value = order->get<std::int64_t>();
     if (order_value < std::numeric_limits<int>::min() ||
         order_value > std::numeric_limits<int>::max()) {
         AddError(diagnostics, file, order_pointer, "key \"order\" is out of range");

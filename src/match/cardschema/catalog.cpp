@@ -803,10 +803,10 @@ std::optional<int> ResolveCopies(const DeckEntry& entry, const DeckSpec& deck,
                                  std::vector<Diagnostic>& diagnostics) {
     const std::string copies_pointer = match::expr::AppendPointerToken(entry.pointer, "copies");
     if (entry.copies.is_number_integer()) {
-        const long long number =
+        const std::int64_t number =
             entry.copies.is_number_unsigned()
-                ? static_cast<long long>(entry.copies.get<unsigned long long>())
-                : entry.copies.get<long long>();
+                ? static_cast<std::int64_t>(entry.copies.get<std::uint64_t>())
+                : entry.copies.get<std::int64_t>();
         if (number < 0) {
             AddError(diagnostics, deck.file, copies_pointer,
                      "copies is " + std::to_string(number) +

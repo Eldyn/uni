@@ -437,7 +437,7 @@ std::vector<Diagnostic> CheckSurfaces(const KindTemplate& kind, const ResolvedFa
                  match::expr::SuggestClosest(binding.surface, names));
     }
 
-    // TODO: only duplicate (mask, channel) pairs inside one slot's winning
+    // FIXME: only duplicate (mask, channel) pairs inside one slot's winning
     // contribution are detected; a shared channel across slots is a possible
     // later rule.
     for (const auto& slot : face.slots) {
