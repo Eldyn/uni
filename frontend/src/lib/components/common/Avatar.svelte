@@ -1,5 +1,5 @@
 <script module lang="ts">
-	export type AvatarSize = 16 | 32 | 48 | 64 | 96;
+	export type AvatarSize = 16 | 32 | 48 | 64 | 96 | 192 | 288 | 384;
 </script>
 
 <script lang="ts">
