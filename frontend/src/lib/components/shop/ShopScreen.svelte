@@ -5,6 +5,7 @@
 <script lang="ts">
 	import { getCatalogue } from "$lib/avatar/catalogue";
 	import { defaultLoadout } from "$lib/avatar/defaultLoadout";
+	import { defaultItemChoice } from "$lib/avatar/previewLoadout";
 	import { onMount, tick } from "svelte";
 	import { isBuyableNow } from "$lib/shop/shopBackend";
 	import type { BuyFailure } from "$lib/shop/shopBackend";
@@ -119,7 +120,10 @@
 		if (item.slot === "shape") return { ...loadout, shape: item.id };
 		return {
 			...loadout,
-			slots: { ...loadout.slots, [item.slot]: { item: item.id, colours: [] } }
+			slots: {
+				...loadout.slots,
+				[item.slot]: defaultItemChoice(item, loadout.skin, owned.has(item.id))
+			}
 		};
 	}
 

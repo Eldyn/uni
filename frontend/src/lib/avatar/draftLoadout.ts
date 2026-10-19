@@ -5,6 +5,7 @@
  * new loadout and never mutates the one it is given.
  */
 
+import { defaultItemChoice } from "./previewLoadout";
 import type { AvatarSlot, Catalogue, CatalogueItem, Loadout, PartSlot } from "./types";
 
 /** The part slots a full set covers: equipping a set clears them. */
@@ -26,7 +27,7 @@ export function cloneLoadout(loadout: Loadout): Loadout {
 /**
  * @brief Wears one item on a copy of the loadout.
  * A shape replaces the shape; a set also clears the part slots it covers; a
- * part or motif lands in its own slot with no colours chosen yet.
+ * part or motif lands in its own slot with its default colors.
  */
 export function equip(loadout: Loadout, catalogue: Catalogue, item: CatalogueItem): Loadout {
 	const entry = catalogue.items.find((candidate) => candidate.id === item.id) ?? item;
@@ -40,7 +41,8 @@ export function equip(loadout: Loadout, catalogue: Catalogue, item: CatalogueIte
 	if (entry.slot === "set") {
 		for (const slot of SET_BLOCKED_PART_SLOTS) delete next.slots[slot];
 	}
-	next.slots[entry.slot] = { item: entry.id, colours: [] };
+	// INFO: the wardrobe lists owned items only, so the default colors apply.
+	next.slots[entry.slot] = defaultItemChoice(entry, next.skin, true);
 	return next;
 }
 

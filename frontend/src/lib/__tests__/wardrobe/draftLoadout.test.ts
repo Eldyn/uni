@@ -20,8 +20,17 @@ describe("equip", () => {
 		const before = fullLoadout();
 		const next = equip(before, catalogue, item("uni:hat_float"));
 
-		expect(next.slots.head_top).toEqual({ item: "uni:hat_float", colours: [] });
+		expect(next.slots.head_top).toEqual({ item: "uni:hat_float", colours: [before.skin] });
 		expect(before.slots.head_top?.item).toBe("uni:hat_cap");
+	});
+
+	it("tints the first region of a new part with the skin and leaves a set uncolored", () => {
+		const before = fullLoadout();
+		const part = equip(before, catalogue, item("uni:mask_bandit"));
+		const set = equip(before, catalogue, item("uni:set_suit"));
+
+		expect(part.slots.mask?.colours).toEqual([before.skin]);
+		expect(set.slots.set?.colours).toEqual([]);
 	});
 
 	it("clears the part slots a worn set covers", () => {
