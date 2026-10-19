@@ -137,8 +137,8 @@ static void LoadAvatarCatalogueForTests() {
         std::filesystem::path p(__FILE__);
         while (!p.empty()) {
             std::error_code ec;
-            const std::filesystem::path candidate = p / "avatar" / "catalogue.json";
-            if (std::filesystem::is_regular_file(candidate, ec)) {
+            const std::filesystem::path candidate = p / "avatar" / "catalogue";
+            if (std::filesystem::is_directory(candidate, ec)) {
                 uni::avatar::Catalogue::LoadGlobal(candidate.string());
                 return true;
             }

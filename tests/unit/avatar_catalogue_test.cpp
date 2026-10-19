@@ -6,6 +6,8 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <fstream>
+#include <map>
 #include <stdexcept>
 #include <string>
 
@@ -24,7 +26,7 @@ using uni::avatar::Item;
 namespace {
 
 /* INFO: locate the repo root from this test file so the shipped
- *       `avatar/catalogue.json` loads cwd-independently (mirrors
+ *       `avatar/catalogue` folder loads cwd-independently (mirrors
  *       mod_hash_test / lobby_test). */
 fs::path ProjectRoot() {
     fs::path path(__FILE__);
@@ -118,6 +120,46 @@ json ValidDoc() {
         ],
         "featured": ["uni:hat_cap"]
     })");
+}
+
+/** @brief Writes `files` (relative path to text) under a fresh temp folder. */
+fs::path WriteTree(const std::string& name,
+                   const std::map<std::string, std::string>& files) {
+    const fs::path root = fs::temp_directory_path() / ("uni_catalogue_" + name);
+    fs::remove_all(root);
+    for (const auto& [relative, text] : files) {
+        fs::create_directories((root / relative).parent_path());
+        std::ofstream(root / relative, std::ios::binary) << text;
+    }
+    return root;
+}
+
+/** @brief A tree that passes every rule; tests edit one entry of it. */
+std::map<std::string, std::string> SmallTree() {
+    return {
+        {"meta.json", R"({"version":1,"featured":[]})"},
+        {"sockets/uni_round.json",
+         R"({"shape":"uni:round","eyes":[1,2],"mouth":[3,4],"head_top":[5,6],"body_center":[7,8]})"},
+        {"palettes/basic.json",
+         R"({"id":"basic","order":10,"name":"Basic","price":0,"starter":true,
+             "swatches":[{"id":"basic:red","hex":"#ff0000"}]})"},
+        {"items/shape/uni_round.json",
+         R"({"id":"uni:round","order":10,"slot":"shape","name":"Round",
+             "asset":{"kind":"strip","path":"shapes/uni_round.png"},
+             "regions":1,"rarity":"common","price":0,"starter":true})"},
+        {"items/eyes/uni_eyes_b.json",
+         R"({"id":"uni:eyes_b","order":20,"slot":"eyes","name":"B",
+             "asset":{"kind":"strip","path":"eyes/b.png"},
+             "regions":0,"rarity":"common","price":0,"starter":true})"},
+        {"items/eyes/uni_eyes_a.json",
+         R"({"id":"uni:eyes_a","order":10,"slot":"eyes","name":"A",
+             "asset":{"kind":"strip","path":"eyes/a.png"},
+             "regions":0,"rarity":"common","price":0,"starter":true})"},
+        {"items/mouth/uni_mouth.json",
+         R"({"id":"uni:mouth","order":10,"slot":"mouth","name":"M",
+             "asset":{"kind":"strip","path":"mouth/m.png"},
+             "regions":0,"rarity":"common","price":0,"starter":true})"},
+    };
 }
 
 /** @brief The item with `id` in a catalogue document, for targeted edits. */
@@ -355,12 +397,12 @@ TEST_CASE("avatar catalogue: IsBuyable follows starter, flags and the window") {
     }
 }
 
-TEST_CASE("avatar catalogue: the real avatar/catalogue.json loads") {
+TEST_CASE("avatar catalogue: the real avatar/catalogue folder loads") {
     const fs::path root = ProjectRoot();
     REQUIRE_FALSE(root.empty());
 
     const Catalogue catalogue =
-        Catalogue::LoadFile((root / "avatar" / "catalogue.json").string());
+        Catalogue::LoadDirectory((root / "avatar" / "catalogue").string());
 
     REQUIRE(catalogue.FindItem("uni:eyes_dot") != nullptr);
     CHECK(catalogue.IsStarter("uni:eyes_dot"));
@@ -378,6 +420,61 @@ TEST_CASE("avatar catalogue: the real avatar/catalogue.json loads") {
     REQUIRE(patches != nullptr);
     CHECK(patches->regions == 3);
     CHECK(patches->default_colors.size() == 2);
+}
+
+TEST_CASE("avatar catalogue folder: merge rules") {
+    SUBCASE("a valid tree loads and order picks the slot default") {
+        const Catalogue catalogue = Catalogue::LoadDirectory(
+            WriteTree("valid", SmallTree()).string());
+        REQUIRE(catalogue.SlotDefault("eyes") != nullptr);
+        CHECK(catalogue.SlotDefault("eyes")->id == "uni:eyes_a");
+    }
+    SUBCASE("the merged document has no order field") {
+        const json doc = Catalogue::MergeDirectory(WriteTree("noorder", SmallTree()).string());
+        CHECK_FALSE(doc["items"][0].contains("order"));
+        CHECK_FALSE(doc["palettes"][0].contains("order"));
+        CHECK_FALSE(doc["shape_sockets"]["uni:round"].contains("shape"));
+        CHECK(doc["items"][0]["id"] == "uni:round");
+    }
+    SUBCASE("a stray file is rejected") {
+        auto files = SmallTree();
+        files["notes/todo.json"] = "{}";
+        CHECK_THROWS_WITH_AS(Catalogue::MergeDirectory(WriteTree("stray", files).string()),
+                             doctest::Contains("unexpected file 'notes/todo.json'"),
+                             std::runtime_error);
+    }
+    SUBCASE("a stem that does not match the id is rejected") {
+        auto files = SmallTree();
+        files["items/eyes/uni_eyes_a.json"] =
+            R"({"id":"uni:eyes_z","order":10,"slot":"eyes"})";
+        CHECK_THROWS_WITH_AS(Catalogue::MergeDirectory(WriteTree("stem", files).string()),
+                             doctest::Contains("stem 'uni_eyes_a'"), std::runtime_error);
+    }
+    SUBCASE("a folder that differs from the slot is rejected") {
+        auto files = SmallTree();
+        files["items/eyes/uni_eyes_a.json"] =
+            R"({"id":"uni:eyes_a","order":10,"slot":"mouth"})";
+        CHECK_THROWS_WITH_AS(Catalogue::MergeDirectory(WriteTree("slot", files).string()),
+                             doctest::Contains("folder 'eyes'"), std::runtime_error);
+    }
+    SUBCASE("two items with the same order in one slot are rejected") {
+        auto files = SmallTree();
+        files["items/eyes/uni_eyes_b.json"] =
+            R"({"id":"uni:eyes_b","order":10,"slot":"eyes"})";
+        CHECK_THROWS_WITH_AS(Catalogue::MergeDirectory(WriteTree("order", files).string()),
+                             doctest::Contains("duplicate order 10 in slot eyes"),
+                             std::runtime_error);
+    }
+    SUBCASE("a missing meta.json is rejected") {
+        auto files = SmallTree();
+        files.erase("meta.json");
+        CHECK_THROWS_WITH_AS(Catalogue::MergeDirectory(WriteTree("meta", files).string()),
+                             doctest::Contains("missing 'meta.json'"), std::runtime_error);
+    }
+    SUBCASE("a folder that does not exist is rejected") {
+        CHECK_THROWS_AS(Catalogue::MergeDirectory("/no/such/uni/catalogue"),
+                        std::runtime_error);
+    }
 }
 
 TEST_CASE("avatar catalogue: tint mode") {

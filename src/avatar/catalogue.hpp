@@ -11,12 +11,12 @@
  * @file catalogue.hpp
  * @brief The avatar catalogue: the repo data behind every cosmetic item.
  *
- * One JSON file (`avatar/catalogue.json`, overridable with the
- * `UNI_AVATAR_CATALOGUE` env var) is the single source the client and the
- * server both read. The server keeps the parsed form in memory for the whole
- * process (`LoadGlobal`), and answers slot-default and starter questions from
- * it. Validation mirrors the client schema
- * (`frontend/src/lib/avatar/catalogueSchema.ts`), so a file the client rejects
+ * The catalogue is the folder `avatar/catalogue/`, overridable with the
+ * `UNI_AVATAR_CATALOGUE` env var (which names a folder). It is the single
+ * source the client and the server both read. The server keeps the parsed form
+ * in memory for the whole process (`LoadGlobal`), and answers slot-default and
+ * starter questions from it. Validation mirrors the client schema
+ * (`frontend/src/lib/avatar/catalogueSchema.ts`), so a tree the client rejects
  * never reaches a running server either.
  */
 
@@ -81,10 +81,18 @@ class Catalogue {
     static Catalogue Parse(const nlohmann::json& doc);
 
     /**
-     * @brief Read and validate a catalogue file.
-     * @throws std::runtime_error on an I/O, parse or validation error.
+     * @brief Merge the per-element tree at `directory` into one catalogue
+     *        document (see `avatar/README.md` for the nine merge rules).
+     *
+     * Walks every `*.json` file in sorted path order. Throws
+     * `std::runtime_error` on a stray file, a stem that does not match its id,
+     * a folder that does not match the slot, a duplicate id or order, or a
+     * missing `meta.json`. The output has the same shape that `Parse` reads.
      */
-    static Catalogue LoadFile(const std::string& path);
+    static nlohmann::json MergeDirectory(const std::string& directory);
+
+    /** @brief Merge the tree at `directory`, then parse and validate it. */
+    static Catalogue LoadDirectory(const std::string& directory);
 
     /** @brief The process-wide catalogue; only valid after `LoadGlobal`. */
     static const Catalogue& Instance();
@@ -93,7 +101,7 @@ class Catalogue {
      * @brief Load the process-wide catalogue, aborting start-up on failure.
      *
      * An empty `path` reads `UNI_AVATAR_CATALOGUE` (default
-     * `avatar/catalogue.json`). The error is logged before it is rethrown, so
+     * `avatar/catalogue`). The error is logged before it is rethrown, so
      * the caller lets it abort the boot with a clear message.
      */
     static void LoadGlobal(const std::string& path = "");
