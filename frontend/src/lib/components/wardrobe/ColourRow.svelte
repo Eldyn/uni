@@ -14,6 +14,8 @@
 		label,
 		regionLabels = [],
 		locked = new Set<string>(),
+		lockedLabel = "Buy this color in the Shop",
+		onlocked = () => {},
 		skinFirst = false,
 		skinHex = "#000000",
 		skinLabel = undefined
@@ -25,6 +27,8 @@
 		label: string;
 		regionLabels?: string[];
 		locked?: ReadonlySet<string>;
+		lockedLabel?: string;
+		onlocked?: () => void;
 		skinFirst?: boolean;
 		skinHex?: string;
 		/** Visible label of the locked skin row of a motif. */
@@ -60,11 +64,16 @@
 						data-swatch-id={swatch.id}
 						data-locked={locked.has(swatch.id) ? "true" : "false"}
 						aria-pressed={colours[index] === swatch.id}
-						aria-label={swatch.id}
-						disabled={locked.has(swatch.id)}
+						aria-disabled={locked.has(swatch.id) ? "true" : undefined}
+						aria-label={locked.has(swatch.id) ? lockedLabel : swatch.id}
+						title={locked.has(swatch.id) ? lockedLabel : undefined}
 						style="--swatch: {swatch.hex}"
-						onclick={() => onpick(index, swatch.id)}
-					></button>
+						onclick={() => (locked.has(swatch.id) ? onlocked() : onpick(index, swatch.id))}
+					>
+						{#if locked.has(swatch.id)}
+							<i class="pia pixelart-icons-font-lock colour-lock" aria-hidden="true"></i>
+						{/if}
+					</button>
 				{/each}
 			</div>
 		</div>
@@ -95,6 +104,8 @@
 	}
 
 	.colour-swatch {
+		display: grid;
+		place-items: center;
 		width: 28px;
 		height: 28px;
 		padding: 0;
@@ -128,5 +139,13 @@
 	.colour-swatch--skin {
 		cursor: default;
 		border-style: dashed;
+	}
+
+	.colour-lock {
+		position: relative;
+		z-index: 1;
+		color: #fff;
+		font-size: 0.8rem;
+		text-shadow: 0 0 2px #000;
 	}
 </style>

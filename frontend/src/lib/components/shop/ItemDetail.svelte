@@ -10,6 +10,7 @@
 	import { itemPreviewLoadout } from "$lib/avatar/previewLoadout";
 	import { storeI18n } from "$stores/i18n.svelte";
 	import { RARITY_COLOURS, rarityLabelKey } from "$lib/shop/rarity";
+	import { BUY_FAILURE_TEXT } from "$lib/shop/buyFailure";
 	import type { BuyFailure } from "$lib/shop/shopBackend";
 	import type { CatalogueItem, Loadout } from "$lib/avatar/types";
 
@@ -36,16 +37,6 @@
 		error?: BuyFailure | null;
 	} = $props();
 
-	/** The English line shown for each failure, with the key Task 8 will fill in. */
-	const FAILURE_TEXT: Record<BuyFailure, [key: string, fallback: string]> = {
-		insufficient_cash: ["shop_error_insufficient_cash", "Not enough cash."],
-		already_owned: ["shop_error_already_owned", "You already own this."],
-		not_available: ["shop_error_not_available", "This item is no longer available."],
-		unknown_item: ["shop_error_unknown_item", "This item does not exist."],
-		guest: ["shop_error_guest", "Register to buy."],
-		network: ["shop_error_network", "Could not reach the server. Try again."]
-	};
-
 	const locale = $derived(storeI18n.locale);
 	const name = $derived(shopItemText(itemLabelKey(item.id), item.id, locale));
 	const rarityName = $derived(shopItemText(rarityLabelKey(item.rarity), item.rarity, locale));
@@ -69,7 +60,7 @@
 				: null
 	);
 	const failure = $derived(
-		error ? shopItemText(FAILURE_TEXT[error][0], FAILURE_TEXT[error][1], locale) : null
+		error ? shopItemText(BUY_FAILURE_TEXT[error][0], BUY_FAILURE_TEXT[error][1], locale) : null
 	);
 
 	onMount(() => {

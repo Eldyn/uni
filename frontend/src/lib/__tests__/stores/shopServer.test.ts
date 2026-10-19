@@ -157,5 +157,21 @@ describe("ShopServer", () => {
 			expect(fetch).toHaveBeenCalledTimes(2);
 			expect(sentBody(1).request_id).toBe(sentBody(0).request_id);
 		});
+
+		it("keeps a swatch id in owned and buys it by the same id", async () => {
+			vi.mocked(fetch)
+				.mockResolvedValueOnce(
+					jsonResponse({ balance: 750, owned: ["basic:red", "uni:neon:volt"], ledger: [] })
+				)
+				.mockResolvedValueOnce(jsonResponse({ balance: 150, item: "uni:neon:volt" }));
+
+			await store.fetchMine();
+			expect(store.owned.has("uni:neon:volt")).toBe(true);
+
+			const result = await store.buy("uni:neon:volt");
+			expect(result).toEqual({ ok: true, balance: 150 });
+			expect(sentBody(1).item).toBe("uni:neon:volt");
+			expect(store.owned.has("uni:neon:volt")).toBe(true);
+		});
 	});
 });

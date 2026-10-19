@@ -482,3 +482,63 @@ TEST_CASE("avatar catalogue: default colors") {
         CHECK_THROWS_AS(Catalogue::Parse(doc), std::runtime_error);
     }
 }
+
+TEST_CASE("avatar catalogue: paid swatch metadata") {
+    SUBCASE("a swatch takes a price, rarity, hidden and unlisted") {
+        json doc = ValidDoc();
+        json& swatch = doc["palettes"][1]["swatches"][0];
+        swatch["price"] = 600;
+        swatch["rarity"] = "rare";
+        swatch["hidden"] = true;
+        swatch["unlisted"] = true;
+
+        const Catalogue catalogue = Catalogue::Parse(doc);
+        CHECK(catalogue.PriceOf("uni:neon:hot").value() == 600);
+        CHECK_FALSE(catalogue.IsBuyable("uni:neon:hot", 1000));
+    }
+
+    SUBCASE("a priced swatch is buyable") {
+        json doc = ValidDoc();
+        doc["palettes"][1]["swatches"][0]["price"] = 600;
+
+        const Catalogue catalogue = Catalogue::Parse(doc);
+        CHECK(catalogue.IsBuyable("uni:neon:hot", 1000));
+        CHECK(catalogue.PriceOf("uni:neon:hot").value() == 600);
+    }
+
+    SUBCASE("a swatch with no price is not buyable") {
+        const Catalogue catalogue = Catalogue::Parse(ValidDoc());
+        CHECK_FALSE(catalogue.IsBuyable("uni:neon:hot", 1000));
+        CHECK_FALSE(catalogue.PriceOf("uni:neon:hot").has_value());
+    }
+
+    SUBCASE("a starter swatch is not buyable") {
+        json doc = ValidDoc();
+        doc["palettes"][0]["swatches"][0]["price"] = 100;
+
+        const Catalogue catalogue = Catalogue::Parse(doc);
+        CHECK_FALSE(catalogue.IsBuyable("basic:red", 1000));
+    }
+
+    SUBCASE("an unknown rarity is rejected") {
+        json doc = ValidDoc();
+        doc["palettes"][1]["swatches"][0]["rarity"] = "mythic";
+        CHECK_THROWS_AS(Catalogue::Parse(doc), std::runtime_error);
+    }
+
+    SUBCASE("a negative or fractional price is rejected") {
+        json negative = ValidDoc();
+        negative["palettes"][1]["swatches"][0]["price"] = -1;
+        CHECK_THROWS_AS(Catalogue::Parse(negative), std::runtime_error);
+
+        json fractional = ValidDoc();
+        fractional["palettes"][1]["swatches"][0]["price"] = 1.5;
+        CHECK_THROWS_AS(Catalogue::Parse(fractional), std::runtime_error);
+    }
+
+    SUBCASE("a swatch id may not equal an item id") {
+        json doc = ValidDoc();
+        doc["palettes"][1]["swatches"][0]["id"] = "uni:hat_cap";
+        CHECK_THROWS_AS(Catalogue::Parse(doc), std::runtime_error);
+    }
+}

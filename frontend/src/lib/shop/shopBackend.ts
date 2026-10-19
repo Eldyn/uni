@@ -5,7 +5,7 @@
  */
 
 import { isAvailable } from "$lib/avatar/catalogue";
-import type { CatalogueItem } from "$lib/avatar/types";
+import type { CatalogueItem, Palette, Swatch } from "$lib/avatar/types";
 
 /** Why a purchase failed. `network` means the request never produced a usable answer. */
 export type BuyFailure =
@@ -28,4 +28,20 @@ export interface ShopBackend {
 export function isBuyableNow(item: CatalogueItem, nowMs: number): boolean {
 	if (item.starter === true || item.hidden) return false;
 	return isAvailable(item, new Date(nowMs));
+}
+
+/** A swatch with the palette that holds it. */
+export interface SwatchEntry {
+	swatch: Swatch;
+	palette: Palette;
+}
+
+/**
+ * Whether the shop sells the swatch alone now: the palette is not a starter
+ * palette, the swatch is not hidden or unlisted, and it has a price.
+ */
+export function isSwatchBuyable(entry: SwatchEntry): boolean {
+	if (entry.palette.starter === true) return false;
+	if (entry.swatch.hidden === true || entry.swatch.unlisted === true) return false;
+	return entry.swatch.price !== undefined;
 }

@@ -46,11 +46,11 @@
 			"name": "Pastel",
 			"price": 200,
 			"swatches": [
-				{ "id": "uni:pastel:blush", "hex": "#f4b8c1" },
+				{ "id": "uni:pastel:blush", "hex": "#f4b8c1", "price": 100, "rarity": "common" },
 				{ "id": "uni:pastel:peach", "hex": "#f7cfa9" },
 				{ "id": "uni:pastel:butter", "hex": "#f4e6a3" },
 				{ "id": "uni:pastel:mint", "hex": "#b6e3c6" },
-				{ "id": "uni:pastel:sky", "hex": "#b3d4f0" },
+				{ "id": "uni:pastel:sky", "hex": "#b3d4f0", "price": 250, "rarity": "uncommon" },
 				{ "id": "uni:pastel:lilac", "hex": "#cdbce8" }
 			]
 		},
@@ -61,8 +61,8 @@
 			"swatches": [
 				{ "id": "uni:neon:hot", "hex": "#ff2d95" },
 				{ "id": "uni:neon:acid", "hex": "#c6ff00" },
-				{ "id": "uni:neon:volt", "hex": "#00e5ff" },
-				{ "id": "uni:neon:plasma", "hex": "#ff6d00" },
+				{ "id": "uni:neon:volt", "hex": "#00e5ff", "price": 600, "rarity": "rare" },
+				{ "id": "uni:neon:plasma", "hex": "#ff6d00", "price": 1200, "rarity": "epic" },
 				{ "id": "uni:neon:magenta", "hex": "#e040ff" },
 				{ "id": "uni:neon:toxic", "hex": "#39ff6a" }
 			]

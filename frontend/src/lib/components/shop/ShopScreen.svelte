@@ -7,9 +7,9 @@
 	import { defaultLoadout } from "$lib/avatar/defaultLoadout";
 	import { defaultItemChoice } from "$lib/avatar/previewLoadout";
 	import { onMount, tick } from "svelte";
-	import { isBuyableNow } from "$lib/shop/shopBackend";
-	import type { BuyFailure } from "$lib/shop/shopBackend";
-	import type { AvatarSlot, CatalogueItem, Loadout } from "$lib/avatar/types";
+	import { isBuyableNow, isSwatchBuyable } from "$lib/shop/shopBackend";
+	import type { BuyFailure, SwatchEntry } from "$lib/shop/shopBackend";
+	import type { AvatarSlot, CatalogueItem, Loadout, Palette, Swatch } from "$lib/avatar/types";
 	import { storeShop } from "$lib/stores/shop.svelte";
 	import { storeAuth } from "$stores/auth.svelte";
 	import { storeAvatar } from "$stores/avatar.svelte";
@@ -21,6 +21,8 @@
 	import ShopBackdrop from "$components/shop/ShopBackdrop.svelte";
 	import FeaturedBanner from "$components/shop/FeaturedBanner.svelte";
 	import SlotTabs from "$components/shop/SlotTabs.svelte";
+	import SwatchCard from "$components/shop/SwatchCard.svelte";
+	import SwatchDetail from "$components/shop/SwatchDetail.svelte";
 
 	/** A tab either filters to one catalogue slot, or to palettes, or to all. */
 	type TabSlot = AvatarSlot | "palette" | null;
@@ -60,6 +62,7 @@
 
 	let activeTab = $state("all");
 	let selected = $state<CatalogueItem | null>(null);
+	let selectedSwatch = $state<SwatchEntry | null>(null);
 	let buyError = $state<BuyFailure | null>(null);
 	let focusedCard = $state(0);
 	let gridEl: HTMLDivElement | undefined = $state();
@@ -89,6 +92,17 @@
 		});
 	});
 
+	const swatchEntries = $derived(
+		catalogue.palettes.flatMap((palette: Palette) =>
+			palette.swatches.map((swatch: Swatch): SwatchEntry => ({ swatch, palette }))
+		)
+	);
+	const paletteCards = $derived(
+		swatchEntries.filter((entry) => isSwatchBuyable(entry) || owned.has(entry.swatch.id))
+	);
+	const showingPalettes = $derived(activeTab === "palettes");
+	const cardCount = $derived(showingPalettes ? paletteCards.length : items.length);
+
 	const featured = $derived.by(() => {
 		const id = catalogue.featured[0];
 		return id ? (catalogue.items.find((item) => item.id === id) ?? null) : null;
@@ -102,6 +116,7 @@
 
 	function openDetail(item: CatalogueItem): void {
 		triggerId = item.id;
+		selectedSwatch = null;
 		selected = item;
 		buyError = null;
 	}
@@ -116,6 +131,39 @@
 			(entry) => entry.dataset.itemId === id
 		);
 		card?.focus();
+	}
+
+	function openSwatch(entry: SwatchEntry): void {
+		triggerId = entry.swatch.id;
+		selected = null;
+		selectedSwatch = entry;
+		buyError = null;
+	}
+
+	async function closeSwatch(): Promise<void> {
+		selectedSwatch = null;
+		buyError = null;
+		const id = triggerId;
+		await tick();
+		const card = [...(gridEl?.querySelectorAll<HTMLElement>("[data-item-id]") ?? [])].find(
+			(entry) => entry.dataset.itemId === id
+		);
+		card?.focus();
+	}
+
+	async function buySwatch(entry: SwatchEntry): Promise<void> {
+		const result = await storeShop.buy(entry.swatch.id);
+		if (result.ok) {
+			balance = result.balance;
+			owned = new Set(storeShop.owned);
+			buyError = null;
+		} else {
+			buyError = result.reason;
+		}
+	}
+
+	function buySelectedSwatch(): void {
+		if (selectedSwatch) void buySwatch(selectedSwatch);
 	}
 
 	/** The preview look with one item equipped, on a fresh copy. */
@@ -203,7 +251,7 @@
 				break;
 			case "End":
 				event.preventDefault();
-				focusCard(items.length - 1);
+				focusCard(cardCount - 1);
 				break;
 		}
 	}
@@ -244,9 +292,22 @@
 		/>
 	{/if}
 
+	{#if selectedSwatch}
+		<SwatchDetail
+			swatch={selectedSwatch.swatch}
+			palette={selectedSwatch.palette}
+			owned={owned.has(selectedSwatch.swatch.id)}
+			{balance}
+			{guest}
+			onbuy={buySelectedSwatch}
+			onclose={closeSwatch}
+			error={buyError}
+		/>
+	{/if}
+
 	<SlotTabs {tabs} active={activeTab} onselect={selectTab} label={tabsLabel} />
 
-	{#if items.length > 0}
+	{#if cardCount > 0}
 		<div
 			class="shop-grid"
 			role="grid"
@@ -256,15 +317,27 @@
 			onfocusin={handleGridFocus}
 			onkeydown={handleGridKeydown}
 		>
-			{#each items as item, index (item.id)}
-				<ItemCard
-					{item}
-					owned={owned.has(item.id)}
-					selected={index === focusedCard}
-					loadout={viewerLoadout}
-					onselect={() => openDetail(item)}
-				/>
-			{/each}
+			{#if showingPalettes}
+				{#each paletteCards as entry, index (entry.swatch.id)}
+					<SwatchCard
+						swatch={entry.swatch}
+						palette={entry.palette}
+						owned={owned.has(entry.swatch.id)}
+						selected={index === focusedCard}
+						onselect={() => openSwatch(entry)}
+					/>
+				{/each}
+			{:else}
+				{#each items as item, index (item.id)}
+					<ItemCard
+						{item}
+						owned={owned.has(item.id)}
+						selected={index === focusedCard}
+						loadout={viewerLoadout}
+						onselect={() => openDetail(item)}
+					/>
+				{/each}
+			{/if}
 		</div>
 	{:else}
 		<p class="shop-empty font-tiny">{emptyLabel}</p>

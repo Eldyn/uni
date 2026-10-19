@@ -6,6 +6,7 @@ vi.mock("$avatar/catalogue.json", () => ({ default: {} }));
 
 import {
 	featuredItems,
+	findSwatch,
 	getCatalogue,
 	getItem,
 	getSwatch,
@@ -233,6 +234,11 @@ describe("catalogue queries", () => {
 	it("getSwatch finds a swatch by id and returns undefined for an unknown id", () => {
 		expect(getSwatch("basic:red")?.hex).toBe("#e84a4a");
 		expect(getSwatch("nope:nope")).toBeUndefined();
+	});
+
+	it("findSwatch returns the swatch and its palette", () => {
+		expect(findSwatch("uni_neon:pink")?.palette.id).toBe("uni:neon");
+		expect(findSwatch("nope:nope")).toBeUndefined();
 	});
 
 	it("isStarterSwatch is true for basic palette swatches and false for a paid palette", () => {

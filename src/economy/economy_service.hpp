@@ -75,7 +75,7 @@ class EconomyService : public uni::avatar::IOwnership {
                 std::int64_t now);
 
     /**
-     * @brief Buy `item_id` once, idempotent on `request_id`.
+     * @brief Buy an item or a swatch once, idempotent on `request_id`.
      *
      * One transaction checks the catalogue, ownership and balance, then writes
      * the ledger row, the ownership row and the balance together. A replay of
@@ -95,7 +95,7 @@ class EconomyService : public uni::avatar::IOwnership {
     bool OwnsItem(const std::string& username,
                   const std::string& item_id) const override;
 
-    /** @brief True for a swatch in a `starter` palette (palettes ship later). */
+    /** @brief True for a starter swatch or an owned item_ownership row. */
     bool OwnsSwatch(const std::string& username,
                     const std::string& swatch_id) const override;
 

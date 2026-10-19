@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { isBuyableNow } from "$lib/shop/shopBackend";
+import { isBuyableNow, isSwatchBuyable } from "$lib/shop/shopBackend";
 import { ShopMock, shopMock } from "$lib/stores/shopMock.svelte";
-import type { Catalogue, CatalogueItem } from "$lib/avatar/types";
+import type { Catalogue, CatalogueItem, Palette } from "$lib/avatar/types";
 
 const NOW = Date.parse("2026-10-19T12:00:00Z");
 
@@ -18,8 +18,8 @@ function makeItem(overrides: Partial<CatalogueItem> = {}): CatalogueItem {
 	};
 }
 
-function makeCatalogue(items: CatalogueItem[]): Catalogue {
-	return { version: 1, shape_sockets: {}, palettes: [], items, featured: [] };
+function makeCatalogue(items: CatalogueItem[], palettes: Palette[] = []): Catalogue {
+	return { version: 1, shape_sockets: {}, palettes, items, featured: [] };
 }
 
 describe("isBuyableNow", () => {
@@ -56,13 +56,57 @@ describe("isBuyableNow", () => {
 	});
 });
 
+describe("isSwatchBuyable", () => {
+	const palette: Palette = { id: "uni:neon", name: "Neon", price: 250, swatches: [] };
+
+	it("is true only for a priced swatch in a non-starter palette", () => {
+		expect(isSwatchBuyable({ palette, swatch: { id: "a:b", hex: "#000000", price: 100 } })).toBe(
+			true
+		);
+		expect(isSwatchBuyable({ palette, swatch: { id: "a:b", hex: "#000000" } })).toBe(false);
+		expect(
+			isSwatchBuyable({
+				palette: { ...palette, starter: true },
+				swatch: { id: "a:b", hex: "#000000", price: 100 }
+			})
+		).toBe(false);
+		expect(
+			isSwatchBuyable({
+				palette,
+				swatch: { id: "a:b", hex: "#000000", price: 100, hidden: true }
+			})
+		).toBe(false);
+	});
+});
+
 describe("ShopMock", () => {
-	const catalogue = makeCatalogue([
-		makeItem({ id: "uni:starter", slot: "shape", price: 0, starter: true }),
-		makeItem({ id: "uni:exact", price: 1500 }),
-		makeItem({ id: "uni:pricey", price: 2000 }),
-		makeItem({ id: "uni:hidden", price: 100, hidden: true })
-	]);
+	const catalogue = makeCatalogue(
+		[
+			makeItem({ id: "uni:starter", slot: "shape", price: 0, starter: true }),
+			makeItem({ id: "uni:exact", price: 1500 }),
+			makeItem({ id: "uni:pricey", price: 2000 }),
+			makeItem({ id: "uni:hidden", price: 100, hidden: true })
+		],
+		[
+			{
+				id: "basic",
+				name: "Basic",
+				price: 0,
+				starter: true,
+				swatches: [{ id: "basic:red", hex: "#e84a4a" }]
+			},
+			{
+				id: "uni:neon",
+				name: "Neon",
+				price: 250,
+				swatches: [
+					{ id: "uni:neon:hot", hex: "#ff2d95", price: 250, rarity: "uncommon" },
+					{ id: "uni:neon:secret", hex: "#00e5ff", price: 600, hidden: true },
+					{ id: "uni:neon:free", hex: "#ffffff" }
+				]
+			}
+		]
+	);
 
 	let mock: ShopMock;
 
@@ -77,6 +121,27 @@ describe("ShopMock", () => {
 	it("starts owning the starters only", () => {
 		expect(mock.owned.has("uni:starter")).toBe(true);
 		expect(mock.owned.has("uni:exact")).toBe(false);
+	});
+
+	it("starts owning the starter swatches", () => {
+		expect(mock.owned.has("basic:red")).toBe(true);
+	});
+
+	it("buys a paid swatch and owns its id", async () => {
+		const result = await mock.buy("uni:neon:hot");
+		expect(result).toEqual({ ok: true, balance: 1250 });
+		expect(mock.owned.has("uni:neon:hot")).toBe(true);
+	});
+
+	it("gives already_owned for a starter swatch", async () => {
+		const result = await mock.buy("basic:red");
+		expect(result).toEqual({ ok: false, reason: "already_owned" });
+	});
+
+	it("gives not_available for a hidden or unpriced swatch", async () => {
+		expect(await mock.buy("uni:neon:secret")).toEqual({ ok: false, reason: "not_available" });
+		expect(await mock.buy("uni:neon:free")).toEqual({ ok: false, reason: "not_available" });
+		expect(mock.balance).toBe(1500);
 	});
 
 	it("buying exactly at the price leaves a balance of 0", async () => {

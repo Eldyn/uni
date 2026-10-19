@@ -29,6 +29,15 @@ export function avatarFixture(): Catalogue {
 					{ id: "basic:red", hex: "#e84a4a" },
 					{ id: "basic:green", hex: "#4aa85a" }
 				]
+			},
+			{
+				id: "uni:neon",
+				name: "Neon",
+				price: 250,
+				swatches: [
+					{ id: "uni:neon:hot", hex: "#ff2d95", price: 250, rarity: "uncommon" },
+					{ id: "uni:neon:volt", hex: "#00e5ff", price: 600, rarity: "rare" }
+				]
 			}
 		],
 		items: [

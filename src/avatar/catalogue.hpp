@@ -50,6 +50,10 @@ struct Item {
 struct Swatch {
     std::string id;
     std::string hex;
+    std::optional<int> price;
+    std::string rarity = "common";
+    bool hidden = false;
+    bool unlisted = false;
 };
 
 /** @brief A named set of swatches, bought whole (or free when `starter`). */

@@ -128,4 +128,18 @@ describe("avatar catalogue file", () => {
 		const ids = new Set(catalogue.items.map((item) => item.id));
 		expect(catalogue.featured.filter((id) => !ids.has(id))).toEqual([]);
 	});
+
+	it("the paid swatches use the rarity price table", () => {
+		const paid = catalogue.palettes.flatMap((palette) =>
+			palette.swatches
+				.filter((swatch) => swatch.price !== undefined)
+				.map((swatch) => [swatch.id, swatch.price, swatch.rarity])
+		);
+		expect(paid).toEqual([
+			["uni:pastel:blush", 100, "common"],
+			["uni:pastel:sky", 250, "uncommon"],
+			["uni:neon:volt", 600, "rare"],
+			["uni:neon:plasma", 1200, "epic"]
+		]);
+	});
 });

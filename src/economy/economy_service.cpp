@@ -133,23 +133,32 @@ BuyResult EconomyService::Buy(const std::string& username,
     }
 
     const Item* item = catalogue_.FindItem(item_id);
-    if (item == nullptr) return BuyResult{BuyStatus::kUnknownItem, user->balance};
-    if (item->starter || HasOwnershipRow(db_, user->id, item_id)) {
+    const bool is_item = item != nullptr;
+    if (!is_item && !catalogue_.HasSwatch(item_id)) {
+        return BuyResult{BuyStatus::kUnknownItem, user->balance};
+    }
+    if ((is_item && item->starter)
+        || (!is_item && catalogue_.IsStarterSwatch(item_id))
+        || HasOwnershipRow(db_, user->id, item_id)) {
         return BuyResult{BuyStatus::kAlreadyOwned, user->balance};
     }
     if (!catalogue_.IsBuyable(item_id, now)) {
         return BuyResult{BuyStatus::kNotAvailable, user->balance};
     }
 
-    const std::int64_t price = item->price;
-    if (user->balance < price) {
+    const std::optional<int> price = catalogue_.PriceOf(item_id);
+    if (!price.has_value()) {
+        return BuyResult{BuyStatus::kNotAvailable, user->balance};
+    }
+    if (user->balance < *price) {
         return BuyResult{BuyStatus::kInsufficient, user->balance};
     }
 
     auto ledger = db_.Exec(
         "INSERT INTO cash_ledger (user_id, amount, source, ref, created_at) "
         "VALUES (?, ?, 'purchase', ?, ?);",
-        {user->id, static_cast<int>(-price), request_id, static_cast<int>(now)});
+        {user->id, static_cast<int>(-*price), request_id,
+         static_cast<int>(now)});
     if (!ledger.has_value()) {
         /* A concurrent replay won the race; the stored balance stands. */
         const std::optional<UserRow> fresh = FindUser(db_, username);
@@ -167,7 +176,7 @@ BuyResult EconomyService::Buy(const std::string& username,
 
     auto update = db_.Exec(
         "UPDATE users SET cash_balance = cash_balance - ? WHERE id = ?;",
-        {static_cast<int>(price), user->id});
+        {static_cast<int>(*price), user->id});
     if (!update.has_value()) {
         return BuyResult{BuyStatus::kNoAccount, user->balance};
     }
@@ -175,7 +184,7 @@ BuyResult EconomyService::Buy(const std::string& username,
     if (!tx.Commit().has_value()) {
         return BuyResult{BuyStatus::kNoAccount, user->balance};
     }
-    return BuyResult{BuyStatus::kOk, user->balance - price};
+    return BuyResult{BuyStatus::kOk, user->balance - *price};
 }
 
 bool EconomyService::GrantItem(const std::string& username,
@@ -206,10 +215,14 @@ bool EconomyService::OwnsItem(const std::string& username,
     return row.has_value() && row->has_value();
 }
 
-bool EconomyService::OwnsSwatch(const std::string& /*username*/,
+bool EconomyService::OwnsSwatch(const std::string& username,
                                 const std::string& swatch_id) const {
-    /* Palettes are not purchasable yet, so only starter swatches are owned. */
-    return catalogue_.IsStarterSwatch(swatch_id);
+    if (catalogue_.IsStarterSwatch(swatch_id)) return true;
+    auto row = db_.QueryOne(
+        "SELECT 1 AS present FROM item_ownership WHERE user_id = "
+        "(SELECT id FROM users WHERE username = ?) AND item_id = ?;",
+        {username, swatch_id});
+    return row.has_value() && row->has_value();
 }
 
 }  // namespace uni::economy

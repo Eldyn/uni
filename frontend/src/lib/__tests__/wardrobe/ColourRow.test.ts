@@ -52,9 +52,31 @@ describe("ColourRow", () => {
 		const locked = [...container.querySelectorAll<HTMLButtonElement>('[data-locked="true"]')];
 		expect(locked.length).toBeGreaterThan(0);
 		for (const swatch of locked) {
-			expect(swatch).toBeDisabled();
+			expect(swatch).toHaveAttribute("aria-disabled", "true");
 			expect(swatch.dataset.swatchId).toBe("uni:neon:hot");
 		}
+	});
+
+	it("shows a lock icon and a buy prompt on a locked swatch", () => {
+		const { container } = renderRow({
+			locked: new Set(["uni:neon:hot"]),
+			lockedLabel: "Buy this color in the Shop"
+		});
+
+		const locked = container.querySelector<HTMLButtonElement>('[data-swatch-id="uni:neon:hot"]');
+		expect(locked).toHaveAttribute("title", "Buy this color in the Shop");
+		expect(locked?.querySelector(".pixelart-icons-font-lock")).not.toBeNull();
+	});
+
+	it("asks to buy when a locked swatch is clicked", async () => {
+		const onlocked = vi.fn();
+		const { container } = renderRow({
+			locked: new Set(["uni:neon:hot"]),
+			onlocked
+		});
+
+		await fireEvent.click(container.querySelector('[data-swatch-id="uni:neon:hot"]')!);
+		expect(onlocked).toHaveBeenCalledTimes(1);
 	});
 
 	it("picks a swatch for the row's region", async () => {

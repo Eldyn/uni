@@ -236,6 +236,29 @@ std::vector<Palette> ParsePalettes(const json& doc) {
             if (!IsHexColour(swatch.hex)) {
                 Reject(swatch_where + ".hex '" + swatch.hex + "' must be #rrggbb");
             }
+            const auto price_node = node_swatch.find("price");
+            if (price_node != node_swatch.end() && !price_node->is_null()) {
+                if (!price_node->is_number_integer()) {
+                    Reject(swatch_where + " 'price' must be an integer");
+                }
+                if (price_node->get<std::int64_t>() < 0) {
+                    Reject(swatch_where + " 'price' must not be negative");
+                }
+                swatch.price = price_node->get<int>();
+            }
+            swatch.rarity = "common";
+            const auto rarity_node = node_swatch.find("rarity");
+            if (rarity_node != node_swatch.end() && !rarity_node->is_null()) {
+                if (!rarity_node->is_string()) {
+                    Reject(swatch_where + " 'rarity' must be a string");
+                }
+                if (!Contains(Rarities(), rarity_node->get<std::string>())) {
+                    Reject(swatch_where + " 'rarity' is not a rarity");
+                }
+                swatch.rarity = rarity_node->get<std::string>();
+            }
+            swatch.hidden = BoolField(node_swatch, "hidden", swatch_where);
+            swatch.unlisted = BoolField(node_swatch, "unlisted", swatch_where);
             if (!seen_swatches.insert(swatch.id).second) {
                 Reject("duplicate swatch id '" + swatch.id + "'");
             }
@@ -481,6 +504,18 @@ Catalogue Catalogue::ParseDoc(const json& doc) {
     Catalogue catalogue;
     catalogue.items_ = ParseItems(doc);
     catalogue.palettes_ = ParsePalettes(doc);
+    std::unordered_set<std::string> catalogue_ids;
+    for (const Item& item : catalogue.items_) catalogue_ids.insert(item.id);
+    for (const Palette& palette : catalogue.palettes_) {
+        if (!catalogue_ids.insert(palette.id).second) {
+            Reject("duplicate catalogue id '" + palette.id + "'");
+        }
+        for (const Swatch& swatch : palette.swatches) {
+            if (!catalogue_ids.insert(swatch.id).second) {
+                Reject("duplicate catalogue id '" + swatch.id + "'");
+            }
+        }
+    }
     ValidateDefaultColours(catalogue.items_, catalogue.palettes_);
 
     std::unordered_set<std::string> item_ids;
@@ -566,9 +601,17 @@ bool Catalogue::HasSwatch(const std::string& swatch_id) const {
 bool Catalogue::IsBuyable(const std::string& item_id,
                           std::int64_t now_unix) const {
     const Item* item = FindItem(item_id);
-    if (item == nullptr || item->starter || item->hidden || item->unlisted) {
+    if (item == nullptr) {
+        for (const Palette& palette : palettes_) {
+            for (const Swatch& swatch : palette.swatches) {
+                if (swatch.id != item_id) continue;
+                return !palette.starter && !swatch.hidden && !swatch.unlisted
+                       && swatch.price.has_value();
+            }
+        }
         return false;
     }
+    if (item->starter || item->hidden || item->unlisted) return false;
     const std::string now = ToIso8601Utc(now_unix);
     if (!item->available_from.empty() && now < item->available_from) {
         return false;
@@ -584,6 +627,9 @@ std::optional<int> Catalogue::PriceOf(const std::string& id) const {
     if (item != nullptr) return item->price;
     for (const Palette& palette : palettes_) {
         if (palette.id == id) return palette.price;
+        for (const Swatch& swatch : palette.swatches) {
+            if (swatch.id == id) return swatch.price;
+        }
     }
     return std::nullopt;
 }
