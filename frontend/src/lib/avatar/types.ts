@@ -42,6 +42,10 @@ export interface CatalogueItem {
 export interface Swatch {
 	id: string;
 	hex: string; // "#rrggbb"
+	price?: number; // absent = not sold alone
+	rarity?: Rarity;
+	hidden?: boolean;
+	unlisted?: boolean;
 }
 export interface Palette {
 	id: string;

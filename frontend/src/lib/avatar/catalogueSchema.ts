@@ -76,7 +76,11 @@ const itemSchema = z.object({
 
 const swatchSchema = z.object({
 	id: z.string(),
-	hex: z.string().regex(HEX, "hex must be #rrggbb")
+	hex: z.string().regex(HEX, "hex must be #rrggbb"),
+	price: z.number().int().nonnegative().optional(),
+	rarity: z.enum(RARITIES).optional(),
+	hidden: z.boolean().optional(),
+	unlisted: z.boolean().optional()
 });
 
 const paletteSchema = z.object({
@@ -199,6 +203,14 @@ function refineCatalogue(catalogue: z.infer<typeof baseCatalogueSchema>, ctx: z.
 
 	const seenSwatches = new Set<string>();
 	catalogue.palettes.forEach((palette, paletteIndex) => {
+		if (seenIds.has(palette.id)) {
+			ctx.addIssue({
+				code: "custom",
+				message: `duplicate catalogue id "${palette.id}"`,
+				path: ["palettes", paletteIndex, "id"]
+			});
+		}
+		seenIds.add(palette.id);
 		palette.swatches.forEach((swatch, swatchIndex) => {
 			if (seenSwatches.has(swatch.id)) {
 				ctx.addIssue({
@@ -207,7 +219,15 @@ function refineCatalogue(catalogue: z.infer<typeof baseCatalogueSchema>, ctx: z.
 					path: ["palettes", paletteIndex, "swatches", swatchIndex, "id"]
 				});
 			}
+			if (seenIds.has(swatch.id)) {
+				ctx.addIssue({
+					code: "custom",
+					message: `duplicate catalogue id "${swatch.id}"`,
+					path: ["palettes", paletteIndex, "swatches", swatchIndex, "id"]
+				});
+			}
 			seenSwatches.add(swatch.id);
+			seenIds.add(swatch.id);
 		});
 	});
 }

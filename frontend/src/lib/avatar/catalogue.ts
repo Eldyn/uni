@@ -1,6 +1,6 @@
 import catalogueJson from "$avatar/catalogue.json";
 import { parseCatalogue } from "./catalogueSchema";
-import type { AvatarSlot, Catalogue, CatalogueItem, Swatch } from "./types";
+import type { AvatarSlot, Catalogue, CatalogueItem, Palette, Swatch } from "./types";
 
 let cache: Catalogue | undefined;
 
@@ -59,13 +59,18 @@ export function featuredItems(now: Date): CatalogueItem[] {
 		.map((id) => getItem(id) as CatalogueItem);
 }
 
-/** The swatch with this id, or `undefined` when no palette holds it. */
-export function getSwatch(id: string): Swatch | undefined {
+/** The swatch and its palette, or `undefined` when no palette holds it. */
+export function findSwatch(id: string): { swatch: Swatch; palette: Palette } | undefined {
 	for (const palette of getCatalogue().palettes) {
 		const swatch = palette.swatches.find((entry) => entry.id === id);
-		if (swatch) return swatch;
+		if (swatch) return { swatch, palette };
 	}
 	return undefined;
+}
+
+/** The swatch with this id, or `undefined` when no palette holds it. */
+export function getSwatch(id: string): Swatch | undefined {
+	return findSwatch(id)?.swatch;
 }
 
 /** Whether the swatch belongs to a starter palette. */

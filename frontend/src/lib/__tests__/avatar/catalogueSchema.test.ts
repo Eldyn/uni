@@ -319,3 +319,52 @@ describe("default_colors", () => {
 		expect(() => parseCatalogue(catalogue)).toThrow(ZodError);
 	});
 });
+
+describe("swatch metadata", () => {
+	function swatches(catalogue: Record<string, unknown>): Record<string, unknown>[] {
+		return (catalogue.palettes as { swatches: Record<string, unknown>[] }[])[0].swatches;
+	}
+
+	it("accepts a price, rarity, hidden and unlisted on a swatch", () => {
+		const catalogue = validCatalogue();
+		const swatch = swatches(catalogue)[0];
+		swatch.price = 250;
+		swatch.rarity = "uncommon";
+		swatch.hidden = true;
+		swatch.unlisted = true;
+
+		const parsed = parseCatalogue(catalogue).palettes[0].swatches[0];
+		expect(parsed.price).toBe(250);
+		expect(parsed.rarity).toBe("uncommon");
+		expect(parsed.hidden).toBe(true);
+		expect(parsed.unlisted).toBe(true);
+	});
+
+	it("rejects an unknown rarity", () => {
+		const catalogue = validCatalogue();
+		swatches(catalogue)[0].rarity = "mythic";
+		expect(() => parseCatalogue(catalogue)).toThrow(ZodError);
+	});
+
+	it("rejects a negative or fractional price", () => {
+		const negative = validCatalogue();
+		swatches(negative)[0].price = -1;
+		expect(() => parseCatalogue(negative)).toThrow(ZodError);
+
+		const fractional = validCatalogue();
+		swatches(fractional)[0].price = 1.5;
+		expect(() => parseCatalogue(fractional)).toThrow(ZodError);
+	});
+
+	it("rejects a non-boolean hidden", () => {
+		const catalogue = validCatalogue();
+		swatches(catalogue)[0].hidden = "yes";
+		expect(() => parseCatalogue(catalogue)).toThrow(ZodError);
+	});
+
+	it("rejects a swatch id that is also an item id", () => {
+		const catalogue = validCatalogue();
+		swatches(catalogue)[0].id = "uni:round";
+		expect(() => parseCatalogue(catalogue)).toThrow(ZodError);
+	});
+});
