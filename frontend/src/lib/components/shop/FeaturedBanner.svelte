@@ -1,4 +1,4 @@
-<!-- The shop's featured hero: a wide card with a slight skew, the live preview
+<!-- The shop's featured hero: a wide flat card, the live preview
      avatar wearing the item, the name, rarity and price, and the BUY / TRY ON
      actions. It renders nothing when the catalogue has no featured item. -->
 <script lang="ts">
@@ -102,8 +102,6 @@
 		align-items: center;
 		gap: 1rem;
 		padding: 1rem;
-		/* A deliberate break from the grid: the hero leans a little. */
-		transform: skewX(-2deg);
 		border: 2px solid var(--rarity-colour);
 		background: linear-gradient(135deg, var(--surface-violet), var(--surface-deep));
 	}
