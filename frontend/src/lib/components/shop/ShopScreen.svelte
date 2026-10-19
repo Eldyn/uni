@@ -5,6 +5,7 @@
 <script lang="ts">
 	import { getCatalogue } from "$lib/avatar/catalogue";
 	import { defaultLoadout } from "$lib/avatar/defaultLoadout";
+	import { tick } from "svelte";
 	import { isBuyableNow } from "$lib/shop/shopBackend";
 	import type { BuyFailure } from "$lib/shop/shopBackend";
 	import type { AvatarSlot, CatalogueItem, Loadout } from "$lib/avatar/types";
@@ -58,6 +59,8 @@
 	let buyError = $state<BuyFailure | null>(null);
 	let focusedCard = $state(0);
 	let gridEl: HTMLDivElement | undefined = $state();
+	/** The card that opened the drawer, so closing it can return focus. */
+	let triggerId = $state<string | null>(null);
 
 	/** The preview look: TRY ON edits this copy, never the saved loadout. */
 	let previewLoadout = $state<Loadout | null>(storeAvatar.loadout ?? defaultLoadout());
@@ -92,13 +95,21 @@
 	}
 
 	function openDetail(item: CatalogueItem): void {
+		triggerId = item.id;
 		selected = item;
 		buyError = null;
 	}
 
-	function closeDetail(): void {
+	async function closeDetail(): Promise<void> {
 		selected = null;
 		buyError = null;
+		const id = triggerId;
+		// INFO: let the drawer unmount before moving focus back to the grid.
+		await tick();
+		const card = [...(gridEl?.querySelectorAll<HTMLElement>("[data-item-id]") ?? [])].find(
+			(entry) => entry.dataset.itemId === id
+		);
+		card?.focus();
 	}
 
 	/** The preview look with one item equipped, on a fresh copy. */

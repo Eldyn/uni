@@ -75,7 +75,13 @@
 	});
 </script>
 
-<div class="item-detail" role="dialog" aria-label={name} tabindex="-1">
+<div
+	class="item-detail"
+	role="dialog"
+	aria-label={name}
+	tabindex="-1"
+	style="--rarity-colour: {RARITY_COLOURS[item.rarity]}"
+>
 	<button type="button" class="detail-close font-tiny" aria-label={closeLabel} onclick={onclose}>
 		<span aria-hidden="true">×</span>
 	</button>
@@ -117,15 +123,23 @@
 
 <style>
 	.item-detail {
-		position: relative;
+		position: fixed;
+		top: 0;
+		right: 0;
+		bottom: 0;
+		z-index: 40;
 		display: flex;
 		flex-direction: column;
 		align-items: center;
 		gap: 0.4rem;
+		width: min(360px, 92vw);
 		min-width: 0;
-		padding: 1rem;
-		border: 2px solid var(--border);
+		padding: 1.5rem 1rem;
+		overflow-y: auto;
+		border-left: 2px solid var(--rarity-colour);
 		background: var(--surface);
+		/* A rarity-coloured glow marks the drawer's edge over the grid. */
+		box-shadow: -8px 0 24px color-mix(in srgb, var(--rarity-colour) 45%, transparent);
 	}
 
 	.detail-close {

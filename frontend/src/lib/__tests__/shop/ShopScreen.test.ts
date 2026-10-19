@@ -118,6 +118,20 @@ describe("ShopScreen", () => {
 		expect(screen.getByRole("dialog")).toBeInTheDocument();
 	});
 
+	it("returns focus to the card when the detail drawer closes", async () => {
+		const { container } = render(ShopScreen);
+		flushSync();
+
+		const card = cardFor(container, "uni:hat_cap");
+		await fireEvent.click(card);
+		expect(screen.getByRole("dialog")).toBeInTheDocument();
+
+		await fireEvent.keyDown(window, { key: "Escape" });
+
+		await vi.waitFor(() => expect(document.activeElement).toBe(card));
+		expect(screen.queryByRole("dialog")).toBeNull();
+	});
+
 	it("buys an item, updates the balance chip and marks the card owned", async () => {
 		shopMock.buy.mockImplementation(async (id: string): Promise<BuyResult> => {
 			shopMock.owned.add(id);
