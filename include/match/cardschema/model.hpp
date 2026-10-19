@@ -39,6 +39,7 @@ struct MemberDef {
     std::vector<std::string> tags;
     int order = 0;
     ContributionMap contribute;
+    json contribute_raw = json();       // parsed into `contribute` in a later step
     json properties = json::object();   // typed data, e.g. points
     std::string identifier_alias;
     std::string file;
