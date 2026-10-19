@@ -1,0 +1,42 @@
+[
+  {
+    "kind_id": "test:bomb",
+    "title": "Bomb",
+    "face": {
+      "kind": "image",
+      "art": "bomb",
+      "color": "white",
+      "label": "bomb",
+      "art_version": 1,
+      "art_mode": "inset",
+      "art_fit": "contain",
+      "keep": [
+        "border"
+      ]
+    },
+    "tags": [
+      "wild",
+      "action"
+    ],
+    "behavior_sha256": "2c19f96637f1a494ec7c4b9473a38ce3e4d1a06402c1f129662cb5d50ef6b7f6",
+    "has_window": false,
+    "has_auto_trigger": false
+  },
+  {
+    "kind_id": "test:emoji_wild",
+    "title": "Emoji Wild",
+    "face": {
+      "kind": "emoji",
+      "color": "white",
+      "label": "🌟",
+      "art_version": 1
+    },
+    "tags": [
+      "wild",
+      "action"
+    ],
+    "behavior_sha256": "17c4c107f4331c14a8e4466b53fd15149f92acf95d8635a314a7f1baad5ac5a6",
+    "has_window": false,
+    "has_auto_trigger": false
+  }
+]
