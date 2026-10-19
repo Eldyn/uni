@@ -46,7 +46,7 @@ describe("CardsPlayedChart", () => {
 	it("starts on the first group and shows its bars", () => {
 		render(CardsPlayedChart, { props: { groups: allGroups() } });
 
-		expect(screen.getByRole("tab", { name: "Colours" })).toHaveAttribute("aria-selected", "true");
+		expect(screen.getByRole("tab", { name: "Colors" })).toHaveAttribute("aria-selected", "true");
 		expect(screen.getByText("Red")).toBeInTheDocument();
 		expect(screen.getByText("41")).toBeInTheDocument();
 		expect(screen.queryByText("1")).not.toBeInTheDocument();
@@ -166,7 +166,7 @@ describe("CardsPlayedChart", () => {
 
 		expect(screen.getByRole("tablist")).toBeInTheDocument();
 		expect(screen.getAllByRole("tab")).toHaveLength(1);
-		expect(screen.getByRole("tab", { name: "Colours" })).toHaveAttribute("aria-selected", "true");
+		expect(screen.getByRole("tab", { name: "Colors" })).toHaveAttribute("aria-selected", "true");
 		expect(screen.getByText("Red")).toBeInTheDocument();
 	});
 });
