@@ -165,10 +165,21 @@ describe("ProfileAccount", () => {
 		expect(screen.queryByRole("button", { name: /verify/i })).not.toBeInTheDocument();
 	});
 
-	it("shows email verified status for verified accounts", () => {
+	it("shows email verified status with a check icon in the tiny font", () => {
 		vi.mocked(storeAuth).isLoggedIn = true;
 		vi.mocked(storeAuth).emailVerified = true;
-		render(ProfileAccount);
-		expect(screen.getByText("Email verified")).toBeInTheDocument();
+		const { container } = render(ProfileAccount);
+
+		const line = screen.getByText("Email verified").closest(".email-status");
+		expect(line).toHaveClass("font-tiny");
+		expect(container.querySelector(".email-status .pixelart-icons-font-check")).not.toBeNull();
+	});
+
+	it("shows no check icon while the email is not verified", () => {
+		vi.mocked(storeAuth).isLoggedIn = true;
+		vi.mocked(storeAuth).emailVerified = false;
+		const { container } = render(ProfileAccount);
+
+		expect(container.querySelector(".email-status .pixelart-icons-font-check")).toBeNull();
 	});
 });
