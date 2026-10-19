@@ -6,6 +6,7 @@
      seats. -->
 <script lang="ts">
 	import Avatar from "$components/common/Avatar.svelte";
+	import { seatLoadout } from "$lib/avatar/randomLoadout";
 
 	const SLOTS = 4;
 
@@ -13,12 +14,15 @@
 		filled,
 		max,
 		sizeClass = "h-4 w-4",
-		gapClass = "gap-1.5"
+		gapClass = "gap-1.5",
+		seedKey = ""
 	}: {
 		filled: number;
 		max: number;
 		sizeClass?: string;
 		gapClass?: string;
+		/** Lobby id; seeds the look of each seat icon. */
+		seedKey?: string;
 	} = $props();
 
 	const slotFill = $derived.by((): number[] => {
@@ -45,7 +49,7 @@
 					class="clip-fill absolute inset-0 overflow-hidden"
 					style="clip-path: inset(0 {(1 - frac) * 100}% 0 0);"
 				>
-					<Avatar size={16} />
+					<Avatar loadout={seatLoadout(seedKey, i)} size={16} />
 				</div>
 			{/if}
 		</div>

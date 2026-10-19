@@ -5,6 +5,7 @@
 <script lang="ts">
 	import { getCatalogue } from "$lib/avatar/catalogue";
 	import { defaultLoadout } from "$lib/avatar/defaultLoadout";
+	import { defaultItemChoice } from "$lib/avatar/previewLoadout";
 	import { onMount, tick } from "svelte";
 	import { isBuyableNow } from "$lib/shop/shopBackend";
 	import type { BuyFailure } from "$lib/shop/shopBackend";
@@ -68,6 +69,9 @@
 	/** The preview look: TRY ON edits this copy, never the saved loadout. */
 	let previewLoadout = $state<Loadout | null>(storeAvatar.loadout ?? defaultLoadout());
 
+	/** The viewer's saved look: the shape and skin that dress each item tile. */
+	const viewerLoadout = $derived(storeAvatar.loadout ?? defaultLoadout());
+
 	const tabs = $derived(
 		TAB_DEFS.map((tab) => ({ id: tab.id, label: shopItemText(tab.key, tab.fallback, locale) }))
 	);
@@ -119,7 +123,10 @@
 		if (item.slot === "shape") return { ...loadout, shape: item.id };
 		return {
 			...loadout,
-			slots: { ...loadout.slots, [item.slot]: { item: item.id, colours: [] } }
+			slots: {
+				...loadout.slots,
+				[item.slot]: defaultItemChoice(item, loadout.skin, owned.has(item.id))
+			}
 		};
 	}
 
@@ -229,6 +236,7 @@
 			owned={owned.has(selected.id)}
 			{balance}
 			{guest}
+			loadout={viewerLoadout}
 			onbuy={() => buy(selected)}
 			ontry={() => tryOn(selected)}
 			onclose={closeDetail}
@@ -253,6 +261,7 @@
 					{item}
 					owned={owned.has(item.id)}
 					selected={index === focusedCard}
+					loadout={viewerLoadout}
 					onselect={() => openDetail(item)}
 				/>
 			{/each}

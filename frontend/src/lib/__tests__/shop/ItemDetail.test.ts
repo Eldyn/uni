@@ -2,7 +2,22 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/svelte";
 import ItemDetail from "$components/shop/ItemDetail.svelte";
 import type { BuyFailure } from "$lib/shop/shopBackend";
-import type { CatalogueItem } from "$lib/avatar/types";
+import { itemPreviewLoadout } from "$lib/avatar/previewLoadout";
+import type { CatalogueItem, Loadout } from "$lib/avatar/types";
+
+const baked = vi.hoisted(() => ({ set: vi.fn(), destroy: vi.fn() }));
+
+vi.mock("$lib/avatar/useBakedAvatar.svelte", () => ({
+	createBakedAvatar: () => ({
+		get url() {
+			return "blob:item";
+		},
+		set: baked.set,
+		destroy: baked.destroy
+	})
+}));
+
+const viewer: Loadout = { shape: "uni:round", skin: "basic:green", slots: {} };
 
 function makeItem(overrides: Partial<CatalogueItem> = {}): CatalogueItem {
 	return {
@@ -20,7 +35,16 @@ function makeItem(overrides: Partial<CatalogueItem> = {}): CatalogueItem {
 function renderDetail(item: CatalogueItem, props: Record<string, unknown> = {}) {
 	const handlers = { onbuy: vi.fn(), ontry: vi.fn(), onclose: vi.fn() };
 	const utils = render(ItemDetail, {
-		props: { item, owned: false, balance: 1500, guest: false, error: null, ...handlers, ...props }
+		props: {
+			item,
+			owned: false,
+			balance: 1500,
+			guest: false,
+			error: null,
+			loadout: viewer,
+			...handlers,
+			...props
+		}
 	});
 	return { ...handlers, ...utils };
 }
@@ -33,6 +57,17 @@ describe("ItemDetail", () => {
 		expect(screen.getByText("uni:test")).toBeInTheDocument();
 		expect(screen.getByText("600")).toBeInTheDocument();
 		expect(container.querySelector('[data-rarity="rare"]')).toBeTruthy();
+	});
+
+	it("bakes the item with default colors on the detail art", () => {
+		baked.set.mockClear();
+		const item = makeItem();
+		const { container } = renderDetail(item, { owned: false });
+
+		expect(container.querySelector(".item-art")?.getAttribute("style") ?? "").not.toContain(
+			"background-image"
+		);
+		expect(baked.set).toHaveBeenCalledWith(itemPreviewLoadout(item, viewer, false));
 	});
 
 	it("disables BUY and shows the reason when the balance is below the price", () => {

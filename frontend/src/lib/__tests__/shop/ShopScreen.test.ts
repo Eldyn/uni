@@ -243,9 +243,15 @@ describe("ShopScreen", () => {
 		render(ShopScreen);
 		flushSync();
 
-		expect(bakedSets.at(-1)).toMatchObject({
-			slots: { head_top: { item: "uni:hat_cap" } }
-		});
+		// INFO: item tiles bake too, so find the full-body banner look.
+		expect(bakedSets).toContainEqual(
+			expect.objectContaining({
+				slots: expect.objectContaining({
+					eyes: expect.anything(),
+					head_top: expect.objectContaining({ item: "uni:hat_cap" })
+				})
+			})
+		);
 	});
 
 	it("moves between tabs and cards with the arrow keys", async () => {
