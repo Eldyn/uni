@@ -72,7 +72,6 @@
 		TAB_DEFS.map((tab) => ({ id: tab.id, label: shopItemText(tab.key, tab.fallback, locale) }))
 	);
 
-	const title = $derived(shopItemText("shop_title", "Shop", locale));
 	const tabsLabel = $derived(shopItemText("shop_tabs_label", "Shop categories", locale));
 	const gridLabel = $derived(shopItemText("shop_grid_label", "Shop items", locale));
 	const emptyLabel = $derived(shopItemText("shop_empty_slot", "Nothing here yet.", locale));
@@ -207,7 +206,6 @@
 	<ShopBackdrop dim={0.15} />
 
 	<header class="shop-header">
-		<h1 class="shop-title title-screen font-heading">{title}</h1>
 		<span class="shop-balance font-pixel" data-balance={balance}>
 			<span class="coin" aria-hidden="true"></span>{balance}
 		</span>
@@ -288,12 +286,8 @@
 	.shop-header {
 		display: flex;
 		align-items: center;
-		justify-content: space-between;
+		justify-content: flex-end;
 		gap: 1rem;
-	}
-
-	.shop-title {
-		margin: 0;
 	}
 
 	.shop-balance {
