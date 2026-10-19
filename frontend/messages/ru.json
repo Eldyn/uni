@@ -489,6 +489,7 @@
 	"shop_error_not_available": "Этот товар больше недоступен.",
 	"shop_error_unknown_item": "Этого товара не существует.",
 	"shop_error_guest": "Зарегистрируйтесь, чтобы купить.",
+	"shop_error_network": "Не удалось подключиться к серверу. Попробуйте ещё раз.",
 	"shop_rarity_common": "Обычное",
 	"shop_rarity_uncommon": "Необычное",
 	"shop_rarity_rare": "Редкое",

@@ -21,7 +21,7 @@
 		unequip
 	} from "$lib/avatar/draftLoadout";
 	import type { AvatarSlot, CatalogueItem, Loadout, PartSlot, Swatch } from "$lib/avatar/types";
-	import { shopMock } from "$lib/stores/shopMock.svelte";
+	import { storeShop } from "$lib/stores/shop.svelte";
 	import { storeAuth } from "$stores/auth.svelte";
 	import { storeAvatar } from "$stores/avatar.svelte";
 	import { storeI18n } from "$stores/i18n.svelte";
@@ -65,7 +65,7 @@
 	const allowNone = $derived(OPTIONAL_SLOTS.includes(activeTab));
 
 	const ownedIds = $derived.by(() => {
-		const ids = new Set<string>(shopMock.owned);
+		const ids = new Set<string>(storeShop.owned);
 		for (const item of catalogue.items) if (item.starter === true) ids.add(item.id);
 		return ids;
 	});
@@ -80,7 +80,7 @@
 	const lockedSwatches = $derived(
 		new Set(
 			catalogue.palettes
-				.filter((palette) => palette.starter !== true && !shopMock.owned.has(palette.id))
+				.filter((palette) => palette.starter !== true && !storeShop.owned.has(palette.id))
 				.flatMap((palette) => palette.swatches.map((swatch) => swatch.id))
 		)
 	);
@@ -172,6 +172,7 @@
 	}
 
 	onMount(() => {
+		if (!guest) void storeShop.fetchMine?.();
 		function handleKeydown(event: KeyboardEvent): void {
 			if (event.key === "Escape" && !confirmOpen) requestLeave();
 		}

@@ -489,6 +489,7 @@
 	"shop_error_not_available": "Este objeto ya no está disponible.",
 	"shop_error_unknown_item": "Este objeto no existe.",
 	"shop_error_guest": "Regístrate para comprar.",
+	"shop_error_network": "No se pudo conectar con el servidor. Inténtalo de nuevo.",
 	"shop_rarity_common": "Común",
 	"shop_rarity_uncommon": "Poco común",
 	"shop_rarity_rare": "Raro",

@@ -5,14 +5,15 @@
 <script lang="ts">
 	import { getCatalogue } from "$lib/avatar/catalogue";
 	import { defaultLoadout } from "$lib/avatar/defaultLoadout";
-	import { tick } from "svelte";
+	import { onMount, tick } from "svelte";
 	import { isBuyableNow } from "$lib/shop/shopBackend";
 	import type { BuyFailure } from "$lib/shop/shopBackend";
 	import type { AvatarSlot, CatalogueItem, Loadout } from "$lib/avatar/types";
-	import { shopMock } from "$lib/stores/shopMock.svelte";
+	import { storeShop } from "$lib/stores/shop.svelte";
 	import { storeAuth } from "$stores/auth.svelte";
 	import { storeAvatar } from "$stores/avatar.svelte";
 	import { storeI18n } from "$stores/i18n.svelte";
+	import { storeNavigation } from "$stores/navigation.svelte";
 	import { shopItemText } from "$components/shop/ItemCard.svelte";
 	import ItemCard from "$components/shop/ItemCard.svelte";
 	import ItemDetail from "$components/shop/ItemDetail.svelte";
@@ -51,8 +52,10 @@
 	const locale = $derived(storeI18n.locale);
 	const guest = $derived(storeAuth.isGuest);
 
-	let balance = $state(shopMock.balance);
-	let owned = $state<ReadonlySet<string>>(shopMock.owned);
+	let balance = $state(storeShop.balance);
+	let owned = $state<ReadonlySet<string>>(storeShop.owned);
+	/** True once the account's session was rejected, so the screen hands off to login. */
+	let needsLogin = $state(false);
 
 	let activeTab = $state("all");
 	let selected = $state<CatalogueItem | null>(null);
@@ -131,16 +134,29 @@
 	}
 
 	async function buy(item: CatalogueItem): Promise<void> {
-		const result = await shopMock.buy(item.id);
+		const result = await storeShop.buy(item.id);
 		if (result.ok) {
 			balance = result.balance;
 			// INFO: a fresh Set, so the grid's OWNED ribbons re-render.
-			owned = new Set(shopMock.owned);
+			owned = new Set(storeShop.owned);
 			buyError = null;
 		} else {
 			buyError = result.reason;
 		}
 	}
+
+	onMount(async () => {
+		if (guest) return;
+		await storeShop.fetchMine?.();
+		balance = storeShop.balance;
+		owned = new Set(storeShop.owned);
+		needsLogin = storeShop.needsLogin === true;
+	});
+
+	$effect(() => {
+		// INFO: an expired session goes to the login flow, not a blank shop.
+		if (needsLogin) storeNavigation.gotoAuth("login");
+	});
 
 	function focusCard(index: number): void {
 		const cards = gridEl?.querySelectorAll<HTMLElement>("[data-item-id]");

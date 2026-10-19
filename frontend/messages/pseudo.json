@@ -489,6 +489,7 @@
 	"shop_error_not_available": "[Thîš îtém îš ñö löñgér åvåîlåblé.~~~~~~~~~~~~~~~~]",
 	"shop_error_unknown_item": "[Thîš îtém döéš ñöt éxîšt.~~~~~~~~~~~~]",
 	"shop_error_guest": "[Régîštér tö büý.~~~~~~~~~]",
+	"shop_error_network": "[Çöüld ñöt réåçh thé šérvér. Trý ågåîñ ågåîñ.~~~~~~~~~~~~~~]",
 	"shop_rarity_common": "[Çömmöñ~~~~~]",
 	"shop_rarity_uncommon": "[Üñçömmöñ~~~~~~]",
 	"shop_rarity_rare": "[Råré~~~~]",
