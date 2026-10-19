@@ -103,9 +103,26 @@
 		clip-path: none;
 	}
 
+	/* A rarity-tinted diagonal stripe behind the whole card, so a common,
+	   uncommon, rare or epic card reads at a glance while the name and price
+	   stay on a surface they remain legible on. */
+	.item-card :global(.rarity-frame) {
+		background: repeating-linear-gradient(
+			135deg,
+			color-mix(in srgb, var(--rarity-colour) 22%, var(--surface-deep)) 0 9px,
+			color-mix(in srgb, var(--rarity-colour) 8%, var(--surface-deep)) 9px 18px
+		);
+		transition:
+			transform 0.12s ease,
+			box-shadow 0.12s ease,
+			filter 0.12s ease;
+	}
+
 	.item-card:hover :global(.rarity-frame),
 	.item-card:focus-visible :global(.rarity-frame) {
-		filter: brightness(1.15);
+		filter: brightness(1.12);
+		transform: translateY(-2px);
+		box-shadow: 0 0 14px color-mix(in srgb, var(--rarity-colour) 65%, transparent);
 	}
 
 	.item-art-tile {
