@@ -110,7 +110,12 @@
 	<!-- Row 2: player count (the focus) · join button, the two highlights -->
 	<div class="flex items-center justify-between gap-4">
 		<div class="flex items-center gap-2">
-			<OccupancyGauge filled={filled(lobby)} max={lobby.max} sizeClass={avatarCls} />
+			<OccupancyGauge
+				filled={filled(lobby)}
+				max={lobby.max}
+				sizeClass={avatarCls}
+				seedKey={lobby.invite_code}
+			/>
 			<span class="font-mono text-xs text-text-h/70">{filled(lobby)}/{lobby.max}</span>
 		</div>
 
