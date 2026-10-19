@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { setCatalogueForTest } from "$lib/avatar/catalogue";
 import { ART_VERSION, hashWithVersion, loadoutHash, resolveLayers } from "$lib/avatar/slotRules";
 import { hexToRgb } from "$lib/avatar/tint";
-import { avatarFixture, fullLoadout } from "./avatarFixture";
+import { avatarFixture, fullLoadout, sixRegionItem } from "./avatarFixture";
 
 function slotsOf(overrides: Parameters<typeof fullLoadout>[0] = {}) {
 	return resolveLayers(fullLoadout(overrides)).map((layer) => layer.slot);
@@ -62,6 +62,27 @@ describe("resolveLayers", () => {
 
 		expect(eyes.colours[0]).toBeUndefined();
 	});
+
+	it("a six-region motif keeps the skin in region 1 and five chosen colours", () => {
+		const catalogue = avatarFixture();
+		catalogue.items.push(sixRegionItem());
+		setCatalogueForTest(catalogue);
+
+		const layers = resolveLayers(
+			fullLoadout({
+				slots: {
+					motif: {
+						item: "uni:motif_rainbow",
+						colours: ["basic:green", "basic:green", "basic:green", "basic:green", "basic:green"]
+					}
+				}
+			})
+		);
+
+		const motif = layers.find((layer) => layer.slot === "motif");
+		expect(motif?.colours).toHaveLength(6);
+		expect(motif?.colours.every((colour) => colour !== undefined)).toBe(true);
+	});
 });
 
 describe("loadoutHash", () => {
@@ -104,5 +125,24 @@ describe("loadoutHash", () => {
 			hashWithVersion(loadout, ART_VERSION)
 		);
 		expect(loadoutHash(loadout)).toBe(hashWithVersion(loadout, ART_VERSION));
+	});
+
+	it("changes when the extra mask files of an item change", () => {
+		const loadout = fullLoadout({
+			slots: { motif: { item: "uni:motif_rainbow", colours: ["basic:green"] } }
+		});
+
+		const withMask = avatarFixture();
+		withMask.items.push(sixRegionItem());
+		setCatalogueForTest(withMask);
+		const hashWithMask = loadoutHash(loadout);
+
+		const otherMask = avatarFixture();
+		const item = sixRegionItem();
+		item.asset = { kind: "strip", path: item.asset.path, masks: ["motif/other_b.png"] };
+		otherMask.items.push(item);
+		setCatalogueForTest(otherMask);
+
+		expect(loadoutHash(loadout)).not.toBe(hashWithMask);
 	});
 });

@@ -44,6 +44,30 @@ describe("classifyPixel", () => {
 		expect(pixel.shade).toBeCloseTo(40 / 255);
 	});
 
+	it("maps (200,0,0,255) in file 1 to region 3", () => {
+		const pixel = classifyPixel(200, 0, 0, 255, 1);
+		expect(pixel.kind).toBe("region");
+		if (pixel.kind !== "region") return;
+		expect(pixel.index).toBe(3);
+		expect(pixel.shade).toBeCloseTo(200 / 255);
+	});
+
+	it("maps (0,90,0,255) in file 1 to region 4", () => {
+		const pixel = classifyPixel(0, 90, 0, 255, 1);
+		expect(pixel.kind === "region" && pixel.index).toBe(4);
+	});
+
+	it("maps (0,0,40,255) in file 1 to region 5", () => {
+		const pixel = classifyPixel(0, 0, 40, 255, 1);
+		expect(pixel.kind === "region" && pixel.index).toBe(5);
+	});
+
+	it("keeps clear, grey and invalid the same in file 1", () => {
+		expect(classifyPixel(1, 2, 3, 0, 1)).toEqual({ kind: "clear" });
+		expect(classifyPixel(128, 128, 128, 255, 1)).toEqual({ kind: "grey", value: 128 });
+		expect(classifyPixel(255, 255, 0, 255, 1)).toEqual({ kind: "invalid" });
+	});
+
 	it("maps (255,255,0,255) to invalid", () => {
 		expect(classifyPixel(255, 255, 0, 255)).toEqual({ kind: "invalid" });
 	});

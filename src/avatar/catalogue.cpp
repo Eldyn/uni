@@ -32,6 +32,13 @@ using nlohmann::json;
 /** @brief Repo-relative default, overridable with `UNI_AVATAR_CATALOGUE`. */
 constexpr const char* kDefaultPath = "avatar/catalogue.json";
 
+/** @brief Tint regions an item may have in total. */
+constexpr int kMaxRegions = 6;
+/** @brief Regions one mask file carries: the R, G and B channels. */
+constexpr int kRegionsPerFile = 3;
+/** @brief Extra mask files an asset may list (regions 4-6 are file two). */
+constexpr std::size_t kMaxExtraMasks = 1;
+
 /** @brief Reject `message` the way every parse-time failure is reported. */
 [[noreturn]] void Reject(const std::string& message) {
     throw std::runtime_error("avatar catalogue: " + message);
@@ -153,6 +160,30 @@ std::string ParseAsset(const json& asset, const std::string& where) {
     return kind;
 }
 
+/**
+ * @brief The number of extra mask files in an asset's optional `masks` list.
+ *
+ * Rejects a `masks` value that is not an array of strings, or one that lists
+ * more than `kMaxExtraMasks` files. Does not check that the files exist.
+ */
+std::size_t ParseMasks(const json& asset, const std::string& where) {
+    const auto masks = asset.find("masks");
+    if (masks == asset.end() || masks->is_null()) return 0;
+    if (!masks->is_array()) {
+        Reject(where + ".asset 'masks' must be an array");
+    }
+    if (masks->size() > kMaxExtraMasks) {
+        Reject(where + ".asset 'masks' holds at most "
+               + std::to_string(kMaxExtraMasks) + " file");
+    }
+    for (const json& mask : *masks) {
+        if (!mask.is_string()) {
+            Reject(where + ".asset 'masks' must hold strings");
+        }
+    }
+    return masks->size();
+}
+
 /** @brief Every shape must name all four sockets with an [x, y] offset. */
 void ParseShapeSockets(const json& doc) {
     const json& tables = RequireField(doc, "shape_sockets", "catalogue");
@@ -245,14 +276,22 @@ std::vector<Item> ParseItems(const json& doc) {
 
         const json& asset = RequireField(node, "asset", where);
         const std::string kind = ParseAsset(asset, where);
+        const std::size_t extra_masks = ParseMasks(asset, where);
 
         const json& regions = RequireField(node, "regions", where);
         if (!regions.is_number_integer()) {
             Reject(where + ".regions must be an integer");
         }
         item.regions = regions.get<int>();
-        if (item.regions < 0 || item.regions > 3) {
-            Reject(where + ".regions must be 0..3");
+        if (item.regions < 0 || item.regions > kMaxRegions) {
+            Reject(where + ".regions must be 0.." + std::to_string(kMaxRegions));
+        }
+        const int region_capacity =
+            kRegionsPerFile * (1 + static_cast<int>(extra_masks));
+        if (item.regions > region_capacity) {
+            Reject(where + ".regions " + std::to_string(item.regions)
+                   + " needs more 'masks' files (capacity "
+                   + std::to_string(region_capacity) + ")");
         }
 
         const std::string rarity = StringField(node, "rarity", where);

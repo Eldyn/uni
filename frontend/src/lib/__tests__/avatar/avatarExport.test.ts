@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { encodePng } from "../../../../scripts/avatar-placeholders.mjs";
+import { REGION_COLOURS, encodePng } from "../../../../scripts/avatar-placeholders.mjs";
 import { buildAsepriteArgs, checkStrip } from "../../../../scripts/avatar-export.mjs";
 
 /** A fully transparent RGBA buffer for the given pixel size. */
@@ -37,5 +37,15 @@ describe("checkStrip", () => {
 
 		expect(problems).toHaveLength(1);
 		expect(problems[0].toLowerCase()).toContain("png");
+	});
+});
+
+describe("REGION_COLOURS", () => {
+	it("has black plus six region colours, regions 4-6 in the channels of file two", () => {
+		expect(REGION_COLOURS).toHaveLength(7);
+		expect(REGION_COLOURS[1]).toEqual([255, 0, 0]);
+		expect(REGION_COLOURS[4]).toEqual([255, 0, 0]);
+		expect(REGION_COLOURS[5]).toEqual([0, 255, 0]);
+		expect(REGION_COLOURS[6]).toEqual([0, 0, 255]);
 	});
 });

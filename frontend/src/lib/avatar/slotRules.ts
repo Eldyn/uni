@@ -68,6 +68,7 @@ export function hashWithVersion(loadout: Loadout, version: number): string {
 	const layers = resolveLayers(loadout).map((layer) => ({
 		slot: layer.slot,
 		item: layer.item.id,
+		masks: layer.item.asset.masks ?? [],
 		colours: layer.colours.map((colour) => (colour ? [...colour] : null))
 	}));
 	return fnv1aHex(JSON.stringify({ version, layers }));

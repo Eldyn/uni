@@ -18,6 +18,7 @@ import {
 	slotDefault
 } from "$lib/avatar/catalogue";
 import type { Catalogue } from "$lib/avatar/types";
+import { sixRegionItem } from "./avatarFixture";
 
 const FROM = "2026-06-01T00:00:00Z";
 const UNTIL = "2026-07-01T00:00:00Z";
@@ -242,5 +243,15 @@ describe("catalogue queries", () => {
 
 	it("getCatalogue returns the installed catalogue", () => {
 		expect(getCatalogue().version).toBe(1);
+	});
+
+	it("keeps the extra mask files and the region count of an item", () => {
+		const catalogue = testCatalogue();
+		catalogue.items.push(sixRegionItem());
+		setCatalogueForTest(catalogue);
+
+		const item = getItem("uni:motif_rainbow");
+		expect(item?.regions).toBe(6);
+		expect(item?.asset.masks).toEqual(["motif/uni_motif_rainbow_b.png"]);
 	});
 });

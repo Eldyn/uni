@@ -82,9 +82,41 @@ describe("parseCatalogue", () => {
 		expect(() => parseCatalogue(catalogue)).toThrow(ZodError);
 	});
 
-	it("rejects regions above 3", () => {
+	it("accepts 4 regions when one extra mask file is listed", () => {
+		const catalogue = validCatalogue();
+		const eyes = items(catalogue)[1];
+		eyes.asset = { kind: "strip", path: "eyes/uni_eyes_dot.png", masks: ["eyes/b.png"] };
+		eyes.regions = 4;
+		expect(parseCatalogue(catalogue).items[1].regions).toBe(4);
+	});
+
+	it("rejects 4 regions with no extra mask file", () => {
 		const catalogue = validCatalogue();
 		items(catalogue)[1].regions = 4;
+		expect(() => parseCatalogue(catalogue)).toThrow(ZodError);
+	});
+
+	it("rejects regions above 6", () => {
+		const catalogue = validCatalogue();
+		const eyes = items(catalogue)[1];
+		eyes.asset = { kind: "strip", path: "eyes/uni_eyes_dot.png", masks: ["eyes/b.png"] };
+		eyes.regions = 7;
+		expect(() => parseCatalogue(catalogue)).toThrow(ZodError);
+	});
+
+	it("rejects more than one extra mask file", () => {
+		const catalogue = validCatalogue();
+		items(catalogue)[1].asset = {
+			kind: "strip",
+			path: "eyes/uni_eyes_dot.png",
+			masks: ["a.png", "b.png"]
+		};
+		expect(() => parseCatalogue(catalogue)).toThrow(ZodError);
+	});
+
+	it("rejects a masks entry that is not a string", () => {
+		const catalogue = validCatalogue();
+		items(catalogue)[1].asset = { kind: "strip", path: "eyes/uni_eyes_dot.png", masks: [7] };
 		expect(() => parseCatalogue(catalogue)).toThrow(ZodError);
 	});
 

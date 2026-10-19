@@ -160,10 +160,56 @@ TEST_CASE("avatar catalogue: rejects an id with no namespace") {
     CHECK_THROWS_AS(Catalogue::Parse(doc), std::runtime_error);
 }
 
-TEST_CASE("avatar catalogue: rejects regions above 3") {
+TEST_CASE("avatar catalogue: rejects regions above 6") {
     json doc = ValidDoc();
-    ItemAt(doc, "uni:eyes_dot")["regions"] = 4;
+    ItemAt(doc, "uni:eyes_dot")["regions"] = 7;
     CHECK_THROWS_AS(Catalogue::Parse(doc), std::runtime_error);
+}
+
+TEST_CASE("avatar catalogue: regions above 3 need an extra mask file") {
+    SUBCASE("accepts 6 regions with one extra mask") {
+        json doc = ValidDoc();
+        json& item = ItemAt(doc, "uni:eyes_dot");
+        item["asset"]["masks"] = json::array({"eyes/uni_eyes_dot_b.png"});
+        item["regions"] = 6;
+        CHECK_NOTHROW(Catalogue::Parse(doc));
+    }
+    SUBCASE("rejects 4 regions with no masks") {
+        json doc = ValidDoc();
+        ItemAt(doc, "uni:eyes_dot")["regions"] = 4;
+        CHECK_THROWS_AS(Catalogue::Parse(doc), std::runtime_error);
+    }
+    SUBCASE("rejects 4 regions with an empty masks list") {
+        json doc = ValidDoc();
+        json& item = ItemAt(doc, "uni:eyes_dot");
+        item["asset"]["masks"] = json::array();
+        item["regions"] = 4;
+        CHECK_THROWS_AS(Catalogue::Parse(doc), std::runtime_error);
+    }
+    SUBCASE("rejects 7 regions even with a mask") {
+        json doc = ValidDoc();
+        json& item = ItemAt(doc, "uni:eyes_dot");
+        item["asset"]["masks"] = json::array({"eyes/uni_eyes_dot_b.png"});
+        item["regions"] = 7;
+        CHECK_THROWS_AS(Catalogue::Parse(doc), std::runtime_error);
+    }
+    SUBCASE("rejects masks that is not an array") {
+        json doc = ValidDoc();
+        ItemAt(doc, "uni:eyes_dot")["asset"]["masks"] = "eyes/b.png";
+        CHECK_THROWS_AS(Catalogue::Parse(doc), std::runtime_error);
+    }
+    SUBCASE("rejects a masks entry that is not a string") {
+        json doc = ValidDoc();
+        ItemAt(doc, "uni:eyes_dot")["asset"]["masks"] = json::array({7});
+        CHECK_THROWS_AS(Catalogue::Parse(doc), std::runtime_error);
+    }
+    SUBCASE("rejects more than one extra mask") {
+        json doc = ValidDoc();
+        json& item = ItemAt(doc, "uni:eyes_dot");
+        item["asset"]["masks"] = json::array({"a.png", "b.png"});
+        item["regions"] = 3;
+        CHECK_THROWS_AS(Catalogue::Parse(doc), std::runtime_error);
+    }
 }
 
 TEST_CASE("avatar catalogue: rejects a missing shape starter") {

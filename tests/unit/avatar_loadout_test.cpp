@@ -138,6 +138,19 @@ json ValidDoc() {
                 "regions": 3,
                 "rarity": "epic",
                 "price": 500
+            },
+            {
+                "id": "uni:motif_rainbow",
+                "slot": "motif",
+                "name": "Rainbow",
+                "asset": {
+                    "kind": "strip",
+                    "path": "motif/uni_motif_rainbow.png",
+                    "masks": ["motif/uni_motif_rainbow_b.png"]
+                },
+                "regions": 6,
+                "rarity": "epic",
+                "price": 600
             }
         ],
         "featured": ["uni:hat_cap"]
@@ -376,6 +389,34 @@ TEST_CASE("avatar loadout: rejects too_many_colours") {
     loadout["slots"]["motif"] = Choice("uni:motif_patches");
     loadout["slots"]["motif"]["colours"] =
         json::array({"basic:red", "basic:blue", "uni:neon:hot", "basic:red"});
+
+    CheckRejected(ValidateLoadout(loadout, catalogue, ownership, "alice"),
+                  "too_many_colours");
+}
+
+TEST_CASE("avatar loadout: accepts six colours on a six-region item") {
+    const Catalogue catalogue = Catalogue::Parse(ValidDoc());
+    const OwnsEverything ownership;
+
+    json loadout = Loadout("uni:round", "basic:red");
+    loadout["slots"]["motif"] = Choice("uni:motif_rainbow");
+    for (int i = 0; i < 6; ++i) {
+        loadout["slots"]["motif"]["colours"].push_back("basic:red");
+    }
+
+    CHECK_FALSE(
+        ValidateLoadout(loadout, catalogue, ownership, "alice").has_value());
+}
+
+TEST_CASE("avatar loadout: rejects seven colours on a six-region item") {
+    const Catalogue catalogue = Catalogue::Parse(ValidDoc());
+    const OwnsEverything ownership;
+
+    json loadout = Loadout("uni:round", "basic:red");
+    loadout["slots"]["motif"] = Choice("uni:motif_rainbow");
+    for (int i = 0; i < 7; ++i) {
+        loadout["slots"]["motif"]["colours"].push_back("basic:red");
+    }
 
     CheckRejected(ValidateLoadout(loadout, catalogue, ownership, "alice"),
                   "too_many_colours");

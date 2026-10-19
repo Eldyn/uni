@@ -71,4 +71,32 @@ describe("ColourRow", () => {
 		expect(screen.getByText("Region 2")).toBeInTheDocument();
 		expect(screen.getByText("Region 3")).toBeInTheDocument();
 	});
+
+	it("renders six rows with labels 1 to 6 for a six-region item", () => {
+		const labels = [1, 2, 3, 4, 5, 6].map((n) => `Region ${n}`);
+		const { container } = renderRow({ regions: 6, colours: [], regionLabels: labels });
+
+		expect(container.querySelectorAll(".colour-row")).toHaveLength(6);
+		expect(screen.getByText("Region 6")).toBeInTheDocument();
+	});
+
+	it("falls back to Region N when no label is given", () => {
+		renderRow({ regions: 5, colours: [], regionLabels: [] });
+
+		expect(screen.getByText("Region 5")).toBeInTheDocument();
+	});
+
+	it("a motif with six regions shows skin plus five pickable rows", () => {
+		const labels = [1, 2, 3, 4, 5, 6].map((n) => `Region ${n}`);
+		const { container } = renderRow({
+			regions: 6,
+			colours: [],
+			regionLabels: labels,
+			skinFirst: true,
+			skinHex: "#123456"
+		});
+
+		expect(container.querySelectorAll('.colour-row:not([data-region="skin"])')).toHaveLength(5);
+		expect(screen.getByText("Region 6")).toBeInTheDocument();
+	});
 });
