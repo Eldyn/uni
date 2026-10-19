@@ -1,4 +1,4 @@
-import type { Catalogue, Loadout } from "$lib/avatar/types";
+import type { Catalogue, CatalogueItem, Loadout } from "$lib/avatar/types";
 
 /** Shared 5-frame bob, the same pattern the launch art uses. */
 export const FIXTURE_BOB: [number, number][] = [
@@ -148,5 +148,26 @@ export function fullLoadout(overrides: Partial<Loadout> = {}): Loadout {
 		skin: "basic:red",
 		...overrides,
 		slots: { ...slots, ...overrides.slots }
+	};
+}
+
+/**
+ * A six-region motif with one extra mask file. It is NOT part of
+ * `avatarFixture()`, so item counts in other tests stay the same. Tests push it
+ * into the catalogue they install.
+ */
+export function sixRegionItem(): CatalogueItem {
+	return {
+		id: "uni:motif_rainbow",
+		slot: "motif",
+		name: "Rainbow",
+		asset: {
+			kind: "strip",
+			path: "motif/uni_motif_rainbow.png",
+			masks: ["motif/uni_motif_rainbow_b.png"]
+		},
+		regions: 6,
+		rarity: "epic",
+		price: 600
 	};
 }

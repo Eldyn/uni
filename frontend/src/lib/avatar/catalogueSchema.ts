@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { AvatarSlot, Catalogue, Rarity, Socket } from "./types";
+import { MAX_EXTRA_MASKS, REGIONS_PER_FILE } from "./types";
 
 /** Slots a "still" asset must declare a socket for. */
 const PART_SLOTS: readonly AvatarSlot[] = ["eyes", "mouth", "head_top", "mask", "bodywear"];
@@ -34,12 +35,15 @@ const shapeSocketsSchema = z.record(
 	})
 );
 
+const extraMasks = z.array(z.string()).max(MAX_EXTRA_MASKS).optional();
+
 const itemAssetSchema = z.discriminatedUnion("kind", [
-	z.object({ kind: z.literal("strip"), path: z.string() }),
+	z.object({ kind: z.literal("strip"), path: z.string(), masks: extraMasks }),
 	z.object({
 		kind: z.literal("still"),
 		path: z.string(),
-		bob: z.array(z.tuple([z.number(), z.number()])).length(5)
+		bob: z.array(z.tuple([z.number(), z.number()])).length(5),
+		masks: extraMasks
 	})
 ]);
 
@@ -48,7 +52,15 @@ const itemSchema = z.object({
 	slot: z.enum(AVATAR_SLOTS),
 	name: z.string(),
 	asset: itemAssetSchema,
-	regions: z.union([z.literal(0), z.literal(1), z.literal(2), z.literal(3)]),
+	regions: z.union([
+		z.literal(0),
+		z.literal(1),
+		z.literal(2),
+		z.literal(3),
+		z.literal(4),
+		z.literal(5),
+		z.literal(6)
+	]),
 	rarity: z.enum(RARITIES),
 	price: z.number().int().nonnegative(),
 	socket: z.enum(SOCKETS).optional(),
@@ -121,6 +133,14 @@ function refineCatalogue(catalogue: z.infer<typeof baseCatalogueSchema>, ctx: z.
 				code: "custom",
 				message: `still item "${item.id}" needs a socket`,
 				path: ["items", index, "socket"]
+			});
+		}
+		const capacity = REGIONS_PER_FILE * (1 + (item.asset.masks?.length ?? 0));
+		if (item.regions > capacity) {
+			ctx.addIssue({
+				code: "custom",
+				message: `item "${item.id}" has ${item.regions} regions but its files carry ${capacity}`,
+				path: ["items", index, "regions"]
 			});
 		}
 		if (item.available_from && item.available_until && item.available_until < item.available_from) {
