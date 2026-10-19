@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <limits>
@@ -13,6 +14,7 @@
 #include <vector>
 
 #include <match/expr/diagnostic.hpp>
+#include <match/expr/schema_json.hpp>
 
 namespace match::cardschema {
 
@@ -21,6 +23,11 @@ namespace {
 namespace fs = std::filesystem;
 
 constexpr const char* kFormatVersion = "1.0.0";
+
+// INFO: the loader reads at most this many bytes per file; a larger file is
+// rejected before it is read, and the read is capped one byte past the limit so
+// a file that grows between the size check and the read cannot slip through.
+constexpr std::uintmax_t kMaximumCardFileBytes = 1048576;
 
 const std::vector<std::string>& RootKeys() {
     static const std::vector<std::string> keys = {"attribute", "attribute_member", "kind",
@@ -44,6 +51,14 @@ std::vector<std::string> AllowedRootsFor(const std::string& folder) {
     return {};
 }
 
+std::vector<std::string> RootKeyCandidates() {
+    std::vector<std::string> candidates = {"format_version"};
+    for (const std::string& key : RootKeys()) {
+        candidates.push_back(key);
+    }
+    return candidates;
+}
+
 bool Contains(const std::vector<std::string>& values, const std::string& value) {
     return std::find(values.begin(), values.end(), value) != values.end();
 }
@@ -54,6 +69,11 @@ std::string PointerFor(const std::string& key) {
 
 std::string PathLabel(const std::string& mod_id, const fs::path& relative) {
     return "mods/" + mod_id + "/" + relative.generic_string();
+}
+
+std::string RelativeLabel(const std::string& mod_id, const fs::path& mod_directory,
+                          const fs::path& path) {
+    return PathLabel(mod_id, path.lexically_relative(mod_directory));
 }
 
 void AddError(std::vector<Diagnostic>& diagnostics, const std::string& file,
@@ -98,6 +118,17 @@ std::optional<std::string> ReadString(const json& object, const char* key,
     return entry->get<std::string>();
 }
 
+std::string QuotedValues(const std::vector<std::string>& values) {
+    std::string text;
+    for (std::size_t index = 0; index < values.size(); ++index) {
+        if (index != 0) {
+            text += ", ";
+        }
+        text += "\"" + values[index] + "\"";
+    }
+    return text;
+}
+
 std::optional<std::string> ReadEnum(const json& object, const char* key,
                                     const std::vector<std::string>& candidates,
                                     const std::string& file, const std::string& pointer,
@@ -109,7 +140,8 @@ std::optional<std::string> ReadEnum(const json& object, const char* key,
     }
     if (!Contains(candidates, *value)) {
         AddError(diagnostics, file, match::expr::AppendPointerToken(pointer, key),
-                 "key \"" + std::string(key) + "\" must be one of the allowed values",
+                 "key \"" + std::string(key) + "\" must be one of " +
+                     QuotedValues(candidates),
                  match::expr::SuggestClosest(*value, candidates));
         return std::nullopt;
     }
@@ -135,6 +167,20 @@ bool ValidateIdentifier(const std::string& identifier, const std::string& mod_id
     return true;
 }
 
+// INFO: an id declared by a file must keep the file greppable: the local name of
+// the declared identifier equals the file stem, so `attributes/color.json`
+// declares `uni:color` and `attributes/color/red.json` declares `uni:red`.
+void CheckIdentifierMatchesFile(const std::string& identifier, const std::string& stem,
+                                const std::string& file, const std::string& id_pointer,
+                                std::vector<Diagnostic>& diagnostics) {
+    if (LocalNameOf(identifier) == stem) {
+        return;
+    }
+    AddError(diagnostics, file, id_pointer,
+             "identifier \"" + identifier + "\" does not match the file name \"" + stem +
+                 ".json\"");
+}
+
 const std::vector<std::string>& MemberKeys(bool allow_attribute) {
     static const std::vector<std::string> standalone = {
         "attribute", "identifier", "display_name", "tags", "order",
@@ -143,6 +189,58 @@ const std::vector<std::string>& MemberKeys(bool allow_attribute) {
         "identifier", "display_name", "tags", "order",
         "contribute", "properties", "identifier_alias"};
     return allow_attribute ? standalone : inline_keys;
+}
+
+void ReadTags(const json& value, const std::string& file, const std::string& pointer,
+              std::vector<Diagnostic>& diagnostics, MemberDef& member) {
+    const auto tags = value.find("tags");
+    if (tags == value.end()) {
+        return;
+    }
+    const std::string tags_pointer = match::expr::AppendPointerToken(pointer, "tags");
+    if (!tags->is_array()) {
+        AddError(diagnostics, file, tags_pointer, "key \"tags\" must be an array");
+        return;
+    }
+    for (std::size_t index = 0; index < tags->size(); ++index) {
+        const json& tag = (*tags)[index];
+        if (!tag.is_string() || tag.get<std::string>().empty()) {
+            AddError(diagnostics, file,
+                     match::expr::AppendPointerToken(tags_pointer, std::to_string(index)),
+                     "tag must be a non-empty string");
+        } else {
+            member.tags.push_back(tag.get<std::string>());
+        }
+    }
+}
+
+void ReadOrder(const json& value, const std::string& file, const std::string& pointer,
+               std::vector<Diagnostic>& diagnostics, MemberDef& member) {
+    const auto order = value.find("order");
+    if (order == value.end()) {
+        return;
+    }
+    const std::string order_pointer = match::expr::AppendPointerToken(pointer, "order");
+    if (!order->is_number_integer()) {
+        AddError(diagnostics, file, order_pointer, "key \"order\" must be an integer");
+        return;
+    }
+    if (order->is_number_unsigned()) {
+        const unsigned long long order_value = order->get<unsigned long long>();
+        if (order_value > static_cast<unsigned long long>(std::numeric_limits<int>::max())) {
+            AddError(diagnostics, file, order_pointer, "key \"order\" is out of range");
+            return;
+        }
+        member.order = static_cast<int>(order_value);
+        return;
+    }
+    const long long order_value = order->get<long long>();
+    if (order_value < std::numeric_limits<int>::min() ||
+        order_value > std::numeric_limits<int>::max()) {
+        AddError(diagnostics, file, order_pointer, "key \"order\" is out of range");
+        return;
+    }
+    member.order = static_cast<int>(order_value);
 }
 
 bool ParseMember(const json& value, const std::string& default_attribute,
@@ -184,48 +282,8 @@ bool ParseMember(const json& value, const std::string& default_attribute,
         member.display_name = *display_name;
     }
 
-    const auto tags = value.find("tags");
-    if (tags != value.end()) {
-        const std::string tags_pointer = match::expr::AppendPointerToken(pointer, "tags");
-        if (!tags->is_array()) {
-            AddError(diagnostics, file, tags_pointer, "key \"tags\" must be an array");
-        } else {
-            for (std::size_t index = 0; index < tags->size(); ++index) {
-                const json& tag = (*tags)[index];
-                if (!tag.is_string() || tag.get<std::string>().empty()) {
-                    AddError(diagnostics, file,
-                             match::expr::AppendPointerToken(tags_pointer,
-                                                             std::to_string(index)),
-                             "tag must be a non-empty string");
-                } else {
-                    member.tags.push_back(tag.get<std::string>());
-                }
-            }
-        }
-    }
-
-    const auto order = value.find("order");
-    if (order != value.end()) {
-        const std::string order_pointer = match::expr::AppendPointerToken(pointer, "order");
-        if (!order->is_number_integer()) {
-            AddError(diagnostics, file, order_pointer, "key \"order\" must be an integer");
-        } else if (order->is_number_unsigned()) {
-            const unsigned long long raw = order->get<unsigned long long>();
-            if (raw > static_cast<unsigned long long>(std::numeric_limits<int>::max())) {
-                AddError(diagnostics, file, order_pointer, "key \"order\" is out of range");
-            } else {
-                member.order = static_cast<int>(raw);
-            }
-        } else {
-            const long long raw = order->get<long long>();
-            if (raw < std::numeric_limits<int>::min() ||
-                raw > std::numeric_limits<int>::max()) {
-                AddError(diagnostics, file, order_pointer, "key \"order\" is out of range");
-            } else {
-                member.order = static_cast<int>(raw);
-            }
-        }
-    }
+    ReadTags(value, file, pointer, diagnostics, member);
+    ReadOrder(value, file, pointer, diagnostics, member);
 
     const auto contribute = value.find("contribute");
     if (contribute != value.end()) {
@@ -260,26 +318,42 @@ bool ParseMember(const json& value, const std::string& default_attribute,
     return diagnostics.size() == initial_diagnostics;
 }
 
-bool ParseAttribute(const json& value, const std::string& mod_id,
-                    const std::string& file, const std::string& pointer,
-                    std::vector<Diagnostic>& diagnostics, AttributeDef& attribute,
+void RegisterMember(MemberDef member, const std::string& file,
+                    const std::string& duplicate_pointer,
+                    std::vector<Diagnostic>& diagnostics,
+                    std::map<std::string, std::string>& member_files,
                     std::vector<MemberDef>& members) {
+    const auto existing = member_files.find(member.identifier);
+    if (existing != member_files.end()) {
+        AddError(diagnostics, file, duplicate_pointer,
+                 "duplicate member identifier \"" + member.identifier + "\" in " + file +
+                     "; first declared in " + existing->second);
+        return;
+    }
+    member_files.emplace(member.identifier, file);
+    members.push_back(std::move(member));
+}
+
+bool ParseAttribute(const json& value, const std::string& mod_id, const std::string& file,
+                    const std::string& pointer, std::vector<Diagnostic>& diagnostics,
+                    std::map<std::string, std::string>& member_files,
+                    std::vector<MemberDef>& members, AttributeDef& attribute) {
     if (!value.is_object()) {
         AddError(diagnostics, file, pointer, "attribute must be an object");
         return false;
     }
     static const std::vector<std::string> keys = {"identifier", "extensible", "visibility",
                                                   "members"};
-    const std::size_t initial_diagnostics = diagnostics.size();
     CheckUnknownKeys(value, keys, file, pointer, diagnostics);
 
+    bool usable = false;
     const std::optional<std::string> identifier =
         ReadString(value, "identifier", file, pointer, diagnostics, true);
     if (identifier) {
         attribute.identifier = *identifier;
-        ValidateIdentifier(*identifier, mod_id, file,
-                           match::expr::AppendPointerToken(pointer, "identifier"),
-                           "attribute identifier", diagnostics);
+        usable = ValidateIdentifier(*identifier, mod_id, file,
+                                    match::expr::AppendPointerToken(pointer, "identifier"),
+                                    "attribute identifier", diagnostics);
     }
 
     const auto extensible = value.find("extensible");
@@ -306,88 +380,111 @@ bool ParseAttribute(const json& value, const std::string& mod_id,
         if (!inline_members->is_array()) {
             AddError(diagnostics, file, members_pointer, "key \"members\" must be an array");
         } else if (identifier && IsValidIdentifier(*identifier)) {
+            // INFO: a bad inline member is skipped, but the attribute it belongs
+            // to is still registered so later cross-reference checks do not
+            // cascade "unknown attribute" errors.
             for (std::size_t index = 0; index < inline_members->size(); ++index) {
                 MemberDef member;
-                if (ParseMember((*inline_members)[index], *identifier, false, mod_id, file,
-                                match::expr::AppendPointerToken(members_pointer,
-                                                                std::to_string(index)),
-                                diagnostics, member)) {
-                    members.push_back(std::move(member));
+                const std::string member_pointer =
+                    match::expr::AppendPointerToken(members_pointer, std::to_string(index));
+                if (!ParseMember((*inline_members)[index], *identifier, false, mod_id, file,
+                                 member_pointer, diagnostics, member)) {
+                    continue;
                 }
+                RegisterMember(std::move(member), file, member_pointer, diagnostics,
+                               member_files, members);
             }
         }
     }
 
     attribute.file = file;
-    return diagnostics.size() == initial_diagnostics;
+    return usable;
 }
 
-void CollectJsonFiles(const fs::path& folder, bool recursive,
-                      std::vector<fs::path>& files) {
+// INFO: reads a card file into a capped string. The size is checked first so an
+// oversized file is never read whole; the read itself stops one byte past the
+// limit, so a file that grows between the two calls is still caught.
+std::optional<std::string> ReadCardFileText(const fs::path& path, const std::string& label,
+                                            std::vector<Diagnostic>& diagnostics) {
     std::error_code error;
-    if (!fs::is_directory(folder, error)) {
-        return;
+    const std::uintmax_t size = fs::file_size(path, error);
+    if (error) {
+        AddError(diagnostics, label, std::string(match::expr::kRootPointer),
+                 "cannot read file: " + error.message());
+        return std::nullopt;
     }
-    if (recursive) {
-        fs::recursive_directory_iterator iterator(folder, error);
-        const fs::recursive_directory_iterator end;
-        while (!error && iterator != end) {
-            if (iterator->is_regular_file(error) && iterator->path().extension() == ".json") {
-                files.push_back(iterator->path());
-            }
-            iterator.increment(error);
-        }
-    } else {
-        fs::directory_iterator iterator(folder, error);
-        const fs::directory_iterator end;
-        while (!error && iterator != end) {
-            if (iterator->is_regular_file(error) && iterator->path().extension() == ".json") {
-                files.push_back(iterator->path());
-            }
-            iterator.increment(error);
-        }
+    if (size > kMaximumCardFileBytes) {
+        AddError(diagnostics, label, std::string(match::expr::kRootPointer),
+                 "file is too large (more than 1048576 bytes)");
+        return std::nullopt;
     }
-}
-
-void LoadFile(const fs::path& path, const std::string& folder, const std::string& label,
-              const std::string& mod_id, LoadOutcome& outcome,
-              std::map<std::string, std::string>& attribute_files,
-              std::map<std::string, std::string>& member_files) {
-    std::vector<Diagnostic>& diagnostics = outcome.diagnostics;
-
     std::ifstream input(path, std::ios::binary);
     if (!input) {
         AddError(diagnostics, label, std::string(match::expr::kRootPointer),
                  "cannot open file");
-        return;
+        return std::nullopt;
     }
-
-    json document;
-    try {
-        input >> document;
-    } catch (const json::exception& error) {
+    std::string text(static_cast<std::size_t>(size) + 1, '\0');
+    input.read(text.data(), static_cast<std::streamsize>(text.size()));
+    text.resize(static_cast<std::size_t>(input.gcount()));
+    if (text.size() > kMaximumCardFileBytes) {
         AddError(diagnostics, label, std::string(match::expr::kRootPointer),
-                 std::string("invalid JSON: ") + error.what());
+                 "file is too large (more than 1048576 bytes)");
+        return std::nullopt;
+    }
+    return text;
+}
+
+void LoadFileImpl(const fs::path& path, const std::string& folder, const std::string& label,
+                  const std::string& mod_id, LoadOutcome& outcome,
+                  std::map<std::string, std::string>& attribute_files,
+                  std::map<std::string, std::string>& member_files) {
+    std::vector<Diagnostic>& diagnostics = outcome.diagnostics;
+
+    const std::optional<std::string> text = ReadCardFileText(path, label, diagnostics);
+    if (!text) {
         return;
     }
 
+    match::expr::SchemaScan scan;
+    const std::optional<json> parsed = match::expr::ParseSchemaJson(*text, scan);
+    for (const match::expr::DuplicateKey& duplicate : scan.duplicates) {
+        AddError(diagnostics, label, duplicate.pointer,
+                 "duplicate key \"" + duplicate.key + "\"");
+    }
+    if (scan.duplicates_truncated) {
+        AddError(diagnostics, label, std::string(match::expr::kRootPointer),
+                 "more duplicate keys not shown");
+    }
+    if (!parsed.has_value()) {
+        AddError(diagnostics, label, std::string(match::expr::kRootPointer), "invalid JSON");
+        return;
+    }
+    if (scan.nested_too_deep) {
+        AddError(diagnostics, label, std::string(match::expr::kRootPointer),
+                 "schema is nested too deeply (more than " +
+                     std::to_string(match::expr::kMaximumSchemaDepth) + " levels)");
+        return;
+    }
+
+    const json& document = *parsed;
     if (!document.is_object()) {
         AddError(diagnostics, label, std::string(match::expr::kRootPointer),
                  "file must be a JSON object");
         return;
     }
 
+    bool format_ok = false;
     const auto format_version = document.find("format_version");
     if (format_version == document.end()) {
         AddError(diagnostics, label, PointerFor("format_version"),
                  "missing required key \"format_version\"");
-        return;
-    }
-    if (!format_version->is_string() ||
-        format_version->get<std::string>() != kFormatVersion) {
+    } else if (!format_version->is_string() ||
+               format_version->get<std::string>() != kFormatVersion) {
         AddError(diagnostics, label, PointerFor("format_version"),
                  "format_version must be \"1.0.0\"");
-        return;
+    } else {
+        format_ok = true;
     }
 
     std::vector<std::string> roots;
@@ -396,65 +493,57 @@ void LoadFile(const fs::path& path, const std::string& folder, const std::string
             roots.push_back(entry.key());
         }
     }
-    if (roots.empty()) {
-        AddError(diagnostics, label, std::string(match::expr::kRootPointer),
-                 "missing root key");
-        return;
+
+    std::vector<std::string> folder_roots;
+    bool every_root_valid = true;
+    for (const std::string& root : roots) {
+        if (!Contains(RootKeys(), root)) {
+            every_root_valid = false;
+            AddError(diagnostics, label, PointerFor(root), "unknown key \"" + root + "\"",
+                     match::expr::SuggestClosest(root, RootKeyCandidates()));
+        } else if (!Contains(AllowedRootsFor(folder), root)) {
+            every_root_valid = false;
+            AddError(diagnostics, label, PointerFor(root),
+                     "root key '" + root + "' is not allowed in " + folder + "/");
+        } else {
+            folder_roots.push_back(root);
+        }
     }
-    if (roots.size() > 1) {
+
+    if (roots.empty()) {
+        AddError(diagnostics, label, std::string(match::expr::kRootPointer), "missing root key");
+    } else if (every_root_valid && folder_roots.size() != 1) {
         AddError(diagnostics, label, std::string(match::expr::kRootPointer),
                  "exactly one root key is allowed besides \"format_version\"");
+    }
+
+    if (!format_ok || folder_roots.size() != 1) {
         return;
     }
 
-    const std::string& root = roots.front();
-    if (!Contains(RootKeys(), root)) {
-        AddError(diagnostics, label, PointerFor(root),
-                 "unknown root key \"" + root + "\"",
-                 match::expr::SuggestClosest(root, RootKeys()));
-        return;
-    }
-    if (!Contains(AllowedRootsFor(folder), root)) {
-        AddError(diagnostics, label, PointerFor(root),
-                 "root key '" + root + "' is not allowed in " + folder + "/");
-        return;
-    }
-
-    const json& value = document.at(root);
+    const std::string& root = folder_roots.front();
     const std::string pointer = PointerFor(root);
-    if (!value.is_object()) {
-        AddError(diagnostics, label, pointer, root + " must be an object");
-        return;
-    }
+    const json& value = document.at(root);
 
     if (root == "attribute") {
         AttributeDef attribute;
-        std::vector<MemberDef> members;
-        if (!ParseAttribute(value, mod_id, label, pointer, diagnostics, attribute, members)) {
+        if (!ParseAttribute(value, mod_id, label, pointer, diagnostics, member_files,
+                            outcome.schema.members, attribute)) {
             return;
         }
+        const std::string identifier_pointer =
+            match::expr::AppendPointerToken(pointer, "identifier");
+        CheckIdentifierMatchesFile(attribute.identifier, path.stem().string(), label,
+                                   identifier_pointer, diagnostics);
         const auto existing = attribute_files.find(attribute.identifier);
         if (existing != attribute_files.end()) {
-            AddError(diagnostics, label,
-                     match::expr::AppendPointerToken(pointer, "identifier"),
-                     "duplicate attribute identifier \"" + attribute.identifier +
-                         "\" in " + label + "; first declared in " + existing->second);
+            AddError(diagnostics, label, identifier_pointer,
+                     "duplicate attribute identifier \"" + attribute.identifier + "\" in " +
+                         label + "; first declared in " + existing->second);
             return;
         }
         attribute_files.emplace(attribute.identifier, label);
         outcome.schema.attributes.push_back(std::move(attribute));
-        for (MemberDef& member : members) {
-            const auto duplicate = member_files.find(member.identifier);
-            if (duplicate != member_files.end()) {
-                AddError(diagnostics, label,
-                         match::expr::AppendPointerToken(pointer, "members"),
-                         "duplicate member identifier \"" + member.identifier + "\" in " +
-                             label + "; first declared in " + duplicate->second);
-                continue;
-            }
-            member_files.emplace(member.identifier, label);
-            outcome.schema.members.push_back(std::move(member));
-        }
         return;
     }
 
@@ -463,16 +552,109 @@ void LoadFile(const fs::path& path, const std::string& folder, const std::string
         if (!ParseMember(value, "", true, mod_id, label, pointer, diagnostics, member)) {
             return;
         }
-        const auto duplicate = member_files.find(member.identifier);
-        if (duplicate != member_files.end()) {
-            AddError(diagnostics, label,
-                     match::expr::AppendPointerToken(pointer, "identifier"),
-                     "duplicate member identifier \"" + member.identifier + "\" in " +
-                         label + "; first declared in " + duplicate->second);
+        const std::string identifier_pointer =
+            match::expr::AppendPointerToken(pointer, "identifier");
+        CheckIdentifierMatchesFile(member.identifier, path.stem().string(), label,
+                                   identifier_pointer, diagnostics);
+        RegisterMember(std::move(member), label, identifier_pointer, diagnostics, member_files,
+                       outcome.schema.members);
+    }
+}
+
+void LoadFile(const fs::path& path, const std::string& folder, const std::string& label,
+              const std::string& mod_id, LoadOutcome& outcome,
+              std::map<std::string, std::string>& attribute_files,
+              std::map<std::string, std::string>& member_files) {
+    try {
+        LoadFileImpl(path, folder, label, mod_id, outcome, attribute_files, member_files);
+    } catch (const std::exception& error) {
+        AddError(outcome.diagnostics, label, std::string(match::expr::kRootPointer),
+                 std::string("internal error: ") + error.what());
+    }
+}
+
+void ReportDirectoryError(const std::string& label, const std::error_code& error,
+                          std::vector<Diagnostic>& diagnostics) {
+    AddError(diagnostics, label, std::string(match::expr::kRootPointer),
+             "cannot read directory \"" + label + "\": " + error.message());
+}
+
+void CollectJsonFiles(const fs::path& mod_directory, const std::string& mod_id,
+                      const std::string& folder, bool recursive, std::vector<fs::path>& files,
+                      std::vector<Diagnostic>& diagnostics) {
+    const fs::path folder_path = mod_directory / folder;
+
+    std::error_code error;
+    const fs::file_status folder_status = fs::symlink_status(folder_path, error);
+    if (error == std::errc::no_such_file_or_directory) {
+        return;
+    }
+    if (error) {
+        ReportDirectoryError(RelativeLabel(mod_id, mod_directory, folder_path), error,
+                             diagnostics);
+        return;
+    }
+    if (!fs::exists(folder_status)) {
+        return;
+    }
+    if (!fs::is_directory(folder_status)) {
+        AddError(diagnostics, RelativeLabel(mod_id, mod_directory, folder_path),
+                 std::string(match::expr::kRootPointer),
+                 "cannot read directory \"" + folder + "\": not a directory");
+        return;
+    }
+
+    const auto consider = [&](const fs::path& path) {
+        std::error_code status_error;
+        const fs::file_status status = fs::symlink_status(path, status_error);
+        const std::string label = RelativeLabel(mod_id, mod_directory, path);
+        if (status_error == std::errc::no_such_file_or_directory) {
             return;
         }
-        member_files.emplace(member.identifier, label);
-        outcome.schema.members.push_back(std::move(member));
+        if (status_error) {
+            ReportDirectoryError(label, status_error, diagnostics);
+            return;
+        }
+        if (fs::is_symlink(status)) {
+            AddError(diagnostics, label, std::string(match::expr::kRootPointer),
+                     "symbolic links are not allowed");
+            return;
+        }
+        if (fs::is_directory(status)) {
+            return;
+        }
+        if (!fs::is_regular_file(status) || path.extension() != ".json") {
+            AddError(diagnostics, label, std::string(match::expr::kRootPointer),
+                     "only .json files are allowed in " + folder + "/");
+            return;
+        }
+        files.push_back(path);
+    };
+
+    if (recursive) {
+        fs::recursive_directory_iterator iterator(folder_path, error);
+        const fs::recursive_directory_iterator end;
+        while (iterator != end) {
+            consider(iterator->path());
+            iterator.increment(error);
+            if (error) {
+                ReportDirectoryError(RelativeLabel(mod_id, mod_directory, folder_path), error,
+                                     diagnostics);
+                break;
+            }
+        }
+    } else {
+        fs::directory_iterator iterator(folder_path, error);
+        const fs::directory_iterator end;
+        while (iterator != end) {
+            consider(iterator->path());
+            iterator.increment(error);
+            if (error) {
+                ReportDirectoryError(RelativeLabel(mod_id, mod_directory, folder_path), error,
+                                     diagnostics);
+                break;
+            }
+        }
     }
 }
 
@@ -483,11 +665,17 @@ LoadOutcome LoadModSchema(const fs::path& mod_directory, const std::string& mod_
     outcome.schema.mod_id = mod_id;
     outcome.schema.directory = mod_directory.generic_string();
 
+    if (!IsValidLocalName(mod_id)) {
+        AddError(outcome.diagnostics, "", std::string(match::expr::kRootPointer),
+                 "invalid mod id \"" + mod_id + "\"");
+        return outcome;
+    }
+
     std::vector<fs::path> files;
-    CollectJsonFiles(mod_directory / "attributes", true, files);
-    CollectJsonFiles(mod_directory / "kinds", false, files);
-    CollectJsonFiles(mod_directory / "decks", false, files);
-    CollectJsonFiles(mod_directory / "properties", false, files);
+    CollectJsonFiles(mod_directory, mod_id, "attributes", true, files, outcome.diagnostics);
+    CollectJsonFiles(mod_directory, mod_id, "kinds", false, files, outcome.diagnostics);
+    CollectJsonFiles(mod_directory, mod_id, "decks", false, files, outcome.diagnostics);
+    CollectJsonFiles(mod_directory, mod_id, "properties", false, files, outcome.diagnostics);
     std::sort(files.begin(), files.end(), [](const fs::path& left, const fs::path& right) {
         return left.generic_string() < right.generic_string();
     });
@@ -501,8 +689,13 @@ LoadOutcome LoadModSchema(const fs::path& mod_directory, const std::string& mod_
             continue;
         }
         const std::string folder = relative.begin()->string();
-        LoadFile(file, folder, PathLabel(mod_id, relative), mod_id, outcome, attribute_files,
-                 member_files);
+        const std::string label = PathLabel(mod_id, relative);
+        try {
+            LoadFile(file, folder, label, mod_id, outcome, attribute_files, member_files);
+        } catch (const std::exception& error) {
+            AddError(outcome.diagnostics, label, std::string(match::expr::kRootPointer),
+                     std::string("internal error: ") + error.what());
+        }
     }
 
     std::stable_sort(outcome.schema.members.begin(), outcome.schema.members.end(),
