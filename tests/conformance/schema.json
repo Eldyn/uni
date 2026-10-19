@@ -1,0 +1,34 @@
+{
+    "seat_properties": {
+        "hand_size": "int",
+        "seat": "int",
+        "name": "string",
+        "hand": "card_set",
+        "axe:stunned": "bool"
+    },
+    "card_properties": {
+        "kind": "string"
+    },
+    "card_slots": [
+        "color",
+        "value"
+    ],
+    "match_properties": {
+        "turn": "int",
+        "top": "card",
+        "tree:growth": "int",
+        "uni:active_color": "member_set",
+        "uni:ratio": "float"
+    },
+    "settings": {
+        "uni:window_ms": "int",
+        "uni:wild_count": "int"
+    },
+    "variables": {
+        "played": { "type": "card", "optional": false },
+        "responder": { "type": "seat", "optional": true },
+        "choice": { "type": "member_set", "optional": true },
+        "colors": { "type": "member_set", "optional": false },
+        "nan_value": { "type": "float", "optional": false }
+    }
+}

@@ -1,0 +1,3070 @@
+{
+    "description": "Shared conformance corpus for the mod expression language. Every case has a name, an expression (or an assignment when \"assignment\" is true), an optional expected_type, a world and an expect of {\"value\"}, {\"error\"} or {\"check_error\"}. A world value is decoded with the schema type of the variable or property it fills: a member set is an array of member names, a seat is a seat name, a seat set is an array of seat names, a card is an object {name, properties, tags} and a card set is an array of those. A float may be the string \"nan\", \"inf\" or \"-inf\" because JSON has no such literals. Selectors: self, next and prev follow seat order from \"self\"; all and others are seat sets; rand and rand_all draw one seat from the scripted \"random\" list (rand excludes self, rand_all includes it); match and settings are singletons. A write only succeeds for a property the world already holds. The TypeScript evaluator in phase 2b must return the same value or error for every case.",
+    "cases": [
+        {
+            "name": "addition",
+            "expression": "1 + 2",
+            "expect": {
+                "value": 3
+            }
+        },
+        {
+            "name": "subtraction",
+            "expression": "5 - 8",
+            "expect": {
+                "value": -3
+            }
+        },
+        {
+            "name": "multiplication",
+            "expression": "4 * 3",
+            "expect": {
+                "value": 12
+            }
+        },
+        {
+            "name": "int_division_truncates_toward_zero",
+            "expression": "7 / 2",
+            "expect": {
+                "value": 3
+            }
+        },
+        {
+            "name": "negative_int_division_truncates_toward_zero",
+            "expression": "-7 / 2",
+            "expect": {
+                "value": -3
+            }
+        },
+        {
+            "name": "float_division",
+            "expression": "7.0 / 2",
+            "expect": {
+                "value": 3.5
+            }
+        },
+        {
+            "name": "modulo",
+            "expression": "7 % 4",
+            "expect": {
+                "value": 3
+            }
+        },
+        {
+            "name": "precedence",
+            "expression": "1 + 2 * 3",
+            "expect": {
+                "value": 7
+            }
+        },
+        {
+            "name": "parentheses_override_precedence",
+            "expression": "(1 + 2) * 3",
+            "expect": {
+                "value": 9
+            }
+        },
+        {
+            "name": "int_widens_to_float",
+            "expression": "1 + 2.5",
+            "expect": {
+                "value": 3.5
+            }
+        },
+        {
+            "name": "less_than",
+            "expression": "1 < 2",
+            "expect": {
+                "value": true
+            }
+        },
+        {
+            "name": "less_or_equal",
+            "expression": "2 <= 2",
+            "expect": {
+                "value": true
+            }
+        },
+        {
+            "name": "greater_than",
+            "expression": "3 > 4",
+            "expect": {
+                "value": false
+            }
+        },
+        {
+            "name": "greater_or_equal",
+            "expression": "4 >= 4",
+            "expect": {
+                "value": true
+            }
+        },
+        {
+            "name": "equal",
+            "expression": "1 == 1",
+            "expect": {
+                "value": true
+            }
+        },
+        {
+            "name": "not_equal",
+            "expression": "1 != 2",
+            "expect": {
+                "value": true
+            }
+        },
+        {
+            "name": "large_int_equality_is_exact",
+            "expression": "9007199254740993 == 9007199254740992",
+            "expect": {
+                "value": false
+            }
+        },
+        {
+            "name": "logical_and",
+            "expression": "true && false",
+            "expect": {
+                "value": false
+            }
+        },
+        {
+            "name": "logical_or",
+            "expression": "true || false",
+            "expect": {
+                "value": true
+            }
+        },
+        {
+            "name": "logical_not",
+            "expression": "!true",
+            "expect": {
+                "value": false
+            }
+        },
+        {
+            "name": "logical_precedence",
+            "expression": "true || false && false",
+            "expect": {
+                "value": true
+            }
+        },
+        {
+            "name": "unary_minus",
+            "expression": "-5",
+            "expect": {
+                "value": -5
+            }
+        },
+        {
+            "name": "unary_minus_float",
+            "expression": "-2.5",
+            "expect": {
+                "value": -2.5
+            }
+        },
+        {
+            "name": "string_equality",
+            "expression": "'a' == 'a'",
+            "expect": {
+                "value": true
+            }
+        },
+        {
+            "name": "string_ordering",
+            "expression": "'a' < 'b'",
+            "expect": {
+                "value": true
+            }
+        },
+        {
+            "name": "if_true_branch",
+            "expression": "if(true, 1, 2)",
+            "expect": {
+                "value": 1
+            }
+        },
+        {
+            "name": "if_false_branch",
+            "expression": "if(false, 1, 2)",
+            "expect": {
+                "value": 2
+            }
+        },
+        {
+            "name": "if_float_branches",
+            "expression": "if(true, 2.5, 1.5)",
+            "expect": {
+                "value": 2.5
+            }
+        },
+        {
+            "name": "min",
+            "expression": "min(3, 2)",
+            "expect": {
+                "value": 2
+            }
+        },
+        {
+            "name": "max",
+            "expression": "max(3, 2)",
+            "expect": {
+                "value": 3
+            }
+        },
+        {
+            "name": "min_variadic",
+            "expression": "min(3, 1, 2)",
+            "expect": {
+                "value": 1
+            }
+        },
+        {
+            "name": "min_mixed_types",
+            "expression": "min(1, 2.0)",
+            "expect": {
+                "value": 1.0
+            }
+        },
+        {
+            "name": "clamp_inside",
+            "expression": "clamp(2, 1, 3)",
+            "expect": {
+                "value": 2
+            }
+        },
+        {
+            "name": "clamp_high",
+            "expression": "clamp(5, 1, 3)",
+            "expect": {
+                "value": 3
+            }
+        },
+        {
+            "name": "clamp_low",
+            "expression": "clamp(0, 1, 3)",
+            "expect": {
+                "value": 1
+            }
+        },
+        {
+            "name": "abs_int",
+            "expression": "abs(-5)",
+            "expect": {
+                "value": 5
+            }
+        },
+        {
+            "name": "abs_float",
+            "expression": "abs(-5.5)",
+            "expect": {
+                "value": 5.5
+            }
+        },
+        {
+            "name": "floor_value",
+            "expression": "floor(2.7)",
+            "expect": {
+                "value": 2
+            }
+        },
+        {
+            "name": "floor_negative",
+            "expression": "floor(-2.1)",
+            "expect": {
+                "value": -3
+            }
+        },
+        {
+            "name": "ceil_value",
+            "expression": "ceil(2.1)",
+            "expect": {
+                "value": 3
+            }
+        },
+        {
+            "name": "ceil_negative",
+            "expression": "ceil(-2.9)",
+            "expect": {
+                "value": -2
+            }
+        },
+        {
+            "name": "round_half_away_from_zero",
+            "expression": "round(2.5)",
+            "expect": {
+                "value": 3
+            }
+        },
+        {
+            "name": "round_negative",
+            "expression": "round(-2.5)",
+            "expect": {
+                "value": -3
+            }
+        },
+        {
+            "name": "count_set",
+            "expression": "count(@all)",
+            "expect": {
+                "value": 3
+            },
+            "world": {
+                "seats": [
+                    {
+                        "name": "Ana",
+                        "properties": {
+                            "hand_size": 5
+                        }
+                    },
+                    {
+                        "name": "Bo",
+                        "properties": {
+                            "hand_size": 0,
+                            "status:uni:draw_debt": 3
+                        }
+                    },
+                    {
+                        "name": "Cy",
+                        "properties": {
+                            "hand_size": 4,
+                            "axe:stunned": false
+                        }
+                    }
+                ],
+                "self": 2,
+                "match": {
+                    "turn": 7,
+                    "tree:growth": 2,
+                    "uni:active_color": [
+                        "uni:red"
+                    ],
+                    "uni:ratio": 0.0
+                },
+                "settings": {
+                    "uni:window_ms": 3000
+                },
+                "random": [
+                    4
+                ]
+            }
+        },
+        {
+            "name": "count_filtered",
+            "expression": "count(@all[hand_size > 3])",
+            "expect": {
+                "value": 2
+            },
+            "world": {
+                "seats": [
+                    {
+                        "name": "Ana",
+                        "properties": {
+                            "hand_size": 5
+                        }
+                    },
+                    {
+                        "name": "Bo",
+                        "properties": {
+                            "hand_size": 0,
+                            "status:uni:draw_debt": 3
+                        }
+                    },
+                    {
+                        "name": "Cy",
+                        "properties": {
+                            "hand_size": 4,
+                            "axe:stunned": false
+                        }
+                    }
+                ],
+                "self": 2,
+                "match": {
+                    "turn": 7,
+                    "tree:growth": 2,
+                    "uni:active_color": [
+                        "uni:red"
+                    ],
+                    "uni:ratio": 0.0
+                },
+                "settings": {
+                    "uni:window_ms": 3000
+                },
+                "random": [
+                    4
+                ]
+            }
+        },
+        {
+            "name": "count_with_condition",
+            "expression": "count(@all, hand_size > 3)",
+            "expect": {
+                "value": 2
+            },
+            "world": {
+                "seats": [
+                    {
+                        "name": "Ana",
+                        "properties": {
+                            "hand_size": 5
+                        }
+                    },
+                    {
+                        "name": "Bo",
+                        "properties": {
+                            "hand_size": 0,
+                            "status:uni:draw_debt": 3
+                        }
+                    },
+                    {
+                        "name": "Cy",
+                        "properties": {
+                            "hand_size": 4,
+                            "axe:stunned": false
+                        }
+                    }
+                ],
+                "self": 2,
+                "match": {
+                    "turn": 7,
+                    "tree:growth": 2,
+                    "uni:active_color": [
+                        "uni:red"
+                    ],
+                    "uni:ratio": 0.0
+                },
+                "settings": {
+                    "uni:window_ms": 3000
+                },
+                "random": [
+                    4
+                ]
+            }
+        },
+        {
+            "name": "any_set",
+            "expression": "any(@all)",
+            "expect": {
+                "value": true
+            },
+            "world": {
+                "seats": [
+                    {
+                        "name": "Ana",
+                        "properties": {
+                            "hand_size": 5
+                        }
+                    },
+                    {
+                        "name": "Bo",
+                        "properties": {
+                            "hand_size": 0,
+                            "status:uni:draw_debt": 3
+                        }
+                    },
+                    {
+                        "name": "Cy",
+                        "properties": {
+                            "hand_size": 4,
+                            "axe:stunned": false
+                        }
+                    }
+                ],
+                "self": 2,
+                "match": {
+                    "turn": 7,
+                    "tree:growth": 2,
+                    "uni:active_color": [
+                        "uni:red"
+                    ],
+                    "uni:ratio": 0.0
+                },
+                "settings": {
+                    "uni:window_ms": 3000
+                },
+                "random": [
+                    4
+                ]
+            }
+        },
+        {
+            "name": "any_condition",
+            "expression": "any(@all, hand_size == 0)",
+            "expect": {
+                "value": true
+            },
+            "world": {
+                "seats": [
+                    {
+                        "name": "Ana",
+                        "properties": {
+                            "hand_size": 5
+                        }
+                    },
+                    {
+                        "name": "Bo",
+                        "properties": {
+                            "hand_size": 0,
+                            "status:uni:draw_debt": 3
+                        }
+                    },
+                    {
+                        "name": "Cy",
+                        "properties": {
+                            "hand_size": 4,
+                            "axe:stunned": false
+                        }
+                    }
+                ],
+                "self": 2,
+                "match": {
+                    "turn": 7,
+                    "tree:growth": 2,
+                    "uni:active_color": [
+                        "uni:red"
+                    ],
+                    "uni:ratio": 0.0
+                },
+                "settings": {
+                    "uni:window_ms": 3000
+                },
+                "random": [
+                    4
+                ]
+            }
+        },
+        {
+            "name": "any_condition_false",
+            "expression": "any(@all, hand_size > 9)",
+            "expect": {
+                "value": false
+            },
+            "world": {
+                "seats": [
+                    {
+                        "name": "Ana",
+                        "properties": {
+                            "hand_size": 5
+                        }
+                    },
+                    {
+                        "name": "Bo",
+                        "properties": {
+                            "hand_size": 0,
+                            "status:uni:draw_debt": 3
+                        }
+                    },
+                    {
+                        "name": "Cy",
+                        "properties": {
+                            "hand_size": 4,
+                            "axe:stunned": false
+                        }
+                    }
+                ],
+                "self": 2,
+                "match": {
+                    "turn": 7,
+                    "tree:growth": 2,
+                    "uni:active_color": [
+                        "uni:red"
+                    ],
+                    "uni:ratio": 0.0
+                },
+                "settings": {
+                    "uni:window_ms": 3000
+                },
+                "random": [
+                    4
+                ]
+            }
+        },
+        {
+            "name": "all_condition_false",
+            "expression": "all(@all, hand_size > 0)",
+            "expect": {
+                "value": false
+            },
+            "world": {
+                "seats": [
+                    {
+                        "name": "Ana",
+                        "properties": {
+                            "hand_size": 5
+                        }
+                    },
+                    {
+                        "name": "Bo",
+                        "properties": {
+                            "hand_size": 0,
+                            "status:uni:draw_debt": 3
+                        }
+                    },
+                    {
+                        "name": "Cy",
+                        "properties": {
+                            "hand_size": 4,
+                            "axe:stunned": false
+                        }
+                    }
+                ],
+                "self": 2,
+                "match": {
+                    "turn": 7,
+                    "tree:growth": 2,
+                    "uni:active_color": [
+                        "uni:red"
+                    ],
+                    "uni:ratio": 0.0
+                },
+                "settings": {
+                    "uni:window_ms": 3000
+                },
+                "random": [
+                    4
+                ]
+            }
+        },
+        {
+            "name": "all_condition_true",
+            "expression": "all(@all, hand_size >= 0)",
+            "expect": {
+                "value": true
+            },
+            "world": {
+                "seats": [
+                    {
+                        "name": "Ana",
+                        "properties": {
+                            "hand_size": 5
+                        }
+                    },
+                    {
+                        "name": "Bo",
+                        "properties": {
+                            "hand_size": 0,
+                            "status:uni:draw_debt": 3
+                        }
+                    },
+                    {
+                        "name": "Cy",
+                        "properties": {
+                            "hand_size": 4,
+                            "axe:stunned": false
+                        }
+                    }
+                ],
+                "self": 2,
+                "match": {
+                    "turn": 7,
+                    "tree:growth": 2,
+                    "uni:active_color": [
+                        "uni:red"
+                    ],
+                    "uni:ratio": 0.0
+                },
+                "settings": {
+                    "uni:window_ms": 3000
+                },
+                "random": [
+                    4
+                ]
+            }
+        },
+        {
+            "name": "sum",
+            "expression": "sum(@all, hand_size)",
+            "expect": {
+                "value": 9
+            },
+            "world": {
+                "seats": [
+                    {
+                        "name": "Ana",
+                        "properties": {
+                            "hand_size": 5
+                        }
+                    },
+                    {
+                        "name": "Bo",
+                        "properties": {
+                            "hand_size": 0,
+                            "status:uni:draw_debt": 3
+                        }
+                    },
+                    {
+                        "name": "Cy",
+                        "properties": {
+                            "hand_size": 4,
+                            "axe:stunned": false
+                        }
+                    }
+                ],
+                "self": 2,
+                "match": {
+                    "turn": 7,
+                    "tree:growth": 2,
+                    "uni:active_color": [
+                        "uni:red"
+                    ],
+                    "uni:ratio": 0.0
+                },
+                "settings": {
+                    "uni:window_ms": 3000
+                },
+                "random": [
+                    4
+                ]
+            }
+        },
+        {
+            "name": "contains_seat_set",
+            "expression": "contains(@all, @next)",
+            "expect": {
+                "value": true
+            },
+            "world": {
+                "seats": [
+                    {
+                        "name": "Ana",
+                        "properties": {
+                            "hand_size": 5
+                        }
+                    },
+                    {
+                        "name": "Bo",
+                        "properties": {
+                            "hand_size": 0,
+                            "status:uni:draw_debt": 3
+                        }
+                    },
+                    {
+                        "name": "Cy",
+                        "properties": {
+                            "hand_size": 4,
+                            "axe:stunned": false
+                        }
+                    }
+                ],
+                "self": 2,
+                "match": {
+                    "turn": 7,
+                    "tree:growth": 2,
+                    "uni:active_color": [
+                        "uni:red"
+                    ],
+                    "uni:ratio": 0.0
+                },
+                "settings": {
+                    "uni:window_ms": 3000
+                },
+                "random": [
+                    4
+                ]
+            }
+        },
+        {
+            "name": "contains_card_set",
+            "expression": "contains(@self.hand, $played)",
+            "expect": {
+                "value": true
+            },
+            "world": {
+                "seats": [
+                    {
+                        "name": "Ana",
+                        "properties": {
+                            "hand_size": 5
+                        }
+                    },
+                    {
+                        "name": "Bo",
+                        "properties": {
+                            "hand_size": 0
+                        }
+                    },
+                    {
+                        "name": "Cy",
+                        "properties": {
+                            "hand_size": 4,
+                            "hand": [
+                                {
+                                    "name": "uni:red_5",
+                                    "properties": {
+                                        "kind": "uni:red_5",
+                                        "color": [
+                                            "uni:red"
+                                        ],
+                                        "value": [
+                                            "5"
+                                        ]
+                                    },
+                                    "tags": [
+                                        "uni:wild"
+                                    ]
+                                }
+                            ]
+                        }
+                    }
+                ],
+                "self": 2,
+                "variables": {
+                    "played": {
+                        "name": "uni:red_5",
+                        "properties": {
+                            "kind": "uni:red_5",
+                            "color": [
+                                "uni:red"
+                            ],
+                            "value": [
+                                "5"
+                            ]
+                        },
+                        "tags": [
+                            "uni:wild"
+                        ]
+                    }
+                },
+                "match": {
+                    "turn": 7,
+                    "uni:active_color": [
+                        "uni:red"
+                    ]
+                },
+                "random": [
+                    4
+                ]
+            }
+        },
+        {
+            "name": "shares_overlap",
+            "expression": "shares($played.color, @match.uni:active_color)",
+            "expect": {
+                "value": true
+            },
+            "world": {
+                "seats": [
+                    {
+                        "name": "Ana",
+                        "properties": {
+                            "hand_size": 5
+                        }
+                    },
+                    {
+                        "name": "Bo",
+                        "properties": {
+                            "hand_size": 0
+                        }
+                    },
+                    {
+                        "name": "Cy",
+                        "properties": {
+                            "hand_size": 4,
+                            "hand": [
+                                {
+                                    "name": "uni:red_5",
+                                    "properties": {
+                                        "kind": "uni:red_5",
+                                        "color": [
+                                            "uni:red"
+                                        ],
+                                        "value": [
+                                            "5"
+                                        ]
+                                    },
+                                    "tags": [
+                                        "uni:wild"
+                                    ]
+                                }
+                            ]
+                        }
+                    }
+                ],
+                "self": 2,
+                "variables": {
+                    "played": {
+                        "name": "uni:red_5",
+                        "properties": {
+                            "kind": "uni:red_5",
+                            "color": [
+                                "uni:red"
+                            ],
+                            "value": [
+                                "5"
+                            ]
+                        },
+                        "tags": [
+                            "uni:wild"
+                        ]
+                    }
+                },
+                "match": {
+                    "turn": 7,
+                    "uni:active_color": [
+                        "uni:red"
+                    ]
+                },
+                "random": [
+                    4
+                ]
+            }
+        },
+        {
+            "name": "shares_disjoint",
+            "expression": "shares($colors, @match.uni:active_color)",
+            "expect": {
+                "value": false
+            },
+            "world": {
+                "variables": {
+                    "colors": [
+                        "uni:red",
+                        "uni:blue"
+                    ]
+                },
+                "match": {
+                    "uni:active_color": [
+                        "uni:green"
+                    ]
+                }
+            }
+        },
+        {
+            "name": "has_tag_true",
+            "expression": "has_tag($played, 'uni:wild')",
+            "expect": {
+                "value": true
+            },
+            "world": {
+                "seats": [
+                    {
+                        "name": "Ana",
+                        "properties": {
+                            "hand_size": 5
+                        }
+                    },
+                    {
+                        "name": "Bo",
+                        "properties": {
+                            "hand_size": 0
+                        }
+                    },
+                    {
+                        "name": "Cy",
+                        "properties": {
+                            "hand_size": 4,
+                            "hand": [
+                                {
+                                    "name": "uni:red_5",
+                                    "properties": {
+                                        "kind": "uni:red_5",
+                                        "color": [
+                                            "uni:red"
+                                        ],
+                                        "value": [
+                                            "5"
+                                        ]
+                                    },
+                                    "tags": [
+                                        "uni:wild"
+                                    ]
+                                }
+                            ]
+                        }
+                    }
+                ],
+                "self": 2,
+                "variables": {
+                    "played": {
+                        "name": "uni:red_5",
+                        "properties": {
+                            "kind": "uni:red_5",
+                            "color": [
+                                "uni:red"
+                            ],
+                            "value": [
+                                "5"
+                            ]
+                        },
+                        "tags": [
+                            "uni:wild"
+                        ]
+                    }
+                },
+                "match": {
+                    "turn": 7,
+                    "uni:active_color": [
+                        "uni:red"
+                    ]
+                },
+                "random": [
+                    4
+                ]
+            }
+        },
+        {
+            "name": "has_tag_false",
+            "expression": "has_tag($played, 'uni:calm')",
+            "expect": {
+                "value": false
+            },
+            "world": {
+                "seats": [
+                    {
+                        "name": "Ana",
+                        "properties": {
+                            "hand_size": 5
+                        }
+                    },
+                    {
+                        "name": "Bo",
+                        "properties": {
+                            "hand_size": 0
+                        }
+                    },
+                    {
+                        "name": "Cy",
+                        "properties": {
+                            "hand_size": 4,
+                            "hand": [
+                                {
+                                    "name": "uni:red_5",
+                                    "properties": {
+                                        "kind": "uni:red_5",
+                                        "color": [
+                                            "uni:red"
+                                        ],
+                                        "value": [
+                                            "5"
+                                        ]
+                                    },
+                                    "tags": [
+                                        "uni:wild"
+                                    ]
+                                }
+                            ]
+                        }
+                    }
+                ],
+                "self": 2,
+                "variables": {
+                    "played": {
+                        "name": "uni:red_5",
+                        "properties": {
+                            "kind": "uni:red_5",
+                            "color": [
+                                "uni:red"
+                            ],
+                            "value": [
+                                "5"
+                            ]
+                        },
+                        "tags": [
+                            "uni:wild"
+                        ]
+                    }
+                },
+                "match": {
+                    "turn": 7,
+                    "uni:active_color": [
+                        "uni:red"
+                    ]
+                },
+                "random": [
+                    4
+                ]
+            }
+        },
+        {
+            "name": "defined_unbound",
+            "expression": "defined($responder)",
+            "expect": {
+                "value": false
+            },
+            "world": {
+                "seats": [
+                    {
+                        "name": "Ana",
+                        "properties": {
+                            "hand_size": 5
+                        }
+                    },
+                    {
+                        "name": "Bo",
+                        "properties": {
+                            "hand_size": 0,
+                            "status:uni:draw_debt": 3
+                        }
+                    },
+                    {
+                        "name": "Cy",
+                        "properties": {
+                            "hand_size": 4,
+                            "axe:stunned": false
+                        }
+                    }
+                ],
+                "self": 2,
+                "match": {
+                    "turn": 7,
+                    "tree:growth": 2,
+                    "uni:active_color": [
+                        "uni:red"
+                    ],
+                    "uni:ratio": 0.0
+                },
+                "settings": {
+                    "uni:window_ms": 3000
+                },
+                "random": [
+                    4
+                ]
+            }
+        },
+        {
+            "name": "defined_bound",
+            "expression": "defined($played)",
+            "expect": {
+                "value": true
+            },
+            "world": {
+                "seats": [
+                    {
+                        "name": "Ana",
+                        "properties": {
+                            "hand_size": 5
+                        }
+                    },
+                    {
+                        "name": "Bo",
+                        "properties": {
+                            "hand_size": 0
+                        }
+                    },
+                    {
+                        "name": "Cy",
+                        "properties": {
+                            "hand_size": 4,
+                            "hand": [
+                                {
+                                    "name": "uni:red_5",
+                                    "properties": {
+                                        "kind": "uni:red_5",
+                                        "color": [
+                                            "uni:red"
+                                        ],
+                                        "value": [
+                                            "5"
+                                        ]
+                                    },
+                                    "tags": [
+                                        "uni:wild"
+                                    ]
+                                }
+                            ]
+                        }
+                    }
+                ],
+                "self": 2,
+                "variables": {
+                    "played": {
+                        "name": "uni:red_5",
+                        "properties": {
+                            "kind": "uni:red_5",
+                            "color": [
+                                "uni:red"
+                            ],
+                            "value": [
+                                "5"
+                            ]
+                        },
+                        "tags": [
+                            "uni:wild"
+                        ]
+                    }
+                },
+                "match": {
+                    "turn": 7,
+                    "uni:active_color": [
+                        "uni:red"
+                    ]
+                },
+                "random": [
+                    4
+                ]
+            }
+        },
+        {
+            "name": "default_uses_fallback",
+            "expression": "default($choice, @match.uni:active_color)",
+            "expect": {
+                "value": [
+                    "uni:red"
+                ]
+            },
+            "world": {
+                "seats": [
+                    {
+                        "name": "Ana",
+                        "properties": {
+                            "hand_size": 5
+                        }
+                    },
+                    {
+                        "name": "Bo",
+                        "properties": {
+                            "hand_size": 0
+                        }
+                    },
+                    {
+                        "name": "Cy",
+                        "properties": {
+                            "hand_size": 4,
+                            "hand": [
+                                {
+                                    "name": "uni:red_5",
+                                    "properties": {
+                                        "kind": "uni:red_5",
+                                        "color": [
+                                            "uni:red"
+                                        ],
+                                        "value": [
+                                            "5"
+                                        ]
+                                    },
+                                    "tags": [
+                                        "uni:wild"
+                                    ]
+                                }
+                            ]
+                        }
+                    }
+                ],
+                "self": 2,
+                "variables": {
+                    "played": {
+                        "name": "uni:red_5",
+                        "properties": {
+                            "kind": "uni:red_5",
+                            "color": [
+                                "uni:red"
+                            ],
+                            "value": [
+                                "5"
+                            ]
+                        },
+                        "tags": [
+                            "uni:wild"
+                        ]
+                    }
+                },
+                "match": {
+                    "turn": 7,
+                    "uni:active_color": [
+                        "uni:red"
+                    ]
+                },
+                "random": [
+                    4
+                ]
+            }
+        },
+        {
+            "name": "default_uses_bound_value",
+            "expression": "default($colors, @match.uni:active_color)",
+            "expect": {
+                "value": [
+                    "uni:red",
+                    "uni:blue"
+                ]
+            },
+            "world": {
+                "variables": {
+                    "colors": [
+                        "uni:red",
+                        "uni:blue"
+                    ]
+                },
+                "match": {
+                    "uni:active_color": [
+                        "uni:blue",
+                        "uni:red"
+                    ]
+                }
+            }
+        },
+        {
+            "name": "status_magnitude_unknown",
+            "expression": "status_magnitude(@next, 'uni:draw_debt')",
+            "expect": {
+                "value": 0
+            },
+            "world": {
+                "seats": [
+                    {
+                        "name": "Ana",
+                        "properties": {
+                            "hand_size": 5
+                        }
+                    },
+                    {
+                        "name": "Bo",
+                        "properties": {
+                            "hand_size": 0,
+                            "status:uni:draw_debt": 3
+                        }
+                    },
+                    {
+                        "name": "Cy",
+                        "properties": {
+                            "hand_size": 4,
+                            "axe:stunned": false
+                        }
+                    }
+                ],
+                "self": 2,
+                "match": {
+                    "turn": 7,
+                    "tree:growth": 2,
+                    "uni:active_color": [
+                        "uni:red"
+                    ],
+                    "uni:ratio": 0.0
+                },
+                "settings": {
+                    "uni:window_ms": 3000
+                },
+                "random": [
+                    4
+                ]
+            }
+        },
+        {
+            "name": "status_magnitude_known",
+            "expression": "status_magnitude(@prev, 'uni:draw_debt')",
+            "expect": {
+                "value": 3
+            },
+            "world": {
+                "seats": [
+                    {
+                        "name": "Ana",
+                        "properties": {
+                            "hand_size": 5
+                        }
+                    },
+                    {
+                        "name": "Bo",
+                        "properties": {
+                            "hand_size": 0,
+                            "status:uni:draw_debt": 3
+                        }
+                    },
+                    {
+                        "name": "Cy",
+                        "properties": {
+                            "hand_size": 4,
+                            "axe:stunned": false
+                        }
+                    }
+                ],
+                "self": 2,
+                "match": {
+                    "turn": 7,
+                    "tree:growth": 2,
+                    "uni:active_color": [
+                        "uni:red"
+                    ],
+                    "uni:ratio": 0.0
+                },
+                "settings": {
+                    "uni:window_ms": 3000
+                },
+                "random": [
+                    4
+                ]
+            }
+        },
+        {
+            "name": "random_draws_scripted_value",
+            "expression": "random(1, 6)",
+            "expect": {
+                "value": 4
+            },
+            "world": {
+                "seats": [
+                    {
+                        "name": "Ana",
+                        "properties": {
+                            "hand_size": 5
+                        }
+                    },
+                    {
+                        "name": "Bo",
+                        "properties": {
+                            "hand_size": 0,
+                            "status:uni:draw_debt": 3
+                        }
+                    },
+                    {
+                        "name": "Cy",
+                        "properties": {
+                            "hand_size": 4,
+                            "axe:stunned": false
+                        }
+                    }
+                ],
+                "self": 2,
+                "match": {
+                    "turn": 7,
+                    "tree:growth": 2,
+                    "uni:active_color": [
+                        "uni:red"
+                    ],
+                    "uni:ratio": 0.0
+                },
+                "settings": {
+                    "uni:window_ms": 3000
+                },
+                "random": [
+                    4
+                ]
+            }
+        },
+        {
+            "name": "random_without_script_returns_low_bound",
+            "expression": "random(1, 6)",
+            "expect": {
+                "value": 1
+            },
+            "world": {
+                "seats": [
+                    {
+                        "name": "Ana"
+                    }
+                ],
+                "self": 0
+            }
+        },
+        {
+            "name": "selector_self_property",
+            "expression": "@self.hand_size",
+            "expect": {
+                "value": 4
+            },
+            "world": {
+                "seats": [
+                    {
+                        "name": "Ana",
+                        "properties": {
+                            "hand_size": 5
+                        }
+                    },
+                    {
+                        "name": "Bo",
+                        "properties": {
+                            "hand_size": 0,
+                            "status:uni:draw_debt": 3
+                        }
+                    },
+                    {
+                        "name": "Cy",
+                        "properties": {
+                            "hand_size": 4,
+                            "axe:stunned": false
+                        }
+                    }
+                ],
+                "self": 2,
+                "match": {
+                    "turn": 7,
+                    "tree:growth": 2,
+                    "uni:active_color": [
+                        "uni:red"
+                    ],
+                    "uni:ratio": 0.0
+                },
+                "settings": {
+                    "uni:window_ms": 3000
+                },
+                "random": [
+                    4
+                ]
+            }
+        },
+        {
+            "name": "selector_next_property",
+            "expression": "@next.hand_size",
+            "expect": {
+                "value": 5
+            },
+            "world": {
+                "seats": [
+                    {
+                        "name": "Ana",
+                        "properties": {
+                            "hand_size": 5
+                        }
+                    },
+                    {
+                        "name": "Bo",
+                        "properties": {
+                            "hand_size": 0,
+                            "status:uni:draw_debt": 3
+                        }
+                    },
+                    {
+                        "name": "Cy",
+                        "properties": {
+                            "hand_size": 4,
+                            "axe:stunned": false
+                        }
+                    }
+                ],
+                "self": 2,
+                "match": {
+                    "turn": 7,
+                    "tree:growth": 2,
+                    "uni:active_color": [
+                        "uni:red"
+                    ],
+                    "uni:ratio": 0.0
+                },
+                "settings": {
+                    "uni:window_ms": 3000
+                },
+                "random": [
+                    4
+                ]
+            }
+        },
+        {
+            "name": "selector_prev_property",
+            "expression": "@prev.hand_size",
+            "expect": {
+                "value": 0
+            },
+            "world": {
+                "seats": [
+                    {
+                        "name": "Ana",
+                        "properties": {
+                            "hand_size": 5
+                        }
+                    },
+                    {
+                        "name": "Bo",
+                        "properties": {
+                            "hand_size": 0,
+                            "status:uni:draw_debt": 3
+                        }
+                    },
+                    {
+                        "name": "Cy",
+                        "properties": {
+                            "hand_size": 4,
+                            "axe:stunned": false
+                        }
+                    }
+                ],
+                "self": 2,
+                "match": {
+                    "turn": 7,
+                    "tree:growth": 2,
+                    "uni:active_color": [
+                        "uni:red"
+                    ],
+                    "uni:ratio": 0.0
+                },
+                "settings": {
+                    "uni:window_ms": 3000
+                },
+                "random": [
+                    4
+                ]
+            }
+        },
+        {
+            "name": "selector_match_property",
+            "expression": "@match.turn",
+            "expect": {
+                "value": 7
+            },
+            "world": {
+                "seats": [
+                    {
+                        "name": "Ana",
+                        "properties": {
+                            "hand_size": 5
+                        }
+                    },
+                    {
+                        "name": "Bo",
+                        "properties": {
+                            "hand_size": 0,
+                            "status:uni:draw_debt": 3
+                        }
+                    },
+                    {
+                        "name": "Cy",
+                        "properties": {
+                            "hand_size": 4,
+                            "axe:stunned": false
+                        }
+                    }
+                ],
+                "self": 2,
+                "match": {
+                    "turn": 7,
+                    "tree:growth": 2,
+                    "uni:active_color": [
+                        "uni:red"
+                    ],
+                    "uni:ratio": 0.0
+                },
+                "settings": {
+                    "uni:window_ms": 3000
+                },
+                "random": [
+                    4
+                ]
+            }
+        },
+        {
+            "name": "selector_settings_property",
+            "expression": "@settings.uni:window_ms",
+            "expect": {
+                "value": 3000
+            },
+            "world": {
+                "seats": [
+                    {
+                        "name": "Ana",
+                        "properties": {
+                            "hand_size": 5
+                        }
+                    },
+                    {
+                        "name": "Bo",
+                        "properties": {
+                            "hand_size": 0,
+                            "status:uni:draw_debt": 3
+                        }
+                    },
+                    {
+                        "name": "Cy",
+                        "properties": {
+                            "hand_size": 4,
+                            "axe:stunned": false
+                        }
+                    }
+                ],
+                "self": 2,
+                "match": {
+                    "turn": 7,
+                    "tree:growth": 2,
+                    "uni:active_color": [
+                        "uni:red"
+                    ],
+                    "uni:ratio": 0.0
+                },
+                "settings": {
+                    "uni:window_ms": 3000
+                },
+                "random": [
+                    4
+                ]
+            }
+        },
+        {
+            "name": "selector_others_count",
+            "expression": "count(@others)",
+            "expect": {
+                "value": 2
+            },
+            "world": {
+                "seats": [
+                    {
+                        "name": "Ana",
+                        "properties": {
+                            "hand_size": 5
+                        }
+                    },
+                    {
+                        "name": "Bo",
+                        "properties": {
+                            "hand_size": 0,
+                            "status:uni:draw_debt": 3
+                        }
+                    },
+                    {
+                        "name": "Cy",
+                        "properties": {
+                            "hand_size": 4,
+                            "axe:stunned": false
+                        }
+                    }
+                ],
+                "self": 2,
+                "match": {
+                    "turn": 7,
+                    "tree:growth": 2,
+                    "uni:active_color": [
+                        "uni:red"
+                    ],
+                    "uni:ratio": 0.0
+                },
+                "settings": {
+                    "uni:window_ms": 3000
+                },
+                "random": [
+                    4
+                ]
+            }
+        },
+        {
+            "name": "selector_self_value",
+            "expression": "@self",
+            "expect": {
+                "value": "Cy"
+            },
+            "world": {
+                "seats": [
+                    {
+                        "name": "Ana",
+                        "properties": {
+                            "hand_size": 5
+                        }
+                    },
+                    {
+                        "name": "Bo",
+                        "properties": {
+                            "hand_size": 0,
+                            "status:uni:draw_debt": 3
+                        }
+                    },
+                    {
+                        "name": "Cy",
+                        "properties": {
+                            "hand_size": 4,
+                            "axe:stunned": false
+                        }
+                    }
+                ],
+                "self": 2,
+                "match": {
+                    "turn": 7,
+                    "tree:growth": 2,
+                    "uni:active_color": [
+                        "uni:red"
+                    ],
+                    "uni:ratio": 0.0
+                },
+                "settings": {
+                    "uni:window_ms": 3000
+                },
+                "random": [
+                    4
+                ]
+            }
+        },
+        {
+            "name": "selector_all_value",
+            "expression": "@all",
+            "expect": {
+                "value": [
+                    "Ana",
+                    "Bo",
+                    "Cy"
+                ]
+            },
+            "world": {
+                "seats": [
+                    {
+                        "name": "Ana",
+                        "properties": {
+                            "hand_size": 5
+                        }
+                    },
+                    {
+                        "name": "Bo",
+                        "properties": {
+                            "hand_size": 0,
+                            "status:uni:draw_debt": 3
+                        }
+                    },
+                    {
+                        "name": "Cy",
+                        "properties": {
+                            "hand_size": 4,
+                            "axe:stunned": false
+                        }
+                    }
+                ],
+                "self": 2,
+                "match": {
+                    "turn": 7,
+                    "tree:growth": 2,
+                    "uni:active_color": [
+                        "uni:red"
+                    ],
+                    "uni:ratio": 0.0
+                },
+                "settings": {
+                    "uni:window_ms": 3000
+                },
+                "random": [
+                    4
+                ]
+            }
+        },
+        {
+            "name": "selector_others_value",
+            "expression": "@others",
+            "expect": {
+                "value": [
+                    "Ana",
+                    "Bo"
+                ]
+            },
+            "world": {
+                "seats": [
+                    {
+                        "name": "Ana",
+                        "properties": {
+                            "hand_size": 5
+                        }
+                    },
+                    {
+                        "name": "Bo",
+                        "properties": {
+                            "hand_size": 0,
+                            "status:uni:draw_debt": 3
+                        }
+                    },
+                    {
+                        "name": "Cy",
+                        "properties": {
+                            "hand_size": 4,
+                            "axe:stunned": false
+                        }
+                    }
+                ],
+                "self": 2,
+                "match": {
+                    "turn": 7,
+                    "tree:growth": 2,
+                    "uni:active_color": [
+                        "uni:red"
+                    ],
+                    "uni:ratio": 0.0
+                },
+                "settings": {
+                    "uni:window_ms": 3000
+                },
+                "random": [
+                    4
+                ]
+            }
+        },
+        {
+            "name": "selector_rand_value",
+            "expression": "@rand",
+            "expect": {
+                "value": "Bo"
+            },
+            "world": {
+                "seats": [
+                    {
+                        "name": "Ana"
+                    },
+                    {
+                        "name": "Bo"
+                    },
+                    {
+                        "name": "Cy"
+                    }
+                ],
+                "self": 2,
+                "random": [
+                    1
+                ]
+            }
+        },
+        {
+            "name": "selector_rand_all_value",
+            "expression": "@rand_all",
+            "expect": {
+                "value": "Cy"
+            },
+            "world": {
+                "seats": [
+                    {
+                        "name": "Ana"
+                    },
+                    {
+                        "name": "Bo"
+                    },
+                    {
+                        "name": "Cy"
+                    }
+                ],
+                "self": 2,
+                "random": [
+                    2
+                ]
+            }
+        },
+        {
+            "name": "card_slot_read",
+            "expression": "$played.color",
+            "expect": {
+                "value": [
+                    "uni:red"
+                ]
+            },
+            "world": {
+                "seats": [
+                    {
+                        "name": "Ana",
+                        "properties": {
+                            "hand_size": 5
+                        }
+                    },
+                    {
+                        "name": "Bo",
+                        "properties": {
+                            "hand_size": 0
+                        }
+                    },
+                    {
+                        "name": "Cy",
+                        "properties": {
+                            "hand_size": 4,
+                            "hand": [
+                                {
+                                    "name": "uni:red_5",
+                                    "properties": {
+                                        "kind": "uni:red_5",
+                                        "color": [
+                                            "uni:red"
+                                        ],
+                                        "value": [
+                                            "5"
+                                        ]
+                                    },
+                                    "tags": [
+                                        "uni:wild"
+                                    ]
+                                }
+                            ]
+                        }
+                    }
+                ],
+                "self": 2,
+                "variables": {
+                    "played": {
+                        "name": "uni:red_5",
+                        "properties": {
+                            "kind": "uni:red_5",
+                            "color": [
+                                "uni:red"
+                            ],
+                            "value": [
+                                "5"
+                            ]
+                        },
+                        "tags": [
+                            "uni:wild"
+                        ]
+                    }
+                },
+                "match": {
+                    "turn": 7,
+                    "uni:active_color": [
+                        "uni:red"
+                    ]
+                },
+                "random": [
+                    4
+                ]
+            }
+        },
+        {
+            "name": "card_set_count",
+            "expression": "count(@self.hand)",
+            "expect": {
+                "value": 1
+            },
+            "world": {
+                "seats": [
+                    {
+                        "name": "Ana",
+                        "properties": {
+                            "hand_size": 5
+                        }
+                    },
+                    {
+                        "name": "Bo",
+                        "properties": {
+                            "hand_size": 0
+                        }
+                    },
+                    {
+                        "name": "Cy",
+                        "properties": {
+                            "hand_size": 4,
+                            "hand": [
+                                {
+                                    "name": "uni:red_5",
+                                    "properties": {
+                                        "kind": "uni:red_5",
+                                        "color": [
+                                            "uni:red"
+                                        ],
+                                        "value": [
+                                            "5"
+                                        ]
+                                    },
+                                    "tags": [
+                                        "uni:wild"
+                                    ]
+                                }
+                            ]
+                        }
+                    }
+                ],
+                "self": 2,
+                "variables": {
+                    "played": {
+                        "name": "uni:red_5",
+                        "properties": {
+                            "kind": "uni:red_5",
+                            "color": [
+                                "uni:red"
+                            ],
+                            "value": [
+                                "5"
+                            ]
+                        },
+                        "tags": [
+                            "uni:wild"
+                        ]
+                    }
+                },
+                "match": {
+                    "turn": 7,
+                    "uni:active_color": [
+                        "uni:red"
+                    ]
+                },
+                "random": [
+                    4
+                ]
+            }
+        },
+        {
+            "name": "guard_conjunction_short_circuits",
+            "expression": "defined($responder) && $responder.hand_size > 0",
+            "expect": {
+                "value": false
+            },
+            "world": {
+                "seats": [
+                    {
+                        "name": "Ana",
+                        "properties": {
+                            "hand_size": 5
+                        }
+                    },
+                    {
+                        "name": "Bo",
+                        "properties": {
+                            "hand_size": 0,
+                            "status:uni:draw_debt": 3
+                        }
+                    },
+                    {
+                        "name": "Cy",
+                        "properties": {
+                            "hand_size": 4,
+                            "axe:stunned": false
+                        }
+                    }
+                ],
+                "self": 2,
+                "match": {
+                    "turn": 7,
+                    "tree:growth": 2,
+                    "uni:active_color": [
+                        "uni:red"
+                    ],
+                    "uni:ratio": 0.0
+                },
+                "settings": {
+                    "uni:window_ms": 3000
+                },
+                "random": [
+                    4
+                ]
+            }
+        },
+        {
+            "name": "guard_negation_disjunction",
+            "expression": "!defined($responder) || $responder.hand_size > 0",
+            "expect": {
+                "value": true
+            },
+            "world": {
+                "seats": [
+                    {
+                        "name": "Ana",
+                        "properties": {
+                            "hand_size": 5
+                        }
+                    },
+                    {
+                        "name": "Bo",
+                        "properties": {
+                            "hand_size": 0,
+                            "status:uni:draw_debt": 3
+                        }
+                    },
+                    {
+                        "name": "Cy",
+                        "properties": {
+                            "hand_size": 4,
+                            "axe:stunned": false
+                        }
+                    }
+                ],
+                "self": 2,
+                "match": {
+                    "turn": 7,
+                    "tree:growth": 2,
+                    "uni:active_color": [
+                        "uni:red"
+                    ],
+                    "uni:ratio": 0.0
+                },
+                "settings": {
+                    "uni:window_ms": 3000
+                },
+                "random": [
+                    4
+                ]
+            }
+        },
+        {
+            "name": "guard_if_narrowing",
+            "expression": "if(defined($responder), $responder.hand_size, 0)",
+            "expect": {
+                "value": 0
+            },
+            "world": {
+                "seats": [
+                    {
+                        "name": "Ana",
+                        "properties": {
+                            "hand_size": 5
+                        }
+                    },
+                    {
+                        "name": "Bo",
+                        "properties": {
+                            "hand_size": 0,
+                            "status:uni:draw_debt": 3
+                        }
+                    },
+                    {
+                        "name": "Cy",
+                        "properties": {
+                            "hand_size": 4,
+                            "axe:stunned": false
+                        }
+                    }
+                ],
+                "self": 2,
+                "match": {
+                    "turn": 7,
+                    "tree:growth": 2,
+                    "uni:active_color": [
+                        "uni:red"
+                    ],
+                    "uni:ratio": 0.0
+                },
+                "settings": {
+                    "uni:window_ms": 3000
+                },
+                "random": [
+                    4
+                ]
+            }
+        },
+        {
+            "name": "member_set_equality_true",
+            "expression": "$colors == @match.uni:active_color",
+            "expect": {
+                "value": true
+            },
+            "world": {
+                "variables": {
+                    "colors": [
+                        "uni:red",
+                        "uni:blue"
+                    ]
+                },
+                "match": {
+                    "uni:active_color": [
+                        "uni:blue",
+                        "uni:red"
+                    ]
+                }
+            }
+        },
+        {
+            "name": "member_set_inequality",
+            "expression": "$colors != @match.uni:active_color",
+            "expect": {
+                "value": false
+            },
+            "world": {
+                "variables": {
+                    "colors": [
+                        "uni:red",
+                        "uni:blue"
+                    ]
+                },
+                "match": {
+                    "uni:active_color": [
+                        "uni:blue",
+                        "uni:red"
+                    ]
+                }
+            }
+        },
+        {
+            "name": "member_set_equality_false",
+            "expression": "$colors == @match.uni:active_color",
+            "expect": {
+                "value": false
+            },
+            "world": {
+                "variables": {
+                    "colors": [
+                        "uni:red",
+                        "uni:blue"
+                    ]
+                },
+                "match": {
+                    "uni:active_color": [
+                        "uni:green",
+                        "uni:red"
+                    ]
+                }
+            }
+        },
+        {
+            "name": "shares_true_where_equality_is_false",
+            "expression": "shares($colors, @match.uni:active_color)",
+            "expect": {
+                "value": true
+            },
+            "world": {
+                "variables": {
+                    "colors": [
+                        "uni:red",
+                        "uni:blue"
+                    ]
+                },
+                "match": {
+                    "uni:active_color": [
+                        "uni:green",
+                        "uni:red"
+                    ]
+                }
+            }
+        },
+        {
+            "name": "card_color_equality",
+            "expression": "$played.color == @match.uni:active_color",
+            "expect": {
+                "value": true
+            },
+            "world": {
+                "seats": [
+                    {
+                        "name": "Ana",
+                        "properties": {
+                            "hand_size": 5
+                        }
+                    },
+                    {
+                        "name": "Bo",
+                        "properties": {
+                            "hand_size": 0
+                        }
+                    },
+                    {
+                        "name": "Cy",
+                        "properties": {
+                            "hand_size": 4,
+                            "hand": [
+                                {
+                                    "name": "uni:red_5",
+                                    "properties": {
+                                        "kind": "uni:red_5",
+                                        "color": [
+                                            "uni:red"
+                                        ],
+                                        "value": [
+                                            "5"
+                                        ]
+                                    },
+                                    "tags": [
+                                        "uni:wild"
+                                    ]
+                                }
+                            ]
+                        }
+                    }
+                ],
+                "self": 2,
+                "variables": {
+                    "played": {
+                        "name": "uni:red_5",
+                        "properties": {
+                            "kind": "uni:red_5",
+                            "color": [
+                                "uni:red"
+                            ],
+                            "value": [
+                                "5"
+                            ]
+                        },
+                        "tags": [
+                            "uni:wild"
+                        ]
+                    }
+                },
+                "match": {
+                    "turn": 7,
+                    "uni:active_color": [
+                        "uni:red"
+                    ]
+                },
+                "random": [
+                    4
+                ]
+            }
+        },
+        {
+            "name": "division_by_zero_int",
+            "expression": "@self.hand_size / @prev.hand_size",
+            "expect": {
+                "error": "division_by_zero"
+            },
+            "world": {
+                "seats": [
+                    {
+                        "name": "Ana",
+                        "properties": {
+                            "hand_size": 5
+                        }
+                    },
+                    {
+                        "name": "Bo",
+                        "properties": {
+                            "hand_size": 0,
+                            "status:uni:draw_debt": 3
+                        }
+                    },
+                    {
+                        "name": "Cy",
+                        "properties": {
+                            "hand_size": 4,
+                            "axe:stunned": false
+                        }
+                    }
+                ],
+                "self": 2,
+                "match": {
+                    "turn": 7,
+                    "tree:growth": 2,
+                    "uni:active_color": [
+                        "uni:red"
+                    ],
+                    "uni:ratio": 0.0
+                },
+                "settings": {
+                    "uni:window_ms": 3000
+                },
+                "random": [
+                    4
+                ]
+            }
+        },
+        {
+            "name": "modulo_by_zero_runtime",
+            "expression": "@self.hand_size % @prev.hand_size",
+            "expect": {
+                "error": "division_by_zero"
+            },
+            "world": {
+                "seats": [
+                    {
+                        "name": "Ana",
+                        "properties": {
+                            "hand_size": 5
+                        }
+                    },
+                    {
+                        "name": "Bo",
+                        "properties": {
+                            "hand_size": 0,
+                            "status:uni:draw_debt": 3
+                        }
+                    },
+                    {
+                        "name": "Cy",
+                        "properties": {
+                            "hand_size": 4,
+                            "axe:stunned": false
+                        }
+                    }
+                ],
+                "self": 2,
+                "match": {
+                    "turn": 7,
+                    "tree:growth": 2,
+                    "uni:active_color": [
+                        "uni:red"
+                    ],
+                    "uni:ratio": 0.0
+                },
+                "settings": {
+                    "uni:window_ms": 3000
+                },
+                "random": [
+                    4
+                ]
+            }
+        },
+        {
+            "name": "float_division_by_zero",
+            "expression": "1.0 / @match.uni:ratio",
+            "expect": {
+                "error": "division_by_zero"
+            },
+            "world": {
+                "seats": [
+                    {
+                        "name": "Ana",
+                        "properties": {
+                            "hand_size": 5
+                        }
+                    },
+                    {
+                        "name": "Bo",
+                        "properties": {
+                            "hand_size": 0,
+                            "status:uni:draw_debt": 3
+                        }
+                    },
+                    {
+                        "name": "Cy",
+                        "properties": {
+                            "hand_size": 4,
+                            "axe:stunned": false
+                        }
+                    }
+                ],
+                "self": 2,
+                "match": {
+                    "turn": 7,
+                    "tree:growth": 2,
+                    "uni:active_color": [
+                        "uni:red"
+                    ],
+                    "uni:ratio": 0.0
+                },
+                "settings": {
+                    "uni:window_ms": 3000
+                },
+                "random": [
+                    4
+                ]
+            }
+        },
+        {
+            "name": "zero_over_zero",
+            "expression": "0.0 / 0.0",
+            "expect": {
+                "error": "division_by_zero"
+            }
+        },
+        {
+            "name": "integer_overflow_addition",
+            "expression": "9223372036854775807 + 1",
+            "expect": {
+                "error": "integer_overflow"
+            }
+        },
+        {
+            "name": "integer_overflow_negation",
+            "expression": "-(-9223372036854775807 - 1)",
+            "expect": {
+                "error": "integer_overflow"
+            }
+        },
+        {
+            "name": "float_overflow",
+            "expression": "100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.0 * 10.0",
+            "expect": {
+                "error": "float_overflow"
+            }
+        },
+        {
+            "name": "not_a_number",
+            "expression": "$nan_value + 0.0",
+            "expect": {
+                "error": "not_a_number"
+            },
+            "world": {
+                "variables": {
+                    "nan_value": "nan"
+                }
+            }
+        },
+        {
+            "name": "empty_selector",
+            "expression": "@self.hand_size",
+            "expect": {
+                "error": "empty_selector"
+            },
+            "world": {
+                "seats": [],
+                "self": 0
+            }
+        },
+        {
+            "name": "unbound_variable",
+            "expression": "$responder",
+            "expect": {
+                "error": "unbound_variable"
+            },
+            "world": {
+                "seats": [
+                    {
+                        "name": "Ana",
+                        "properties": {
+                            "hand_size": 5
+                        }
+                    },
+                    {
+                        "name": "Bo",
+                        "properties": {
+                            "hand_size": 0,
+                            "status:uni:draw_debt": 3
+                        }
+                    },
+                    {
+                        "name": "Cy",
+                        "properties": {
+                            "hand_size": 4,
+                            "axe:stunned": false
+                        }
+                    }
+                ],
+                "self": 2,
+                "match": {
+                    "turn": 7,
+                    "tree:growth": 2,
+                    "uni:active_color": [
+                        "uni:red"
+                    ],
+                    "uni:ratio": 0.0
+                },
+                "settings": {
+                    "uni:window_ms": 3000
+                },
+                "random": [
+                    4
+                ]
+            }
+        },
+        {
+            "name": "unknown_property_runtime",
+            "expression": "@self.nope",
+            "expect": {
+                "error": "unknown_property"
+            },
+            "world": {
+                "seats": [
+                    {
+                        "name": "Ana",
+                        "properties": {
+                            "hand_size": 5
+                        }
+                    },
+                    {
+                        "name": "Bo",
+                        "properties": {
+                            "hand_size": 0,
+                            "status:uni:draw_debt": 3
+                        }
+                    },
+                    {
+                        "name": "Cy",
+                        "properties": {
+                            "hand_size": 4,
+                            "axe:stunned": false
+                        }
+                    }
+                ],
+                "self": 2,
+                "match": {
+                    "turn": 7,
+                    "tree:growth": 2,
+                    "uni:active_color": [
+                        "uni:red"
+                    ],
+                    "uni:ratio": 0.0
+                },
+                "settings": {
+                    "uni:window_ms": 3000
+                },
+                "random": [
+                    4
+                ]
+            }
+        },
+        {
+            "name": "invalid_range",
+            "expression": "random(6, 1)",
+            "expect": {
+                "error": "invalid_range"
+            }
+        },
+        {
+            "name": "type_mismatch",
+            "expression": "1 + 'a'",
+            "expect": {
+                "error": "type_mismatch"
+            }
+        },
+        {
+            "name": "write_failed",
+            "expression": "@match.tree:growth = 5",
+            "expect": {
+                "error": "write_failed"
+            },
+            "world": {
+                "match": {}
+            },
+            "assignment": true
+        },
+        {
+            "name": "assignment_sets_a_property",
+            "expression": "@self.axe:stunned = true",
+            "expect": {
+                "value": true
+            },
+            "world": {
+                "seats": [
+                    {
+                        "name": "Ana",
+                        "properties": {
+                            "hand_size": 5
+                        }
+                    },
+                    {
+                        "name": "Bo",
+                        "properties": {
+                            "hand_size": 0,
+                            "status:uni:draw_debt": 3
+                        }
+                    },
+                    {
+                        "name": "Cy",
+                        "properties": {
+                            "hand_size": 4,
+                            "axe:stunned": false
+                        }
+                    }
+                ],
+                "self": 2,
+                "match": {
+                    "turn": 7,
+                    "tree:growth": 2,
+                    "uni:active_color": [
+                        "uni:red"
+                    ],
+                    "uni:ratio": 0.0
+                },
+                "settings": {
+                    "uni:window_ms": 3000
+                },
+                "random": [
+                    4
+                ]
+            },
+            "assignment": true
+        },
+        {
+            "name": "assignment_adds_to_a_property",
+            "expression": "@match.tree:growth += 5",
+            "expect": {
+                "value": 7
+            },
+            "world": {
+                "seats": [
+                    {
+                        "name": "Ana",
+                        "properties": {
+                            "hand_size": 5
+                        }
+                    },
+                    {
+                        "name": "Bo",
+                        "properties": {
+                            "hand_size": 0,
+                            "status:uni:draw_debt": 3
+                        }
+                    },
+                    {
+                        "name": "Cy",
+                        "properties": {
+                            "hand_size": 4,
+                            "axe:stunned": false
+                        }
+                    }
+                ],
+                "self": 2,
+                "match": {
+                    "turn": 7,
+                    "tree:growth": 2,
+                    "uni:active_color": [
+                        "uni:red"
+                    ],
+                    "uni:ratio": 0.0
+                },
+                "settings": {
+                    "uni:window_ms": 3000
+                },
+                "random": [
+                    4
+                ]
+            },
+            "assignment": true
+        },
+        {
+            "name": "check_unknown_property",
+            "expression": "@next.hand_sze",
+            "expect": {
+                "check_error": "unknown property \"hand_sze\" on seat"
+            }
+        },
+        {
+            "name": "check_reading_a_seat_set_property",
+            "expression": "@all.hand_size",
+            "expect": {
+                "check_error": "selects many seats"
+            }
+        },
+        {
+            "name": "check_expected_int_rejects_a_float",
+            "expression": "1.5",
+            "expect": {
+                "check_error": "expected int, got float"
+            },
+            "expected_type": "int"
+        },
+        {
+            "name": "check_member_set_ordering",
+            "expression": "$played.color < @match.uni:active_color",
+            "expect": {
+                "check_error": "operator < needs numbers"
+            }
+        },
+        {
+            "name": "check_unknown_variable",
+            "expression": "$nope",
+            "expect": {
+                "check_error": "unknown variable $nope"
+            }
+        },
+        {
+            "name": "check_bare_name",
+            "expression": "hand_size",
+            "expect": {
+                "check_error": "bare name 'hand_size' is only valid inside"
+            }
+        },
+        {
+            "name": "check_string_arithmetic",
+            "expression": "'a' + 1",
+            "expect": {
+                "check_error": "operator + needs numbers"
+            }
+        },
+        {
+            "name": "check_chained_comparison",
+            "expression": "1 < 2 < 3",
+            "expect": {
+                "check_error": "cannot compare bool with int"
+            }
+        },
+        {
+            "name": "check_literal_division_by_zero",
+            "expression": "5 / 0",
+            "expect": {
+                "check_error": "division by zero"
+            }
+        },
+        {
+            "name": "check_node_budget",
+            "expression": "1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1",
+            "expect": {
+                "check_error": "expression has 257 nodes; the limit is 256"
+            }
+        },
+        {
+            "name": "check_parse_error",
+            "expression": "1 +",
+            "expect": {
+                "check_error": "expected an expression after '+'"
+            }
+        },
+        {
+            "name": "check_unknown_selector",
+            "expression": "@nope",
+            "expect": {
+                "check_error": "unknown selector @nope"
+            }
+        },
+        {
+            "name": "check_member_set_property_read",
+            "expression": "@match.uni:active_color.color",
+            "expect": {
+                "check_error": "reading a property of a member set"
+            }
+        },
+        {
+            "name": "check_property_on_a_value",
+            "expression": "1.hand_size",
+            "expect": {
+                "check_error": "cannot read \"hand_size\" on a value of type int"
+            }
+        },
+        {
+            "name": "check_logical_needs_booleans",
+            "expression": "'a' && 1",
+            "expect": {
+                "check_error": "operator && needs booleans"
+            }
+        },
+        {
+            "name": "check_filter_needs_a_boolean",
+            "expression": "@all[hand_size + 1]",
+            "expect": {
+                "check_error": "filter must be a boolean condition, got int"
+            }
+        },
+        {
+            "name": "check_if_needs_a_bool",
+            "expression": "if(1, 2, 3)",
+            "expect": {
+                "check_error": "if needs a bool condition"
+            }
+        },
+        {
+            "name": "check_if_branch_types",
+            "expression": "if(true, 1, 'a')",
+            "expect": {
+                "check_error": "if needs matching branch types"
+            }
+        },
+        {
+            "name": "check_all_needs_a_condition",
+            "expression": "all(@all)",
+            "expect": {
+                "check_error": "all needs a condition"
+            }
+        },
+        {
+            "name": "check_sum_needs_a_number",
+            "expression": "sum(@all, 'x')",
+            "expect": {
+                "check_error": "sum needs a number expression"
+            }
+        },
+        {
+            "name": "check_count_needs_a_set",
+            "expression": "count(1)",
+            "expect": {
+                "check_error": "count needs a set"
+            }
+        },
+        {
+            "name": "check_contains_member_type",
+            "expression": "contains(@all, 1)",
+            "expect": {
+                "check_error": "contains needs a seat for a seat_set"
+            }
+        },
+        {
+            "name": "check_shares_needs_member_sets",
+            "expression": "shares(1, 2)",
+            "expect": {
+                "check_error": "shares needs member sets"
+            }
+        },
+        {
+            "name": "check_has_tag_needs_a_card",
+            "expression": "has_tag(@next, 'x')",
+            "expect": {
+                "check_error": "has_tag needs a card or a rule"
+            }
+        },
+        {
+            "name": "check_defined_needs_a_variable",
+            "expression": "defined(@next)",
+            "expect": {
+                "check_error": "defined needs a $variable"
+            }
+        },
+        {
+            "name": "check_unknown_function",
+            "expression": "frobnicate(1)",
+            "expect": {
+                "check_error": "unknown function \"frobnicate\""
+            }
+        },
+        {
+            "name": "check_unknown_function_suggestion",
+            "expression": "rnadom(1, 2)",
+            "expect": {
+                "check_error": "unknown function \"rnadom\""
+            }
+        },
+        {
+            "name": "check_random_arity",
+            "expression": "random(1)",
+            "expect": {
+                "check_error": "random takes 2 arguments, got 1"
+            }
+        },
+        {
+            "name": "check_min_arity",
+            "expression": "min(1)",
+            "expect": {
+                "check_error": "min takes at least 2 arguments, got 1"
+            }
+        },
+        {
+            "name": "check_clamp_arity",
+            "expression": "clamp(1, 2)",
+            "expect": {
+                "check_error": "clamp takes 3 arguments, got 2"
+            }
+        },
+        {
+            "name": "check_modulo_needs_ints",
+            "expression": "10.5 % 3",
+            "expect": {
+                "check_error": "operator % needs ints"
+            }
+        },
+        {
+            "name": "check_unary_minus_needs_numbers",
+            "expression": "-'a'",
+            "expect": {
+                "check_error": "operator - needs numbers"
+            }
+        },
+        {
+            "name": "check_not_needs_a_boolean",
+            "expression": "!1",
+            "expect": {
+                "check_error": "operator ! needs a boolean"
+            }
+        },
+        {
+            "name": "check_filter_unknown_property",
+            "expression": "@all[nope]",
+            "expect": {
+                "check_error": "unknown property \"nope\" on seat"
+            }
+        },
+        {
+            "name": "check_literal_modulo_by_zero",
+            "expression": "5 % 0",
+            "expect": {
+                "check_error": "division by zero"
+            }
+        },
+        {
+            "name": "check_equality_types",
+            "expression": "1 == 'a'",
+            "expect": {
+                "check_error": "operator == cannot compare int with string"
+            }
+        },
+        {
+            "name": "check_status_magnitude_needs_a_seat",
+            "expression": "status_magnitude(1, 'x')",
+            "expect": {
+                "check_error": "status_magnitude needs a seat"
+            }
+        },
+        {
+            "name": "check_random_needs_ints",
+            "expression": "random(1.5, 2)",
+            "expect": {
+                "check_error": "random needs ints"
+            }
+        },
+        {
+            "name": "check_unguarded_optional_variable",
+            "expression": "$responder.hand_size",
+            "expect": {
+                "check_error": "variable $responder may be unbound; guard it with defined($responder)"
+            }
+        },
+        {
+            "name": "check_disjunction_does_not_guard",
+            "expression": "defined($responder) || $responder.hand_size > 0",
+            "expect": {
+                "check_error": "may be unbound"
+            }
+        },
+        {
+            "name": "review_empty_source",
+            "expression": "",
+            "expect": {
+                "check_error": "empty expression"
+            }
+        },
+        {
+            "name": "review_non_ascii_source",
+            "expression": "1 + é",
+            "expect": {
+                "check_error": "identifiers use lowercase ASCII snake_case"
+            }
+        },
+        {
+            "name": "review_deeply_nested_input",
+            "expression": "(((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((())))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))",
+            "expect": {
+                "check_error": "nested deeper than 64 levels"
+            }
+        },
+        {
+            "name": "review_number_out_of_range",
+            "expression": "99999999999999999999",
+            "expect": {
+                "check_error": "number out of range"
+            }
+        }
+    ]
+}
