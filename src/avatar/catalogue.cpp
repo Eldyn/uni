@@ -378,8 +378,9 @@ std::vector<Item> ParseItems(const json& doc) {
             }
             item.tint = tint_node->get<std::string>();
         }
-        if (item.tint != "mask" && item.tint != "multiply") {
-            Reject(where + ".tint '" + item.tint + "' must be mask or multiply");
+        if (item.tint != "mask" && item.tint != "multiply" && item.tint != "none") {
+            Reject(where + ".tint '" + item.tint
+                   + "' must be mask, multiply or none");
         }
         if (item.tint == "multiply") {
             if (item.regions != 1) {
@@ -387,6 +388,18 @@ std::vector<Item> ParseItems(const json& doc) {
             }
             if (extra_masks != 0) {
                 Reject(where + ".tint multiply takes no 'masks' files");
+            }
+        }
+        if (item.tint == "none") {
+            if (item.regions != 0) {
+                Reject(where + ".tint none needs 0 regions");
+            }
+            if (extra_masks != 0) {
+                Reject(where + ".tint none takes no 'masks' files");
+            }
+            const auto none_defaults = node.find("default_colors");
+            if (none_defaults != node.end() && !none_defaults->is_null()) {
+                Reject(where + ".tint none takes no 'default_colors'");
             }
         }
         item.default_colors = ParseDefaultColours(node, item, where);

@@ -27,8 +27,8 @@ namespace uni::avatar {
  *
  * `available_from` / `available_until` are empty when the entry has no window
  * (ISO-8601 UTC strings when set). `shapes` is empty when the item supports
- * every shape. `tint` is `mask` or `multiply`; `default_colors` is empty when
- * the item has none.
+ * every shape. `tint` is `mask`, `multiply` or `none`; `default_colors` is
+ * empty when the item has none.
  */
 struct Item {
     std::string id;
