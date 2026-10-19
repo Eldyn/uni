@@ -3,7 +3,7 @@
 	import { assetUrl } from "$lib/utils/assetUrl";
 	import type { LoaderFace } from "./loaderFaces";
 
-	let { face }: { face: LoaderFace } = $props();
+	let { face, color }: { face: LoaderFace; color?: string } = $props();
 
 	const COLOR_MAP: Record<string, string> = {
 		red: "var(--redCard)",
@@ -13,7 +13,7 @@
 		white: "var(--whiteCard)"
 	};
 
-	const cardColor = $derived(COLOR_MAP[face.type] ?? "inherit");
+	const cardColor = $derived(color ?? COLOR_MAP[face.type] ?? "inherit");
 	const tinted = $derived(face.value !== "jolly");
 	const faceSrc = $derived(assetUrl(`/assets/cards/${face.value}.png`));
 </script>

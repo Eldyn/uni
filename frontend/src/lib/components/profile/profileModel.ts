@@ -5,6 +5,7 @@
  */
 
 import type { PlayerStats } from "$stores/stats.svelte";
+import type { CardValue } from "$stores/game.svelte";
 
 /** One bar or card in a cards played chart: its key, raw count and relative size. */
 export type CardsPlayedRow = {
@@ -143,4 +144,22 @@ export function percentVersusOthers(rows: CardsPlayedRow[], key: string): number
 	const average = others.reduce((sum, row) => sum + row.count, 0) / others.length;
 	if (average === 0) return null;
 	return Math.round((target.count / average - 1) * 100);
+}
+
+/** Card face value drawn for an action row key, or null when no face exists. */
+export function actionCardValue(key: string): CardValue | null {
+	switch (key) {
+		case "skip":
+			return "skip";
+		case "reverse":
+			return "reverse";
+		case "draw2":
+			return "+2";
+		case "draw4":
+			return "jolly_draw4";
+		case "jolly":
+			return "jolly";
+		default:
+			return null;
+	}
 }

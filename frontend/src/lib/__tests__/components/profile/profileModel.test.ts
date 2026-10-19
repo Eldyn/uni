@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type { PlayerStats } from "$stores/stats.svelte";
 import {
+	actionCardValue,
 	cardsPlayedGroups,
 	gamesPlayed,
 	percentVersusOthers,
@@ -151,5 +152,19 @@ describe("profileModel", () => {
 		];
 
 		expect(percentVersusOthers(rows, "a")).toBeNull();
+	});
+});
+
+describe("actionCardValue", () => {
+	it("maps each action key to its card face value", () => {
+		expect(actionCardValue("skip")).toBe("skip");
+		expect(actionCardValue("reverse")).toBe("reverse");
+		expect(actionCardValue("draw2")).toBe("+2");
+		expect(actionCardValue("draw4")).toBe("jolly_draw4");
+		expect(actionCardValue("jolly")).toBe("jolly");
+	});
+
+	it("returns null for a key without a card face", () => {
+		expect(actionCardValue("mystery")).toBeNull();
 	});
 });

@@ -7,7 +7,9 @@
 	 */
 	import { storeI18n } from "$stores/i18n.svelte";
 	import * as m from "$lib/paraglide/messages.js";
+	import LoaderCard from "$components/common/loader/LoaderCard.svelte";
 	import {
+		actionCardValue,
 		percentVersusOthers,
 		podiumOrder,
 		type CardsPlayedGroup,
@@ -18,6 +20,8 @@
 	type CardsPlayedChartProps = { groups: CardsPlayedGroup[] };
 
 	let { groups }: CardsPlayedChartProps = $props();
+
+	const ACTION_CARD_COLOR = "#2c354d";
 
 	// null means "not chosen yet": activeGroup then falls back to the first
 	// group, so the initial value never reads props outside a derived.
@@ -137,6 +141,7 @@
 		{#if activeGroup.id === "actions"}
 			<div class="podium">
 				{#each podium as row, index (row.key)}
+					{@const faceValue = actionCardValue(row.key)}
 					<button
 						type="button"
 						class="podium-card"
@@ -145,7 +150,12 @@
 						onclick={() => (selectedAction = row.key)}
 						onkeydown={(event) => onCardKeydown(event, row.key)}
 					>
-						<span class="podium-face">{rowLabel(row.key)}</span>
+						{#if faceValue}
+							<span class="podium-art" aria-hidden="true">
+								<LoaderCard face={{ type: "white", value: faceValue }} color={ACTION_CARD_COLOR} />
+							</span>
+						{/if}
+						<span class="podium-face" class:sr-only={faceValue !== null}>{rowLabel(row.key)}</span>
 						<span class="podium-count">{row.count}</span>
 					</button>
 				{/each}
@@ -264,6 +274,11 @@
 
 	.podium-face {
 		font-weight: bold;
+	}
+
+	.podium-art {
+		display: block;
+		--loader-card-width: 3.5rem;
 	}
 
 	.podium-count {

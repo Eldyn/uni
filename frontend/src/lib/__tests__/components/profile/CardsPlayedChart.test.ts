@@ -189,4 +189,25 @@ describe("CardsPlayedChart", () => {
 			expect(bar.getAttribute("style")).toContain("var(--accent)");
 		}
 	});
+
+	it("draws a real card on every action podium button", async () => {
+		const { container } = render(CardsPlayedChart, { props: { groups: allGroups() } });
+
+		await fireEvent.click(screen.getByRole("tab", { name: "Actions" }));
+
+		const buttons = container.querySelectorAll(".podium-card");
+		expect(buttons).toHaveLength(4);
+		for (const button of buttons) {
+			expect(button.querySelector('[data-testid="loader-card"]')).not.toBeNull();
+		}
+	});
+
+	it("colors the action cards #2c354d", async () => {
+		const { container } = render(CardsPlayedChart, { props: { groups: allGroups() } });
+
+		await fireEvent.click(screen.getByRole("tab", { name: "Actions" }));
+
+		const card = container.querySelector('.podium-card [data-testid="loader-card"]');
+		expect(card?.getAttribute("style")).toContain("--card-color: #2c354d");
+	});
 });
