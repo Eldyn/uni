@@ -64,6 +64,26 @@ json ValidDoc() {
                     { "id": "basic:red", "hex": "#e84a4a" },
                     { "id": "basic:blue", "hex": "#4a6ae8" }
                 ]
+            },
+            {
+                "id": "uni:neon",
+                "name": "Neon",
+                "price": 250,
+                "swatches": [
+                    {
+                        "id": "uni:neon:hot",
+                        "hex": "#ff2d95",
+                        "price": 250,
+                        "rarity": "uncommon"
+                    },
+                    {
+                        "id": "uni:neon:secret",
+                        "hex": "#00e5ff",
+                        "price": 600,
+                        "rarity": "rare",
+                        "hidden": true
+                    }
+                ]
             }
         ],
         "items": [
@@ -414,4 +434,35 @@ TEST_CASE("economy controller: buy as guest is 403 guest") {
                           BuyBody("uni:hat_cap", "req-guest"));
     REQUIRE(res.status == 403);
     CHECK(res.body["error"] == "guest");
+}
+
+TEST_CASE("economy controller: buy a paid swatch and list it in owned") {
+    EconomyTestServer server;
+    const TestUser user = RegisterUser(Name("swatch"));
+    REQUIRE(server.economy->Credit(user.username, 250, "grant", "seed", 1000));
+
+    const auto bought = Curl("POST", kBuyPath, user.cookies,
+                             BuyBody("uni:neon:hot", "req-swatch"));
+    REQUIRE(bought.status == 200);
+    CHECK(bought.body["item"] == "uni:neon:hot");
+    CHECK(bought.body["balance"] == 0);
+
+    const auto me = Curl("GET", kMePath, user.cookies, "");
+    REQUIRE(me.status == 200);
+    bool owns_swatch = false;
+    for (const json& id : me.body["owned"]) {
+        if (id == "uni:neon:hot") owns_swatch = true;
+    }
+    CHECK(owns_swatch);
+}
+
+TEST_CASE("economy controller: buy a hidden swatch is 410 not_available") {
+    EconomyTestServer server;
+    const TestUser user = RegisterUser(Name("swatch_hidden"));
+    REQUIRE(server.economy->Credit(user.username, 600, "grant", "seed", 1000));
+
+    const auto res = Curl("POST", kBuyPath, user.cookies,
+                          BuyBody("uni:neon:secret", "req-swatch-hidden"));
+    REQUIRE(res.status == 410);
+    CHECK(res.body["error"] == "not_available");
 }

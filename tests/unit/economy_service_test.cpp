@@ -1,6 +1,7 @@
 #include <doctest/doctest.h>
 
 #include <avatar/catalogue.hpp>
+#include <avatar/loadout.hpp>
 #include <database.hpp>
 #include <economy/economy_service.hpp>
 
@@ -21,6 +22,7 @@
 
 using nlohmann::json;
 using uni::avatar::Catalogue;
+using uni::avatar::ValidateLoadout;
 using uni::economy::BuyStatus;
 using uni::economy::EconomyService;
 using uni::economy::LedgerRow;
@@ -48,6 +50,26 @@ json ValidDoc() {
                 "swatches": [
                     { "id": "basic:red", "hex": "#e84a4a" },
                     { "id": "basic:blue", "hex": "#4a6ae8" }
+                ]
+            },
+            {
+                "id": "uni:neon",
+                "name": "Neon",
+                "price": 250,
+                "swatches": [
+                    {
+                        "id": "uni:neon:hot",
+                        "hex": "#ff2d95",
+                        "price": 250,
+                        "rarity": "uncommon"
+                    },
+                    {
+                        "id": "uni:neon:secret",
+                        "hex": "#00e5ff",
+                        "price": 600,
+                        "rarity": "rare",
+                        "hidden": true
+                    }
                 ]
             }
         ],
@@ -371,6 +393,74 @@ TEST_CASE("economy: OwnsItem is true for starters and owned items only") {
     REQUIRE(economy.GrantItem(user, "uni:hat_cap", "reason", 1000));
     CHECK(economy.OwnsItem(user, "uni:hat_cap"));
     CHECK_FALSE(economy.OwnsItem(user, "uni:mask_visor"));
+}
+
+TEST_CASE("economy: Buy of a paid swatch owns the swatch id") {
+    EconomyFixture fixture;
+    const Catalogue catalogue = Catalogue::Parse(ValidDoc());
+    EconomyService economy(Database::Get(), catalogue);
+    const std::string user = Name("swatch_buy");
+    MakeUser(user);
+    REQUIRE(economy.Credit(user, 250, "grant", "seed", 1000));
+
+    const auto result = economy.Buy(user, "uni:neon:hot", "req-swatch", 1000);
+    CHECK(result.status == BuyStatus::kOk);
+    CHECK(result.balance == 0);
+    CHECK(economy.OwnsSwatch(user, "uni:neon:hot"));
+
+    auto row = Database::Get().QueryOne(
+        "SELECT item_id FROM item_ownership WHERE user_id = "
+        "(SELECT id FROM users WHERE username = ?);",
+        {user});
+    REQUIRE(row.has_value());
+    REQUIRE(row->has_value());
+    CHECK(row.value()->Get<std::string>("item_id") == "uni:neon:hot");
+}
+
+TEST_CASE("economy: OwnsSwatch is true for starters and bought swatches") {
+    EconomyFixture fixture;
+    const Catalogue catalogue = Catalogue::Parse(ValidDoc());
+    EconomyService economy(Database::Get(), catalogue);
+    const std::string user = Name("swatch_owns");
+    MakeUser(user);
+
+    CHECK(economy.OwnsSwatch(user, "basic:red"));
+    CHECK_FALSE(economy.OwnsSwatch(user, "uni:neon:hot"));
+    REQUIRE(economy.Credit(user, 250, "grant", "seed", 1000));
+    REQUIRE(economy.Buy(user, "uni:neon:hot", "req-owns", 1000).status
+            == BuyStatus::kOk);
+    CHECK(economy.OwnsSwatch(user, "uni:neon:hot"));
+}
+
+TEST_CASE("economy: Buy of a hidden swatch returns kNotAvailable") {
+    EconomyFixture fixture;
+    const Catalogue catalogue = Catalogue::Parse(ValidDoc());
+    EconomyService economy(Database::Get(), catalogue);
+    const std::string user = Name("swatch_hidden");
+    MakeUser(user);
+    REQUIRE(economy.Credit(user, 600, "grant", "seed", 1000));
+
+    const auto result = economy.Buy(user, "uni:neon:secret", "req-secret", 1000);
+    CHECK(result.status == BuyStatus::kNotAvailable);
+    CHECK(economy.Balance(user) == 600);
+}
+
+TEST_CASE("economy: a bought swatch passes loadout validation") {
+    EconomyFixture fixture;
+    const Catalogue catalogue = Catalogue::Parse(ValidDoc());
+    EconomyService economy(Database::Get(), catalogue);
+    const std::string user = Name("swatch_loadout");
+    MakeUser(user);
+    REQUIRE(economy.Credit(user, 250, "grant", "seed", 1000));
+
+    const json loadout = json{{"shape", "uni:round"}, {"skin", "uni:neon:hot"}};
+    const auto before = ValidateLoadout(loadout, catalogue, economy, user);
+    REQUIRE(before.has_value());
+    CHECK(before->code == "swatch_not_owned");
+
+    REQUIRE(economy.Buy(user, "uni:neon:hot", "req-loadout", 1000).status
+            == BuyStatus::kOk);
+    CHECK_FALSE(ValidateLoadout(loadout, catalogue, economy, user).has_value());
 }
 
 TEST_CASE("economy: random credits and buys keep the cache equal to the ledger") {
