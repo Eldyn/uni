@@ -80,9 +80,9 @@ function setReducedMotion(reduced: boolean): void {
 	setMatchingQueries(reduced ? ["(prefers-reduced-motion: reduce)"] : []);
 }
 
-function uTimeValues(uniform1f: ReturnType<typeof vi.fn>): number[] {
+function uniformValues(uniform1f: ReturnType<typeof vi.fn>, uniformName: string): number[] {
 	return uniform1f.mock.calls
-		.filter(([location]) => (location as { name: string }).name === "uTime")
+		.filter(([location]) => (location as { name: string }).name === uniformName)
 		.map(([, value]) => value as number);
 }
 
@@ -153,7 +153,7 @@ describe("ShopBackdrop", () => {
 
 		expect(fake.drawArrays).toHaveBeenCalledTimes(1);
 		expect(requestAnimationFrame).not.toHaveBeenCalled();
-		expect(uTimeValues(fake.uniform1f)).toEqual([BACKDROP_STILL_TIME_S]);
+		expect(uniformValues(fake.uniform1f, "uTime")).toEqual([BACKDROP_STILL_TIME_S]);
 	});
 
 	it("draws one still frame on a slow-update display", () => {
@@ -193,9 +193,11 @@ describe("ShopBackdrop", () => {
 
 		const names = fake.getUniformLocation.mock.calls.map(([, name]) => name);
 		expect(names).toEqual(
-			expect.arrayContaining(["uTime", "uResolution", "uBase", "uHint", "uPixelSize", "uDim"])
+			expect.arrayContaining(["uTime", "uResolution", "uBase", "uHint", "uShade"])
 		);
 		expect(names).not.toContain("uAccent");
+		expect(names).not.toContain("uDim");
+		expect(names).not.toContain("uPixelSize");
 	});
 
 	it("falls back to the home colors in CSS when WebGL2 is missing", () => {
@@ -205,8 +207,32 @@ describe("ShopBackdrop", () => {
 		flushSync();
 
 		const host = container.querySelector<HTMLElement>(".shop-backdrop");
-		expect(host?.getAttribute("style") ?? "").toContain("rgb(22, 23, 29)");
-		expect(host?.getAttribute("style") ?? "").toContain("rgb(44, 53, 77)");
+		const style = host?.getAttribute("style") ?? "";
+		expect(style).toContain("rgb(44, 53, 77)");
+		expect(style).not.toContain("gradient");
+		expect(style).not.toContain("rgb(22, 23, 29)");
+	});
+
+	it("sends dim as the dark cell share, clamped to the maximum", () => {
+		const fake = fakeWebgl2();
+		mockContext(fake.gl);
+		setReducedMotion(true);
+
+		render(ShopBackdrop, { props: { dim: 0.9 } });
+		flushSync();
+
+		expect(uniformValues(fake.uniform1f, "uShade")).toEqual([0.5]);
+	});
+
+	it("sends a dim inside the range unchanged", () => {
+		const fake = fakeWebgl2();
+		mockContext(fake.gl);
+		setReducedMotion(true);
+
+		render(ShopBackdrop, { props: { dim: 0.15 } });
+		flushSync();
+
+		expect(uniformValues(fake.uniform1f, "uShade")).toEqual([0.15]);
 	});
 
 	it("cancels the loop and releases the context on destroy", () => {

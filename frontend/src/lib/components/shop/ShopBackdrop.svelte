@@ -1,13 +1,13 @@
-<!-- The Shop's backdrop: one WebGL2 canvas painting the home screen colors as a
-     calm field with two very slow diagonal bands and a few dust pixels that
-     fade in place. It sits behind the screen, ignores pointer events, draws at
-     most 20 frames per second, stops while the tab is hidden, and draws one
-     still frame (no loop) under reduced motion or on a slow-update display.
-     When WebGL2 is missing the CSS gradient layer underneath is the whole
-     backdrop. -->
+<!-- The Shop and Wardrobe backdrop: one WebGL2 canvas that paints the home
+     hint color with an ordered dither of the home base color (the dim prop is
+     the share of dark cells), on the home pixel grid, with alpha 1.0. It sits
+     behind the screen, ignores pointer events, draws at most 20 frames per
+     second, stops while the tab is hidden, and draws one still frame under
+     reduced motion or on a slow-update display. Without WebGL2 the flat hint
+     color of the host is the whole backdrop. -->
 <script lang="ts">
 	import { onDestroy, onMount } from "svelte";
-	import { BACKDROP_FRAGMENT_SOURCE, BACKDROP_PIXEL_SIZE_PX } from "$lib/shop/backdrop.glsl";
+	import { BACKDROP_FRAGMENT_SOURCE, BACKDROP_MAX_SHADE } from "$lib/shop/backdrop.glsl";
 	import {
 		BACKDROP_STILL_TIME_S,
 		prefersStillBackdrop,
@@ -15,8 +15,8 @@
 	} from "$lib/shop/backdropTiming";
 	import {
 		HOME_BACKGROUND_BASE_HEX,
+		HOME_BACKGROUND_HINT_CSS,
 		HOME_BACKGROUND_HINT_HEX,
-		hexToCss,
 		hexToRgb01
 	} from "$lib/shaders/homePalette";
 
@@ -32,7 +32,6 @@ void main() {
 	const MAX_PIXEL_RATIO = 2;
 	const BASE_RGB = hexToRgb01(HOME_BACKGROUND_BASE_HEX);
 	const HINT_RGB = hexToRgb01(HOME_BACKGROUND_HINT_HEX);
-	const FALLBACK_BACKGROUND = `linear-gradient(160deg, ${hexToCss(HOME_BACKGROUND_BASE_HEX)} 0%, ${hexToCss(HOME_BACKGROUND_HINT_HEX)} 100%)`;
 
 	let { dim = 0 }: { dim?: number } = $props();
 
@@ -47,10 +46,8 @@ void main() {
 		resolution: WebGLUniformLocation | null;
 		base: WebGLUniformLocation | null;
 		hint: WebGLUniformLocation | null;
-		pixelSize: WebGLUniformLocation | null;
-		dim: WebGLUniformLocation | null;
+		shade: WebGLUniformLocation | null;
 	} | null = null;
-	let pixelRatio = 1;
 
 	let rafId: number | null = null;
 	let stillFrame = false;
@@ -105,7 +102,6 @@ void main() {
 			typeof window === "undefined" ? 1 : window.devicePixelRatio || 1,
 			MAX_PIXEL_RATIO
 		);
-		pixelRatio = ratio;
 		const box = host?.getBoundingClientRect();
 		const width = Math.max(1, Math.round((box?.width || 1) * ratio));
 		const height = Math.max(1, Math.round((box?.height || 1) * ratio));
@@ -121,8 +117,7 @@ void main() {
 		gl.uniform2f(uniforms.resolution, canvas.width, canvas.height);
 		gl.uniform3f(uniforms.base, BASE_RGB[0], BASE_RGB[1], BASE_RGB[2]);
 		gl.uniform3f(uniforms.hint, HINT_RGB[0], HINT_RGB[1], HINT_RGB[2]);
-		gl.uniform1f(uniforms.pixelSize, BACKDROP_PIXEL_SIZE_PX * pixelRatio);
-		gl.uniform1f(uniforms.dim, dim);
+		gl.uniform1f(uniforms.shade, Math.min(Math.max(dim, 0), BACKDROP_MAX_SHADE));
 		gl.drawArrays(gl.TRIANGLES, 0, 3);
 	}
 
@@ -190,8 +185,7 @@ void main() {
 				resolution: context.getUniformLocation(linked, "uResolution"),
 				base: context.getUniformLocation(linked, "uBase"),
 				hint: context.getUniformLocation(linked, "uHint"),
-				pixelSize: context.getUniformLocation(linked, "uPixelSize"),
-				dim: context.getUniformLocation(linked, "uDim")
+				shade: context.getUniformLocation(linked, "uShade")
 			};
 			resize(context, target);
 			host?.appendChild(target);
@@ -217,7 +211,7 @@ void main() {
 	class="shop-backdrop"
 	data-webgl={ready}
 	bind:this={host}
-	style:background={FALLBACK_BACKGROUND}
+	style:background-color={HOME_BACKGROUND_HINT_CSS}
 	aria-hidden="true"
 ></div>
 
