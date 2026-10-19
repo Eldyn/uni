@@ -55,6 +55,25 @@ describe("defaultItemChoice", () => {
 			[]
 		);
 	});
+
+	it("uses a swatch id default instead of the skin or the first swatch", () => {
+		const item = makeItem({ regions: 2, default_colors: ["basic:green", "basic:blue"] });
+
+		expect(defaultItemChoice(item, SKIN, true).colours).toEqual(["basic:green", "basic:blue"]);
+		expect(defaultItemChoice(item, SKIN, false).colours).toEqual(["basic:green", "basic:blue"]);
+	});
+
+	it("stores nothing for a hex default, so the render falls back to it", () => {
+		const item = makeItem({ regions: 1, default_colors: ["#202020"] });
+
+		expect(defaultItemChoice(item, SKIN, true).colours).toEqual([]);
+	});
+
+	it("a motif default list starts at region 2", () => {
+		const item = makeItem({ slot: "motif", regions: 3, default_colors: ["basic:green"] });
+
+		expect(defaultItemChoice(item, SKIN, true).colours).toEqual(["basic:green", FIRST_SWATCH]);
+	});
 });
 
 describe("itemPreviewLoadout", () => {
