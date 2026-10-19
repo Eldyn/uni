@@ -1,5 +1,5 @@
 {
-  "defs_digest": "705aa149f7167444",
+  "defs_digest": "8204c5ed2e8d4d54",
   "mods": [
     {
       "glossary": [
@@ -28,7 +28,7 @@
           "source": "explicit"
         }
       ],
-      "hash": "ca195020bd6c8629193065f4056ded91f09c734551697d58849f2e422618e586",
+      "hash": "fdc7fec7b17cc817b174aa9782a7283c8a8dff752c694ce1d6aec818ee25fd6b",
       "id": "gloss_mod",
       "index": 0,
       "texts": [
