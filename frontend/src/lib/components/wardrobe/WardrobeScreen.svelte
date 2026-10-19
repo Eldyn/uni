@@ -394,8 +394,6 @@
 	.wardrobe-stage {
 		position: relative;
 		min-height: 280px;
-		border: 2px solid var(--border);
-		background: var(--surface-deep);
 	}
 
 	.wardrobe-right {

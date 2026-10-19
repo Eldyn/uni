@@ -1,13 +1,13 @@
 <!-- The 3D avatar stage: a Threlte orthographic canvas showing the baked strip
-     on a textured plane, with a rim-light shader and a ground glow disc behind
-     it. Dragging turns the plane around Y within +/-35 degrees and eases it
-     back on release; the strip steps through its 5 frames on the shared 120 ms
-     clock, stopping while the tab is hidden. Without WebGL the plain Avatar is
-     the fallback, so the preview never blocks the screen. -->
+     on a textured plane, with a ground glow disc under it. Dragging turns the
+     plane around Y within +/-35 degrees and eases it back on release; the
+     strip steps through its 5 frames on the shared 120 ms clock, stopping
+     while the tab is hidden. Without WebGL the plain Avatar is the fallback,
+     so the preview never blocks the screen. -->
 <script lang="ts">
 	import { onDestroy, onMount } from "svelte";
 	import { Canvas, T } from "@threlte/core";
-	import { Color, type CanvasTexture } from "three";
+	import type { CanvasTexture } from "three";
 	import Avatar from "$components/common/Avatar.svelte";
 	import { loadAvatarTexture } from "$components/game/three/avatarTexture";
 	import { FRAME_COUNT, FRAME_MS, type Loadout } from "$lib/avatar/types";
@@ -16,28 +16,6 @@
 
 	const MAX_ANGLE = 35;
 	const DEGREES_PER_PX = 0.35;
-
-	const RIM_VERTEX = `varying vec2 vUv;
-void main() {
-	vUv = uv;
-	gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-}
-`;
-
-	const RIM_FRAGMENT = `varying vec2 vUv;
-uniform vec3 uColour;
-uniform float uStrength;
-void main() {
-	vec2 edge = abs(vUv - 0.5) * 2.0;
-	float rim = smoothstep(0.45, 1.0, max(edge.x, edge.y));
-	gl_FragColor = vec4(uColour, rim * uStrength);
-}
-`;
-
-	const rimUniforms = {
-		uColour: { value: new Color("#c084fc") },
-		uStrength: { value: 0.5 }
-	};
 
 	/** WebGL is decided once: a missing context must never mount a Canvas. */
 	function detectWebGL(): boolean {
@@ -203,18 +181,6 @@ void main() {
 			<T.OrthographicCamera makeDefault position={[0, 0, 4]} zoom={170} near={0.1} far={100} />
 
 			<T.Group rotation.y={rotationY}>
-				<T.Mesh position.z={-0.02} scale={1.06}>
-					<T.PlaneGeometry args={[1, 1]} />
-					<T.ShaderMaterial
-						vertexShader={RIM_VERTEX}
-						fragmentShader={RIM_FRAGMENT}
-						uniforms={rimUniforms}
-						transparent
-						depthWrite={false}
-						toneMapped={false}
-					/>
-				</T.Mesh>
-
 				{#if texture}
 					<T.Mesh position.y={0.04}>
 						<T.PlaneGeometry args={[1, 1]} />
