@@ -36,6 +36,7 @@ import { storeModTexts } from "$lib/stores/modTexts.svelte";
 import { storeModGlossary } from "$lib/stores/modGlossary.svelte";
 import { parseLoadout } from "$lib/avatar/loadoutSchema";
 import type { Loadout } from "$lib/avatar/types";
+import { parsePayouts } from "$lib/components/game/matchEarnings";
 
 export const TYPE_MAP = TypeMap;
 
@@ -241,6 +242,8 @@ export interface GameState {
 	is_over?: boolean;
 	/** Username of the winning player, if the match has ended. */
 	winner?: string;
+	/** Cash each player earned in the finished match, by username. */
+	payouts?: Record<string, number>;
 	/** Server sequence watermark of the snapshot that produced this state. */
 	seq_watermark?: number;
 	/** Raw open response window from the snapshot, consumed by slice A4. */
@@ -742,6 +745,7 @@ class StoreGame implements SessionStore {
 			if (data.placements) {
 				this.state.placements = data.placements as string[];
 			}
+			this.state.payouts = parsePayouts(data.payouts);
 
 			this.#clearTimer();
 			this.#clearWindowState();
