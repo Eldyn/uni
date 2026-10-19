@@ -24,7 +24,8 @@ export function bakeLoadoutPixels(
 		const source = images(layer.item.asset.path);
 		if (!source) continue;
 
-		const tinted = tintImage(source, layer.colours);
+		const extraMasks = (layer.item.asset.masks ?? []).map((path) => images(path));
+		const tinted = tintImage(source, layer.colours, extraMasks);
 		const strip = layer.item.asset.kind === "strip";
 
 		for (let frame = 0; frame < FRAME_COUNT; frame++) {

@@ -8,7 +8,7 @@ import { setCatalogueForTest } from "$lib/avatar/catalogue";
 import { createImage, type PixelImage } from "$lib/avatar/pixels";
 import { ART_VERSION, hashWithVersion, loadoutHash } from "$lib/avatar/slotRules";
 import { FRAME_SIZE, STRIP_WIDTH } from "$lib/avatar/types";
-import { avatarFixture, fullLoadout } from "./avatarFixture";
+import { avatarFixture, fullLoadout, sixRegionItem } from "./avatarFixture";
 
 /** A fake image loader that records every requested asset path. */
 function fakeLoader(): { loadImage: (path: string) => Promise<PixelImage>; calls: string[] } {
@@ -139,5 +139,22 @@ describe("createBakeCache", () => {
 
 		expect(attempts).toBeGreaterThan(1);
 		expect(strip.image.width).toBe(STRIP_WIDTH);
+	});
+
+	it("loads the extra mask files of an item once", async () => {
+		const catalogue = avatarFixture();
+		catalogue.items.push(sixRegionItem());
+		setCatalogueForTest(catalogue);
+		const loader = fakeLoader();
+		const cache = createBakeCache({ loadImage: loader.loadImage });
+		const loadout = fullLoadout({
+			slots: { motif: { item: "uni:motif_rainbow", colours: ["basic:green"] } }
+		});
+
+		await cache.get(loadout);
+
+		expect(loader.calls).toContain("motif/uni_motif_rainbow.png");
+		expect(loader.calls).toContain("motif/uni_motif_rainbow_b.png");
+		expect(loader.calls.filter((path) => path.endsWith("_b.png"))).toHaveLength(1);
 	});
 });

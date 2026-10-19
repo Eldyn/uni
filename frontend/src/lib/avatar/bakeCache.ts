@@ -58,7 +58,11 @@ export function createBakeCache(deps: BakeDeps): BakeCache {
 
 	async function bake(hash: string, loadout: Loadout): Promise<BakedStrip> {
 		const layers = resolveLayers(loadout);
-		const paths = [...new Set(layers.map((layer) => layer.item.asset.path))];
+		const paths = [
+			...new Set(
+				layers.flatMap((layer) => [layer.item.asset.path, ...(layer.item.asset.masks ?? [])])
+			)
+		];
 
 		const loaded = new Map<string, PixelImage>();
 		await Promise.all(

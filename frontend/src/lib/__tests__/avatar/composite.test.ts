@@ -67,6 +67,12 @@ function stillWithPixel(x: number, y: number): PixelImage {
 	return img;
 }
 
+/** A strip item with one extra mask file, listed as `${path}.b`. */
+function maskedStripItem(path: string): CatalogueItem {
+	const item = stripItem(path);
+	return { ...item, asset: { kind: "strip", path, masks: [`${path}.b`] }, regions: 6 };
+}
+
 describe("bakeLoadoutPixels", () => {
 	beforeEach(() => {
 		setCatalogueForTest(avatarFixture());
@@ -152,5 +158,32 @@ describe("bakeLoadoutPixels", () => {
 		// be dropped rather than bleed into the neighbouring frame.
 		expect(pixelAt(out, FRAME_SIZE + 7, 4)).toEqual([0, 0, 0, 0]);
 		expect(out.data.every((value) => value === 0)).toBe(true);
+	});
+
+	it("an extra mask file tints region 6 over the primary art", () => {
+		const item = maskedStripItem("body");
+		const primary = createImage(STRIP_WIDTH, FRAME_SIZE);
+		setPixel(primary, 2 * FRAME_SIZE, 0, [128, 128, 128, 255]);
+		const extra = createImage(STRIP_WIDTH, FRAME_SIZE);
+		setPixel(extra, 2 * FRAME_SIZE, 0, [0, 0, 255, 255]);
+		const colours: Rgb[] = [RED, RED, RED, RED, RED, [10, 20, 30]];
+
+		const out = bakeLoadoutPixels(
+			[layer(item, colours)],
+			"uni:round",
+			lookup(["body", primary], ["body.b", extra])
+		);
+
+		expect(pixelAt(out, 2 * FRAME_SIZE, 0)).toEqual([10, 20, 30, 255]);
+	});
+
+	it("a missing extra mask image keeps the primary pixel", () => {
+		const item = maskedStripItem("body");
+		const primary = createImage(STRIP_WIDTH, FRAME_SIZE);
+		setPixel(primary, 0, 0, [128, 128, 128, 255]);
+
+		const out = bakeLoadoutPixels([layer(item)], "uni:round", lookup(["body", primary]));
+
+		expect(pixelAt(out, 0, 0)).toEqual([128, 128, 128, 255]);
 	});
 });
