@@ -1,7 +1,7 @@
 <!-- The rarity frame shared by the shop's item card and detail panel: a pixel
      border in the rarity colour, an animated edge shimmer for rare and above,
-     and a slow rotating sunburst for epic. Both animations are CSS only and
-     stop under `prefers-reduced-motion`. -->
+     and a slow rotating sunburst for epic and special. Both animations are CSS
+     only and stop under `prefers-reduced-motion`. -->
 <script lang="ts">
 	import type { Snippet } from "svelte";
 	import type { Rarity } from "$lib/avatar/types";
@@ -14,8 +14,8 @@
 	}: { rarity: Rarity; class?: string; children: Snippet } = $props();
 
 	const colour = $derived(RARITY_COLOURS[rarity]);
-	const shimmer = $derived(rarity === "rare" || rarity === "epic");
-	const sunburst = $derived(rarity === "epic");
+	const shimmer = $derived(rarity === "rare" || rarity === "epic" || rarity === "special");
+	const sunburst = $derived(rarity === "epic" || rarity === "special");
 </script>
 
 <div

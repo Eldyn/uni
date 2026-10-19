@@ -8,7 +8,7 @@ const SWATCH: Swatch = {
 	id: "uni:neon:hot",
 	hex: "#ff2d95",
 	price: 250,
-	rarity: "uncommon"
+	rarity: "rare"
 };
 
 function renderDetail(props: Record<string, unknown> = {}) {

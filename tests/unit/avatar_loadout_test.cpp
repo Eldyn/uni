@@ -83,7 +83,7 @@ json ValidDoc() {
                 "name": "Tall",
                 "asset": { "kind": "strip", "path": "shapes/uni_tall.png" },
                 "regions": 1,
-                "rarity": "uncommon",
+                "rarity": "rare",
                 "price": 120
             },
             {

@@ -56,6 +56,14 @@ nine rules. Change both together.
 9. The merge removes `order` from each item and palette, and `shape` from each
    socket table. `shape_sockets` is keyed by the shape id.
 
+## Rarities
+
+`rarity` is one of `basic`, `common`, `rare`, `epic`, `special` (low to high;
+the Shop sorts in this order). Every starter item and every starter-palette
+swatch is `basic`, and nothing else is. `special` marks event items; keep them
+`hidden` or `unlisted` outside the event, because the server sells any listed
+item that has a price. A swatch with no `rarity` is `common`.
+
 ## Add an item
 
 1. Create `avatar/catalogue/items/<slot>/<stem>.json` with `id`, `order`,

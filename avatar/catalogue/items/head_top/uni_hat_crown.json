@@ -16,7 +16,7 @@
 	},
 	"regions": 1,
 	"default_colors": ["basic:yellow"],
-	"rarity": "rare",
+	"rarity": "epic",
 	"price": 400,
 	"socket": "head_top"
 }

@@ -8,7 +8,7 @@ const SWATCH: Swatch = {
 	id: "uni:neon:hot",
 	hex: "#ff2d95",
 	price: 250,
-	rarity: "uncommon"
+	rarity: "rare"
 };
 
 function renderCard(props: Record<string, unknown> = {}) {
@@ -28,7 +28,7 @@ describe("SwatchCard", () => {
 		expect(screen.getByText("Hot")).toBeInTheDocument();
 		expect(screen.getByText("Neon")).toBeInTheDocument();
 		expect(screen.getByText("250")).toBeInTheDocument();
-		expect(container.querySelector('[data-rarity="uncommon"]')).not.toBeNull();
+		expect(container.querySelector('[data-rarity="rare"]')).not.toBeNull();
 		expect(
 			container.querySelector<HTMLElement>(".swatch-tile")?.style.getPropertyValue("--swatch")
 		).toBe("#ff2d95");

@@ -9,7 +9,7 @@
 	import { itemLabelKey, shopItemText } from "$components/shop/ItemCard.svelte";
 	import { itemPreviewLoadout } from "$lib/avatar/previewLoadout";
 	import { storeI18n } from "$stores/i18n.svelte";
-	import { RARITY_COLOURS, rarityLabelKey } from "$lib/shop/rarity";
+	import { RARITY_COLOURS, rarityLabelColour, rarityLabelKey } from "$lib/shop/rarity";
 	import { BUY_FAILURE_TEXT } from "$lib/shop/buyFailure";
 	import type { BuyFailure } from "$lib/shop/shopBackend";
 	import type { CatalogueItem, Loadout } from "$lib/avatar/types";
@@ -90,7 +90,9 @@
 	</div>
 
 	<h2 class="detail-name font-heading">{name}</h2>
-	<p class="detail-rarity font-tiny" style="color: {RARITY_COLOURS[item.rarity]}">{rarityName}</p>
+	<p class="detail-rarity font-tiny" style="color: {rarityLabelColour(item.rarity)}">
+		{rarityName}
+	</p>
 	<p class="detail-price font-pixel">
 		<span class="coin" aria-hidden="true"></span>{item.price}
 	</p>

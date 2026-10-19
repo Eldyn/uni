@@ -329,13 +329,13 @@ describe("swatch metadata", () => {
 		const catalogue = validCatalogue();
 		const swatch = swatches(catalogue)[0];
 		swatch.price = 250;
-		swatch.rarity = "uncommon";
+		swatch.rarity = "special";
 		swatch.hidden = true;
 		swatch.unlisted = true;
 
 		const parsed = parseCatalogue(catalogue).palettes[0].swatches[0];
 		expect(parsed.price).toBe(250);
-		expect(parsed.rarity).toBe("uncommon");
+		expect(parsed.rarity).toBe("special");
 		expect(parsed.hidden).toBe(true);
 		expect(parsed.unlisted).toBe(true);
 	});
@@ -344,6 +344,21 @@ describe("swatch metadata", () => {
 		const catalogue = validCatalogue();
 		swatches(catalogue)[0].rarity = "mythic";
 		expect(() => parseCatalogue(catalogue)).toThrow(ZodError);
+	});
+
+	it("rejects the old uncommon rarity", () => {
+		const catalogue = validCatalogue();
+		(catalogue.items as Record<string, unknown>[])[0].rarity = "uncommon";
+		expect(() => parseCatalogue(catalogue)).toThrow(ZodError);
+	});
+
+	it("accepts basic and special on an item and a swatch", () => {
+		const catalogue = validCatalogue();
+		(catalogue.items as Record<string, unknown>[])[0].rarity = "special";
+		swatches(catalogue)[0].rarity = "basic";
+		const parsed = parseCatalogue(catalogue);
+		expect(parsed.items[0].rarity).toBe("special");
+		expect(parsed.palettes[0].swatches[0].rarity).toBe("basic");
 	});
 
 	it("rejects a negative or fractional price", () => {

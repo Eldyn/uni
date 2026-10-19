@@ -16,7 +16,7 @@
 	},
 	"regions": 1,
 	"default_colors": ["#202020"],
-	"rarity": "uncommon",
+	"rarity": "rare",
 	"price": 150,
 	"socket": "eyes"
 }

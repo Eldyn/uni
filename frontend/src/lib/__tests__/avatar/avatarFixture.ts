@@ -35,8 +35,8 @@ export function avatarFixture(): Catalogue {
 				name: "Neon",
 				price: 250,
 				swatches: [
-					{ id: "uni:neon:hot", hex: "#ff2d95", price: 250, rarity: "uncommon" },
-					{ id: "uni:neon:volt", hex: "#00e5ff", price: 600, rarity: "rare" }
+					{ id: "uni:neon:hot", hex: "#ff2d95", price: 250, rarity: "rare" },
+					{ id: "uni:neon:volt", hex: "#00e5ff", price: 600, rarity: "epic" }
 				]
 			}
 		],
@@ -47,7 +47,7 @@ export function avatarFixture(): Catalogue {
 				name: "Round",
 				asset: { kind: "strip", path: "shapes/uni_round.png" },
 				regions: 1,
-				rarity: "common",
+				rarity: "basic",
 				price: 0,
 				starter: true
 			},
@@ -57,7 +57,7 @@ export function avatarFixture(): Catalogue {
 				name: "Dot",
 				asset: { kind: "strip", path: "eyes/uni_eyes_dot.png" },
 				regions: 1,
-				rarity: "common",
+				rarity: "basic",
 				price: 0,
 				starter: true
 			},
@@ -76,7 +76,7 @@ export function avatarFixture(): Catalogue {
 				name: "Smile",
 				asset: { kind: "strip", path: "mouth/uni_mouth_smile.png" },
 				regions: 1,
-				rarity: "common",
+				rarity: "basic",
 				price: 0,
 				starter: true
 			},
@@ -105,7 +105,7 @@ export function avatarFixture(): Catalogue {
 				name: "Bandit",
 				asset: { kind: "still", path: "mask/uni_mask_bandit.png", bob: FIXTURE_BOB },
 				regions: 1,
-				rarity: "uncommon",
+				rarity: "rare",
 				price: 150,
 				socket: "eyes"
 			},
@@ -115,7 +115,7 @@ export function avatarFixture(): Catalogue {
 				name: "Scarf",
 				asset: { kind: "strip", path: "bodywear/uni_body_scarf.png" },
 				regions: 1,
-				rarity: "uncommon",
+				rarity: "rare",
 				price: 160
 			},
 			{
@@ -124,7 +124,7 @@ export function avatarFixture(): Catalogue {
 				name: "Suit",
 				asset: { kind: "strip", path: "set/uni_set_suit.png" },
 				regions: 0,
-				rarity: "rare",
+				rarity: "epic",
 				price: 900
 			},
 			{

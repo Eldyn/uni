@@ -7,51 +7,63 @@
 	"swatches": [
 		{
 			"id": "basic:red",
-			"hex": "#e84a4a"
+			"hex": "#e84a4a",
+			"rarity": "basic"
 		},
 		{
 			"id": "basic:orange",
-			"hex": "#e8873a"
+			"hex": "#e8873a",
+			"rarity": "basic"
 		},
 		{
 			"id": "basic:yellow",
-			"hex": "#e8c53a"
+			"hex": "#e8c53a",
+			"rarity": "basic"
 		},
 		{
 			"id": "basic:lime",
-			"hex": "#9ad34a"
+			"hex": "#9ad34a",
+			"rarity": "basic"
 		},
 		{
 			"id": "basic:green",
-			"hex": "#4aa85a"
+			"hex": "#4aa85a",
+			"rarity": "basic"
 		},
 		{
 			"id": "basic:teal",
-			"hex": "#3aa8a0"
+			"hex": "#3aa8a0",
+			"rarity": "basic"
 		},
 		{
 			"id": "basic:blue",
-			"hex": "#4a6ae8"
+			"hex": "#4a6ae8",
+			"rarity": "basic"
 		},
 		{
 			"id": "basic:indigo",
-			"hex": "#6a4ae8"
+			"hex": "#6a4ae8",
+			"rarity": "basic"
 		},
 		{
 			"id": "basic:violet",
-			"hex": "#9a4ae8"
+			"hex": "#9a4ae8",
+			"rarity": "basic"
 		},
 		{
 			"id": "basic:pink",
-			"hex": "#e85a9a"
+			"hex": "#e85a9a",
+			"rarity": "basic"
 		},
 		{
 			"id": "basic:brown",
-			"hex": "#8a5a3a"
+			"hex": "#8a5a3a",
+			"rarity": "basic"
 		},
 		{
 			"id": "basic:grey",
-			"hex": "#8a8a8a"
+			"hex": "#8a8a8a",
+			"rarity": "basic"
 		}
 	]
 }
