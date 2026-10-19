@@ -29,6 +29,10 @@ constexpr const char* kFormatVersion = "1.0.0";
 // a file that grows between the size check and the read cannot slip through.
 constexpr std::uintmax_t kMaximumCardFileBytes = 1048576;
 
+// INFO: a hopeless file can produce thousands of errors; after this many the
+// loader emits one final marker instead, so a bad mod cannot flood the report.
+constexpr std::size_t kMaximumDiagnostics = 100;
+
 const std::vector<std::string>& RootKeys() {
     static const std::vector<std::string> keys = {"attribute", "attribute_member", "kind",
                                                   "deck", "property"};
@@ -51,9 +55,9 @@ std::vector<std::string> AllowedRootsFor(const std::string& folder) {
     return {};
 }
 
-std::vector<std::string> RootKeyCandidates() {
+std::vector<std::string> RootKeyCandidates(const std::string& folder) {
     std::vector<std::string> candidates = {"format_version"};
-    for (const std::string& key : RootKeys()) {
+    for (const std::string& key : AllowedRootsFor(folder)) {
         candidates.push_back(key);
     }
     return candidates;
@@ -79,6 +83,12 @@ std::string RelativeLabel(const std::string& mod_id, const fs::path& mod_directo
 void AddError(std::vector<Diagnostic>& diagnostics, const std::string& file,
               const std::string& pointer, std::string message,
               std::string suggestion = {}) {
+    if (diagnostics.size() >= kMaximumDiagnostics) {
+        if (diagnostics.size() == kMaximumDiagnostics) {
+            diagnostics.push_back(Diagnostic{file, pointer, "more errors not shown", {}});
+        }
+        return;
+    }
     diagnostics.push_back(
         Diagnostic{file, pointer, std::move(message), std::move(suggestion)});
 }
@@ -334,10 +344,14 @@ void RegisterMember(MemberDef member, const std::string& file,
     members.push_back(std::move(member));
 }
 
+struct PendingMember {
+    MemberDef member;
+    std::string pointer;
+};
+
 bool ParseAttribute(const json& value, const std::string& mod_id, const std::string& file,
                     const std::string& pointer, std::vector<Diagnostic>& diagnostics,
-                    std::map<std::string, std::string>& member_files,
-                    std::vector<MemberDef>& members, AttributeDef& attribute) {
+                    std::vector<PendingMember>& pending_members, AttributeDef& attribute) {
     if (!value.is_object()) {
         AddError(diagnostics, file, pointer, "attribute must be an object");
         return false;
@@ -382,7 +396,8 @@ bool ParseAttribute(const json& value, const std::string& mod_id, const std::str
         } else if (identifier && IsValidIdentifier(*identifier)) {
             // INFO: a bad inline member is skipped, but the attribute it belongs
             // to is still registered so later cross-reference checks do not
-            // cascade "unknown attribute" errors.
+            // cascade "unknown attribute" errors. The parsed members are held
+            // back until the caller accepts the attribute itself.
             for (std::size_t index = 0; index < inline_members->size(); ++index) {
                 MemberDef member;
                 const std::string member_pointer =
@@ -391,8 +406,7 @@ bool ParseAttribute(const json& value, const std::string& mod_id, const std::str
                                  member_pointer, diagnostics, member)) {
                     continue;
                 }
-                RegisterMember(std::move(member), file, member_pointer, diagnostics,
-                               member_files, members);
+                pending_members.push_back(PendingMember{std::move(member), member_pointer});
             }
         }
     }
@@ -435,15 +449,15 @@ std::optional<std::string> ReadCardFileText(const fs::path& path, const std::str
     return text;
 }
 
-void LoadFileImpl(const fs::path& path, const std::string& folder, const std::string& label,
-                  const std::string& mod_id, LoadOutcome& outcome,
-                  std::map<std::string, std::string>& attribute_files,
-                  std::map<std::string, std::string>& member_files) {
-    std::vector<Diagnostic>& diagnostics = outcome.diagnostics;
+}  // namespace
 
+namespace internal {
+
+std::optional<json> ReadCardDocument(const fs::path& path, const std::string& label,
+                                     std::vector<Diagnostic>& diagnostics) {
     const std::optional<std::string> text = ReadCardFileText(path, label, diagnostics);
     if (!text) {
-        return;
+        return std::nullopt;
     }
 
     match::expr::SchemaScan scan;
@@ -458,25 +472,40 @@ void LoadFileImpl(const fs::path& path, const std::string& folder, const std::st
     }
     if (!parsed.has_value()) {
         AddError(diagnostics, label, std::string(match::expr::kRootPointer), "invalid JSON");
-        return;
+        return std::nullopt;
     }
     if (scan.nested_too_deep) {
         AddError(diagnostics, label, std::string(match::expr::kRootPointer),
                  "schema is nested too deeply (more than " +
                      std::to_string(match::expr::kMaximumSchemaDepth) + " levels)");
-        return;
+        return std::nullopt;
     }
-
-    const json& document = *parsed;
-    if (!document.is_object()) {
+    if (!parsed->is_object()) {
         AddError(diagnostics, label, std::string(match::expr::kRootPointer),
                  "file must be a JSON object");
+        return std::nullopt;
+    }
+    return parsed;
+}
+
+}  // namespace internal
+
+namespace {
+
+void LoadFileImpl(const fs::path& path, const std::string& folder, const std::string& label,
+                  const std::string& mod_id, LoadOutcome& outcome,
+                  std::map<std::string, std::string>& attribute_files,
+                  std::map<std::string, std::string>& member_files) {
+    std::vector<Diagnostic>& diagnostics = outcome.diagnostics;
+
+    const std::optional<json> document = internal::ReadCardDocument(path, label, diagnostics);
+    if (!document) {
         return;
     }
 
     bool format_ok = false;
-    const auto format_version = document.find("format_version");
-    if (format_version == document.end()) {
+    const auto format_version = document->find("format_version");
+    if (format_version == document->end()) {
         AddError(diagnostics, label, PointerFor("format_version"),
                  "missing required key \"format_version\"");
     } else if (!format_version->is_string() ||
@@ -488,7 +517,7 @@ void LoadFileImpl(const fs::path& path, const std::string& folder, const std::st
     }
 
     std::vector<std::string> roots;
-    for (const auto& entry : document.items()) {
+    for (const auto& entry : document->items()) {
         if (entry.key() != "format_version") {
             roots.push_back(entry.key());
         }
@@ -500,7 +529,7 @@ void LoadFileImpl(const fs::path& path, const std::string& folder, const std::st
         if (!Contains(RootKeys(), root)) {
             every_root_valid = false;
             AddError(diagnostics, label, PointerFor(root), "unknown key \"" + root + "\"",
-                     match::expr::SuggestClosest(root, RootKeyCandidates()));
+                     match::expr::SuggestClosest(root, RootKeyCandidates(folder)));
         } else if (!Contains(AllowedRootsFor(folder), root)) {
             every_root_valid = false;
             AddError(diagnostics, label, PointerFor(root),
@@ -523,12 +552,13 @@ void LoadFileImpl(const fs::path& path, const std::string& folder, const std::st
 
     const std::string& root = folder_roots.front();
     const std::string pointer = PointerFor(root);
-    const json& value = document.at(root);
+    const json& value = document->at(root);
 
     if (root == "attribute") {
         AttributeDef attribute;
-        if (!ParseAttribute(value, mod_id, label, pointer, diagnostics, member_files,
-                            outcome.schema.members, attribute)) {
+        std::vector<PendingMember> pending_members;
+        if (!ParseAttribute(value, mod_id, label, pointer, diagnostics, pending_members,
+                            attribute)) {
             return;
         }
         const std::string identifier_pointer =
@@ -544,6 +574,10 @@ void LoadFileImpl(const fs::path& path, const std::string& folder, const std::st
         }
         attribute_files.emplace(attribute.identifier, label);
         outcome.schema.attributes.push_back(std::move(attribute));
+        for (PendingMember& pending : pending_members) {
+            RegisterMember(std::move(pending.member), label, pending.pointer, diagnostics,
+                           member_files, outcome.schema.members);
+        }
         return;
     }
 
@@ -597,6 +631,11 @@ void CollectJsonFiles(const fs::path& mod_directory, const std::string& mod_id,
     if (!fs::exists(folder_status)) {
         return;
     }
+    if (fs::is_symlink(folder_status)) {
+        AddError(diagnostics, RelativeLabel(mod_id, mod_directory, folder_path),
+                 std::string(match::expr::kRootPointer), "symbolic links are not allowed");
+        return;
+    }
     if (!fs::is_directory(folder_status)) {
         AddError(diagnostics, RelativeLabel(mod_id, mod_directory, folder_path),
                  std::string(match::expr::kRootPointer),
@@ -621,6 +660,10 @@ void CollectJsonFiles(const fs::path& mod_directory, const std::string& mod_id,
             return;
         }
         if (fs::is_directory(status)) {
+            if (!recursive) {
+                AddError(diagnostics, label, std::string(match::expr::kRootPointer),
+                         "subdirectories are not allowed in " + folder + "/");
+            }
             return;
         }
         if (!fs::is_regular_file(status) || path.extension() != ".json") {
@@ -633,6 +676,11 @@ void CollectJsonFiles(const fs::path& mod_directory, const std::string& mod_id,
 
     if (recursive) {
         fs::recursive_directory_iterator iterator(folder_path, error);
+        if (error) {
+            ReportDirectoryError(RelativeLabel(mod_id, mod_directory, folder_path), error,
+                                 diagnostics);
+            return;
+        }
         const fs::recursive_directory_iterator end;
         while (iterator != end) {
             consider(iterator->path());
@@ -645,6 +693,11 @@ void CollectJsonFiles(const fs::path& mod_directory, const std::string& mod_id,
         }
     } else {
         fs::directory_iterator iterator(folder_path, error);
+        if (error) {
+            ReportDirectoryError(RelativeLabel(mod_id, mod_directory, folder_path), error,
+                                 diagnostics);
+            return;
+        }
         const fs::directory_iterator end;
         while (iterator != end) {
             consider(iterator->path());
@@ -662,49 +715,57 @@ void CollectJsonFiles(const fs::path& mod_directory, const std::string& mod_id,
 
 LoadOutcome LoadModSchema(const fs::path& mod_directory, const std::string& mod_id) {
     LoadOutcome outcome;
-    outcome.schema.mod_id = mod_id;
-    outcome.schema.directory = mod_directory.generic_string();
+    try {
+        outcome.schema.mod_id = mod_id;
+        outcome.schema.directory = mod_directory.generic_string();
 
-    if (!IsValidLocalName(mod_id)) {
-        AddError(outcome.diagnostics, "", std::string(match::expr::kRootPointer),
-                 "invalid mod id \"" + mod_id + "\"");
-        return outcome;
-    }
-
-    std::vector<fs::path> files;
-    CollectJsonFiles(mod_directory, mod_id, "attributes", true, files, outcome.diagnostics);
-    CollectJsonFiles(mod_directory, mod_id, "kinds", false, files, outcome.diagnostics);
-    CollectJsonFiles(mod_directory, mod_id, "decks", false, files, outcome.diagnostics);
-    CollectJsonFiles(mod_directory, mod_id, "properties", false, files, outcome.diagnostics);
-    std::sort(files.begin(), files.end(), [](const fs::path& left, const fs::path& right) {
-        return left.generic_string() < right.generic_string();
-    });
-
-    std::map<std::string, std::string> attribute_files;
-    std::map<std::string, std::string> member_files;
-
-    for (const fs::path& file : files) {
-        const fs::path relative = file.lexically_relative(mod_directory);
-        if (relative.empty()) {
-            continue;
+        if (!IsValidLocalName(mod_id)) {
+            AddError(outcome.diagnostics, "", std::string(match::expr::kRootPointer),
+                     "invalid mod id \"" + mod_id + "\"");
+            return outcome;
         }
-        const std::string folder = relative.begin()->string();
-        const std::string label = PathLabel(mod_id, relative);
-        try {
+
+        std::vector<fs::path> files;
+        CollectJsonFiles(mod_directory, mod_id, "attributes", true, files, outcome.diagnostics);
+        CollectJsonFiles(mod_directory, mod_id, "kinds", false, files, outcome.diagnostics);
+        CollectJsonFiles(mod_directory, mod_id, "decks", false, files, outcome.diagnostics);
+        CollectJsonFiles(mod_directory, mod_id, "properties", false, files,
+                         outcome.diagnostics);
+        std::sort(files.begin(), files.end(),
+                  [](const fs::path& left, const fs::path& right) {
+                      return left.generic_string() < right.generic_string();
+                  });
+
+        std::map<std::string, std::string> attribute_files;
+        std::map<std::string, std::string> member_files;
+
+        for (const fs::path& file : files) {
+            const fs::path relative = file.lexically_relative(mod_directory);
+            // INFO: every collected file comes from a subfolder of the mod
+            // directory, so an empty relative path is a loader bug, not user
+            // input; report it instead of dropping the file silently.
+            if (relative.empty()) {
+                AddError(outcome.diagnostics, PathLabel(mod_id, file),
+                         std::string(match::expr::kRootPointer),
+                         "file is not inside the mod directory");
+                continue;
+            }
+            const std::string folder = relative.begin()->string();
+            const std::string label = PathLabel(mod_id, relative);
             LoadFile(file, folder, label, mod_id, outcome, attribute_files, member_files);
-        } catch (const std::exception& error) {
-            AddError(outcome.diagnostics, label, std::string(match::expr::kRootPointer),
-                     std::string("internal error: ") + error.what());
         }
-    }
 
-    std::stable_sort(outcome.schema.members.begin(), outcome.schema.members.end(),
-                     [](const MemberDef& left, const MemberDef& right) {
-                         if (left.order != right.order) {
-                             return left.order < right.order;
-                         }
-                         return left.identifier < right.identifier;
-                     });
+        std::stable_sort(outcome.schema.members.begin(), outcome.schema.members.end(),
+                         [](const MemberDef& left, const MemberDef& right) {
+                             if (left.order != right.order) {
+                                 return left.order < right.order;
+                             }
+                             return left.identifier < right.identifier;
+                         });
+    } catch (const std::exception& error) {
+        AddError(outcome.diagnostics, "", std::string(match::expr::kRootPointer),
+                 std::string("internal error: ") + error.what());
+    }
     return outcome;
 }
 

@@ -442,6 +442,7 @@ TEST_CASE("symbolic_link_rejected") {
     std::filesystem::create_symlink(dir.root / "uni/attributes/real.json",
                                     dir.root / "uni/attributes/color.json", error);
     if (error) {
+        MESSAGE("skipped: cannot create a symbolic link");
         return;
     }
 
@@ -514,6 +515,111 @@ TEST_CASE("invalid_mod_id") {
 
     REQUIRE(outcome.diagnostics.size() == 1);
     CHECK(outcome.diagnostics[0].message == "invalid mod id \"BAD ID\"");
+}
+
+TEST_CASE("unreadable_directory_reported") {
+    CardSchemaTempDir dir;
+    dir.Write("uni/attributes/color.json",
+              R"({"format_version":"1.0.0","attribute":{"identifier":"uni:color"}})");
+    const std::filesystem::path attributes = dir.root / "uni" / "attributes";
+
+    std::error_code error;
+    std::filesystem::permissions(attributes, std::filesystem::perms::none,
+                                 std::filesystem::perm_options::replace, error);
+    error.clear();
+    const std::filesystem::directory_iterator probe(attributes, error);
+    if (!error) {
+        std::filesystem::permissions(attributes, std::filesystem::perms::owner_all,
+                                     std::filesystem::perm_options::replace, error);
+        MESSAGE("skipped: the directory stays readable (running as root?)");
+        return;
+    }
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "uni", "uni");
+
+    std::filesystem::permissions(attributes, std::filesystem::perms::owner_all,
+                                 std::filesystem::perm_options::replace, error);
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(outcome.diagnostics[0].message.find("cannot read directory") != std::string::npos);
+}
+
+TEST_CASE("symbolic_link_folder_rejected") {
+    CardSchemaTempDir dir;
+    dir.Write("uni/attributes_real/color.json",
+              R"({"format_version":"1.0.0","attribute":{"identifier":"uni:color"}})");
+    std::error_code error;
+    std::filesystem::create_directory_symlink(dir.root / "uni/attributes_real",
+                                              dir.root / "uni/attributes", error);
+    if (error) {
+        MESSAGE("skipped: cannot create a directory symbolic link");
+        return;
+    }
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "uni", "uni");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/uni/attributes#/: symbolic links are not allowed");
+}
+
+TEST_CASE("subdirectory_in_flat_folder_rejected") {
+    CardSchemaTempDir dir;
+    dir.Write("uni/kinds/nested/color.json",
+              R"({"format_version":"1.0.0","kind":{"identifier":"uni:color"}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "uni", "uni");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/uni/kinds/nested#/: subdirectories are not allowed in kinds/");
+}
+
+TEST_CASE("root_key_suggestion_is_folder_scoped") {
+    CardSchemaTempDir dir;
+    dir.Write("uni/kinds/color.json", R"({"format_version":"1.0.0","attribut":{}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "uni", "uni");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/uni/kinds/color.json#/attribut: unknown key \"attribut\"");
+}
+
+TEST_CASE("diagnostics_are_capped") {
+    CardSchemaTempDir dir;
+    std::string text = R"({"format_version":"1.0.0","attribute":{"identifier":"uni:color")";
+    for (int index = 0; index < 500; ++index) {
+        text += ",\"field" + std::to_string(index) + "\":0";
+    }
+    text += "}}";
+    dir.Write("uni/attributes/color.json", text);
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "uni", "uni");
+
+    REQUIRE(outcome.diagnostics.size() == 101);
+    CHECK(outcome.diagnostics[100].message == "more errors not shown");
+}
+
+TEST_CASE("rejected_duplicate_attribute_drops_its_members") {
+    CardSchemaTempDir dir;
+    dir.Write("uni/attributes/color.json",
+              R"({"format_version":"1.0.0","attribute":{"identifier":"uni:color",)"
+              R"("members":[{"identifier":"uni:0"}]}})");
+    dir.Write("uni/attributes/shade/color.json",
+              R"({"format_version":"1.0.0","attribute":{"identifier":"uni:color",)"
+              R"("members":[{"identifier":"uni:1"}]}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "uni", "uni");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/uni/attributes/shade/color.json#/attribute/identifier: "
+          "duplicate attribute identifier \"uni:color\" in "
+          "mods/uni/attributes/shade/color.json; "
+          "first declared in mods/uni/attributes/color.json");
+    REQUIRE(outcome.schema.members.size() == 1);
+    CHECK(outcome.schema.members[0].identifier == "uni:0");
 }
 
 }  // TEST_SUITE("cardschema loader")
