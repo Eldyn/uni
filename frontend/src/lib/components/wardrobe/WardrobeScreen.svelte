@@ -103,7 +103,9 @@
 	);
 
 	const regionLabels = $derived(
-		[1, 2, 3].map((region) => wardrobeText(`wardrobe_region_${region}`, `Region ${region}`, locale))
+		Array.from({ length: Math.max(1, activeItem?.regions ?? 1) }, (_, index) => index + 1).map(
+			(region) => wardrobeText(`wardrobe_region_${region}`, `Region ${region}`, locale)
+		)
 	);
 
 	const skinHex = $derived(swatches.find((swatch) => swatch.id === draft.skin)?.hex ?? "#000000");
