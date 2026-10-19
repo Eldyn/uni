@@ -1,6 +1,7 @@
 #include <match/expr/diagnostic.hpp>
 
 #include <algorithm>
+#include <cstddef>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -86,12 +87,28 @@ std::string SuggestClosest(std::string_view word, const std::vector<std::string>
     if (candidates.empty()) {
         return "";
     }
+    // INFO: a word past the cap cannot be a plausible typo of a short name, and
+    // a full distance against it would dominate the search, so answer at once.
+    constexpr std::size_t kMaximumSuggestedWordLength = 256;
+    if (word.size() > kMaximumSuggestedWordLength) {
+        return "";
+    }
     const int threshold = std::max(1, static_cast<int>(word.size()) / 3);
+    const int word_length = static_cast<int>(word.size());
 
     std::string best;
     int best_distance = 0;
     bool have_best = false;
     for (const std::string& candidate : candidates) {
+        // INFO: a distance is at least the difference of the two lengths, so a
+        // candidate outside the threshold can never win and needs no distance.
+        const int candidate_length = static_cast<int>(candidate.size());
+        const int length_difference = word_length > candidate_length
+                                          ? word_length - candidate_length
+                                          : candidate_length - word_length;
+        if (length_difference > threshold) {
+            continue;
+        }
         const int distance = Levenshtein(word, candidate);
         if (!have_best || distance < best_distance) {
             best = candidate;
