@@ -262,15 +262,18 @@ TEST_CASE("a_none_of_guard_after_the_leaf_does_not_narrow_it") {
 }
 
 TEST_CASE("a_guard_inside_a_nested_group_narrows_later_siblings") {
-    CHECK(Check(json::parse(
-                    R"json({"all_of":[{"all_of":["defined($responder)"]},"$responder.hand_size > 0"]})json"))
-              .empty());
+    const json condition = json::parse(
+        R"json({"all_of":[{"all_of":["defined($responder)"]},)json"
+        R"json("$responder.hand_size > 0"]})json");
+
+    CHECK(Check(condition).empty());
 }
 
 TEST_CASE("a_guard_inside_a_none_of_group_narrows_later_siblings") {
-    CHECK(Check(json::parse(
-                    R"json({"all_of":[{"none_of":["!defined($responder)"]},"$responder.hand_size > 0"]})json"))
-              .empty());
+    const json condition = json::parse(
+        R"json({"all_of":[{"none_of":["!defined($responder)"]},)json"
+        R"json("$responder.hand_size > 0"]})json");
+    CHECK(Check(condition).empty());
 }
 
 TEST_CASE("a_failing_check_points_into_the_nested_group") {
