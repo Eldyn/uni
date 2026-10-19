@@ -5,6 +5,8 @@
  * Run from the repo root: `node frontend/scripts/avatar-catalogue-split.mjs`.
  * It refuses to write when the target folder exists. After writing, it merges
  * the new tree and compares the result to the source document.
+ *
+ * INFO: one-off; kept as the record of how the tree was made.
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -20,6 +22,10 @@ import {
 function main() {
 	const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 	const source = join(repoRoot, "avatar/catalogue.json");
+	if (!existsSync(source)) {
+		console.log("avatar-catalogue-split: already migrated");
+		return;
+	}
 	const target = join(repoRoot, "avatar/catalogue");
 	if (existsSync(target)) {
 		console.error(`avatar-catalogue-split: '${target}' already exists`);
