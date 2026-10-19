@@ -186,10 +186,16 @@ TEST_CASE("an_int_assigned_to_a_float_property_widens_to_double") {
 
 TEST_CASE("compound_assignment_rejects_a_non_number_property") {
     CHECK(FirstMessage(Check("@next.seat:ready *= 1")) == "operator *= needs a number property");
+    CHECK(FirstMessage(Check("@next.seat:ready -= 1")) == "operator -= needs a number property");
     CHECK(FirstMessage(Check("@next.seat:nickname *= 1")) ==
           "operator *= needs a number property");
     CHECK(FirstMessage(Check("@self.hand.uni:marker *= 1")) ==
           "operator *= needs a number property");
+}
+
+TEST_CASE("compound_assignment_accepts_a_number_property") {
+    CHECK(Check("@match.tree:growth -= 1").empty());
+    CHECK(Check("@match.tree:growth *= 2").empty());
 }
 
 TEST_CASE("an_unknown_property_reports_a_suggestion") {

@@ -337,7 +337,7 @@ TEST_CASE("member_set_aggregations_take_no_condition") {
     CHECK(Mentions(Check("all($played.color)"), "all needs a condition"));
 }
 
-TEST_CASE("contains_over_a_member_set_needs_a_member_set") {
+TEST_CASE("contains_over_a_member_set_accepts_a_member_set") {
     const CheckResult subset = Check("contains($played.color, @match.uni:active_color)");
     REQUIRE(subset.diagnostics.empty());
     CHECK(subset.type == Type::kBool);
@@ -404,6 +404,12 @@ TEST_CASE("function_signature_errors_name_their_expectation") {
     CHECK(Mentions(Check("clamp(1, 2)"), "clamp takes 3 arguments, got 2"));
     CHECK(Mentions(Check("status_magnitude(1, 'x')"), "status_magnitude needs a seat"));
     CHECK(Mentions(Check("abs('a')"), "abs needs numbers"));
+}
+
+TEST_CASE("a_ranged_function_reports_the_between_arity") {
+    CHECK(Mentions(Check("count()"), "count takes between 1 and 2 arguments, got 0"));
+    CHECK(Mentions(Check("count(@all, true, 1)"),
+                   "count takes between 1 and 2 arguments, got 3"));
 }
 
 TEST_CASE("abs_arity_uses_the_singular_argument") {
@@ -492,6 +498,15 @@ TEST_CASE("an_always_defined_variable_needs_no_guard") {
     const CheckResult result = Check("$played.color");
     REQUIRE(result.diagnostics.empty());
     CHECK(result.type == Type::kMemberSet);
+}
+
+TEST_CASE("a_guarded_set_variable_read_checks_but_an_unguarded_one_does_not") {
+    CHECK(Mentions(Check("count($choice) > 0"),
+                   "variable $choice may be unbound; guard it with defined($choice)"));
+
+    const CheckResult guarded = Check("defined($choice) && count($choice) > 0");
+    REQUIRE(guarded.diagnostics.empty());
+    CHECK(guarded.type == Type::kBool);
 }
 
 }  // TEST_SUITE

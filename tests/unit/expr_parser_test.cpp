@@ -189,6 +189,58 @@ TEST_CASE("add_to_property") {
     CHECK(match::expr::DebugString(*result.assignment->value) == "1");
 }
 
+TEST_CASE("subtract_from_and_multiply_a_property") {
+    const auto subtracted = match::expr::ParseAssignment("@match.tree:growth -= 1");
+    REQUIRE_FALSE(subtracted.error.has_value());
+    REQUIRE(subtracted.assignment.has_value());
+    CHECK(subtracted.assignment->op == match::expr::AssignOp::kSubtract);
+    CHECK(match::expr::DebugString(*subtracted.assignment->value) == "1");
+
+    const auto multiplied = match::expr::ParseAssignment("@match.tree:growth *= 2");
+    REQUIRE_FALSE(multiplied.error.has_value());
+    REQUIRE(multiplied.assignment.has_value());
+    CHECK(multiplied.assignment->op == match::expr::AssignOp::kMultiply);
+    CHECK(match::expr::DebugString(*multiplied.assignment->value) == "2");
+}
+
+TEST_CASE("a_missing_value_points_at_the_end_of_the_source") {
+    const auto result = match::expr::ParseAssignment("@a.b =");
+    REQUIRE(result.error.has_value());
+    CHECK(result.error->position == 6);
+    CHECK(result.error->message == "expected an expression");
+}
+
+TEST_CASE("trailing_tokens_after_a_value_are_rejected") {
+    const auto result = match::expr::ParseAssignment("@a.b = 1 2");
+    REQUIRE(result.error.has_value());
+    CHECK(result.error->position == 9);
+    CHECK(result.error->message == "unexpected token");
+}
+
+TEST_CASE("select_unary_and_binary_targets_are_rejected") {
+    const auto selector_target = match::expr::ParseAssignment("@next = 1");
+    REQUIRE(selector_target.error.has_value());
+    CHECK(selector_target.error->position == 0);
+    CHECK(selector_target.error->message == "an assignment target must be a property");
+
+    const auto unary_target = match::expr::ParseAssignment("-a = 1");
+    REQUIRE(unary_target.error.has_value());
+    CHECK(unary_target.error->position == 0);
+    CHECK(unary_target.error->message == "an assignment target must be a property");
+
+    const auto binary_target = match::expr::ParseAssignment("@a.x + 1 = 2");
+    REQUIRE(binary_target.error.has_value());
+    CHECK(binary_target.error->position == 0);
+    CHECK(binary_target.error->message == "an assignment target must be a property");
+}
+
+TEST_CASE("a_lexer_error_passes_through_the_assignment_parser") {
+    const auto result = match::expr::ParseAssignment("@a.b = 'x");
+    REQUIRE(result.error.has_value());
+    CHECK(result.error->position == 7);
+    CHECK(result.error->message == "unterminated string");
+}
+
 TEST_CASE("variable_target_is_rejected") {
     const auto result = match::expr::ParseAssignment("$x = 1");
     REQUIRE(result.error.has_value());
