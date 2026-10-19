@@ -1,0 +1,15 @@
+{
+	"id": "uni:classic",
+	"order": 10,
+	"slot": "shape",
+	"name": "Classic",
+	"asset": {
+		"kind": "strip",
+		"path": "shapes/uni_classic.png"
+	},
+	"regions": 1,
+	"tint": "multiply",
+	"rarity": "common",
+	"price": 0,
+	"starter": true
+}

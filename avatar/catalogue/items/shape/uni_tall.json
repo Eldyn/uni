@@ -1,0 +1,13 @@
+{
+	"id": "uni:tall",
+	"order": 30,
+	"slot": "shape",
+	"name": "Tall",
+	"asset": {
+		"kind": "strip",
+		"path": "shapes/uni_tall.png"
+	},
+	"regions": 1,
+	"rarity": "uncommon",
+	"price": 120
+}

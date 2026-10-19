@@ -5,6 +5,7 @@ import tailwindcss from "@tailwindcss/vite";
 import fs from "node:fs";
 import path from "node:path";
 import { createHash } from "node:crypto";
+import { listCatalogueFiles, readMergedCatalogue } from "./scripts/lib/avatarCatalogue.mjs";
 
 const watchPublicDirPlugin = {
 	name: "watch-public-dir",
@@ -185,6 +186,34 @@ const gzipAssetsPlugin = {
 	}
 };
 
+const AVATAR_CATALOGUE_ID = "virtual:avatar-catalogue";
+const AVATAR_CATALOGUE_RESOLVED = `\0${AVATAR_CATALOGUE_ID}`;
+const AVATAR_CATALOGUE_DIR = path.resolve("../avatar/catalogue");
+
+/** INFO: merges the per-element catalogue folder into one bundled module. */
+const avatarCataloguePlugin = {
+	name: "avatar-catalogue",
+	resolveId(id) {
+		return id === AVATAR_CATALOGUE_ID ? AVATAR_CATALOGUE_RESOLVED : null;
+	},
+	load(id) {
+		if (id !== AVATAR_CATALOGUE_RESOLVED) return null;
+		for (const file of listCatalogueFiles(AVATAR_CATALOGUE_DIR)) {
+			this.addWatchFile(path.join(AVATAR_CATALOGUE_DIR, file));
+		}
+		return `export default ${JSON.stringify(readMergedCatalogue(AVATAR_CATALOGUE_DIR))};`;
+	},
+	configureServer(server) {
+		server.watcher.add(AVATAR_CATALOGUE_DIR);
+		server.watcher.on("all", (_event, file) => {
+			if (!file.startsWith(AVATAR_CATALOGUE_DIR)) return;
+			const module = server.moduleGraph.getModuleById(AVATAR_CATALOGUE_RESOLVED);
+			if (module) server.moduleGraph.invalidateModule(module);
+			server.ws.send({ type: "full-reload" });
+		});
+	}
+};
+
 const baseLocale = JSON.parse(
 	fs.readFileSync(path.resolve("project.inlang/settings.json"), "utf8")
 ).baseLocale;
@@ -272,6 +301,7 @@ export default defineConfig(({ mode, command }) => {
 			tailwindcss(),
 			svelte(),
 			isDev && watchPublicDirPlugin,
+			avatarCataloguePlugin,
 			isDev && pruneStaleChunksPlugin,
 			woff2OnlyIconFontPlugin,
 			skipThreeDecodersPlugin,

@@ -1,0 +1,22 @@
+{
+	"id": "uni:hat_crown",
+	"order": 20,
+	"slot": "head_top",
+	"name": "Crown",
+	"asset": {
+		"kind": "still",
+		"path": "head_top/uni_hat_crown.png",
+		"bob": [
+			[0, 0],
+			[0, -1],
+			[0, -2],
+			[0, -1],
+			[0, 0]
+		]
+	},
+	"regions": 1,
+	"default_colors": ["basic:yellow"],
+	"rarity": "rare",
+	"price": 400,
+	"socket": "head_top"
+}

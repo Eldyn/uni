@@ -4,7 +4,7 @@
  *
  * Real art replaces these later with no code change: the catalogue names the
  * asset path, so dropping a hand-authored strip in the same place wins. Only
- * paths listed in `avatar/catalogue.json` that do not exist yet are written.
+ * paths listed in `avatar/catalogue/` that do not exist yet are written.
  *
  * Run standalone from the repo root: `node frontend/scripts/avatar-placeholders.mjs`.
  * It uses only Node built-ins (node:zlib for the deflate stream, a local CRC32
@@ -18,10 +18,11 @@
  * Regions 4-6 live in an extra mask file; this script does not write one yet.
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { deflateSync } from "node:zlib";
+import { readMergedCatalogue } from "./lib/avatarCatalogue.mjs";
 
 const FRAME_SIZE = 96;
 const FRAME_COUNT = 5;
@@ -238,7 +239,7 @@ function main() {
 	const scriptDir = dirname(fileURLToPath(import.meta.url));
 	const repoRoot = resolve(scriptDir, "../..");
 	const assetRoot = join(repoRoot, "frontend/public/assets/avatar");
-	const catalogue = JSON.parse(readFileSync(join(repoRoot, "avatar/catalogue.json"), "utf8"));
+	const catalogue = readMergedCatalogue(join(repoRoot, "avatar/catalogue"));
 
 	let written = 0;
 	for (const item of catalogue.items) {

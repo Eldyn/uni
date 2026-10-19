@@ -1,0 +1,7 @@
+{
+	"shape": "uni:tall",
+	"eyes": [36, 20],
+	"mouth": [42, 34],
+	"head_top": [32, -2],
+	"body_center": [48, 60]
+}

@@ -1,0 +1,13 @@
+{
+	"id": "uni:set_astronaut",
+	"order": 10,
+	"slot": "set",
+	"name": "Astronaut suit",
+	"asset": {
+		"kind": "strip",
+		"path": "set/uni_set_astronaut.png"
+	},
+	"regions": 0,
+	"rarity": "rare",
+	"price": 900
+}

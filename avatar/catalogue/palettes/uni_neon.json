@@ -1,0 +1,36 @@
+{
+	"id": "uni:neon",
+	"order": 30,
+	"name": "Neon",
+	"price": 250,
+	"swatches": [
+		{
+			"id": "uni:neon:hot",
+			"hex": "#ff2d95"
+		},
+		{
+			"id": "uni:neon:acid",
+			"hex": "#c6ff00"
+		},
+		{
+			"id": "uni:neon:volt",
+			"hex": "#00e5ff",
+			"price": 600,
+			"rarity": "rare"
+		},
+		{
+			"id": "uni:neon:plasma",
+			"hex": "#ff6d00",
+			"price": 1200,
+			"rarity": "epic"
+		},
+		{
+			"id": "uni:neon:magenta",
+			"hex": "#e040ff"
+		},
+		{
+			"id": "uni:neon:toxic",
+			"hex": "#39ff6a"
+		}
+	]
+}

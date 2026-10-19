@@ -6,7 +6,7 @@ import { MAX_EXTRA_MASKS, REGIONS_PER_FILE } from "./types";
 const PART_SLOTS: readonly AvatarSlot[] = ["eyes", "mouth", "head_top", "mask", "bodywear"];
 /** Slots whose coverage needs a starter item (shape, eyes, mouth). */
 const STARTER_SLOTS: readonly AvatarSlot[] = ["shape", "eyes", "mouth"];
-const SOCKETS: readonly Socket[] = ["eyes", "mouth", "head_top", "body_centre"];
+const SOCKETS: readonly Socket[] = ["eyes", "mouth", "head_top", "body_center"];
 const AVATAR_SLOTS: readonly AvatarSlot[] = [
 	"shape",
 	"eyes",
@@ -31,7 +31,7 @@ const shapeSocketsSchema = z.record(
 		eyes: socketOffset,
 		mouth: socketOffset,
 		head_top: socketOffset,
-		body_centre: socketOffset
+		body_center: socketOffset
 	})
 );
 

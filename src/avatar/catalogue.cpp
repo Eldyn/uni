@@ -10,7 +10,10 @@
 #include <cstddef>
 #include <cstdint>
 #include <ctime>
+#include <filesystem>
 #include <fstream>
+#include <map>
+#include <set>
 #include <stdexcept>
 #include <string>
 #include <unordered_set>
@@ -19,8 +22,8 @@
 
 /**
  * @file catalogue.cpp
- * @brief Parses and validates `avatar/catalogue.json`, and holds it for the
- *        process lifetime.
+ * @brief Merges and parses the `avatar/catalogue/` element folder, and holds
+ *        the result for the process lifetime.
  */
 
 namespace uni::avatar {
@@ -30,7 +33,7 @@ namespace {
 using nlohmann::json;
 
 /** @brief Repo-relative default, overridable with `UNI_AVATAR_CATALOGUE`. */
-constexpr const char* kDefaultPath = "avatar/catalogue.json";
+constexpr const char* kDefaultPath = "avatar/catalogue";
 
 /** @brief Tint regions an item may have in total. */
 constexpr int kMaxRegions = 6;
@@ -65,7 +68,7 @@ const std::vector<std::string>& StarterSlots() {
 
 const std::vector<std::string>& Sockets() {
     static const std::vector<std::string> kSockets = {
-        "eyes", "mouth", "head_top", "body_centre"};
+        "eyes", "mouth", "head_top", "body_center"};
     return kSockets;
 }
 
@@ -86,7 +89,7 @@ bool IsNamespacedId(const std::string& id) {
 }
 
 /** @brief `#rrggbb`, case-insensitive digits. */
-bool IsHexColour(const std::string& hex) {
+bool IsHexColor(const std::string& hex) {
     if (hex.size() != 7 || hex.front() != '#') return false;
     for (std::size_t i = 1; i < hex.size(); ++i) {
         if (!std::isxdigit(static_cast<unsigned char>(hex[i]))) return false;
@@ -233,7 +236,7 @@ std::vector<Palette> ParsePalettes(const json& doc) {
             Swatch swatch;
             swatch.id = StringField(node_swatch, "id", swatch_where);
             swatch.hex = StringField(node_swatch, "hex", swatch_where);
-            if (!IsHexColour(swatch.hex)) {
+            if (!IsHexColor(swatch.hex)) {
                 Reject(swatch_where + ".hex '" + swatch.hex + "' must be #rrggbb");
             }
             const auto price_node = node_swatch.find("price");
@@ -312,7 +315,7 @@ void ValidateDefaultColours(const std::vector<Item>& items,
     }
     for (const Item& item : items) {
         for (const std::string& entry : item.default_colors) {
-            if (!IsHexColour(entry) && !swatch_ids.contains(entry)) {
+            if (!IsHexColor(entry) && !swatch_ids.contains(entry)) {
                 Reject("item '" + item.id + "' default color '" + entry
                        + "' is neither #rrggbb nor a swatch id");
             }
@@ -490,6 +493,81 @@ std::string ToIso8601Utc(std::int64_t now_unix) {
     return buffer;
 }
 
+namespace fs = std::filesystem;
+
+/** @brief File name stem of an element id: every ':' becomes '_'. */
+std::string StemOf(std::string id) {
+    std::replace(id.begin(), id.end(), ':', '_');
+    return id;
+}
+
+std::vector<std::string> SplitPath(const std::string& path) {
+    std::vector<std::string> parts;
+    std::size_t start = 0;
+    while (true) {
+        const std::size_t slash = path.find('/', start);
+        parts.push_back(path.substr(start, slash - start));
+        if (slash == std::string::npos) break;
+        start = slash + 1;
+    }
+    return parts;
+}
+
+/** @brief Relative `/` paths of every `*.json` file under `root`, sorted. */
+std::vector<std::string> SortedJsonPaths(const fs::path& root) {
+    std::vector<std::string> paths;
+    for (const auto& entry : fs::recursive_directory_iterator(root)) {
+        if (!entry.is_regular_file() || entry.path().extension() != ".json") continue;
+        paths.push_back(entry.path().lexically_relative(root).generic_string());
+    }
+    std::sort(paths.begin(), paths.end());
+    return paths;
+}
+
+json ReadTreeFile(const fs::path& root, const std::string& relative) {
+    std::ifstream input(root / relative, std::ios::binary);
+    if (!input.is_open()) Reject("cannot open '" + relative + "'");
+    json node;
+    try {
+        node = json::parse(input);
+    } catch (const json::exception& error) {
+        Reject("'" + relative + "': " + error.what());
+    }
+    if (!node.is_object()) Reject("'" + relative + "' must be a JSON object");
+    return node;
+}
+
+/** @brief The id (or shape) of a tree file, checked against its file stem. */
+std::string CheckedId(const json& node, const char* key,
+                      const std::string& relative) {
+    if (!node.contains(key) || !node[key].is_string() || node[key].get<std::string>().empty()) {
+        Reject("'" + relative + "' needs a string '" + key + "'");
+    }
+    const std::string id = node[key].get<std::string>();
+    const std::string stem = fs::path(relative).stem().string();
+    if (stem != StemOf(id)) {
+        Reject("'" + relative + "' has stem '" + stem + "' but id '" + id
+               + "' needs '" + StemOf(id) + "'");
+    }
+    return id;
+}
+
+int RequiredOrder(const json& node, const std::string& relative) {
+    if (!node.contains("order") || !node["order"].is_number_integer()) {
+        Reject("'" + relative + "' needs an integer 'order'");
+    }
+    return node["order"].get<int>();
+}
+
+void ClaimId(std::map<std::string, std::string>& seen, const std::string& id,
+             const std::string& relative, const char* kind) {
+    const auto [position, inserted] = seen.emplace(id, relative);
+    if (!inserted) {
+        Reject(std::string("duplicate ") + kind + " id '" + id + "' in '"
+               + position->second + "' and '" + relative + "'");
+    }
+}
+
 }  // namespace
 
 Catalogue Catalogue::ParseDoc(const json& doc) {
@@ -532,15 +610,103 @@ Catalogue Catalogue::Parse(const nlohmann::json& doc) {
     }
 }
 
-Catalogue Catalogue::LoadFile(const std::string& path) {
-    std::ifstream input(path, std::ios::binary);
-    if (!input.is_open()) {
-        throw std::runtime_error("avatar catalogue: cannot open '" + path + "'");
+json Catalogue::MergeDirectory(const std::string& directory) {
+    const fs::path root(directory);
+    std::error_code error;
+    if (!fs::is_directory(root, error)) {
+        Reject("'" + directory + "' is not a directory");
     }
+
+    struct Ranked {
+        int rank;
+        int order;
+        json node;
+    };
+    json meta;
+    bool has_meta = false;
+    json sockets = json::object();
+    std::vector<Ranked> palettes;
+    std::vector<Ranked> items;
+    std::map<std::string, std::string> socket_ids, palette_ids, item_ids;
+    std::set<int> palette_orders;
+    std::set<std::pair<std::string, int>> item_orders;
+
+    for (const std::string& relative : SortedJsonPaths(root)) {
+        json node = ReadTreeFile(root, relative);
+        const std::vector<std::string> parts = SplitPath(relative);
+        if (relative == "meta.json") {
+            meta = node;
+            has_meta = true;
+        } else if (parts[0] == "sockets" && parts.size() == 2) {
+            const std::string shape = CheckedId(node, "shape", relative);
+            ClaimId(socket_ids, shape, relative, "shape socket");
+            node.erase("shape");
+            sockets[shape] = node;
+        } else if (parts[0] == "palettes" && parts.size() == 2) {
+            CheckedId(node, "id", relative);
+            ClaimId(palette_ids, node["id"].get<std::string>(), relative, "palette");
+            const int order = RequiredOrder(node, relative);
+            if (!palette_orders.insert(order).second) {
+                Reject("duplicate palette order " + std::to_string(order) + " ('"
+                       + relative + "')");
+            }
+            node.erase("order");
+            palettes.push_back({0, order, node});
+        } else if (parts[0] == "items" && parts.size() == 3) {
+            const std::string& slot = parts[1];
+            if (!Contains(AvatarSlots(), slot)) {
+                Reject("unknown slot '" + slot + "' ('" + relative + "')");
+            }
+            if (!node.contains("slot") || node["slot"] != slot) {
+                Reject("'" + relative + "' is in folder '" + slot
+                       + "' but its slot differs");
+            }
+            CheckedId(node, "id", relative);
+            ClaimId(item_ids, node["id"].get<std::string>(), relative, "item");
+            const int order = RequiredOrder(node, relative);
+            if (!item_orders.insert({slot, order}).second) {
+                Reject("duplicate order " + std::to_string(order) + " in slot " + slot
+                       + " ('" + relative + "')");
+            }
+            node.erase("order");
+            const auto& slots = AvatarSlots();
+            const int rank = static_cast<int>(
+                std::find(slots.begin(), slots.end(), slot) - slots.begin());
+            items.push_back({rank, order, node});
+        } else {
+            Reject("unexpected file '" + relative + "'");
+        }
+    }
+
+    if (!has_meta) Reject("missing 'meta.json' in '" + directory + "'");
+    for (const auto& [key, value] : meta.items()) {
+        if (key != "version" && key != "featured") {
+            Reject("meta.json: unknown key '" + key + "'");
+        }
+    }
+
+    std::sort(palettes.begin(), palettes.end(),
+              [](const Ranked& a, const Ranked& b) { return a.order < b.order; });
+    std::sort(items.begin(), items.end(), [](const Ranked& a, const Ranked& b) {
+        return a.rank != b.rank ? a.rank < b.rank : a.order < b.order;
+    });
+
+    json doc = json::object();
+    if (meta.contains("version")) doc["version"] = meta["version"];
+    doc["shape_sockets"] = sockets;
+    doc["palettes"] = json::array();
+    for (const Ranked& palette : palettes) doc["palettes"].push_back(palette.node);
+    doc["items"] = json::array();
+    for (const Ranked& item : items) doc["items"].push_back(item.node);
+    if (meta.contains("featured")) doc["featured"] = meta["featured"];
+    return doc;
+}
+
+Catalogue Catalogue::LoadDirectory(const std::string& directory) {
     try {
-        return Parse(json::parse(input));
+        return Parse(MergeDirectory(directory));
     } catch (const json::exception& error) {
-        throw std::runtime_error("avatar catalogue: '" + path
+        throw std::runtime_error("avatar catalogue: '" + directory
                                  + "': " + error.what());
     }
 }
@@ -557,7 +723,7 @@ void Catalogue::LoadGlobal(const std::string& path) {
     const std::string resolved =
         path.empty() ? Env::Get("UNI_AVATAR_CATALOGUE", kDefaultPath) : path;
     try {
-        Global().catalogue = LoadFile(resolved);
+        Global().catalogue = LoadDirectory(resolved);
         Global().loaded = true;
     } catch (const std::exception& error) {
         Logger::Error(std::string("[Avatar] catalogue load failed: ")

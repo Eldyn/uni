@@ -1,0 +1,14 @@
+{
+	"id": "uni:eyes_sleepy",
+	"order": 30,
+	"slot": "eyes",
+	"name": "Sleepy eyes",
+	"asset": {
+		"kind": "strip",
+		"path": "eyes/uni_eyes_sleepy.png"
+	},
+	"regions": 1,
+	"default_colors": ["#202020"],
+	"rarity": "common",
+	"price": 60
+}
