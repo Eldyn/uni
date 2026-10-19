@@ -887,3 +887,64 @@ TEST_CASE("lobby: race_percent and mode survive a JSON round trip") {
     CHECK(legacy.mode == "standard");
     CHECK(legacy.race_percent == contract::kRacePercentDefault);
 }
+
+TEST_CASE("lobby: QuitBeforeEnd marks a dropped leaver and keeps a finisher") {
+    Lobby lobby;
+    lobby.id = 1;
+    lobby.settings.quit_deletes_match = false;
+    lobby.settings.allow_bot_replacement = false;
+    lobby.members.emplace_back("Alice", nullptr, true, false);
+    lobby.members.emplace_back("Bob", nullptr, true, false);
+    AttachSession(lobby, {{"Alice", false}, {"Bob", false}});
+
+    std::mt19937 rng(42);
+    lobby.RemoveMember("Alice", rng);
+
+    CHECK(lobby.session->SeatQuit("Alice"));
+    CHECK(lobby.QuitBeforeEnd("Alice"));
+    CHECK_FALSE(lobby.QuitBeforeEnd("Bob"));
+}
+
+TEST_CASE("lobby: QuitBeforeEnd marks a leaver replaced by a bot") {
+    Lobby lobby;
+    lobby.id = 1;
+    lobby.settings.allow_bot_replacement = true;
+    lobby.members.emplace_back("Alice", nullptr, true, false);
+    lobby.members.emplace_back("Bob", nullptr, true, false);
+    AttachSession(lobby, {{"Alice", false}, {"Bob", false}});
+
+    std::mt19937 rng(42);
+    lobby.RemoveMember("Alice", rng);
+
+    CHECK(lobby.session->SeatQuit("Alice"));
+    CHECK(lobby.QuitBeforeEnd("Alice"));
+    CHECK_FALSE(lobby.QuitBeforeEnd("Bob"));
+}
+
+TEST_CASE("lobby: QuitBeforeEnd follows the connection at the end") {
+    Lobby lobby;
+    lobby.id = 1;
+    lobby.members.emplace_back("Alice", nullptr, true, false);
+    lobby.members.emplace_back("Bob", nullptr, true, false);
+    AttachSession(lobby, {{"Alice", false}, {"Bob", false}});
+
+    lobby.FindMember("Alice")->is_connected = false;
+    CHECK(lobby.QuitBeforeEnd("Alice"));
+    CHECK_FALSE(lobby.QuitBeforeEnd("Bob"));
+
+    lobby.FindMember("Alice")->is_connected = true;
+    CHECK_FALSE(lobby.QuitBeforeEnd("Alice"));
+}
+
+TEST_CASE("match session: payouts start unsettled and keep what is set") {
+    Lobby lobby;
+    lobby.id = 1;
+    lobby.members.emplace_back("Alice", nullptr, true, false);
+    lobby.members.emplace_back("Bob", nullptr, true, false);
+    AttachSession(lobby, {{"Alice", false}, {"Bob", false}});
+
+    CHECK_FALSE(lobby.session->PayoutsSettled());
+    lobby.session->SetPayouts({{"Alice", 100}});
+    CHECK(lobby.session->PayoutsSettled());
+    CHECK(lobby.session->Payouts().at("Alice") == 100);
+}

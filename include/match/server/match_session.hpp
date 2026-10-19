@@ -16,8 +16,10 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <set>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 /**
@@ -489,6 +491,34 @@ public:
     std::size_t EventCursor() const { return cursor_; }
     /** @brief True once `match_over` has been accepted for all recipients. */
     bool MatchOverNotified() const { return over_sent_; }
+
+    /** @brief Record that a human seat left the match before the end. */
+    void MarkSeatQuit(const std::string& username) {
+        quit_seats_.insert(username);
+    }
+
+    /** @brief True when `username` left the match before the end. */
+    bool SeatQuit(const std::string& username) const {
+        return quit_seats_.contains(username);
+    }
+
+    /**
+     * @brief Store the settled match payouts (username -> cash, only > 0).
+     * `BroadcastMatchOver` writes them into the `match_over` frame.
+     */
+    void SetPayouts(std::map<std::string, std::int64_t> payouts) {
+        payouts_ = std::move(payouts);
+        payouts_settled_ = true;
+    }
+
+    /** @brief True after `SetPayouts`; the match is not paid twice. */
+    bool PayoutsSettled() const { return payouts_settled_; }
+
+    /** @brief The settled payouts; empty before `SetPayouts`. */
+    const std::map<std::string, std::int64_t>& Payouts() const {
+        return payouts_;
+    }
+
     /** @brief Recipient socket map as supplied at construction. */
     const SocketMap& Sockets() const { return sockets_; }
     /** @brief Spectator viewer socket map. */
@@ -622,6 +652,11 @@ private:
     std::chrono::steady_clock::time_point barrier_armed_at_{};
     std::size_t cursor_ = 0;   /**< emitted prefix of `Engine().Events()`. */
     bool over_sent_ = false;   /**< `match_over` already broadcast. */
+    /** Human seats that left before the end (bot replacement or drop). */
+    std::set<std::string> quit_seats_;
+    /** Settled match payouts, carried by `match_over`. */
+    std::map<std::string, std::int64_t> payouts_;
+    bool payouts_settled_ = false;
     /** `defs` + `match_start` already emitted for the seated recipients. */
     bool match_start_sent_ = false;
     /** Built-once `defs` table shared by `EmitMatchStart`/`EnsureDefs`. */

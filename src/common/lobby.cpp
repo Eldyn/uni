@@ -213,6 +213,7 @@ MemberRemovalResult Lobby::RemoveMember(const std::string& username, std::mt1993
         // INFO: the seat moves to a fresh bot name. Keeping the leaver's name
         //       left their socket bound to the match stream and let a
         //       username-keyed rejoin pull them straight back into the game.
+        session->MarkSeatQuit(old_name);
         const std::string bot_name = PickBotName(rng);
         if (session->HandSeatToBot(old_name, bot_name)) {
             member_it->username = bot_name;
@@ -230,6 +231,7 @@ MemberRemovalResult Lobby::RemoveMember(const std::string& username, std::mt1993
         result.old_username = old_name;
         result.new_bot_name = member_it->username;
     } else {
+        session->MarkSeatQuit(old_name);
         session->BindSocket(old_name, nullptr);
         members.erase(member_it);
 
@@ -238,6 +240,13 @@ MemberRemovalResult Lobby::RemoveMember(const std::string& username, std::mt1993
     }
 
     return result;
+}
+
+bool Lobby::QuitBeforeEnd(const std::string& username) const {
+    if (session && session->SeatQuit(username)) return true;
+    const LobbyMember* member = FindMember(username);
+    if (member == nullptr) return true;
+    return member->is_spectator || !member->is_connected;
 }
 
 bool Lobby::PromoteNextHost() {

@@ -337,6 +337,14 @@ struct Lobby {
     MemberRemovalResult RemoveMember(const std::string& username, std::mt19937& rng);
 
     /**
+     * @brief True when a human seat must not be paid as a finisher: the
+     * session recorded it as quit, it is no longer a member, it is a
+     * spectator, or it is disconnected now (the match end).
+     * @param username Engine username of the seat.
+     */
+    bool QuitBeforeEnd(const std::string& username) const;
+
+    /**
      * @brief Promotes the first connected non-bot member to host. No-op if no
      * such member exists.
      * @return true if a new host was promoted, false if no eligible member was found.
