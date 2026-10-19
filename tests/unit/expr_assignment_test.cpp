@@ -24,6 +24,7 @@ using match::expr::CheckAssignment;
 using match::expr::CollectWrittenKeys;
 using match::expr::Diagnostic;
 using match::expr::EntityRef;
+using match::expr::FormatParseError;
 using match::expr::EvalError;
 using match::expr::ParseAssignment;
 using match::expr::Schema;
@@ -223,6 +224,12 @@ TEST_CASE("a_value_that_reads_an_unguarded_optional_variable_errors") {
 TEST_CASE("a_defined_guard_allows_the_optional_variable") {
     CHECK(Check("@next.axe:stunned = if(defined($responder), $responder.hand_size > 0, false)")
               .empty());
+}
+
+TEST_CASE("an_assignment_parse_error_carries_its_offset") {
+    const AssignmentResult parsed = ParseAssignment("@next.hand_size =");
+    REQUIRE(parsed.error.has_value());
+    CHECK(FirstMessage(Check("@next.hand_size =")) == FormatParseError(*parsed.error));
 }
 
 TEST_CASE("an_assignment_over_the_node_budget_is_an_error") {

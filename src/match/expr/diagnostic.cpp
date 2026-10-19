@@ -61,8 +61,15 @@ int Levenshtein(std::string_view left, std::string_view right) {
 }  // namespace
 
 void AppendPointerTokenTo(std::string& pointer, std::string_view token) {
-    if (pointer.empty()) {
-        pointer = "/";
+    // INFO: the root marker "/" is also the separator of the first token, so a
+    // root and an empty key must be told apart by the marker, not the last
+    // character; an empty key keeps its own separator.
+    if (pointer.empty() || pointer == kRootPointer) {
+        pointer = std::string(kRootPointer);
+        if (token.empty()) {
+            pointer.push_back('/');
+            return;
+        }
     } else if (pointer.back() != '/') {
         pointer.push_back('/');
     }

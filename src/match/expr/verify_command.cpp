@@ -178,8 +178,11 @@ int RunVerifyImpl(const std::vector<std::string>& args, std::ostream& out, std::
         return 3;
     }
     if (scan.nested_too_deep) {
-        const Diagnostic nested{options.schema_path, std::string(kRootPointer),
-                                "schema is nested too deeply (more than 64 levels)", ""};
+        const Diagnostic nested{
+            options.schema_path, std::string(kRootPointer),
+            "schema is nested too deeply (more than " +
+                std::to_string(kMaximumSchemaDepth) + " levels)",
+            ""};
         err << FormatDiagnostic(nested) << "\n";
         return 1;
     }

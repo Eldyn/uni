@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -13,6 +14,10 @@
 namespace match::expr {
 
 using json = nlohmann::json;
+
+// INFO: a container nested past this many levels is rejected before the scan
+// builds a pointer for it, so a hostile file cannot drive the recursive work.
+inline constexpr size_t kMaximumSchemaDepth = 64;
 
 // INFO: a key that occurs more than once inside one JSON object, with the RFC
 // 6901 pointer of the object that holds it. nlohmann keeps the last value of a

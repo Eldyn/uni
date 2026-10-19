@@ -22,10 +22,6 @@ constexpr std::string_view kRootKeys[] = {"seat_properties", "card_properties",
                                           "card_slots",      "variables"};
 constexpr std::string_view kVariableKeys[] = {"type", "optional"};
 
-// INFO: a container nested past this many levels is rejected before the scan
-// builds a pointer for it, so a hostile file cannot drive the recursive work.
-constexpr size_t kMaximumSchemaDepth = 64;
-
 // INFO: the repeated keys the scan keeps before it summarizes the rest.
 constexpr size_t kMaximumRecordedDuplicates = 64;
 

@@ -22,6 +22,14 @@ TEST_CASE("format_without_suggestion") {
     CHECK(match::expr::FormatDiagnostic(d) == "file#/p: message");
 }
 
+TEST_CASE("an_empty_key_token_keeps_its_separator") {
+    CHECK(match::expr::AppendPointerToken(match::expr::kRootPointer, "") == "//");
+    CHECK(match::expr::AppendPointerToken("", "") == "//");
+    CHECK(match::expr::AppendPointerToken("/a", "") == "/a/");
+    CHECK(match::expr::AppendPointerToken(
+              match::expr::AppendPointerToken(match::expr::kRootPointer, ""), "b") == "//b");
+}
+
 TEST_CASE("suggest_closest_finds_typo") {
     CHECK(match::expr::SuggestClosest("hand_sze", {"hand_size", "seat", "name"}) == "hand_size");
 }
