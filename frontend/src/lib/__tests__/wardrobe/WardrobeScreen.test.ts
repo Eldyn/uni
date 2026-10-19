@@ -349,6 +349,8 @@ describe("WardrobeScreen", () => {
 		const { container } = render(WardrobeScreen);
 		flushSync();
 
+		await fireEvent.click(container.querySelector('[data-palette-id="uni:neon"]')!);
+
 		const locked = container.querySelector<HTMLElement>('[data-swatch-id="uni:neon:hot"]');
 		expect(locked).not.toBeNull();
 		expect(locked?.dataset.locked).toBe("true");
@@ -356,6 +358,17 @@ describe("WardrobeScreen", () => {
 
 		await fireEvent.click(locked!);
 		expect(storeNavigation.goto).toHaveBeenCalledWith("shop");
+	});
+
+	it("opens on the palette of the worn color and strikes the locked palettes", () => {
+		const { container } = render(WardrobeScreen);
+		flushSync();
+
+		expect(container.querySelector('[data-swatch-id="basic:red"]')).not.toBeNull();
+		expect(container.querySelector('[data-swatch-id="uni:neon:hot"]')).toBeNull();
+		expect(
+			container.querySelector<HTMLElement>('[data-palette-id="uni:neon"]')?.dataset.locked
+		).toBe("true");
 	});
 
 	it("shows no color picker for an item with the none tint", async () => {
