@@ -216,6 +216,17 @@ TEST_CASE("rounding_a_not_a_number_reports_not_a_number") {
     CHECK(ErrorOf("round($x)", context).code == "not_a_number");
 }
 
+TEST_CASE("a_nan_operand_in_min_max_or_clamp_is_not_a_number") {
+    match::expr::testing::FakeContext context;
+    context.variables["nan"] = Value{std::numeric_limits<double>::quiet_NaN()};
+    CHECK(ErrorOf("min($nan, 1.0)", context).code == "not_a_number");
+    CHECK(ErrorOf("min(1.0, $nan)", context).code == "not_a_number");
+    CHECK(ErrorOf("max($nan, 1.0)", context).code == "not_a_number");
+    CHECK(ErrorOf("max(1.0, $nan)", context).code == "not_a_number");
+    CHECK(ErrorOf("clamp($nan, 1.0, 2.0)", context).code == "not_a_number");
+    CHECK(ErrorOf("clamp(5.0, $nan, 10.0)", context).code == "not_a_number");
+}
+
 TEST_CASE("a_set_function_condition_names_its_bad_type") {
     match::expr::testing::FakeContext context;
     const EvalError error = ErrorOf("count(@all, 1 + 1)", context);

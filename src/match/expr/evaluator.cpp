@@ -30,6 +30,10 @@ bool IsNumber(const Value& value) {
 
 bool IsFloat(const Value& value) { return std::holds_alternative<double>(value); }
 
+bool IsNotANumber(const Value& value) {
+    return IsFloat(value) && std::isnan(std::get<double>(value));
+}
+
 // INFO: an int widens to a float; there is no implicit float to int.
 double AsFloat(const Value& value) {
     return IsFloat(value) ? std::get<double>(value)
@@ -623,6 +627,11 @@ EvalResult CallValue(const Node& node, EvalContext& context,
             if (!IsNumber(left_value) || !IsNumber(right_value)) {
                 return Fail("type_mismatch", name + " needs numbers");
             }
+            // INFO: a NaN operand makes min/max not a number whatever its
+            // position; the comparison below would otherwise ignore it.
+            if (IsNotANumber(left_value) || IsNotANumber(right_value)) {
+                return Fail("not_a_number", name + " got not a number");
+            }
             const bool mixed = IsFloat(left_value) || IsFloat(right_value);
             bool choose_right = false;
             if (mixed) {
@@ -668,6 +677,11 @@ EvalResult CallValue(const Node& node, EvalContext& context,
         const Value high = std::get<Value>(high_result);
         if (!IsNumber(value) || !IsNumber(low) || !IsNumber(high)) {
             return Fail("type_mismatch", "clamp needs numbers");
+        }
+        // INFO: a NaN bound or value makes clamp not a number whatever its
+        // position; the comparisons below would otherwise ignore it.
+        if (IsNotANumber(value) || IsNotANumber(low) || IsNotANumber(high)) {
+            return Fail("not_a_number", "clamp got not a number");
         }
         if (IsFloat(value) || IsFloat(low) || IsFloat(high)) {
             double clamped = AsFloat(value);

@@ -3372,6 +3372,42 @@
             }
         },
         {
+            "name": "nan_in_min_after_a_number_is_not_a_number",
+            "expression": "min(1.0, $nan_value)",
+            "expect": {
+                "error": "not_a_number"
+            },
+            "world": {
+                "variables": {
+                    "nan_value": "nan"
+                }
+            }
+        },
+        {
+            "name": "nan_in_max_is_not_a_number",
+            "expression": "max($nan_value, 1.0)",
+            "expect": {
+                "error": "not_a_number"
+            },
+            "world": {
+                "variables": {
+                    "nan_value": "nan"
+                }
+            }
+        },
+        {
+            "name": "nan_in_clamp_low_bound_is_not_a_number",
+            "expression": "clamp(5.0, $nan_value, 10.0)",
+            "expect": {
+                "error": "not_a_number"
+            },
+            "world": {
+                "variables": {
+                    "nan_value": "nan"
+                }
+            }
+        },
+        {
             "name": "int_float_equality_above_two_to_the_53",
             "expression": "9007199254740993 == 9007199254740992.0",
             "expect": {
