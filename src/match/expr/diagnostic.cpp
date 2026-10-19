@@ -27,7 +27,11 @@ std::string EscapePointerToken(std::string_view token) {
     return escaped;
 }
 
-int Levenshtein(std::string_view left, std::string_view right) {
+// INFO: the optimal string alignment distance is the Levenshtein distance with
+// one extra rule: a pair of adjacent, swapped characters is a single edit. A
+// plain Levenshtein distance scores the transposition "crad" -> "card" as two
+// edits, past the suggestion threshold, so the typo is not recognised.
+int OptimalStringAlignmentDistance(std::string_view left, std::string_view right) {
     if (left == right) {
         return 0;
     }
@@ -40,6 +44,9 @@ int Levenshtein(std::string_view left, std::string_view right) {
         return static_cast<int>(left_length);
     }
 
+    // INFO: the transposition rule reads the row two steps back, so three rows
+    // are kept: the row before the previous, the previous row, and the current.
+    std::vector<int> two_rows_back(right_length + 1);
     std::vector<int> previous(right_length + 1);
     std::vector<int> current(right_length + 1);
     for (std::size_t right_index = 0; right_index <= right_length; ++right_index) {
@@ -49,10 +56,17 @@ int Levenshtein(std::string_view left, std::string_view right) {
         current[0] = static_cast<int>(left_index);
         for (std::size_t right_index = 1; right_index <= right_length; ++right_index) {
             const int cost = (left[left_index - 1] == right[right_index - 1]) ? 0 : 1;
-            current[right_index] =
+            int distance =
                 std::min({previous[right_index] + 1, current[right_index - 1] + 1,
                           previous[right_index - 1] + cost});
+            if (left_index > 1 && right_index > 1 &&
+                left[left_index - 1] == right[right_index - 2] &&
+                left[left_index - 2] == right[right_index - 1]) {
+                distance = std::min(distance, two_rows_back[right_index - 2] + 1);
+            }
+            current[right_index] = distance;
         }
+        std::swap(two_rows_back, previous);
         std::swap(previous, current);
     }
     return previous[right_length];
@@ -116,7 +130,7 @@ std::string SuggestClosest(std::string_view word, const std::vector<std::string>
         if (length_difference > threshold) {
             continue;
         }
-        const int distance = Levenshtein(word, candidate);
+        const int distance = OptimalStringAlignmentDistance(word, candidate);
         if (!have_best || distance < best_distance) {
             best = candidate;
             best_distance = distance;

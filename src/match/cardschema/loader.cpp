@@ -142,36 +142,28 @@ std::string QuotedValues(const std::vector<std::string>& values) {
     return text;
 }
 
-// INFO: range bounds are whole numbers in practice, so `%g` keeps `[0, 5]`
-// readable instead of `[0.000000, 5.000000]`.
+// INFO: `%.15g` prints a whole-number bound as `0` and `5` while keeping 15
+// significant digits, so a large bound does not lose precision below its value.
 std::string FormatNumber(double value) {
     char buffer[32];
-    std::snprintf(buffer, sizeof(buffer), "%g", value);
+    std::snprintf(buffer, sizeof(buffer), "%.15g", value);
     return buffer;
 }
 
 std::optional<std::string> ReadEnum(const json& object, const char* key,
                                     const std::vector<std::string>& candidates,
                                     const std::string& file, const std::string& pointer,
-                                    std::vector<Diagnostic>& diagnostics, bool required = false,
-                                    const char* fallback_suggestion = nullptr) {
+                                    std::vector<Diagnostic>& diagnostics, bool required = false) {
     const std::optional<std::string> value =
         ReadString(object, key, file, pointer, diagnostics, required);
     if (!value) {
         return std::nullopt;
     }
     if (!Contains(candidates, *value)) {
-        std::string suggestion = match::expr::SuggestClosest(*value, candidates);
-        // INFO: a short word can sit past the edit-distance threshold of every
-        // candidate (e.g. "crad" and "card"); a single-value enum names its one
-        // plausible answer instead of printing no suggestion.
-        if (suggestion.empty() && fallback_suggestion != nullptr) {
-            suggestion = fallback_suggestion;
-        }
         AddError(diagnostics, file, match::expr::AppendPointerToken(pointer, key),
                  "key \"" + std::string(key) + "\" must be one of " +
                      QuotedValues(candidates),
-                 suggestion);
+                 match::expr::SuggestClosest(*value, candidates));
         return std::nullopt;
     }
     return value;
@@ -889,10 +881,9 @@ bool ParseDeck(const json& value, const std::string& mod_id, const std::string& 
 }
 
 const std::vector<std::string>& PropertyKeys() {
-    static const std::vector<std::string> keys = {"identifier", "scope",     "type",
-                                                  "default",    "range",     "visibility",
-                                                  "sync_to_clients", "writable_by",
-                                                  "values",     "attribute"};
+    static const std::vector<std::string> keys = {
+        "identifier", "scope", "type", "default", "range", "visibility",
+        "sync_to_clients", "writable_by", "values", "attribute"};
     return keys;
 }
 
@@ -923,13 +914,37 @@ bool PropertyDefaultFitsType(const json& value, const std::string& type) {
     return true;
 }
 
+// INFO: an int bound must be a 64-bit integer; the loader rejects a fractional
+// or out-of-range bound here so the default check can compare whole numbers.
+bool IntBoundsFit64Bits(const json& range) {
+    for (std::size_t index = 0; index < range.size(); ++index) {
+        const json& bound = range[index];
+        if (!bound.is_number_integer()) {
+            return false;
+        }
+        if (bound.is_number_unsigned() &&
+            bound.get<unsigned long long>() >
+                static_cast<unsigned long long>(std::numeric_limits<long long>::max())) {
+            return false;
+        }
+    }
+    return true;
+}
+
 void ParsePropertyRange(const json& value, const std::string& file, const std::string& pointer,
-                        std::vector<Diagnostic>& diagnostics, PropertyDef& property) {
+                        std::vector<Diagnostic>& diagnostics, PropertyDef& property,
+                        bool type_known) {
     const auto range = value.find("range");
     if (range == value.end()) {
         return;
     }
     const std::string range_pointer = match::expr::AppendPointerToken(pointer, "range");
+    // INFO: when `type` itself is missing or unreadable, the type diagnostic is
+    // the one that matters; a second "range is only allowed ..." error would only
+    // restate it.
+    if (!type_known) {
+        return;
+    }
     if (property.type != "int" && property.type != "float") {
         AddError(diagnostics, file, range_pointer,
                  "key \"range\" is only allowed when \"type\" is \"int\" or \"float\"");
@@ -941,6 +956,22 @@ void ParsePropertyRange(const json& value, const std::string& file, const std::s
                  "key \"range\" must be an array of two numbers");
         return;
     }
+    if (property.type == "int") {
+        if (!IntBoundsFit64Bits(*range)) {
+            AddError(diagnostics, file, range_pointer,
+                     "key \"range\" must be an array of two 64-bit integers");
+            return;
+        }
+        const long long low = (*range)[0].get<long long>();
+        const long long high = (*range)[1].get<long long>();
+        if (low > high) {
+            AddError(diagnostics, file, range_pointer, "key \"range\" must have low <= high");
+            return;
+        }
+        property.range =
+            std::make_pair(static_cast<double>(low), static_cast<double>(high));
+        return;
+    }
     const double low = (*range)[0].get<double>();
     const double high = (*range)[1].get<double>();
     if (low > high) {
@@ -948,6 +979,27 @@ void ParsePropertyRange(const json& value, const std::string& file, const std::s
         return;
     }
     property.range = std::make_pair(low, high);
+}
+
+// INFO: an int default is compared with its int range as 64-bit integers. Going
+// through double would round a value above 2^53 to a neighbour, so a default that
+// sits just outside the range could pass the check.
+void CheckPropertyIntDefaultRange(const json& default_value, const json& value,
+                                  const std::string& file, const std::string& pointer,
+                                  std::vector<Diagnostic>& diagnostics) {
+    const auto range = value.find("range");
+    if (range == value.end() || !range->is_array() || range->size() != 2 ||
+        !(*range)[0].is_number_integer() || !(*range)[1].is_number_integer()) {
+        return;
+    }
+    const long long number = default_value.get<long long>();
+    const long long low = (*range)[0].get<long long>();
+    const long long high = (*range)[1].get<long long>();
+    if (number < low || number > high) {
+        AddError(diagnostics, file, pointer,
+                 "key \"default\" is outside the range [" + std::to_string(low) + ", " +
+                     std::to_string(high) + "]");
+    }
 }
 
 void ParsePropertyDefault(const json& value, const std::string& file, const std::string& pointer,
@@ -958,22 +1010,55 @@ void ParsePropertyDefault(const json& value, const std::string& file, const std:
     }
     const std::string default_pointer = match::expr::AppendPointerToken(pointer, "default");
     property.default_value = *entry;
+
     if (!PropertyDefaultFitsType(*entry, property.type)) {
         AddError(diagnostics, file, default_pointer,
                  "key \"default\" must be of type \"" + property.type + "\"");
         return;
     }
-    if (property.range && entry->is_number()) {
-        const double number = entry->get<double>();
-        if (number < property.range->first || number > property.range->second) {
+    if (property.type == "int" && entry->is_number_unsigned() &&
+        entry->get<unsigned long long>() >
+            static_cast<unsigned long long>(std::numeric_limits<long long>::max())) {
+        AddError(diagnostics, file, default_pointer, "key \"default\" must be a 64-bit integer");
+        return;
+    }
+    if (property.type == "member") {
+        // TODO(task 13): check that the member exists in the named attribute.
+        const std::string text = entry->get<std::string>();
+        if (!IsValidIdentifier(text)) {
             AddError(diagnostics, file, default_pointer,
-                     "key \"default\" is outside the range [" +
-                         FormatNumber(property.range->first) + ", " +
-                         FormatNumber(property.range->second) + "]");
+                     "key \"default\" \"" + text +
+                         "\" is not a valid identifier; a local name uses [a-z0-9_] "
+                         "(1 to 32 characters)");
+            return;
         }
+    }
+    if (property.type == "string" && !property.values.empty() &&
+        !Contains(property.values, entry->get<std::string>())) {
+        AddError(diagnostics, file, default_pointer,
+                 "key \"default\" must be one of " + QuotedValues(property.values));
+        return;
+    }
+    if (!property.range) {
+        return;
+    }
+    if (property.type == "int") {
+        CheckPropertyIntDefaultRange(*entry, value, file, default_pointer, diagnostics);
+        return;
+    }
+    const double number = entry->get<double>();
+    if (number < property.range->first || number > property.range->second) {
+        AddError(diagnostics, file, default_pointer,
+                 "key \"default\" is outside the range [" +
+                     FormatNumber(property.range->first) + ", " +
+                     FormatNumber(property.range->second) + "]");
     }
 }
 
+// INFO: `writable_by` defaults to "owner"; the string "owner" leaves
+// `property.writable_by` empty, which is also how an absent key reads, and the
+// model does not need to tell the two apart. An explicit empty array is a
+// mistake, not a way to spell "nobody".
 void ParsePropertyWritableBy(const json& value, const std::string& file,
                              const std::string& pointer, std::vector<Diagnostic>& diagnostics,
                              PropertyDef& property) {
@@ -994,6 +1079,10 @@ void ParsePropertyWritableBy(const json& value, const std::string& file,
     if (!entry->is_array()) {
         AddError(diagnostics, file, writable_pointer,
                  "key \"writable_by\" must be \"owner\" or an array of mod ids");
+        return;
+    }
+    if (entry->empty()) {
+        AddError(diagnostics, file, writable_pointer, "key \"writable_by\" must not be empty");
         return;
     }
     std::set<std::string> seen;
@@ -1020,12 +1109,18 @@ void ParsePropertyWritableBy(const json& value, const std::string& file,
 }
 
 void ParsePropertyValues(const json& value, const std::string& file, const std::string& pointer,
-                         std::vector<Diagnostic>& diagnostics, PropertyDef& property) {
+                         std::vector<Diagnostic>& diagnostics, PropertyDef& property,
+                         bool type_known) {
     const auto entry = value.find("values");
     if (entry == value.end()) {
         return;
     }
     const std::string values_pointer = match::expr::AppendPointerToken(pointer, "values");
+    // INFO: a missing or unreadable `type` already produced its own diagnostic;
+    // "values is only allowed when type is string" would only restate it.
+    if (!type_known) {
+        return;
+    }
     if (property.type != "string") {
         AddError(diagnostics, file, values_pointer,
                  "key \"values\" is only allowed when \"type\" is \"string\"");
@@ -1033,6 +1128,10 @@ void ParsePropertyValues(const json& value, const std::string& file, const std::
     }
     if (!entry->is_array()) {
         AddError(diagnostics, file, values_pointer, "key \"values\" must be an array");
+        return;
+    }
+    if (entry->empty()) {
+        AddError(diagnostics, file, values_pointer, "key \"values\" must not be empty");
         return;
     }
     std::set<std::string> seen;
@@ -1050,6 +1149,39 @@ void ParsePropertyValues(const json& value, const std::string& file, const std::
             continue;
         }
         property.values.push_back(text);
+    }
+}
+
+// INFO: `attribute` names the attribute whose members a `member` property holds.
+// It is required for that type and rejected for every other one. A `type` that
+// failed to parse already has its own diagnostic, so this adds no cascade.
+void ParsePropertyAttribute(const json& value, const std::string& mod_id,
+                            const std::string& file, const std::string& pointer,
+                            std::vector<Diagnostic>& diagnostics, PropertyDef& property,
+                            bool type_known) {
+    const auto entry = value.find("attribute");
+    const std::string attribute_pointer = match::expr::AppendPointerToken(pointer, "attribute");
+    const bool type_is_member = type_known && property.type == "member";
+    if (entry == value.end()) {
+        if (type_is_member) {
+            AddError(diagnostics, file, attribute_pointer, "missing required key \"attribute\"");
+        }
+        return;
+    }
+    if (!type_known) {
+        return;
+    }
+    if (!type_is_member) {
+        AddError(diagnostics, file, attribute_pointer,
+                 "key \"attribute\" is only allowed when \"type\" is \"member\"");
+        return;
+    }
+    if (const std::optional<std::string> attribute =
+            ReadString(value, "attribute", file, pointer, diagnostics, true)) {
+        if (ValidateIdentifier(*attribute, mod_id, file, attribute_pointer,
+                               "property attribute", diagnostics)) {
+            property.member_attribute = *attribute;
+        }
     }
 }
 
@@ -1074,16 +1206,21 @@ bool ParseProperty(const json& value, const std::string& mod_id, const std::stri
     }
 
     if (const std::optional<std::string> scope =
-            ReadEnum(value, "scope", PropertyScopes(), file, pointer, diagnostics, true,
-                     "card")) {
+            ReadEnum(value, "scope", PropertyScopes(), file, pointer, diagnostics, true)) {
         property.scope = *scope;
     }
+    bool type_known = false;
     if (const std::optional<std::string> type =
             ReadEnum(value, "type", PropertyTypes(), file, pointer, diagnostics, true)) {
         property.type = *type;
+        type_known = true;
     }
 
-    ParsePropertyRange(value, file, pointer, diagnostics, property);
+    // INFO: `range` and `values` shape the `default` check that follows, so they
+    // are read first: a `values` list lets the default-membership check run and a
+    // `range` lets the numeric check run.
+    ParsePropertyRange(value, file, pointer, diagnostics, property, type_known);
+    ParsePropertyValues(value, file, pointer, diagnostics, property, type_known);
     ParsePropertyDefault(value, file, pointer, diagnostics, property);
 
     if (const std::optional<std::string> visibility =
@@ -1104,17 +1241,7 @@ bool ParseProperty(const json& value, const std::string& mod_id, const std::stri
     }
 
     ParsePropertyWritableBy(value, file, pointer, diagnostics, property);
-    ParsePropertyValues(value, file, pointer, diagnostics, property);
-
-    const std::optional<std::string> attribute =
-        ReadString(value, "attribute", file, pointer, diagnostics, property.type == "member");
-    if (attribute) {
-        if (ValidateIdentifier(*attribute, mod_id, file,
-                               match::expr::AppendPointerToken(pointer, "attribute"),
-                               "property attribute", diagnostics)) {
-            property.member_attribute = *attribute;
-        }
-    }
+    ParsePropertyAttribute(value, mod_id, file, pointer, diagnostics, property, type_known);
 
     property.file = file;
     return usable && diagnostics.size() == initial_diagnostics;

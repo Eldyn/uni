@@ -1870,4 +1870,494 @@ TEST_CASE("bad_scope") {
           "(did you mean \"card\")");
 }
 
+TEST_CASE("property_type_unknown") {
+    CardSchemaTempDir dir;
+    dir.Write("tree/properties/growth.json",
+              R"({"format_version":"1.0.0","property":{"identifier":"tree:growth",)"
+              R"("scope":"match","type":"zzz"}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "tree", "tree");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/tree/properties/growth.json#/property/type: "
+          "key \"type\" must be one of \"int\", \"float\", \"boolean\", \"string\", "
+          "\"member\"");
+}
+
+TEST_CASE("property_type_error_does_not_cascade_to_range_or_values") {
+    CardSchemaTempDir dir;
+    dir.Write("tree/properties/growth.json",
+              R"({"format_version":"1.0.0","property":{"identifier":"tree:growth",)"
+              R"("scope":"match","type":"zzz","range":[0,5],"values":["a"]}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "tree", "tree");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/tree/properties/growth.json#/property/type: "
+          "key \"type\" must be one of \"int\", \"float\", \"boolean\", \"string\", "
+          "\"member\"");
+}
+
+TEST_CASE("property_visibility_values_listed") {
+    CardSchemaTempDir dir;
+    dir.Write("tree/properties/growth.json",
+              R"({"format_version":"1.0.0","property":{"identifier":"tree:growth",)"
+              R"("scope":"match","type":"int","visibility":"everyone"}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "tree", "tree");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/tree/properties/growth.json#/property/visibility: "
+          "key \"visibility\" must be one of \"public\", \"owner\", \"hidden\"");
+}
+
+TEST_CASE("property_sync_to_clients_must_be_boolean") {
+    CardSchemaTempDir dir;
+    dir.Write("tree/properties/growth.json",
+              R"({"format_version":"1.0.0","property":{"identifier":"tree:growth",)"
+              R"("scope":"match","type":"int","sync_to_clients":"yes"}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "tree", "tree");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/tree/properties/growth.json#/property/sync_to_clients: "
+          "key \"sync_to_clients\" must be a boolean");
+}
+
+TEST_CASE("property_int_default_type_mismatch") {
+    CardSchemaTempDir dir;
+    dir.Write("tree/properties/growth.json",
+              R"({"format_version":"1.0.0","property":{"identifier":"tree:growth",)"
+              R"("scope":"match","type":"int","default":1.5}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "tree", "tree");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/tree/properties/growth.json#/property/default: "
+          "key \"default\" must be of type \"int\"");
+}
+
+TEST_CASE("property_boolean_default_type_mismatch") {
+    CardSchemaTempDir dir;
+    dir.Write("tree/properties/growth.json",
+              R"({"format_version":"1.0.0","property":{"identifier":"tree:growth",)"
+              R"("scope":"match","type":"boolean","default":"yes"}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "tree", "tree");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/tree/properties/growth.json#/property/default: "
+          "key \"default\" must be of type \"boolean\"");
+}
+
+TEST_CASE("property_int_default_must_fit_64_bits") {
+    CardSchemaTempDir dir;
+    dir.Write("tree/properties/growth.json",
+              R"({"format_version":"1.0.0","property":{"identifier":"tree:growth",)"
+              R"("scope":"match","type":"int","default":18446744073709551615}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "tree", "tree");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/tree/properties/growth.json#/property/default: "
+          "key \"default\" must be a 64-bit integer");
+}
+
+TEST_CASE("property_int_default_and_range_compare_as_integers") {
+    CardSchemaTempDir dir;
+    dir.Write("tree/properties/growth.json",
+              R"({"format_version":"1.0.0","property":{"identifier":"tree:growth",)"
+              R"("scope":"match","type":"int","default":9007199254740993,)"
+              R"("range":[0,9007199254740992]}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "tree", "tree");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/tree/properties/growth.json#/property/default: "
+          "key \"default\" is outside the range [0, 9007199254740992]");
+}
+
+TEST_CASE("property_string_default_must_be_a_listed_value") {
+    CardSchemaTempDir dir;
+    dir.Write("tree/properties/growth.json",
+              R"({"format_version":"1.0.0","property":{"identifier":"tree:growth",)"
+              R"("scope":"match","type":"string","values":["a","b"],"default":"c"}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "tree", "tree");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/tree/properties/growth.json#/property/default: "
+          "key \"default\" must be one of \"a\", \"b\"");
+}
+
+TEST_CASE("property_member_default_must_be_an_identifier") {
+    CardSchemaTempDir dir;
+    dir.Write("tree/properties/growth.json",
+              R"({"format_version":"1.0.0","property":{"identifier":"tree:growth",)"
+              R"("scope":"match","type":"member","attribute":"tree:kind",)"
+              R"("default":"tree:Red"}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "tree", "tree");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/tree/properties/growth.json#/property/default: "
+          "key \"default\" \"tree:Red\" is not a valid identifier; a local name uses "
+          "[a-z0-9_] (1 to 32 characters)");
+}
+
+TEST_CASE("property_range_must_be_two_numbers") {
+    CardSchemaTempDir dir;
+    dir.Write("tree/properties/growth.json",
+              R"({"format_version":"1.0.0","property":{"identifier":"tree:growth",)"
+              R"("scope":"match","type":"int","range":[0]}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "tree", "tree");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/tree/properties/growth.json#/property/range: "
+          "key \"range\" must be an array of two numbers");
+}
+
+TEST_CASE("property_range_low_above_high") {
+    CardSchemaTempDir dir;
+    dir.Write("tree/properties/growth.json",
+              R"({"format_version":"1.0.0","property":{"identifier":"tree:growth",)"
+              R"("scope":"match","type":"float","range":[5,0]}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "tree", "tree");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/tree/properties/growth.json#/property/range: "
+          "key \"range\" must have low <= high");
+}
+
+TEST_CASE("property_int_range_rejects_fractional_bounds") {
+    CardSchemaTempDir dir;
+    dir.Write("tree/properties/growth.json",
+              R"({"format_version":"1.0.0","property":{"identifier":"tree:growth",)"
+              R"("scope":"match","type":"int","range":[0.5,5.5]}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "tree", "tree");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/tree/properties/growth.json#/property/range: "
+          "key \"range\" must be an array of two 64-bit integers");
+}
+
+TEST_CASE("property_writable_by_must_be_owner_or_array") {
+    CardSchemaTempDir dir;
+    dir.Write("tree/properties/growth.json",
+              R"({"format_version":"1.0.0","property":{"identifier":"tree:growth",)"
+              R"("scope":"match","type":"int","writable_by":"axe"}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "tree", "tree");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/tree/properties/growth.json#/property/writable_by: "
+          "key \"writable_by\" must be \"owner\" or an array of mod ids");
+}
+
+TEST_CASE("property_writable_by_not_string_or_array") {
+    CardSchemaTempDir dir;
+    dir.Write("tree/properties/growth.json",
+              R"({"format_version":"1.0.0","property":{"identifier":"tree:growth",)"
+              R"("scope":"match","type":"int","writable_by":7}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "tree", "tree");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/tree/properties/growth.json#/property/writable_by: "
+          "key \"writable_by\" must be \"owner\" or an array of mod ids");
+}
+
+TEST_CASE("property_writable_by_bad_item") {
+    CardSchemaTempDir dir;
+    dir.Write("tree/properties/growth.json",
+              R"({"format_version":"1.0.0","property":{"identifier":"tree:growth",)"
+              R"("scope":"match","type":"int","writable_by":["tree","Bad"]}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "tree", "tree");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/tree/properties/growth.json#/property/writable_by/1: "
+          "mod id \"Bad\" must use [a-z0-9_] (1 to 32 characters)");
+}
+
+TEST_CASE("property_writable_by_duplicate_item") {
+    CardSchemaTempDir dir;
+    dir.Write("tree/properties/growth.json",
+              R"({"format_version":"1.0.0","property":{"identifier":"tree:growth",)"
+              R"("scope":"match","type":"int","writable_by":["tree","tree"]}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "tree", "tree");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/tree/properties/growth.json#/property/writable_by/1: "
+          "duplicate mod id \"tree\"");
+}
+
+TEST_CASE("property_writable_by_empty_array") {
+    CardSchemaTempDir dir;
+    dir.Write("tree/properties/growth.json",
+              R"({"format_version":"1.0.0","property":{"identifier":"tree:growth",)"
+              R"("scope":"match","type":"int","writable_by":[]}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "tree", "tree");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/tree/properties/growth.json#/property/writable_by: "
+          "key \"writable_by\" must not be empty");
+}
+
+TEST_CASE("property_values_on_non_string_type") {
+    CardSchemaTempDir dir;
+    dir.Write("tree/properties/growth.json",
+              R"({"format_version":"1.0.0","property":{"identifier":"tree:growth",)"
+              R"("scope":"match","type":"int","values":["a"]}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "tree", "tree");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/tree/properties/growth.json#/property/values: "
+          "key \"values\" is only allowed when \"type\" is \"string\"");
+}
+
+TEST_CASE("property_values_must_be_array") {
+    CardSchemaTempDir dir;
+    dir.Write("tree/properties/growth.json",
+              R"({"format_version":"1.0.0","property":{"identifier":"tree:growth",)"
+              R"("scope":"match","type":"string","values":"a"}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "tree", "tree");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/tree/properties/growth.json#/property/values: "
+          "key \"values\" must be an array");
+}
+
+TEST_CASE("property_values_empty_item") {
+    CardSchemaTempDir dir;
+    dir.Write("tree/properties/growth.json",
+              R"({"format_version":"1.0.0","property":{"identifier":"tree:growth",)"
+              R"("scope":"match","type":"string","values":["a",""]}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "tree", "tree");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/tree/properties/growth.json#/property/values/1: "
+          "value must be a non-empty string");
+}
+
+TEST_CASE("property_values_duplicate") {
+    CardSchemaTempDir dir;
+    dir.Write("tree/properties/growth.json",
+              R"({"format_version":"1.0.0","property":{"identifier":"tree:growth",)"
+              R"("scope":"match","type":"string","values":["a","a"]}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "tree", "tree");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/tree/properties/growth.json#/property/values/1: "
+          "duplicate value \"a\"");
+}
+
+TEST_CASE("property_values_empty_array") {
+    CardSchemaTempDir dir;
+    dir.Write("tree/properties/growth.json",
+              R"({"format_version":"1.0.0","property":{"identifier":"tree:growth",)"
+              R"("scope":"match","type":"string","values":[]}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "tree", "tree");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/tree/properties/growth.json#/property/values: "
+          "key \"values\" must not be empty");
+}
+
+TEST_CASE("property_unknown_key_suggestion") {
+    CardSchemaTempDir dir;
+    dir.Write("tree/properties/growth.json",
+              R"({"format_version":"1.0.0","property":{"identifier":"tree:growth",)"
+              R"("scope":"match","type":"int","defalt":0}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "tree", "tree");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/tree/properties/growth.json#/property/defalt: "
+          "unknown key \"defalt\" (did you mean \"default\")");
+}
+
+TEST_CASE("property_attribute_not_identifier") {
+    CardSchemaTempDir dir;
+    dir.Write("tree/properties/growth.json",
+              R"({"format_version":"1.0.0","property":{"identifier":"tree:growth",)"
+              R"("scope":"match","type":"member","attribute":"kind"}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "tree", "tree");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/tree/properties/growth.json#/property/attribute: "
+          "property attribute \"kind\" is not a valid identifier; a local name uses "
+          "[a-z0-9_] (1 to 32 characters)");
+}
+
+TEST_CASE("property_attribute_foreign_namespace") {
+    CardSchemaTempDir dir;
+    dir.Write("tree/properties/growth.json",
+              R"({"format_version":"1.0.0","property":{"identifier":"tree:growth",)"
+              R"("scope":"match","type":"member","attribute":"other:kind"}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "tree", "tree");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/tree/properties/growth.json#/property/attribute: "
+          "property attribute \"other:kind\" must use the namespace \"tree\"");
+}
+
+TEST_CASE("property_attribute_on_non_member_type") {
+    CardSchemaTempDir dir;
+    dir.Write("tree/properties/growth.json",
+              R"({"format_version":"1.0.0","property":{"identifier":"tree:growth",)"
+              R"("scope":"match","type":"int","attribute":"tree:kind"}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "tree", "tree");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/tree/properties/growth.json#/property/attribute: "
+          "key \"attribute\" is only allowed when \"type\" is \"member\"");
+}
+
+TEST_CASE("property_identifier_foreign_namespace") {
+    CardSchemaTempDir dir;
+    dir.Write("tree/properties/growth.json",
+              R"({"format_version":"1.0.0","property":{"identifier":"other:growth",)"
+              R"("scope":"match","type":"int"}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "tree", "tree");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/tree/properties/growth.json#/property/identifier: "
+          "property identifier \"other:growth\" must use the namespace \"tree\"");
+}
+
+TEST_CASE("property_identifier_must_match_file") {
+    CardSchemaTempDir dir;
+    dir.Write("tree/properties/growth.json",
+              R"({"format_version":"1.0.0","property":{"identifier":"tree:size",)"
+              R"("scope":"match","type":"int"}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "tree", "tree");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/tree/properties/growth.json#/property/identifier: "
+          "identifier \"tree:size\" does not match the file name \"growth.json\"");
+}
+
+TEST_CASE("duplicate_property_identifier_across_files") {
+    CardSchemaTempDir dir;
+    dir.Write("tree/properties/growth.json",
+              R"({"format_version":"1.0.0","property":{"identifier":"tree:growth",)"
+              R"("scope":"match","type":"int"}})");
+    dir.Write("tree/properties/other.json",
+              R"({"format_version":"1.0.0","property":{"identifier":"tree:growth",)"
+              R"("scope":"match","type":"int"}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "tree", "tree");
+
+    REQUIRE(outcome.diagnostics.size() == 2);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/tree/properties/other.json#/property/identifier: "
+          "identifier \"tree:growth\" does not match the file name \"other.json\"");
+    CHECK(FormatDiagnostic(outcome.diagnostics[1]) ==
+          "mods/tree/properties/other.json#/property/identifier: "
+          "duplicate property identifier \"tree:growth\" in "
+          "mods/tree/properties/other.json; "
+          "first declared in mods/tree/properties/growth.json");
+}
+
+TEST_CASE("property_root_must_be_object") {
+    CardSchemaTempDir dir;
+    dir.Write("tree/properties/growth.json",
+              R"({"format_version":"1.0.0","property":[]})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "tree", "tree");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/tree/properties/growth.json#/property: property must be an object");
+}
+
+TEST_CASE("property_values_loaded") {
+    CardSchemaTempDir dir;
+    dir.Write("tree/properties/growth.json",
+              R"({"format_version":"1.0.0","property":{"identifier":"tree:growth",)"
+              R"("scope":"match","type":"string","values":["a","b"],"default":"a"}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "tree", "tree");
+
+    REQUIRE(outcome.ok());
+    REQUIRE(outcome.schema.properties.size() == 1);
+    const match::cardschema::PropertyDef& property = outcome.schema.properties[0];
+    CHECK(property.values == std::vector<std::string>{"a", "b"});
+    CHECK(property.default_value == "a");
+}
+
+TEST_CASE("property_member_attribute_loaded") {
+    CardSchemaTempDir dir;
+    dir.Write("tree/properties/growth.json",
+              R"({"format_version":"1.0.0","property":{"identifier":"tree:growth",)"
+              R"("scope":"card","type":"member","attribute":"tree:kind",)"
+              R"("default":"tree:small"}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "tree", "tree");
+
+    REQUIRE(outcome.ok());
+    REQUIRE(outcome.schema.properties.size() == 1);
+    const match::cardschema::PropertyDef& property = outcome.schema.properties[0];
+    CHECK(property.member_attribute == "tree:kind");
+    CHECK(property.default_value == "tree:small");
+}
+
+TEST_CASE("property_int_default_for_float_loads") {
+    CardSchemaTempDir dir;
+    dir.Write("tree/properties/growth.json",
+              R"({"format_version":"1.0.0","property":{"identifier":"tree:growth",)"
+              R"("scope":"match","type":"float","default":1}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "tree", "tree");
+
+    REQUIRE(outcome.ok());
+    REQUIRE(outcome.schema.properties.size() == 1);
+    CHECK(outcome.schema.properties[0].default_value == 1);
+}
+
 }  // TEST_SUITE("cardschema loader")
