@@ -61,6 +61,8 @@ const itemSchema = z.object({
 		z.literal(5),
 		z.literal(6)
 	]),
+	tint: z.enum(["mask", "multiply"]).optional(),
+	default_colors: z.array(z.string()).optional(),
 	rarity: z.enum(RARITIES),
 	price: z.number().int().nonnegative(),
 	socket: z.enum(SOCKETS).optional(),
@@ -127,6 +129,10 @@ function refineCatalogue(catalogue: z.infer<typeof baseCatalogueSchema>, ctx: z.
 		}
 	});
 
+	const swatchIds = new Set(
+		catalogue.palettes.flatMap((palette) => palette.swatches.map((swatch) => swatch.id))
+	);
+
 	catalogue.items.forEach((item, index) => {
 		if (item.asset.kind === "still" && PART_SLOTS.includes(item.slot) && !item.socket) {
 			ctx.addIssue({
@@ -141,6 +147,45 @@ function refineCatalogue(catalogue: z.infer<typeof baseCatalogueSchema>, ctx: z.
 				code: "custom",
 				message: `item "${item.id}" has ${item.regions} regions but its files carry ${capacity}`,
 				path: ["items", index, "regions"]
+			});
+		}
+		if (item.tint === "multiply") {
+			if (item.regions !== 1) {
+				ctx.addIssue({
+					code: "custom",
+					message: `multiply item "${item.id}" needs exactly 1 region`,
+					path: ["items", index, "tint"]
+				});
+			}
+			if ((item.asset.masks?.length ?? 0) > 0) {
+				ctx.addIssue({
+					code: "custom",
+					message: `multiply item "${item.id}" takes no extra mask files`,
+					path: ["items", index, "tint"]
+				});
+			}
+		}
+		if (item.default_colors !== undefined) {
+			const limit =
+				item.slot === "shape"
+					? 0
+					: item.slot === "motif"
+						? Math.max(0, item.regions - 1)
+						: item.regions;
+			if (item.slot === "shape" || item.default_colors.length > limit) {
+				ctx.addIssue({
+					code: "custom",
+					message: `item "${item.id}" holds at most ${limit} default colors`,
+					path: ["items", index, "default_colors"]
+				});
+			}
+			item.default_colors.forEach((entry, entryIndex) => {
+				if (HEX.test(entry) || swatchIds.has(entry)) return;
+				ctx.addIssue({
+					code: "custom",
+					message: `default color "${entry}" is neither #rrggbb nor a swatch id`,
+					path: ["items", index, "default_colors", entryIndex]
+				});
 			});
 		}
 		if (item.available_from && item.available_until && item.available_until < item.available_from) {

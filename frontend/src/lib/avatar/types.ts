@@ -12,6 +12,7 @@ export type PartSlot = "eyes" | "mouth" | "head_top" | "mask" | "bodywear";
 export type Socket = "eyes" | "mouth" | "head_top" | "body_centre";
 export type Rarity = "common" | "uncommon" | "rare" | "epic";
 export type RegionCount = 0 | 1 | 2 | 3 | 4 | 5 | 6;
+export type TintMode = "mask" | "multiply";
 /** Zero-based tint region: 3 * fileIndex + channelIndex. The UI shows 1..6. */
 export type RegionIndex = 0 | 1 | 2 | 3 | 4 | 5;
 
@@ -25,6 +26,8 @@ export interface CatalogueItem {
 	name: string; // English fallback; i18n key is `avatar_item_<id with : -> _>`
 	asset: ItemAsset;
 	regions: RegionCount;
+	tint?: TintMode; // absent = "mask"; "multiply" needs regions 1 and no masks
+	default_colors?: string[]; // "#rrggbb" or swatch id per stored color; not on a shape
 	rarity: Rarity;
 	price: number; // integer >= 0
 	socket?: Socket; // parts in "still" format need it
