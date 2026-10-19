@@ -164,11 +164,21 @@ public:
      */
     void NotifyMatchOver(uint32_t lobby_id) override;
 
+    void SettleMatchPayout(uint32_t lobby_id) override;
+
     /**
      * @brief Saves the current state of the match associated with the lobby to the database.
      * @param lobby Reference to the lobby whose state to save.
      */
     void SaveMatchStateToDB(Lobby& lobby);
+
+    /**
+     * @brief Pays the finished match once and stores the result on the
+     * session. A human seat counts as quit per `Lobby::QuitBeforeEnd`.
+     * @param lobby  Lobby whose live session just finished.
+     * @param winner Winning username.
+     */
+    void SettleLobbyPayout(Lobby& lobby, const std::string& winner);
 
     /**
      * @brief Persists a completed match's rows for the new engine.

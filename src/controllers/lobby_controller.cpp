@@ -517,24 +517,11 @@ void LobbyController::RecordMatchResult(Lobby& lobby,
         return {};
         });
         try { fut2.get(); } catch (const std::exception& e) { Logger::Error("[Lobby DB Error] ", e.what()); }
-        // INFO: payouts run after the match rows are committed. The ledger
-        //       service opens its own transaction, so this must not nest
-        //       inside the txn above. A null economy pointer (tests) skips it.
-        if (economy_ != nullptr && !lobby.match_id.empty()) {
-            uni::economy::PayoutInput payout;
-            payout.match_id = lobby.match_id;
-            payout.creative = lobby.settings.creative;
-            payout.winner = winner;
-            payout.now = static_cast<std::int64_t>(std::time(nullptr));
-            for (const auto& player : state.value("players", json::array())) {
-                const std::string username =
-                    player.value("username", std::string());
-                if (username.empty()) continue;
-                payout.participants.push_back(uni::economy::PayoutParticipant{
-                    username, player.value("is_bot", false), false});
-            }
-            uni::economy::PayMatch(*economy_, payout);
-        }
+        // INFO: the payout normally ran before match_over was sent
+        //       (SettleMatchPayout). This call covers the sole-survivor path
+        //       and is a no-op for a settled session. It runs after the txn
+        //       above, never inside it: the ledger opens its own txn.
+        SettleLobbyPayout(lobby, winner);
         // Choice (c): the user-stats cache is process-wide/static on
         // StatsService, so this temporary instance invalidates the same
         // entries read by the long-lived StatsController instance.
@@ -606,6 +593,42 @@ void LobbyController::CancelMatchTimers(uint32_t lobby_id) {
     timer_service_.Cancel("turn_" + std::to_string(lobby_id));
     timer_service_.Cancel("window_" + std::to_string(lobby_id));
     timer_service_.Cancel("ready_" + std::to_string(lobby_id));
+}
+
+void LobbyController::SettleMatchPayout(uint32_t lobby_id) {
+    Lobby* lobby = GetLobbyById(lobby_id);
+    if (lobby == nullptr || !lobby->session) return;
+    SettleLobbyPayout(*lobby, lobby->session->Engine().GetWinner());
+}
+
+void LobbyController::SettleLobbyPayout(Lobby& lobby,
+                                        const std::string& winner) {
+    if (!lobby.session || lobby.session->PayoutsSettled()) return;
+    // INFO: no economy (tests) or no match id pays nothing; the session still
+    //       counts as settled.
+    if (economy_ == nullptr || lobby.match_id.empty()) {
+        lobby.session->SetPayouts({});
+        return;
+    }
+    uni::economy::PayoutInput payout;
+    payout.match_id = lobby.match_id;
+    payout.creative = lobby.settings.creative;
+    payout.winner = winner;
+    payout.now = static_cast<std::int64_t>(std::time(nullptr));
+    const json state = lobby.session->Engine().ExportState();
+    for (const auto& player : state.value("players", json::array())) {
+        const std::string username = player.value("username", std::string());
+        if (username.empty()) continue;
+        const bool is_bot = player.value("is_bot", false);
+        payout.participants.push_back(uni::economy::PayoutParticipant{
+            username, is_bot, !is_bot && lobby.QuitBeforeEnd(username)});
+    }
+    try {
+        lobby.session->SetPayouts(uni::economy::PayMatch(*economy_, payout));
+    } catch (const std::exception& e) {
+        Logger::Error("[Lobby DB Error] payout: ", e.what());
+        lobby.session->SetPayouts({});
+    }
 }
 
 /**
