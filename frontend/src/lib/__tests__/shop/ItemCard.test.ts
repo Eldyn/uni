@@ -1,7 +1,22 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/svelte";
 import ItemCard, { itemLabelKey, shopItemText } from "$components/shop/ItemCard.svelte";
-import type { CatalogueItem } from "$lib/avatar/types";
+import { itemPreviewLoadout } from "$lib/avatar/previewLoadout";
+import type { CatalogueItem, Loadout } from "$lib/avatar/types";
+
+const baked = vi.hoisted(() => ({ set: vi.fn(), destroy: vi.fn() }));
+
+vi.mock("$lib/avatar/useBakedAvatar.svelte", () => ({
+	createBakedAvatar: () => ({
+		get url() {
+			return "blob:item";
+		},
+		set: baked.set,
+		destroy: baked.destroy
+	})
+}));
+
+const viewer: Loadout = { shape: "uni:round", skin: "basic:green", slots: {} };
 
 function makeItem(overrides: Partial<CatalogueItem> = {}): CatalogueItem {
 	return {
@@ -19,7 +34,7 @@ function makeItem(overrides: Partial<CatalogueItem> = {}): CatalogueItem {
 function renderCard(item: CatalogueItem, props: Record<string, unknown> = {}) {
 	const onselect = vi.fn();
 	const utils = render(ItemCard, {
-		props: { item, owned: false, selected: false, onselect, ...props }
+		props: { item, owned: false, selected: false, loadout: viewer, onselect, ...props }
 	});
 	return { onselect, ...utils };
 }
@@ -74,31 +89,22 @@ describe("ItemCard", () => {
 		expect(rare.container.querySelector('[data-shimmer="true"]')).toBeTruthy();
 	});
 
-	it("crops frame 0 of a strip asset onto the art tile", () => {
-		const { container } = renderCard(makeItem());
+	it("bakes the item worn with default colors instead of the raw mask file", () => {
+		baked.set.mockClear();
+		const item = makeItem();
+		const { container } = renderCard(item, { owned: true });
+
 		const art = container.querySelector(".item-art") as HTMLElement;
-		expect(art.style.getPropertyValue("background-image")).toContain("eyes/uni_eyes_dot.png");
-		expect(art.style.getPropertyValue("background-size")).toBe("480px 96px");
+		expect(art.style.getPropertyValue("background-image")).toBe("");
+		expect(baked.set).toHaveBeenCalledWith(itemPreviewLoadout(item, viewer, true));
 	});
 
-	it("shows a still asset at its own size", () => {
-		const item = makeItem({
-			asset: {
-				kind: "still",
-				path: "head/uni_hat.png",
-				bob: [
-					[0, 0],
-					[0, 0],
-					[0, 0],
-					[0, 0],
-					[0, 0]
-				]
-			}
-		});
-		const { container } = renderCard(item);
-		const art = container.querySelector(".item-art") as HTMLElement;
-		expect(art.style.getPropertyValue("background-image")).toContain("head/uni_hat.png");
-		expect(art.style.getPropertyValue("background-size")).toBe("96px 96px");
+	it("previews an item that is not owned with the first palette swatch", () => {
+		baked.set.mockClear();
+		const item = makeItem();
+		renderCard(item, { owned: false });
+
+		expect(baked.set).toHaveBeenCalledWith(itemPreviewLoadout(item, viewer, false));
 	});
 
 	it("calls onselect on click", async () => {

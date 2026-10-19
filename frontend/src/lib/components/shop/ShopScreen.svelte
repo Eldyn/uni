@@ -69,6 +69,9 @@
 	/** The preview look: TRY ON edits this copy, never the saved loadout. */
 	let previewLoadout = $state<Loadout | null>(storeAvatar.loadout ?? defaultLoadout());
 
+	/** The viewer's saved look: the shape and skin that dress each item tile. */
+	const viewerLoadout = $derived(storeAvatar.loadout ?? defaultLoadout());
+
 	const tabs = $derived(
 		TAB_DEFS.map((tab) => ({ id: tab.id, label: shopItemText(tab.key, tab.fallback, locale) }))
 	);
@@ -257,6 +260,7 @@
 					{item}
 					owned={owned.has(item.id)}
 					selected={index === focusedCard}
+					loadout={viewerLoadout}
 					onselect={() => openDetail(item)}
 				/>
 			{/each}

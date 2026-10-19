@@ -38,25 +38,31 @@
 </script>
 
 <script lang="ts">
+	import Avatar from "$components/common/Avatar.svelte";
 	import RarityFrame from "$components/shop/RarityFrame.svelte";
+	import { itemPreviewLoadout } from "$lib/avatar/previewLoadout";
+	import type { Loadout } from "$lib/avatar/types";
 	import { storeI18n } from "$stores/i18n.svelte";
 
 	let {
 		item,
 		owned,
 		selected,
+		loadout,
 		onselect
 	}: {
 		item: CatalogueItem;
 		owned: boolean;
 		selected: boolean;
+		/** The viewer's saved look: its shape and skin dress the preview. */
+		loadout: Loadout;
 		onselect: () => void;
 	} = $props();
 
 	const locale = $derived(storeI18n.locale);
 	const name = $derived(shopItemText(itemLabelKey(item.id), item.id, locale));
 	const ownedLabel = $derived(shopItemText("shop_owned", "OWNED", locale));
-	const artStyle = $derived(itemArtStyle(item));
+	const preview = $derived(itemPreviewLoadout(item, loadout, owned));
 
 	function activate(event: KeyboardEvent): void {
 		if (event.key !== "Enter") return;
@@ -77,7 +83,7 @@
 >
 	<RarityFrame rarity={item.rarity}>
 		<span class="item-art-tile pixel-bordered">
-			<span class="item-art" style={artStyle} aria-hidden="true"></span>
+			<span class="item-art" aria-hidden="true"><Avatar loadout={preview} size={96} /></span>
 		</span>
 		<span class="item-name font-tiny">{name}</span>
 		{#if owned}
@@ -135,11 +141,9 @@
 	}
 
 	.item-art {
+		display: block;
 		width: 96px;
 		height: 96px;
-		background-repeat: no-repeat;
-		background-position: 0 0;
-		image-rendering: pixelated;
 	}
 
 	.item-name {
