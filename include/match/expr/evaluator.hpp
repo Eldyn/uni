@@ -23,8 +23,8 @@ struct EvalError {
 
 using EvalResult = std::variant<Value, EvalError>;
 
-// INFO: evaluates `root` against `context`. Set selectors, filters and the set
-// functions land in a later task; until then they report type_mismatch.
+// INFO: evaluates `root` against `context`. An unchecked tree gets no
+// int-to-float widening; always run the checker first.
 EvalResult Evaluate(const Node& root, EvalContext& context);
 
 // INFO: applies `assignment` to `context`. For `+= -= *=` it reads the

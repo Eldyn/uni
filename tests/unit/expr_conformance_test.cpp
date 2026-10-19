@@ -203,8 +203,11 @@ std::string RunCheckError(const Schema& schema, const std::string& source,
     return {};
 }
 
-// INFO: parses and runs the expression, then matches the EvalError code.
-std::string RunRuntimeError(JsonWorld& world, const std::string& source, const json& error) {
+// INFO: parses, checks and runs the expression, then matches the EvalError code.
+// The checker's diagnostics are ignored because the case asserts the runtime
+// error, but it still runs so the evaluator sees the widening hints.
+std::string RunRuntimeError(const Schema& schema, JsonWorld& world, const std::string& source,
+                            const json& error) {
     if (!error.is_string()) {
         return "error must be a string";
     }
@@ -213,6 +216,8 @@ std::string RunRuntimeError(JsonWorld& world, const std::string& source, const j
     if (parsed.error.has_value()) {
         return "parse error: " + parsed.error->message;
     }
+    static_cast<void>(CheckParsedExpression(*parsed.root, schema, std::nullopt, kFile, kPointer,
+                                            match::expr::GuardState{}));
     const EvalResult result = Evaluate(*parsed.root, world);
     const EvalError* failure = std::get_if<EvalError>(&result);
     if (failure == nullptr) {
@@ -287,7 +292,7 @@ std::string RunCase(const Schema& schema, const json& item) {
         return RunCheckError(schema, source, expected, *check_error);
     }
     if (const auto error = expect.find("error"); error != expect.end()) {
-        return RunRuntimeError(world, source, *error);
+        return RunRuntimeError(schema, world, source, *error);
     }
     if (const auto value = expect.find("value"); value != expect.end()) {
         return RunValue(schema, source, expected, world, *value);
