@@ -508,7 +508,16 @@ void ParseKindSlots(const json& value, const std::string& file, const std::strin
         slot.name = slot_name;
         if (const std::optional<std::string> surface =
                 ReadString(binding, "surface", file, binding_pointer, diagnostics, false)) {
+            if (!IsValidLocalName(*surface)) {
+                AddError(diagnostics, file,
+                         match::expr::AppendPointerToken(binding_pointer, "surface"),
+                         "surface name \"" + *surface +
+                             "\" must use [a-z0-9_] (1 to 32 characters)");
+                continue;
+            }
             slot.surface = *surface;
+            slot.surface_pointer =
+                match::expr::AppendPointerToken(binding_pointer, "surface");
         }
         kind.slots.push_back(std::move(slot));
     }

@@ -882,6 +882,37 @@ TEST_CASE("kind_slot_name_invalid") {
           "slot name \"Left\" must use [a-z0-9_] (1 to 32 characters)");
 }
 
+TEST_CASE("kind_surface_name_invalid") {
+    CardSchemaTempDir dir;
+    dir.Write("uni/kinds/split.json",
+              R"({"format_version":"1.0.0","kind":{"identifier":"uni:split",)"
+              R"("attributes":[{"attribute":"uni:color","name":"left",)"
+              R"("surface":"Left"}]}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "uni", "uni");
+
+    REQUIRE(outcome.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
+          "mods/uni/kinds/split.json#/kind/attributes/0/surface: "
+          "surface name \"Left\" must use [a-z0-9_] (1 to 32 characters)");
+}
+
+TEST_CASE("kind_surface_pointer_recorded") {
+    CardSchemaTempDir dir;
+    dir.Write("uni/kinds/split.json",
+              R"({"format_version":"1.0.0","kind":{"identifier":"uni:split",)"
+              R"("attributes":[{"attribute":"uni:color","name":"left","surface":"left"},)"
+              R"({"attribute":"uni:shade","name":"right","surface":"right"}]}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "uni", "uni");
+
+    REQUIRE(outcome.ok());
+    REQUIRE(outcome.schema.kinds.size() == 1);
+    REQUIRE(outcome.schema.kinds[0].slots.size() == 2);
+    CHECK(outcome.schema.kinds[0].slots[0].surface_pointer == "/kind/attributes/0/surface");
+    CHECK(outcome.schema.kinds[0].slots[1].surface_pointer == "/kind/attributes/1/surface");
+}
+
 TEST_CASE("kind_attribute_binding_must_be_object") {
     CardSchemaTempDir dir;
     dir.Write("uni/kinds/split.json",

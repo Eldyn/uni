@@ -14,6 +14,7 @@ namespace match::cardschema {
 struct ResolvedSlot {
     Contribution winner;
     std::string source;
+    std::string file;   // file of the owner that wrote the winning contribution
 };
 
 struct ResolvedFace {
@@ -49,6 +50,9 @@ void DedupeDiagnostics(std::vector<Diagnostic>& diagnostics);
 // INFO: resolves the `back` slot for a deck: the kind chain `back` contribution
 // beats the deck's own at the same band, and members contribute at `attribute`
 // unless they set a band. The functions are pure and read in-memory structs.
+//
+// INFO: ResolveBack and CheckSurfaces are wired into the catalog expansion in
+// Tasks 11 and 13; there is no production caller yet.
 ResolvedBack ResolveBack(const DeckSpec* deck,
                          const std::vector<const KindTemplate*>& chain_child_first,
                          const std::vector<const MemberDef*>& members);

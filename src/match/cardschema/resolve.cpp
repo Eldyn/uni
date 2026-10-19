@@ -139,6 +139,47 @@ const Candidate* SelectBandWinner(const std::vector<const Candidate*>& group,
     return nullptr;
 }
 
+bool CheckMemberBudget(const std::vector<const MemberDef*>& members, const std::string& file,
+                       std::vector<Diagnostic>& diagnostics) {
+    if (members.size() <= kMaximumMembersPerCard) {
+        return true;
+    }
+    AddError(diagnostics, file, std::string(match::expr::kRootPointer),
+             "a card may have at most " + std::to_string(kMaximumMembersPerCard) + " members");
+    return false;
+}
+
+// INFO: the highest band wins; a conflict in it produces a diagnostic and no
+// winner. Returns whether a winner was written to `resolved`.
+bool SelectSlotWinner(const std::vector<const Candidate*>& candidates, const std::string& slot,
+                      const std::string& fallback_file,
+                      std::vector<Diagnostic>& diagnostics, ResolvedSlot& resolved) {
+    if (candidates.empty()) {
+        return false;
+    }
+    std::map<Band, std::vector<const Candidate*>> by_band;
+    for (const Candidate* candidate : candidates) {
+        by_band[candidate->contribution->band].push_back(candidate);
+    }
+    const Candidate* winner =
+        SelectBandWinner(by_band.rbegin()->second, slot, fallback_file, diagnostics);
+    if (winner == nullptr) {
+        return false;
+    }
+    resolved = ResolvedSlot{*winner->contribution, winner->source, winner->file};
+    return true;
+}
+
+// INFO: the loader skips a binding it rejects, so a binding's position in
+// `kind.slots` can differ from its index in the source `attributes` array. Only
+// an in-memory kind without a recorded pointer falls back to the position.
+std::string SynthesizedSurfacePointer(std::size_t index) {
+    std::string pointer = match::expr::AppendPointerToken(match::expr::kRootPointer, "kind");
+    pointer = match::expr::AppendPointerToken(pointer, "attributes");
+    pointer = match::expr::AppendPointerToken(pointer, std::to_string(index));
+    return match::expr::AppendPointerToken(pointer, "surface");
+}
+
 }  // namespace
 
 ResolvedFace ResolveTemplateSlots(const std::vector<const KindTemplate*>& chain_child_first,
@@ -148,10 +189,7 @@ ResolvedFace ResolveTemplateSlots(const std::vector<const KindTemplate*>& chain_
     if (chain_child_first.empty()) {
         return face;
     }
-    if (members.size() > kMaximumMembersPerCard) {
-        AddError(face.diagnostics, file_label, std::string(match::expr::kRootPointer),
-                 "a card may have at most " + std::to_string(kMaximumMembersPerCard) +
-                     " members");
+    if (!CheckMemberBudget(members, file_label, face.diagnostics)) {
         return face;
     }
 
@@ -220,23 +258,10 @@ ResolvedFace ResolveTemplateSlots(const std::vector<const KindTemplate*>& chain_
             continue;
         }
 
-        // INFO: the ordered `Band` enum is the rank, so the reverse iterator
-        // visits the highest band first.
-        std::map<Band, std::vector<const Candidate*>> by_band;
-        for (const Candidate* candidate : candidates) {
-            by_band[candidate->contribution->band].push_back(candidate);
+        ResolvedSlot resolved;
+        if (SelectSlotWinner(candidates, slot, file_label, face.diagnostics, resolved)) {
+            face.slots[slot] = resolved;
         }
-
-        const auto group = by_band.rbegin();
-        if (group == by_band.rend()) {
-            continue;
-        }
-        const Candidate* winner =
-            SelectBandWinner(group->second, slot, file_label, face.diagnostics);
-        if (winner == nullptr) {
-            continue;
-        }
-        face.slots[slot] = ResolvedSlot{*winner->contribution, winner->source};
     }
 
     return face;
@@ -319,11 +344,8 @@ ResolvedBack ResolveBack(const DeckSpec* deck,
                          const std::vector<const KindTemplate*>& chain_child_first,
                          const std::vector<const MemberDef*>& members) {
     ResolvedBack result;
-    if (members.size() > kMaximumMembersPerCard) {
-        AddError(result.diagnostics, deck != nullptr ? deck->file : std::string{},
-                 std::string(match::expr::kRootPointer),
-                 "a card may have at most " + std::to_string(kMaximumMembersPerCard) +
-                     " members");
+    if (!CheckMemberBudget(members, deck != nullptr ? deck->file : std::string{},
+                           result.diagnostics)) {
         return result;
     }
 
@@ -374,23 +396,17 @@ ResolvedBack ResolveBack(const DeckSpec* deck,
         candidates.push_back(Candidate{&found->second, member->identifier, member->file});
     }
 
-    if (candidates.empty()) {
-        return result;
+    std::vector<const Candidate*> candidate_pointers;
+    candidate_pointers.reserve(candidates.size());
+    for (const Candidate& candidate : candidates) {
+        candidate_pointers.push_back(&candidate);
     }
 
-    std::map<Band, std::vector<const Candidate*>> by_band;
-    for (const Candidate& candidate : candidates) {
-        by_band[candidate.contribution->band].push_back(&candidate);
-    }
-    const auto group = by_band.rbegin();
-    if (group == by_band.rend()) {
-        return result;
-    }
     const std::string fallback_file = deck != nullptr ? deck->file : std::string{};
-    const Candidate* winner = SelectBandWinner(group->second, "back", fallback_file,
-                                               result.diagnostics);
-    if (winner != nullptr) {
-        result.slot = ResolvedSlot{*winner->contribution, winner->source};
+    ResolvedSlot resolved;
+    if (SelectSlotWinner(candidate_pointers, "back", fallback_file, result.diagnostics,
+                         resolved)) {
+        result.slot = resolved;
     }
     return result;
 }
@@ -413,17 +429,20 @@ std::vector<Diagnostic> CheckSurfaces(const KindTemplate& kind, const ResolvedFa
             continue;
         }
         const std::vector<std::string> names(declared.begin(), declared.end());
-        std::string pointer = match::expr::AppendPointerToken(match::expr::kRootPointer, "kind");
-        pointer = match::expr::AppendPointerToken(pointer, "attributes");
-        pointer = match::expr::AppendPointerToken(pointer, std::to_string(index));
-        pointer = match::expr::AppendPointerToken(pointer, "surface");
+        const std::string pointer = binding.surface_pointer.empty()
+                                        ? SynthesizedSurfacePointer(index)
+                                        : binding.surface_pointer;
         AddError(diagnostics, kind.file, pointer,
                  "slot \"" + binding.name + "\" names surface \"" + binding.surface + "\"",
                  match::expr::SuggestClosest(binding.surface, names));
     }
 
+    // TODO: only duplicate (mask, channel) pairs inside one slot's winning
+    // contribution are detected; a shared channel across slots is a possible
+    // later rule.
     for (const auto& slot : face.slots) {
         const Contribution& contribution = slot.second.winner;
+        const std::string& file = slot.second.file.empty() ? kind.file : slot.second.file;
         std::map<std::pair<std::string, std::string>, std::string> seen;
         for (const auto& surface : contribution.surfaces) {
             const std::pair<std::string, std::string> pair{surface.second.mask,
@@ -432,7 +451,7 @@ std::vector<Diagnostic> CheckSurfaces(const KindTemplate& kind, const ResolvedFa
             if (inserted.second) {
                 continue;
             }
-            AddError(diagnostics, kind.file, PointerFor(contribution, slot.first),
+            AddError(diagnostics, file, PointerFor(contribution, slot.first),
                      "slot \"" + slot.first + "\" surfaces \"" + inserted.first->second +
                          "\" and \"" + surface.first + "\" use the same mask \"" +
                          surface.second.mask + "\" and channel \"" + surface.second.channel +
