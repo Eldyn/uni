@@ -13,6 +13,7 @@ import { setShopBackend } from "$lib/stores/shop.svelte";
 import { setCatalogueForTest } from "$lib/avatar/catalogue";
 import { avatarFixture, fullLoadout } from "$lib/__tests__/avatar/avatarFixture";
 import type { Loadout } from "$lib/avatar/types";
+import wardrobeSource from "../../components/wardrobe/WardrobeScreen.svelte?raw";
 
 vi.mock("@threlte/core", () => ({
 	Canvas: MockThrelte,
@@ -79,6 +80,13 @@ function equipped(container: HTMLElement): string | null {
 	return container.querySelector("[data-equipped]")?.getAttribute("data-equipped") ?? null;
 }
 
+function cssBlock(source: string, selector: string): string {
+	const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+	const match = source.match(new RegExp(`${escaped}\\s*\\{([^}]*)\\}`));
+	if (!match) throw new Error(`rule not found: ${selector}`);
+	return match[1];
+}
+
 beforeEach(() => {
 	vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
 	setCatalogueForTest(avatarFixture());
@@ -100,13 +108,24 @@ afterEach(() => {
 });
 
 describe("WardrobeScreen", () => {
-	it("hands its title to the top bar while mounted", () => {
-		const { unmount } = render(WardrobeScreen);
+	it("renders no heading of its own; the top bar shows the title", () => {
+		render(WardrobeScreen);
 		flushSync();
-		expect(storeTopbarContent.current).toBeTruthy();
 
-		unmount();
+		expect(screen.queryByRole("heading", { level: 1 })).not.toBeInTheDocument();
 		expect(storeTopbarContent.current).toBeUndefined();
+	});
+
+	it("keeps Revert, SAVE and Close together at the end of the header", () => {
+		const { container } = render(WardrobeScreen);
+		flushSync();
+
+		const header = container.querySelector(".wardrobe-header");
+		const controls = [...(header?.querySelectorAll("button") ?? [])].map(
+			(button) => button.getAttribute("aria-label") ?? button.textContent?.trim()
+		);
+		expect(controls).toEqual(["Revert", "SAVE", "Close"]);
+		expect(cssBlock(wardrobeSource, ".wardrobe-header")).toMatch(/justify-content:\s*flex-end/);
 	});
 
 	it("bakes each item tile with default colors on the draft shape and skin", async () => {
@@ -272,5 +291,17 @@ describe("WardrobeScreen", () => {
 		await fireEvent.click(cardFor(container, "uni:eyes_dot"));
 
 		expect(container.querySelectorAll(".colour-rows")).toHaveLength(2);
+	});
+
+	it("labels the skin row Skin so it does not repeat the item's Region 1 row", async () => {
+		const { container } = render(WardrobeScreen);
+		flushSync();
+
+		await fireEvent.click(screen.getByRole("tab", { name: "Eyes" }));
+		await fireEvent.click(cardFor(container, "uni:eyes_dot"));
+
+		expect(container.querySelectorAll(".colour-rows")).toHaveLength(2);
+		expect(screen.getAllByText("Skin")).toHaveLength(1);
+		expect(screen.getAllByText("Region 1")).toHaveLength(1);
 	});
 });

@@ -105,4 +105,17 @@ describe("ColourRow", () => {
 		expect(container.querySelectorAll('.colour-row:not([data-region="skin"])')).toHaveLength(5);
 		expect(screen.getByText("Region 6")).toBeInTheDocument();
 	});
+
+	it("labels a motif's locked skin row with the skin label when one is given", () => {
+		const { container } = renderRow({
+			regions: 3,
+			skinFirst: true,
+			skinHex: "#123456",
+			skinLabel: "Skin"
+		});
+
+		const skinRow = container.querySelector('[data-region="skin"] .colour-row-label');
+		expect(skinRow).toHaveTextContent("Skin");
+		expect(screen.queryByText("Region 1")).toBeNull();
+	});
 });

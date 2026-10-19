@@ -25,7 +25,6 @@
 	import { storeAuth } from "$stores/auth.svelte";
 	import { storeAvatar } from "$stores/avatar.svelte";
 	import { storeI18n } from "$stores/i18n.svelte";
-	import { storeTopbarContent } from "$stores/topbarContent.svelte";
 
 	let { onleave = () => {} }: { onleave?: () => void } = $props();
 
@@ -115,7 +114,6 @@
 	);
 	const activeLabel = $derived(tabs.find((tab) => tab.id === activeTab)?.label ?? activeTab);
 
-	const title = $derived(wardrobeText("wardrobe_title", "Wardrobe", locale));
 	const tabsLabel = $derived(wardrobeText("wardrobe_tabs_label", "Wardrobe categories", locale));
 	const noneLabel = $derived(wardrobeText("wardrobe_none", "None", locale));
 	const blockNote = $derived(wardrobeText("wardrobe_blocked_by_set", "Blocked by set", locale));
@@ -214,27 +212,12 @@
 		window.addEventListener("keydown", handleKeydown);
 		return () => window.removeEventListener("keydown", handleKeydown);
 	});
-
-	// TopBar has no title for the wardrobe screen (and is not ours to edit), so
-	// hand it this screen's title through the shared topbar content slot.
-	$effect(() => {
-		storeTopbarContent.current = wardrobeTopbarTitle;
-		return () => {
-			storeTopbarContent.current = undefined;
-		};
-	});
 </script>
-
-{#snippet wardrobeTopbarTitle()}
-	<span class="wardrobe-topbar-title font-heading">{title}</span>
-{/snippet}
 
 <div class="wardrobe-screen">
 	<ShopBackdrop dim={0.45} />
 
 	<header class="wardrobe-header">
-		<h1 class="wardrobe-title title-screen font-heading">{title}</h1>
-
 		{#if !guest}
 			{#if dirty}
 				<span class="wardrobe-unsaved font-tiny" data-unsaved="true">{unsavedLabel}</span>
@@ -271,7 +254,7 @@
 					colours={[draft.skin]}
 					{swatches}
 					locked={lockedSwatches}
-					{regionLabels}
+					regionLabels={[skinLabel]}
 					label={skinLabel}
 					onpick={(_region, swatchId) => pickColour("shape", 0, swatchId)}
 				/>
@@ -305,6 +288,7 @@
 						label={coloursLabel}
 						skinFirst={activeTab === "motif"}
 						{skinHex}
+						{skinLabel}
 						onpick={(region, swatchId) => pickColour(activeTab, region, swatchId)}
 					/>
 				{/if}
@@ -342,10 +326,6 @@
 		padding: 1rem;
 	}
 
-	.wardrobe-topbar-title {
-		font-size: var(--text-title);
-	}
-
 	.wardrobe-header,
 	.wardrobe-body,
 	.wardrobe-error,
@@ -357,12 +337,8 @@
 	.wardrobe-header {
 		display: flex;
 		align-items: center;
+		justify-content: flex-end;
 		gap: 1rem;
-	}
-
-	.wardrobe-title {
-		margin: 0;
-		margin-right: auto;
 	}
 
 	.wardrobe-unsaved {
