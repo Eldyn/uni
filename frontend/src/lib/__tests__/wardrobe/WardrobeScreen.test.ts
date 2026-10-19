@@ -251,4 +251,26 @@ describe("WardrobeScreen", () => {
 		expect(screen.getByText(/register to customise/i)).toBeInTheDocument();
 		expect(container.querySelector(".avatar-stage")).toBeNull();
 	});
+
+	it("shows no color row for a worn item with no regions", async () => {
+		shopMock.owned = new Set([...STARTERS, "uni:set_suit"]);
+		const { container } = render(WardrobeScreen);
+		flushSync();
+
+		await fireEvent.click(screen.getByRole("tab", { name: "Set" }));
+		await fireEvent.click(cardFor(container, "uni:set_suit"));
+
+		// INFO: the only row group left is the skin row on the left.
+		expect(container.querySelectorAll(".colour-rows")).toHaveLength(1);
+	});
+
+	it("shows a color row for a worn item with regions", async () => {
+		const { container } = render(WardrobeScreen);
+		flushSync();
+
+		await fireEvent.click(screen.getByRole("tab", { name: "Eyes" }));
+		await fireEvent.click(cardFor(container, "uni:eyes_dot"));
+
+		expect(container.querySelectorAll(".colour-rows")).toHaveLength(2);
+	});
 });

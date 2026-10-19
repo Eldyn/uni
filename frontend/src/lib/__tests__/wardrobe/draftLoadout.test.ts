@@ -3,6 +3,7 @@
 // an unequip only removes the slot it was asked to.
 
 import { describe, expect, it } from "vitest";
+import { setCatalogueForTest } from "$lib/avatar/catalogue";
 import { blockedSlots, equip, isDirty, setColour, unequip } from "$lib/avatar/draftLoadout";
 import { avatarFixture, fullLoadout } from "$lib/__tests__/avatar/avatarFixture";
 import type { CatalogueItem } from "$lib/avatar/types";
@@ -90,6 +91,29 @@ describe("setColour", () => {
 	it("sets the skin swatch for the shape slot", () => {
 		const next = setColour(fullLoadout(), "shape", 0, "basic:blue");
 		expect(next.skin).toBe("basic:blue");
+	});
+
+	it("never stores an empty swatch id for a skipped region", () => {
+		setCatalogueForTest(avatarFixture());
+		const before = fullLoadout({
+			slots: { motif: { item: "uni:motif_patches", colours: [] } }
+		});
+		const next = setColour(before, "motif", 1, "basic:green");
+
+		expect(next.slots.motif?.colours).toEqual(["basic:red", "basic:green"]);
+	});
+
+	it("fills a skipped region with the item's swatch default", () => {
+		const catalogue = avatarFixture();
+		const patches = catalogue.items.find((entry) => entry.id === "uni:motif_patches");
+		if (patches) patches.default_colors = ["basic:blue", "basic:green"];
+		setCatalogueForTest(catalogue);
+		const before = fullLoadout({
+			slots: { motif: { item: "uni:motif_patches", colours: [] } }
+		});
+		const next = setColour(before, "motif", 1, "basic:red");
+
+		expect(next.slots.motif?.colours).toEqual(["basic:blue", "basic:red"]);
 	});
 });
 

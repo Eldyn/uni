@@ -1,43 +1,17 @@
 <!-- The 3D avatar stage: a Threlte orthographic canvas showing the baked strip
-     on a textured plane, with a rim-light shader and a ground glow disc behind
-     it. Dragging turns the plane around Y within +/-35 degrees and eases it
-     back on release; the strip steps through its 5 frames on the shared 120 ms
-     clock, stopping while the tab is hidden. Without WebGL the plain Avatar is
-     the fallback, so the preview never blocks the screen. -->
+     on a textured plane, with a ground glow disc under it. The pose is static;
+     the strip steps through its 5 frames on the shared 120 ms clock, stopping
+     while the tab is hidden. Without WebGL the plain Avatar is the fallback,
+     so the preview never blocks the screen. -->
 <script lang="ts">
 	import { onDestroy, onMount } from "svelte";
 	import { Canvas, T } from "@threlte/core";
-	import { Color, type CanvasTexture } from "three";
+	import type { CanvasTexture } from "three";
 	import Avatar from "$components/common/Avatar.svelte";
 	import { loadAvatarTexture } from "$components/game/three/avatarTexture";
 	import { FRAME_COUNT, FRAME_MS, type Loadout } from "$lib/avatar/types";
 
 	let { loadout = null, bot = false }: { loadout: Loadout | null; bot?: boolean } = $props();
-
-	const MAX_ANGLE = 35;
-	const DEGREES_PER_PX = 0.35;
-
-	const RIM_VERTEX = `varying vec2 vUv;
-void main() {
-	vUv = uv;
-	gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-}
-`;
-
-	const RIM_FRAGMENT = `varying vec2 vUv;
-uniform vec3 uColour;
-uniform float uStrength;
-void main() {
-	vec2 edge = abs(vUv - 0.5) * 2.0;
-	float rim = smoothstep(0.45, 1.0, max(edge.x, edge.y));
-	gl_FragColor = vec4(uColour, rim * uStrength);
-}
-`;
-
-	const rimUniforms = {
-		uColour: { value: new Color("#c084fc") },
-		uStrength: { value: 0.5 }
-	};
 
 	/** WebGL is decided once: a missing context must never mount a Canvas. */
 	function detectWebGL(): boolean {
@@ -57,18 +31,11 @@ void main() {
 
 	let texture = $state.raw<CanvasTexture | null>(null);
 	let frame = $state(0);
-	let angle = $state(0);
-
-	let dragging = false;
-	let dragStartX = 0;
-	let dragStartAngle = 0;
 
 	let rafId: number | null = null;
 	let lastTime: number | null = null;
 	let frameElapsed = 0;
 	let reducedMotion = false;
-
-	const rotationY = $derived((angle * Math.PI) / 180);
 
 	$effect(() => {
 		if (!webgl) return;
@@ -112,13 +79,6 @@ void main() {
 		}
 	}
 
-	function easeAngle(deltaMs: number): void {
-		if (dragging || angle === 0) return;
-		const step = 1 - Math.exp(-deltaMs / 90);
-		angle *= 1 - step;
-		if (Math.abs(angle) < 0.1) angle = 0;
-	}
-
 	function tick(now: number): void {
 		if (document.hidden) {
 			rafId = null;
@@ -130,7 +90,6 @@ void main() {
 		lastTime = now;
 
 		stepFrames(deltaMs);
-		easeAngle(deltaMs);
 
 		rafId = requestAnimationFrame(tick);
 	}
@@ -152,24 +111,6 @@ void main() {
 		else start();
 	}
 
-	function onPointerDown(event: PointerEvent): void {
-		if (!webgl) return;
-		dragging = true;
-		dragStartX = event.clientX;
-		dragStartAngle = angle;
-		(event.currentTarget as HTMLElement).setPointerCapture?.(event.pointerId);
-	}
-
-	function onPointerMove(event: PointerEvent): void {
-		if (!dragging) return;
-		const delta = (event.clientX - dragStartX) * DEGREES_PER_PX;
-		angle = Math.max(-MAX_ANGLE, Math.min(MAX_ANGLE, dragStartAngle + delta));
-	}
-
-	function onPointerUp(): void {
-		dragging = false;
-	}
-
 	onMount(() => {
 		reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
 		if (!webgl) return;
@@ -185,36 +126,12 @@ void main() {
 	});
 </script>
 
-<!-- svelte-ignore a11y_no_static_element_interactions -- the whole stage is
-     the drag surface: the pointer handlers are the grab, not a control -->
-<div
-	class="avatar-stage"
-	data-webgl={webgl}
-	data-frame={frame}
-	data-angle={Math.round(angle)}
-	onpointerdown={onPointerDown}
-	onpointermove={onPointerMove}
-	onpointerup={onPointerUp}
-	onpointercancel={onPointerUp}
-	onpointerleave={onPointerUp}
->
+<div class="avatar-stage" data-webgl={webgl} data-frame={frame}>
 	{#if webgl}
 		<Canvas>
 			<T.OrthographicCamera makeDefault position={[0, 0, 4]} zoom={170} near={0.1} far={100} />
 
-			<T.Group rotation.y={rotationY}>
-				<T.Mesh position.z={-0.02} scale={1.06}>
-					<T.PlaneGeometry args={[1, 1]} />
-					<T.ShaderMaterial
-						vertexShader={RIM_VERTEX}
-						fragmentShader={RIM_FRAGMENT}
-						uniforms={rimUniforms}
-						transparent
-						depthWrite={false}
-						toneMapped={false}
-					/>
-				</T.Mesh>
-
+			<T.Group>
 				{#if texture}
 					<T.Mesh position.y={0.04}>
 						<T.PlaneGeometry args={[1, 1]} />
@@ -255,12 +172,6 @@ void main() {
 		height: 100%;
 		min-height: 220px;
 		overflow: hidden;
-		touch-action: none;
-		cursor: grab;
-	}
-
-	.avatar-stage:active {
-		cursor: grabbing;
 	}
 
 	.avatar-stage :global(canvas) {

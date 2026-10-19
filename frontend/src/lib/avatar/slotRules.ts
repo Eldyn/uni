@@ -3,7 +3,7 @@ import { hexToRgb, type Rgb } from "./tint";
 import type { AvatarSlot, CatalogueItem, Loadout, PartSlot, SlotChoice } from "./types";
 
 /** Bumped whenever the art or the layer rules change the baked pixels. */
-export const ART_VERSION = 1;
+export const ART_VERSION = 2;
 
 export interface ResolvedLayer {
 	slot: AvatarSlot;
@@ -69,33 +69,43 @@ export function hashWithVersion(loadout: Loadout, version: number): string {
 		slot: layer.slot,
 		item: layer.item.id,
 		masks: layer.item.asset.masks ?? [],
+		tint: layer.item.tint ?? "mask",
 		colours: layer.colours.map((colour) => (colour ? [...colour] : null))
 	}));
 	return fnv1aHex(JSON.stringify({ version, layers }));
 }
 
-/** Region colours for a part: the chosen swatches, up to the region count. */
+/** Region colors for a part: the chosen swatch, else the item default, per region. */
 function slotColours(item: CatalogueItem, choice: SlotChoice): Rgb[] {
 	const colours: Rgb[] = [];
-	const count = Math.min(choice.colours.length, item.regions);
-	for (let index = 0; index < count; index++) {
-		const colour = swatchColour(choice.colours[index]);
+	for (let index = 0; index < item.regions; index++) {
+		const colour = chosenOrDefault(item, choice, index);
 		if (colour) colours[index] = colour;
 	}
 	return colours;
 }
 
-/** Motif colours: region 0 follows the skin, the rest take the chosen swatches. */
+/** Motif colors: region 0 follows the skin, the rest take the choice or default. */
 function motifColours(item: CatalogueItem, choice: SlotChoice, skin: Rgb | undefined): Rgb[] {
 	const colours: Rgb[] = [];
 	if (item.regions > 0 && skin) colours[0] = skin;
 
-	const count = Math.min(choice.colours.length, Math.max(0, item.regions - 1));
-	for (let index = 0; index < count; index++) {
-		const colour = swatchColour(choice.colours[index]);
+	for (let index = 0; index < Math.max(0, item.regions - 1); index++) {
+		const colour = chosenOrDefault(item, choice, index);
 		if (colour) colours[index + 1] = colour;
 	}
 	return colours;
+}
+
+/** The chosen swatch at a stored index, else the item's default entry there. */
+function chosenOrDefault(item: CatalogueItem, choice: SlotChoice, index: number): Rgb | undefined {
+	return swatchColour(choice.colours[index]) ?? defaultColour(item.default_colors?.[index]);
+}
+
+/** A default entry is a "#rrggbb" hex or a palette swatch id. */
+function defaultColour(entry: string | undefined): Rgb | undefined {
+	if (!entry) return undefined;
+	return entry.startsWith("#") ? hexToRgb(entry) : swatchColour(entry);
 }
 
 function swatchColour(swatchId: string | undefined): Rgb | undefined {

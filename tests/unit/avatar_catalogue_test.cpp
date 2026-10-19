@@ -369,10 +369,116 @@ TEST_CASE("avatar catalogue: the real avatar/catalogue.json loads") {
     CHECK(catalogue.HasSwatch("uni:neon:hot"));
     REQUIRE(catalogue.SlotDefault("shape") != nullptr);
     CHECK(catalogue.SlotDefault("shape")->id == "uni:classic");
+    CHECK(catalogue.SlotDefault("shape")->regions == 1);
+    CHECK(catalogue.SlotDefault("shape")->tint == "multiply");
     REQUIRE(catalogue.SlotDefault("mouth") != nullptr);
     CHECK(catalogue.SlotDefault("mouth")->id == "uni:mouth_smile");
 
     const Item* patches = catalogue.FindItem("uni:motif_patches");
     REQUIRE(patches != nullptr);
     CHECK(patches->regions == 3);
+    CHECK(patches->default_colors.size() == 2);
+}
+
+TEST_CASE("avatar catalogue: tint mode") {
+    SUBCASE("a missing tint is mask") {
+        const Catalogue catalogue = Catalogue::Parse(ValidDoc());
+        REQUIRE(catalogue.FindItem("uni:round") != nullptr);
+        CHECK(catalogue.FindItem("uni:round")->tint == "mask");
+    }
+    SUBCASE("accepts multiply on a one-region item") {
+        json doc = ValidDoc();
+        ItemAt(doc, "uni:round")["tint"] = "multiply";
+        const Catalogue catalogue = Catalogue::Parse(doc);
+        CHECK(catalogue.FindItem("uni:round")->tint == "multiply");
+    }
+    SUBCASE("rejects an unknown tint") {
+        json doc = ValidDoc();
+        ItemAt(doc, "uni:round")["tint"] = "paint";
+        CHECK_THROWS_AS(Catalogue::Parse(doc), std::runtime_error);
+    }
+    SUBCASE("rejects a tint that is not a string") {
+        json doc = ValidDoc();
+        ItemAt(doc, "uni:round")["tint"] = 3;
+        CHECK_THROWS_AS(Catalogue::Parse(doc), std::runtime_error);
+    }
+    SUBCASE("rejects multiply with no region") {
+        json doc = ValidDoc();
+        json& item = ItemAt(doc, "uni:round");
+        item["tint"] = "multiply";
+        item["regions"] = 0;
+        CHECK_THROWS_AS(Catalogue::Parse(doc), std::runtime_error);
+    }
+    SUBCASE("rejects multiply with two regions") {
+        json doc = ValidDoc();
+        json& item = ItemAt(doc, "uni:round");
+        item["tint"] = "multiply";
+        item["regions"] = 2;
+        CHECK_THROWS_AS(Catalogue::Parse(doc), std::runtime_error);
+    }
+    SUBCASE("rejects multiply with an extra mask file") {
+        json doc = ValidDoc();
+        json& item = ItemAt(doc, "uni:round");
+        item["tint"] = "multiply";
+        item["asset"]["masks"] = json::array({"shapes/b.png"});
+        CHECK_THROWS_AS(Catalogue::Parse(doc), std::runtime_error);
+    }
+}
+
+TEST_CASE("avatar catalogue: default colors") {
+    SUBCASE("accepts a swatch id and a hex entry") {
+        json doc = ValidDoc();
+        json& item = ItemAt(doc, "uni:eyes_dot");
+        item["regions"] = 2;
+        item["default_colors"] = json::array({"basic:red", "#202020"});
+        const Catalogue catalogue = Catalogue::Parse(doc);
+        CHECK(catalogue.FindItem("uni:eyes_dot")->default_colors.size() == 2);
+    }
+    SUBCASE("an item with no regions is valid without default colors") {
+        json doc = ValidDoc();
+        doc["items"].push_back(json::parse(R"({
+            "id": "uni:set_suit", "slot": "set", "name": "Suit",
+            "asset": { "kind": "strip", "path": "set/uni_set_suit.png" },
+            "regions": 0, "rarity": "rare", "price": 900
+        })"));
+        CHECK_NOTHROW(Catalogue::Parse(doc));
+    }
+    SUBCASE("rejects a swatch id no palette holds") {
+        json doc = ValidDoc();
+        ItemAt(doc, "uni:eyes_dot")["default_colors"] = json::array({"basic:nope"});
+        CHECK_THROWS_AS(Catalogue::Parse(doc), std::runtime_error);
+    }
+    SUBCASE("rejects a bad hex entry") {
+        json doc = ValidDoc();
+        ItemAt(doc, "uni:eyes_dot")["default_colors"] = json::array({"#12"});
+        CHECK_THROWS_AS(Catalogue::Parse(doc), std::runtime_error);
+    }
+    SUBCASE("rejects an entry that is not a string") {
+        json doc = ValidDoc();
+        ItemAt(doc, "uni:eyes_dot")["default_colors"] = json::array({7});
+        CHECK_THROWS_AS(Catalogue::Parse(doc), std::runtime_error);
+    }
+    SUBCASE("rejects a value that is not an array") {
+        json doc = ValidDoc();
+        ItemAt(doc, "uni:eyes_dot")["default_colors"] = "basic:red";
+        CHECK_THROWS_AS(Catalogue::Parse(doc), std::runtime_error);
+    }
+    SUBCASE("rejects more entries than regions") {
+        json doc = ValidDoc();
+        ItemAt(doc, "uni:eyes_dot")["default_colors"] =
+            json::array({"basic:red", "basic:red"});
+        CHECK_THROWS_AS(Catalogue::Parse(doc), std::runtime_error);
+    }
+    SUBCASE("rejects a non-empty list on an item with no regions") {
+        json doc = ValidDoc();
+        json& item = ItemAt(doc, "uni:eyes_dot");
+        item["regions"] = 0;
+        item["default_colors"] = json::array({"basic:red"});
+        CHECK_THROWS_AS(Catalogue::Parse(doc), std::runtime_error);
+    }
+    SUBCASE("rejects default colors on a shape") {
+        json doc = ValidDoc();
+        ItemAt(doc, "uni:round")["default_colors"] = json::array({"basic:red"});
+        CHECK_THROWS_AS(Catalogue::Parse(doc), std::runtime_error);
+    }
 }

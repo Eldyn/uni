@@ -12,6 +12,7 @@
 	import { gsap } from "gsap";
 	import { FRAME_COUNT, FRAME_MS } from "$lib/avatar/types";
 	import { loadAvatarTexture } from "./avatarTexture";
+	import { localAvatarTint } from "./avatarTint";
 	import { turnRimTexture } from "./turnRimTexture";
 	import { storeAnimation } from "$stores/animation.svelte";
 	import { storeAudio } from "$stores/audio.svelte";
@@ -106,6 +107,8 @@
 	let effectiveColor = $derived(
 		isDebtTarget ? DANGER_COLOR : dimmed ? baseColor.clone().multiplyScalar(0.45) : baseColor
 	);
+	// INFO: the baked strip has its own colors; the rim keeps the seat color.
+	let avatarColor = $derived(localAvatarTint(dimmed, isDebtTarget));
 
 	// Skip mark: the local player can lose a turn too (any seat can be skipped).
 	let skipActive = $derived(storeTurnSkip.marks.includes(player.username));
@@ -185,7 +188,7 @@
 		<T.PlaneGeometry args={[AVATAR_MESH_SIZE, AVATAR_MESH_SIZE]} />
 		<T.MeshBasicMaterial
 			map={avatarTexture}
-			color={effectiveColor}
+			color={avatarColor}
 			transparent
 			alphaTest={0.05}
 			depthWrite={false}

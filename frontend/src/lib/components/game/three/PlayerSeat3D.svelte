@@ -43,6 +43,7 @@
 	import { gsap } from "gsap";
 	import { FRAME_COUNT, FRAME_MS } from "$lib/avatar/types";
 	import { loadAvatarTexture } from "./avatarTexture";
+	import { opponentAvatarTint } from "./avatarTint";
 	import {
 		computeSeatLabelLayout,
 		drawSeatLabel,
@@ -127,8 +128,6 @@
 	// the sprite by frame/figure keeps the drawn figure `avatarWorld` tall.
 	const AVATAR_FRAME_RATIO = 96 / 68;
 	const FRAME_DURATION = FRAME_MS / 1000;
-	const DIM_FACTOR = 0.45;
-	const WHITE = new Color("#ffffff");
 	const TARGET_HIGHLIGHT = new Color("#ffffff");
 	const TARGET_HIGHLIGHT_PERIOD_S = 0.8;
 	const TARGET_HIGHLIGHT_MAX_MIX = 0.65;
@@ -180,8 +179,7 @@
 	// choosing them as a target, or when you deliberately point at them.
 	let hovered = $state(false);
 	let showLabel = $derived(isTurn || isValidTarget || isDebtTarget || hovered || isArmed);
-	// Darkening every OTHER seat is a material colour multiply, so it survives
-	// the world-space scaling untouched (the old CSS box-shadow glow did not).
+	// Darkening every OTHER seat is a material colour multiply (white times 0.45)
 	let dimmed = $derived(!isTurn && !isValidTarget && !isDebtTarget);
 	let isActive = $derived(isTurn || isValidTarget || isDebtTarget);
 	let displayName = $derived(formatSeatName(player.username));
@@ -212,14 +210,8 @@
 	let avatarSpriteSize = $derived(avatarWorld * AVATAR_FRAME_RATIO);
 	let avatarScale = $derived(avatarSpriteSize * pulseScale);
 	let labelWorldSize = $derived(labelCanvasSize * worldPerPx);
-	const DANGER_HIGHLIGHT = new Color("#ff4a3a");
 	let tintColor = $derived(
-		(isBot
-			? WHITE.clone().multiplyScalar(dimmed ? DIM_FACTOR : 1)
-			: new Color(color).multiplyScalar(dimmed ? DIM_FACTOR : 1)
-		)
-			.lerp(TARGET_HIGHLIGHT, highlightMix)
-			.lerp(DANGER_HIGHLIGHT, isDebtTarget ? 0.5 : 0)
+		opponentAvatarTint(dimmed, highlightMix, isDebtTarget, TARGET_HIGHLIGHT)
 	);
 
 	// Skip mark: this seat is losing its turn, so stamp an X over the avatar.

@@ -1,5 +1,5 @@
-// The 3D avatar stage: the WebGL fallback, the baked strip texture, the drag
-// clamp and the 5-frame bob clock. Threlte is mocked the way the other three
+// The 3D avatar stage: the WebGL fallback, the baked strip texture, the static
+// pose and the 5-frame bob clock. Threlte is mocked the way the other three
 // tests mock it (T as a passthrough component), and the texture helper is a
 // fake so the component runs without a real bake.
 
@@ -150,7 +150,7 @@ describe("AvatarStage", () => {
 		expect(loadAvatarTexture).toHaveBeenCalledWith(null, true);
 	});
 
-	it("clamps the drag angle to 35 degrees each way", async () => {
+	it("is a static pose: dragging does not turn the avatar", async () => {
 		mockContext(true);
 
 		const { container } = render(AvatarStage, { props: { loadout: loadout("basic:red") } });
@@ -159,10 +159,7 @@ describe("AvatarStage", () => {
 
 		await fireEvent.pointerDown(stage, { button: 0, clientX: 100 });
 		await fireEvent.pointerMove(stage, { clientX: 900 });
-		expect(Number(stage.getAttribute("data-angle"))).toBe(35);
-
-		await fireEvent.pointerMove(stage, { clientX: -900 });
-		expect(Number(stage.getAttribute("data-angle"))).toBe(-35);
+		expect(stage.hasAttribute("data-angle")).toBe(false);
 
 		await fireEvent.pointerUp(stage);
 	});

@@ -203,3 +203,119 @@ describe("parseCatalogue", () => {
 		expect(() => parseCatalogue(catalogue)).toThrow(ZodError);
 	});
 });
+
+function itemOf(catalogue: Record<string, unknown>, id: string): Record<string, unknown> {
+	const items = catalogue.items as Record<string, unknown>[];
+	const found = items.find((item) => item.id === id);
+	if (!found) throw new Error(`no item ${id}`);
+	return found;
+}
+
+describe("tint", () => {
+	it("accepts multiply on a one-region item", () => {
+		const catalogue = validCatalogue();
+		itemOf(catalogue, "uni:round").tint = "multiply";
+		expect(parseCatalogue(catalogue).items[0].tint).toBe("multiply");
+	});
+
+	it("rejects an unknown tint mode", () => {
+		const catalogue = validCatalogue();
+		itemOf(catalogue, "uni:round").tint = "paint";
+		expect(() => parseCatalogue(catalogue)).toThrow(ZodError);
+	});
+
+	it("rejects multiply with no region", () => {
+		const catalogue = validCatalogue();
+		const item = itemOf(catalogue, "uni:round");
+		item.tint = "multiply";
+		item.regions = 0;
+		expect(() => parseCatalogue(catalogue)).toThrow(ZodError);
+	});
+
+	it("rejects multiply with two regions", () => {
+		const catalogue = validCatalogue();
+		const item = itemOf(catalogue, "uni:round");
+		item.tint = "multiply";
+		item.regions = 2;
+		expect(() => parseCatalogue(catalogue)).toThrow(ZodError);
+	});
+
+	it("rejects multiply with an extra mask file", () => {
+		const catalogue = validCatalogue();
+		const item = itemOf(catalogue, "uni:round");
+		item.tint = "multiply";
+		item.asset = { kind: "strip", path: "shapes/uni_round.png", masks: ["shapes/b.png"] };
+		expect(() => parseCatalogue(catalogue)).toThrow(ZodError);
+	});
+});
+
+describe("default_colors", () => {
+	it("accepts a swatch id and a hex entry", () => {
+		const catalogue = validCatalogue();
+		const eyes = itemOf(catalogue, "uni:eyes_dot");
+		eyes.regions = 2;
+		eyes.default_colors = ["basic:red", "#202020"];
+		expect(parseCatalogue(catalogue).items[1].default_colors).toEqual(["basic:red", "#202020"]);
+	});
+
+	it("accepts an item with no regions and no default colors", () => {
+		const catalogue = validCatalogue();
+		(catalogue.items as unknown[]).push({
+			id: "uni:set_suit",
+			slot: "set",
+			name: "Suit",
+			asset: { kind: "strip", path: "set/uni_set_suit.png" },
+			regions: 0,
+			rarity: "rare",
+			price: 900
+		});
+		expect(() => parseCatalogue(catalogue)).not.toThrow();
+	});
+
+	it("rejects a swatch id that no palette holds", () => {
+		const catalogue = validCatalogue();
+		itemOf(catalogue, "uni:eyes_dot").default_colors = ["basic:nope"];
+		expect(() => parseCatalogue(catalogue)).toThrow(ZodError);
+	});
+
+	it("rejects a bad hex entry", () => {
+		const catalogue = validCatalogue();
+		itemOf(catalogue, "uni:eyes_dot").default_colors = ["#12"];
+		expect(() => parseCatalogue(catalogue)).toThrow(ZodError);
+	});
+
+	it("rejects more entries than the item has regions", () => {
+		const catalogue = validCatalogue();
+		itemOf(catalogue, "uni:eyes_dot").default_colors = ["basic:red", "basic:red"];
+		expect(() => parseCatalogue(catalogue)).toThrow(ZodError);
+	});
+
+	it("rejects a non-empty list on an item with no regions", () => {
+		const catalogue = validCatalogue();
+		const eyes = itemOf(catalogue, "uni:eyes_dot");
+		eyes.regions = 0;
+		eyes.default_colors = ["basic:red"];
+		expect(() => parseCatalogue(catalogue)).toThrow(ZodError);
+	});
+
+	it("rejects default colors on a shape", () => {
+		const catalogue = validCatalogue();
+		itemOf(catalogue, "uni:round").default_colors = ["basic:red"];
+		expect(() => parseCatalogue(catalogue)).toThrow(ZodError);
+	});
+
+	it("a motif holds one entry less than its regions", () => {
+		const catalogue = validCatalogue();
+		(catalogue.items as unknown[]).push({
+			id: "uni:motif_x",
+			slot: "motif",
+			name: "X",
+			asset: { kind: "strip", path: "motif/x.png" },
+			regions: 2,
+			rarity: "rare",
+			price: 100,
+			default_colors: ["basic:red", "basic:red"]
+		});
+		expect(() => parseCatalogue(catalogue)).toThrow(ZodError);
+	});
+});

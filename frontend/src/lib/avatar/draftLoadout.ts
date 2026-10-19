@@ -5,7 +5,8 @@
  * new loadout and never mutates the one it is given.
  */
 
-import { defaultItemChoice } from "./previewLoadout";
+import { getItem } from "./catalogue";
+import { defaultItemChoice, fillerSwatchId } from "./previewLoadout";
 import type { AvatarSlot, Catalogue, CatalogueItem, Loadout, PartSlot } from "./types";
 
 /** The part slots a full set covers: equipping a set clears them. */
@@ -74,8 +75,9 @@ export function setColour(
 	if (!choice) return next;
 
 	const colours = [...choice.colours];
-	// INFO: leave a gap for any regions before this one that were never set.
-	while (colours.length < region) colours.push("");
+	const item = getItem(choice.item);
+	// INFO: fill a skipped region with a valid swatch id.
+	while (colours.length < region) colours.push(fillerSwatchId(item, colours.length));
 	colours[region] = swatchId;
 	next.slots[slot] = { item: choice.item, colours };
 	return next;

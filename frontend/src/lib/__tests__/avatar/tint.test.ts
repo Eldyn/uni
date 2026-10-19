@@ -79,6 +79,64 @@ describe("tintImage", () => {
 	});
 });
 
+describe("tintImage multiply mode", () => {
+	it("multiplies a neutral grey pixel by the first color", () => {
+		const out = tintImage(imageWith([237, 237, 237, 255]), [[232, 74, 74]], [], "multiply");
+
+		expect(pixelAt(out, 0, 0)).toEqual([216, 69, 69, 255]);
+	});
+
+	it("a white pixel becomes the color", () => {
+		const out = tintImage(imageWith([255, 255, 255, 255]), [[10, 20, 30]], [], "multiply");
+
+		expect(pixelAt(out, 0, 0)).toEqual([10, 20, 30, 255]);
+	});
+
+	it("applies no mask pixel rule: a mixed color pixel multiplies instead of going clear", () => {
+		const out = tintImage(imageWith([200, 100, 50, 255]), [[255, 255, 255]], [], "multiply");
+
+		expect(pixelAt(out, 0, 0)).toEqual([200, 100, 50, 255]);
+	});
+
+	it("keeps a partial alpha", () => {
+		const out = tintImage(imageWith([255, 255, 255, 128]), [[100, 100, 100]], [], "multiply");
+
+		expect(pixelAt(out, 0, 0)).toEqual([100, 100, 100, 128]);
+	});
+
+	it("leaves a clear pixel clear", () => {
+		const out = tintImage(imageWith([255, 255, 255, 0]), [[100, 100, 100]], [], "multiply");
+
+		expect(pixelAt(out, 0, 0)).toEqual([0, 0, 0, 0]);
+	});
+
+	it("copies the pixel through when there is no color", () => {
+		const out = tintImage(imageWith([237, 237, 237, 255]), [], [], "multiply");
+
+		expect(pixelAt(out, 0, 0)).toEqual([237, 237, 237, 255]);
+	});
+
+	it("ignores the second color and the extra masks", () => {
+		const out = tintImage(
+			imageWith([255, 255, 255, 255]),
+			[
+				[10, 20, 30],
+				[200, 200, 200]
+			],
+			[imageWith([0, 255, 0, 255])],
+			"multiply"
+		);
+
+		expect(pixelAt(out, 0, 0)).toEqual([10, 20, 30, 255]);
+	});
+
+	it("mask mode stays the default", () => {
+		const out = tintImage(imageWith([255, 0, 0, 255]), [RED]);
+
+		expect(pixelAt(out, 0, 0)).toEqual([10, 20, 30, 255]);
+	});
+});
+
 describe("tintImage with an extra mask file", () => {
 	const FILLER: Rgb = [0, 0, 0];
 	const REGION_FOUR: Rgb = [200, 100, 50];

@@ -74,7 +74,8 @@
 			"slot": "shape",
 			"name": "Classic",
 			"asset": { "kind": "strip", "path": "shapes/uni_classic.png" },
-			"regions": 0,
+			"regions": 1,
+			"tint": "multiply",
 			"rarity": "common",
 			"price": 0,
 			"starter": true
@@ -104,6 +105,7 @@
 			"name": "Dot eyes",
 			"asset": { "kind": "strip", "path": "eyes/uni_eyes_dot.png" },
 			"regions": 1,
+			"default_colors": ["#202020"],
 			"rarity": "common",
 			"price": 0,
 			"starter": true
@@ -114,6 +116,7 @@
 			"name": "Wide eyes",
 			"asset": { "kind": "strip", "path": "eyes/uni_eyes_wide.png" },
 			"regions": 1,
+			"default_colors": ["#202020"],
 			"rarity": "common",
 			"price": 50
 		},
@@ -123,6 +126,7 @@
 			"name": "Sleepy eyes",
 			"asset": { "kind": "strip", "path": "eyes/uni_eyes_sleepy.png" },
 			"regions": 1,
+			"default_colors": ["#202020"],
 			"rarity": "common",
 			"price": 60
 		},
@@ -132,6 +136,7 @@
 			"name": "Smile",
 			"asset": { "kind": "strip", "path": "mouth/uni_mouth_smile.png" },
 			"regions": 1,
+			"default_colors": ["#202020"],
 			"rarity": "common",
 			"price": 0,
 			"starter": true
@@ -142,6 +147,7 @@
 			"name": "Flat mouth",
 			"asset": { "kind": "strip", "path": "mouth/uni_mouth_flat.png" },
 			"regions": 1,
+			"default_colors": ["#202020"],
 			"rarity": "common",
 			"price": 40
 		},
@@ -151,6 +157,7 @@
 			"name": "Open mouth",
 			"asset": { "kind": "strip", "path": "mouth/uni_mouth_open.png" },
 			"regions": 1,
+			"default_colors": ["#202020"],
 			"rarity": "common",
 			"price": 40
 		},
@@ -170,6 +177,7 @@
 				]
 			},
 			"regions": 1,
+			"default_colors": ["basic:blue"],
 			"rarity": "common",
 			"price": 80,
 			"socket": "head_top"
@@ -190,6 +198,7 @@
 				]
 			},
 			"regions": 1,
+			"default_colors": ["basic:yellow"],
 			"rarity": "rare",
 			"price": 400,
 			"socket": "head_top"
@@ -210,6 +219,7 @@
 				]
 			},
 			"regions": 1,
+			"default_colors": ["#202020"],
 			"rarity": "uncommon",
 			"price": 150,
 			"socket": "eyes"
@@ -220,6 +230,7 @@
 			"name": "Scarf",
 			"asset": { "kind": "strip", "path": "bodywear/uni_body_scarf.png" },
 			"regions": 1,
+			"default_colors": ["basic:orange"],
 			"rarity": "uncommon",
 			"price": 160
 		},
@@ -247,6 +258,7 @@
 			"name": "Patches",
 			"asset": { "kind": "strip", "path": "motif/uni_motif_patches.png" },
 			"regions": 3,
+			"default_colors": ["basic:blue", "basic:yellow"],
 			"rarity": "epic",
 			"price": 500
 		}
