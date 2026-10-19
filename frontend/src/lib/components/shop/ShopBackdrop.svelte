@@ -1,12 +1,24 @@
-<!-- The Shop's backdrop: one WebGL2 canvas painting a dark purple field with
-     slow diagonal energy streaks and drifting pixel dust. It sits behind the
-     screen, ignores pointer events, and follows the screen's motion rules: the
-     loop stops while the tab is hidden and never starts under reduced motion,
-     which gets a single still frame instead. When WebGL2 is missing the CSS
-     gradient layer underneath is the whole backdrop. -->
+<!-- The Shop's backdrop: one WebGL2 canvas painting the home screen colors as a
+     calm field with two very slow diagonal bands and a few dust pixels that
+     fade in place. It sits behind the screen, ignores pointer events, draws at
+     most 20 frames per second, stops while the tab is hidden, and draws one
+     still frame (no loop) under reduced motion or on a slow-update display.
+     When WebGL2 is missing the CSS gradient layer underneath is the whole
+     backdrop. -->
 <script lang="ts">
 	import { onDestroy, onMount } from "svelte";
-	import { BACKDROP_FRAGMENT_SOURCE } from "$lib/shop/backdrop.glsl";
+	import { BACKDROP_FRAGMENT_SOURCE, BACKDROP_PIXEL_SIZE_PX } from "$lib/shop/backdrop.glsl";
+	import {
+		BACKDROP_STILL_TIME_S,
+		prefersStillBackdrop,
+		shouldDrawFrame
+	} from "$lib/shop/backdropTiming";
+	import {
+		HOME_BACKGROUND_BASE_HEX,
+		HOME_BACKGROUND_HINT_HEX,
+		hexToCss,
+		hexToRgb01
+	} from "$lib/shaders/homePalette";
 
 	// A full-screen triangle: the vertex shader writes clip space directly, so
 	// the fragment shader can derive uv from gl_FragCoord alone.
@@ -17,9 +29,10 @@ void main() {
 }
 `;
 
-	// The app accent (#c084fc) in case getComputedStyle cannot resolve --accent.
-	const ACCENT_FALLBACK: [number, number, number] = [0.7529, 0.5176, 0.9882];
 	const MAX_PIXEL_RATIO = 2;
+	const BASE_RGB = hexToRgb01(HOME_BACKGROUND_BASE_HEX);
+	const HINT_RGB = hexToRgb01(HOME_BACKGROUND_HINT_HEX);
+	const FALLBACK_BACKGROUND = `linear-gradient(160deg, ${hexToCss(HOME_BACKGROUND_BASE_HEX)} 0%, ${hexToCss(HOME_BACKGROUND_HINT_HEX)} 100%)`;
 
 	let { dim = 0 }: { dim?: number } = $props();
 
@@ -32,29 +45,16 @@ void main() {
 	let uniforms: {
 		time: WebGLUniformLocation | null;
 		resolution: WebGLUniformLocation | null;
-		accent: WebGLUniformLocation | null;
+		base: WebGLUniformLocation | null;
+		hint: WebGLUniformLocation | null;
+		pixelSize: WebGLUniformLocation | null;
 		dim: WebGLUniformLocation | null;
 	} | null = null;
-	let accent = ACCENT_FALLBACK;
+	let pixelRatio = 1;
 
 	let rafId: number | null = null;
-	let reducedMotion = false;
+	let stillFrame = false;
 	let resizeObserver: ResizeObserver | null = null;
-
-	function parseHexColour(value: string): [number, number, number] | null {
-		const hex = value.trim().replace(/^#/, "");
-		if (!/^[0-9a-fA-F]{6}$/.test(hex)) return null;
-		return [
-			parseInt(hex.slice(0, 2), 16) / 255,
-			parseInt(hex.slice(2, 4), 16) / 255,
-			parseInt(hex.slice(4, 6), 16) / 255
-		];
-	}
-
-	function readAccent(): [number, number, number] {
-		if (!host || typeof getComputedStyle !== "function") return ACCENT_FALLBACK;
-		return parseHexColour(getComputedStyle(host).getPropertyValue("--accent")) ?? ACCENT_FALLBACK;
-	}
 
 	function compileShader(context: WebGL2RenderingContext, type: number, source: string) {
 		const shader = context.createShader(type);
@@ -105,6 +105,7 @@ void main() {
 			typeof window === "undefined" ? 1 : window.devicePixelRatio || 1,
 			MAX_PIXEL_RATIO
 		);
+		pixelRatio = ratio;
 		const box = host?.getBoundingClientRect();
 		const width = Math.max(1, Math.round((box?.width || 1) * ratio));
 		const height = Math.max(1, Math.round((box?.height || 1) * ratio));
@@ -113,25 +114,32 @@ void main() {
 		context.viewport(0, 0, width, height);
 	}
 
-	function draw(timeMs: number): void {
+	function draw(timeSeconds: number): void {
 		if (!gl || !program || !uniforms || !canvas) return;
 		gl.useProgram(program);
-		gl.uniform1f(uniforms.time, timeMs / 1000);
+		gl.uniform1f(uniforms.time, timeSeconds);
 		gl.uniform2f(uniforms.resolution, canvas.width, canvas.height);
-		gl.uniform3f(uniforms.accent, accent[0], accent[1], accent[2]);
+		gl.uniform3f(uniforms.base, BASE_RGB[0], BASE_RGB[1], BASE_RGB[2]);
+		gl.uniform3f(uniforms.hint, HINT_RGB[0], HINT_RGB[1], HINT_RGB[2]);
+		gl.uniform1f(uniforms.pixelSize, BACKDROP_PIXEL_SIZE_PX * pixelRatio);
 		gl.uniform1f(uniforms.dim, dim);
 		gl.drawArrays(gl.TRIANGLES, 0, 3);
 	}
 
+	let lastDrawMs = Number.NEGATIVE_INFINITY;
+
 	function frame(timeMs: number): void {
-		draw(timeMs);
+		if (shouldDrawFrame(timeMs, lastDrawMs)) {
+			draw(timeMs / 1000);
+			lastDrawMs = timeMs;
+		}
 		rafId = requestAnimationFrame(frame);
 	}
 
 	function start(): void {
 		if (rafId !== null || !gl) return;
-		if (reducedMotion) {
-			draw(performance.now());
+		if (stillFrame) {
+			draw(BACKDROP_STILL_TIME_S);
 			return;
 		}
 		rafId = requestAnimationFrame(frame);
@@ -164,7 +172,7 @@ void main() {
 
 	onMount(() => {
 		if (typeof window === "undefined") return;
-		reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+		stillFrame = prefersStillBackdrop();
 
 		const target = document.createElement("canvas");
 		const context = target.getContext("webgl2") as WebGL2RenderingContext | null;
@@ -177,11 +185,12 @@ void main() {
 			gl = context;
 			canvas = target;
 			program = linked;
-			accent = readAccent();
 			uniforms = {
 				time: context.getUniformLocation(linked, "uTime"),
 				resolution: context.getUniformLocation(linked, "uResolution"),
-				accent: context.getUniformLocation(linked, "uAccent"),
+				base: context.getUniformLocation(linked, "uBase"),
+				hint: context.getUniformLocation(linked, "uHint"),
+				pixelSize: context.getUniformLocation(linked, "uPixelSize"),
 				dim: context.getUniformLocation(linked, "uDim")
 			};
 			resize(context, target);
@@ -204,7 +213,13 @@ void main() {
 	onDestroy(dispose);
 </script>
 
-<div class="shop-backdrop" data-webgl={ready} bind:this={host} aria-hidden="true"></div>
+<div
+	class="shop-backdrop"
+	data-webgl={ready}
+	bind:this={host}
+	style:background={FALLBACK_BACKGROUND}
+	aria-hidden="true"
+></div>
 
 <style>
 	.shop-backdrop {
@@ -213,7 +228,6 @@ void main() {
 		z-index: 0;
 		overflow: hidden;
 		pointer-events: none;
-		background: linear-gradient(160deg, #0b0614 0%, #1a0b2e 55%, #2a1350 100%);
 	}
 
 	.shop-backdrop :global(canvas) {

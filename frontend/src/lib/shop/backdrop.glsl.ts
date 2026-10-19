@@ -4,54 +4,86 @@
  * GLSL has no module system and the component compiles it directly.
  */
 
+/** One backdrop pixel, in CSS pixels. The component scales it by the DPR. */
+export const BACKDROP_PIXEL_SIZE_PX = 4;
+/** Slow diagonal bands. Both periods are above 20 seconds on purpose. */
+export const BACKDROP_BAND_A_PERIOD_S = 32;
+export const BACKDROP_BAND_B_PERIOD_S = 48;
+/** The picture never gets brighter than the hint color (lift 1). */
+export const BACKDROP_MAX_LIFT = 1;
+
 /**
- * A dark purple field with slow diagonal energy streaks and drifting pixel dust.
- * WebGL2 / GLSL ES 3.00. The whole effect is quantised to a 3 px grid so it
- * reads as pixel art, matching the rest of the UI.
+ * A flat home-screen field with a faint top gradient, two very slow diagonal
+ * bands and a few dust pixels that fade in place. The picture is always
+ * mix(uBase, uHint, lift), so it never leaves the home screen palette.
+ * WebGL2 / GLSL ES 3.00. Everything is quantized to uPixelSize.
+ *
+ * INFO: no hash input contains time. A dust pixel keeps its place and only its
+ * glow changes. The old shader added time to the hash input, which re-rolled
+ * every cell on every frame and caused the flicker.
  */
 export const BACKDROP_FRAGMENT_SOURCE = `#version 300 es
 precision highp float;
 
 uniform float uTime;
 uniform vec2 uResolution;
-uniform vec3 uAccent;
+uniform vec3 uBase;
+uniform vec3 uHint;
+uniform float uPixelSize;
 uniform float uDim;
 
 out vec4 fragColor;
 
-const float PIXEL_GRID = 3.0;
+const float TAU = 6.28318530718;
+const float BAND_A_PERIOD_S = ${BACKDROP_BAND_A_PERIOD_S.toFixed(1)};
+const float BAND_B_PERIOD_S = ${BACKDROP_BAND_B_PERIOD_S.toFixed(1)};
+const float GRADIENT_LIFT = 0.35;
+const float BAND_A_LIFT = 0.30;
+const float BAND_B_LIFT = 0.18;
+const float DUST_LIFT = 0.45;
+const float MAX_LIFT = ${BACKDROP_MAX_LIFT.toFixed(2)};
+const float LIFT_STEPS = 4.0;
+const float DUST_BLOCK = 6.0;
+const float DUST_DENSITY = 0.025;
+const float DUST_PERIOD_MIN_S = 8.0;
+const float DUST_PERIOD_SPAN_S = 8.0;
 
 float hash(vec2 p) {
 	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
 }
 
+// Rounds a 0..1 value to LIFT_STEPS levels so the picture stays pixel art.
+float stepped(float value) {
+	return floor(value * LIFT_STEPS + 0.5) / LIFT_STEPS;
+}
+
 void main() {
-	vec2 grid = floor(gl_FragCoord.xy / PIXEL_GRID);
-	vec2 uv = grid * PIXEL_GRID / max(uResolution, vec2(1.0));
+	vec2 cell = floor(gl_FragCoord.xy / uPixelSize);
+	vec2 uv = cell * uPixelSize / max(uResolution, vec2(1.0));
 
-	// Dark purple field, lighter toward the top of the screen.
-	vec3 deep = vec3(0.043, 0.020, 0.078);
-	vec3 mid = vec3(0.114, 0.055, 0.208);
-	vec3 colour = mix(deep, mid, uv.y * 0.75 + 0.15);
+	// Faint gradient, a little lighter toward the top of the screen.
+	float lift = stepped(uv.y) * GRADIENT_LIFT;
 
-	// Slow diagonal energy streaks along the (x + y) axis.
-	float diagonal = (uv.x + uv.y) * 3.0;
-	float streak = pow(max(sin(diagonal * 3.14159 + uTime * 0.35), 0.0), 8.0);
-	colour += uAccent * streak * 0.30;
+	// Two very slow diagonal bands that cross each other.
+	float waveA = 0.5 + 0.5 * sin(TAU * ((uv.x + uv.y) * 0.8 - uTime / BAND_A_PERIOD_S));
+	lift += stepped(smoothstep(0.6, 1.0, waveA)) * BAND_A_LIFT;
+	float waveB = 0.5 + 0.5 * sin(TAU * ((uv.x - uv.y) * 0.6 + uTime / BAND_B_PERIOD_S));
+	lift += stepped(smoothstep(0.7, 1.0, waveB)) * BAND_B_LIFT;
 
-	// A second, shallower streak set for depth.
-	float cross = (uv.x * 0.6 - uv.y) * 4.0;
-	float streak2 = pow(max(sin(cross * 3.14159 - uTime * 0.18), 0.0), 12.0);
-	colour += uAccent * streak2 * 0.16;
+	// Dust: at most one pixel per block. The block id is an integer, so the
+	// pixel never moves; only its glow cycles, each block on its own phase.
+	vec2 block = floor(cell / DUST_BLOCK);
+	vec2 local = cell - block * DUST_BLOCK;
+	vec2 pick = floor(vec2(hash(block + vec2(3.1, 7.7)), hash(block + vec2(11.3, 5.9))) * DUST_BLOCK);
+	float present = step(1.0 - DUST_DENSITY, hash(block));
+	float isPick = all(equal(local, pick)) ? 1.0 : 0.0;
+	float period = DUST_PERIOD_MIN_S + DUST_PERIOD_SPAN_S * hash(block + vec2(2.2, 8.8));
+	float cycle = fract(uTime / period + hash(block + vec2(6.6, 1.1)));
+	float glow = smoothstep(0.0, 0.3, cycle) * (1.0 - smoothstep(0.5, 0.8, cycle));
+	lift += present * isPick * stepped(glow) * DUST_LIFT;
 
-	// Drifting pixel dust: sparse lit cells on a coarse scrolling grid, each
-	// twinkling on its own phase.
-	vec2 drift = floor(grid / 12.0) + vec2(uTime * 0.25, -uTime * 0.18);
-	float seed = hash(drift);
-	float lit = step(0.983, seed);
-	float twinkle = 0.45 + 0.55 * sin(uTime * 1.7 + seed * 40.0);
-	colour += uAccent * lit * twinkle * 0.85;
-
+	lift = min(lift, MAX_LIFT);
+	vec3 colour = mix(uBase, uHint, lift);
 	colour *= 1.0 - clamp(uDim, 0.0, 1.0) * 0.55;
 
 	fragColor = vec4(colour, 1.0);

@@ -5,6 +5,7 @@
 	import * as THREE from "three";
 	import { RippleField, MAX_RIPPLES } from "$lib/webgl/rippleField";
 	import bayerDither from "$lib/shaders/chunks/bayerDither.glsl?raw";
+	import { HOME_BACKGROUND_BASE_HEX, HOME_BACKGROUND_HINT_HEX } from "$lib/shaders/homePalette";
 	import rippleQuadVertex from "$lib/shaders/rippleQuad.vert.glsl?raw";
 	import rippleQuadFragment from "$lib/shaders/rippleQuad.frag.glsl?raw";
 
@@ -53,8 +54,8 @@
 	const uniforms = {
 		uAspect: { value: currentAspect() },
 		uResolution: { value: new THREE.Vector2(size.current.width, size.current.height) },
-		uBase: { value: hexToVec3(0x16171d) },
-		uHint: { value: hexToVec3(0x2c354d) },
+		uBase: { value: hexToVec3(HOME_BACKGROUND_BASE_HEX) },
+		uHint: { value: hexToVec3(HOME_BACKGROUND_HINT_HEX) },
 		uTime: { value: 0 },
 		uCentersX: { value: new Float32Array(MAX_RIPPLES) },
 		uCentersY: { value: new Float32Array(MAX_RIPPLES) },
