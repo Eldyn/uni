@@ -8,12 +8,17 @@
 #include <optional>
 #include <set>
 #include <string>
+#include <string_view>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include <match/cardschema/identifier.hpp>
 #include <match/cardschema/resolve.hpp>
+#include <match/expr/checker.hpp>
 #include <match/expr/diagnostic.hpp>
+#include <match/expr/evaluator.hpp>
+#include <match/expr/parser.hpp>
 
 namespace match::cardschema {
 
@@ -521,6 +526,291 @@ std::optional<GeneratedCard> BuildCard(
     return card;
 }
 
+void AddDiagnostic(std::vector<Diagnostic>& diagnostics, const Diagnostic& diagnostic) {
+    if (diagnostics.size() >= kMaximumDiagnostics) {
+        return;
+    }
+    diagnostics.push_back(diagnostic);
+}
+
+// INFO: the deck of `deck_id` across every mod, or nullptr when no loaded mod
+// declares it.
+const DeckSpec* FindDeck(const std::vector<ModSchema>& mods, const std::string& deck_id) {
+    for (const ModSchema& mod : mods) {
+        for (const DeckSpec& deck : mod.decks) {
+            if (deck.identifier == deck_id) {
+                return &deck;
+            }
+        }
+    }
+    return nullptr;
+}
+
+// INFO: the deck member order: `order`, then identifier.
+bool CompareMembers(const MemberDef* left, const MemberDef* right) {
+    if (left->order != right->order) {
+        return left->order < right->order;
+    }
+    return left->identifier < right->identifier;
+}
+
+// INFO: resolves one deck selector against the members of a slot's attribute.
+// `all` and a missing selector take every member, `tag` the members that carry
+// the tag, `identifiers` exactly the named members in stable order. An
+// identifier that names no member of the attribute is a diagnostic with a
+// suggestion; a selector that matches nothing leaves `selected` empty and is
+// not an error. Returns false when a named member is unknown.
+bool SelectMembers(const MemberSelector& selector, const std::string& attribute,
+                   const std::vector<const MemberDef*>& members, const std::string& file,
+                   std::vector<Diagnostic>& diagnostics,
+                   std::vector<const MemberDef*>& selected) {
+    if (selector.mode.empty() || selector.mode == selector_mode::kAll) {
+        selected = members;
+        return true;
+    }
+    if (selector.mode == selector_mode::kTag) {
+        for (const MemberDef* member : members) {
+            if (std::find(member->tags.begin(), member->tags.end(), selector.tag) !=
+                member->tags.end()) {
+                selected.push_back(member);
+            }
+        }
+        return true;
+    }
+    if (selector.mode == selector_mode::kIdentifiers) {
+        std::vector<std::string> candidates;
+        candidates.reserve(members.size());
+        for (const MemberDef* member : members) {
+            candidates.push_back(member->identifier);
+        }
+        bool usable = true;
+        for (const std::string& identifier : selector.identifiers) {
+            const MemberDef* found = nullptr;
+            for (const MemberDef* member : members) {
+                if (member->identifier == identifier) {
+                    found = member;
+                    break;
+                }
+            }
+            if (found == nullptr) {
+                AddError(diagnostics, file, selector.pointer,
+                         "unknown member \"" + identifier + "\" of attribute \"" + attribute +
+                             "\"",
+                         match::expr::SuggestClosest(identifier, candidates));
+                usable = false;
+                continue;
+            }
+            selected.push_back(found);
+        }
+        std::sort(selected.begin(), selected.end(), CompareMembers);
+        return usable;
+    }
+    return true;
+}
+
+// INFO: the number of combinations a combine mode yields over the selected
+// member lists. A zip whose lists differ in length and a unique_pairs over any
+// other than two slots are reported here and give nullopt; a product count that
+// overflows 64 bits is nullopt too, which is above every deck limit. The count
+// is computed before any combination is built.
+std::optional<std::uint64_t> ResolveCombinationCount(
+    const std::string& combine, const std::vector<std::vector<const MemberDef*>>& lists,
+    const std::string& file, const std::string& pointer, std::vector<Diagnostic>& diagnostics) {
+    if (combine == combine_mode::kZip) {
+        const std::size_t length = lists.empty() ? 1 : lists.front().size();
+        for (const auto& list : lists) {
+            if (list.size() != length) {
+                AddError(diagnostics, file, pointer,
+                         "zip combine needs equal slot lengths, got " +
+                             std::to_string(lists.front().size()) + " and " +
+                             std::to_string(list.size()));
+                return std::nullopt;
+            }
+        }
+        return static_cast<std::uint64_t>(length);
+    }
+    if (combine == combine_mode::kUniquePairs) {
+        if (lists.size() != 2) {
+            AddError(diagnostics, file, pointer,
+                     "unique_pairs combine needs exactly two slots, got " +
+                         std::to_string(lists.size()));
+            return std::nullopt;
+        }
+        const std::uint64_t count = static_cast<std::uint64_t>(lists.front().size());
+        // INFO: a pair count that overflows 64 bits is above every deck limit;
+        // the saturated value lets the caller report the cap without the math.
+        const std::optional<std::uint64_t> pairs = MultiplyCounts(count, count - 1);
+        return pairs ? *pairs / 2 : std::numeric_limits<std::uint64_t>::max();
+    }
+    std::optional<std::uint64_t> total = 1;
+    for (const auto& list : lists) {
+        total = MultiplyOptional(total, static_cast<std::uint64_t>(list.size()));
+    }
+    return total;
+}
+
+// INFO: visits every combination the combine mode yields, in stable order. A
+// product crosses the lists row-major, a zip pairs the lists element-wise (all
+// equal length), and unique_pairs walks the pairs i < j of the first list, so
+// the two slots share one member list. The caller bounds the work: the
+// combination count was checked against the deck limit first.
+template <typename Visitor>
+void ForEachCombination(const std::string& combine,
+                        const std::vector<std::vector<const MemberDef*>>& lists,
+                        Visitor&& visit) {
+    if (combine == combine_mode::kZip) {
+        if (lists.empty()) {
+            visit(std::vector<const MemberDef*>{});
+            return;
+        }
+        for (std::size_t index = 0; index < lists.front().size(); ++index) {
+            std::vector<const MemberDef*> assignment;
+            assignment.reserve(lists.size());
+            for (const auto& list : lists) {
+                assignment.push_back(list[index]);
+            }
+            visit(assignment);
+        }
+        return;
+    }
+    if (combine == combine_mode::kUniquePairs) {
+        const std::vector<const MemberDef*>& list = lists.front();
+        for (std::size_t left = 0; left < list.size(); ++left) {
+            for (std::size_t right = left + 1; right < list.size(); ++right) {
+                visit(std::vector<const MemberDef*>{list[left], list[right]});
+            }
+        }
+        return;
+    }
+    ForEachAssignment(lists, std::forward<Visitor>(visit));
+}
+
+// INFO: the runtime an expression context of a `copies` expression: only
+// `@settings.<key>` resolves, to the int the settings map holds; every other
+// selector, property, variable and query is empty or false. `Evaluate` calls
+// SelectorValue then ReadProperty for `@settings.key`, so those are the two
+// calls that matter.
+class SettingsContext final : public match::expr::EvalContext {
+public:
+    explicit SettingsContext(const std::map<std::string, int64_t>& settings)
+        : settings_(settings) {}
+
+    std::vector<match::expr::EntityRef> ResolveSelector(std::string_view name) const override {
+        if (name == "settings") {
+            return {match::expr::EntityRef{match::expr::Type::kSettings, 0}};
+        }
+        return {};
+    }
+
+    std::optional<match::expr::Value> ReadProperty(match::expr::EntityRef entity,
+                                                   std::string_view key) const override {
+        if (entity.kind != match::expr::Type::kSettings) {
+            return std::nullopt;
+        }
+        const auto found = settings_.find(std::string(key));
+        if (found == settings_.end()) {
+            return std::nullopt;
+        }
+        return match::expr::Value(static_cast<int64_t>(found->second));
+    }
+
+    bool WriteProperty(match::expr::EntityRef, std::string_view,
+                       const match::expr::Value&) override {
+        return false;
+    }
+
+    std::optional<match::expr::Value> GetVariable(std::string_view) const override {
+        return std::nullopt;
+    }
+
+    bool HasTag(match::expr::EntityRef, std::string_view) const override { return false; }
+
+    int64_t Random(int64_t low, int64_t) override { return low; }
+
+    int64_t StatusMagnitude(match::expr::EntityRef, std::string_view) const override {
+        return 0;
+    }
+
+private:
+    const std::map<std::string, int64_t>& settings_;
+};
+
+// INFO: the copies of one deck entry: an integer in range, or an expression
+// parsed, checked against a Schema whose settings are all ints, and evaluated
+// against `settings`. Any problem is reported at the entry pointer (the
+// expression check at the "copies" pointer) and gives nullopt, so the entry is
+// skipped.
+std::optional<int> ResolveCopies(const DeckEntry& entry, const DeckSpec& deck,
+                                 const std::map<std::string, int64_t>& settings,
+                                 std::vector<Diagnostic>& diagnostics) {
+    if (entry.copies.is_number_integer()) {
+        const long long number =
+            entry.copies.is_number_unsigned()
+                ? static_cast<long long>(entry.copies.get<unsigned long long>())
+                : entry.copies.get<long long>();
+        if (number < 0) {
+            AddError(diagnostics, deck.file, entry.pointer,
+                     "copies is " + std::to_string(number) +
+                         "; the count must not be negative");
+            return std::nullopt;
+        }
+        return static_cast<int>(number);
+    }
+    if (!entry.copies.is_string()) {
+        AddError(diagnostics, deck.file, entry.pointer,
+                 "key \"copies\" must be an integer or a non-empty string");
+        return std::nullopt;
+    }
+    const std::string source = entry.copies.get<std::string>();
+    const std::string pointer = match::expr::AppendPointerToken(entry.pointer, "copies");
+    const match::expr::ParseResult parsed = match::expr::ParseExpression(source);
+    if (parsed.error) {
+        AddError(diagnostics, deck.file, pointer, match::expr::FormatParseError(*parsed.error));
+        return std::nullopt;
+    }
+    match::expr::Schema schema;
+    for (const auto& [name, value] : settings) {
+        schema.settings[name] = match::expr::Type::kInt;
+    }
+    const match::expr::CheckResult checked = match::expr::CheckParsedExpression(
+        *parsed.root, schema, match::expr::Type::kInt, deck.file, pointer,
+        match::expr::GuardState{});
+    for (const Diagnostic& diagnostic : checked.diagnostics) {
+        AddDiagnostic(diagnostics, diagnostic);
+    }
+    if (!checked.diagnostics.empty()) {
+        return std::nullopt;
+    }
+
+    SettingsContext context(settings);
+    const match::expr::EvalResult evaluated = match::expr::Evaluate(*parsed.root, context);
+    if (const auto* error = std::get_if<match::expr::EvalError>(&evaluated)) {
+        AddError(diagnostics, deck.file, entry.pointer,
+                 "copies expression \"" + source + "\" failed: " + error->code + ": " +
+                     error->message);
+        return std::nullopt;
+    }
+    const int64_t* count = std::get_if<int64_t>(&std::get<match::expr::Value>(evaluated));
+    if (count == nullptr) {
+        AddError(diagnostics, deck.file, entry.pointer,
+                 "copies expression \"" + source + "\" is not an int");
+        return std::nullopt;
+    }
+    if (*count < 0) {
+        AddError(diagnostics, deck.file, entry.pointer,
+                 "copies expression \"" + source + "\" is " + std::to_string(*count) +
+                     "; the count must not be negative");
+        return std::nullopt;
+    }
+    if (*count > static_cast<int64_t>(kMaximumGeneratedKinds)) {
+        AddError(diagnostics, deck.file, entry.pointer,
+                 "copies expression \"" + source + "\" is " + std::to_string(*count) +
+                     "; the count must not exceed " + std::to_string(kMaximumGeneratedKinds));
+        return std::nullopt;
+    }
+    return static_cast<int>(*count);
+}
+
 }  // namespace
 
 CatalogResult ExpandCards(const std::vector<ModSchema>& mods) {
@@ -763,6 +1053,170 @@ CatalogResult ExpandCards(const std::vector<ModSchema>& mods) {
               [](const GeneratedCard& left, const GeneratedCard& right) {
                   return left.kind_id < right.kind_id;
               });
+    return result;
+}
+
+ExpandedDeck ExpandDeck(const std::vector<ModSchema>& mods, const std::string& deck_id,
+                        const std::set<std::string>& active_mods,
+                        const std::map<std::string, int64_t>& settings) {
+    ExpandedDeck result;
+    result.deck_id = deck_id;
+
+    const DeckSpec* deck = FindDeck(mods, deck_id);
+    if (deck == nullptr) {
+        AddError(result.diagnostics, "", std::string(match::expr::kRootPointer),
+                 "unknown deck \"" + deck_id + "\"");
+        return result;
+    }
+    result.name = deck->name;
+    result.mods = deck->mods;
+
+    // INFO: the active mods are the mods whose members and templates the deck
+    // may use; an empty active set means every loaded mod. The member index
+    // points into `mods`, whose elements are stable for the whole call.
+    std::vector<ModSchema> active_schemas;
+    std::map<std::string, std::vector<const MemberDef*>> members_by_attribute;
+    for (const ModSchema& mod : mods) {
+        if (!active_mods.empty() && active_mods.count(mod.mod_id) == 0) {
+            continue;
+        }
+        active_schemas.push_back(mod);
+        for (const MemberDef& member : mod.members) {
+            members_by_attribute[member.attribute].push_back(&member);
+        }
+    }
+    for (auto& [attribute, members] : members_by_attribute) {
+        std::sort(members.begin(), members.end(), CompareMembers);
+    }
+
+    // INFO: the deck may only deal cards the active mods generate, so the
+    // catalog of the active mods is the id set every expanded id is checked
+    // against. Its diagnostics are the caller's business, not the deck's.
+    const CatalogResult active_catalog = ExpandCards(active_schemas);
+    std::set<std::string> active_kind_ids;
+    for (const GeneratedCard& card : active_catalog.cards) {
+        active_kind_ids.insert(card.kind_id);
+    }
+
+    std::map<std::string, const KindTemplate*> kinds_by_id;
+    for (const ModSchema& mod : active_schemas) {
+        for (const KindTemplate& kind : mod.kinds) {
+            kinds_by_id.emplace(kind.identifier, &kind);
+        }
+    }
+
+    const int requested_limit = std::min(deck->max_cards, kMaximumDeckCards);
+    const std::uint64_t limit =
+        requested_limit > 0 ? static_cast<std::uint64_t>(requested_limit) : 0;
+    std::uint64_t total = 0;
+    std::map<std::string, std::size_t> position;
+
+    for (const DeckEntry& entry : deck->cards) {
+        const auto kind_found = kinds_by_id.find(entry.kind);
+        if (kind_found == kinds_by_id.end()) {
+            std::vector<std::string> candidates;
+            candidates.reserve(kinds_by_id.size());
+            for (const auto& [id, kind] : kinds_by_id) {
+                candidates.push_back(id);
+            }
+            AddError(result.diagnostics, deck->file, entry.pointer,
+                     "unknown kind \"" + entry.kind + "\"",
+                     match::expr::SuggestClosest(entry.kind, candidates));
+            continue;
+        }
+        const KindTemplate& kind = *kind_found->second;
+        if (kind.is_abstract) {
+            AddError(result.diagnostics, deck->file, entry.pointer,
+                     "kind \"" + entry.kind + "\" is abstract");
+            continue;
+        }
+
+        const std::vector<std::string> slot_order = EffectiveSlotOrder(kind);
+        std::vector<std::vector<const MemberDef*>> member_lists;
+        member_lists.reserve(slot_order.size());
+        bool selectors_ok = true;
+        for (const std::string& slot : slot_order) {
+            const SlotBinding* binding = FindBinding(kind, slot);
+            std::vector<const MemberDef*> members;
+            if (binding != nullptr) {
+                const auto found = members_by_attribute.find(binding->attribute);
+                if (found != members_by_attribute.end()) {
+                    members = found->second;
+                }
+            }
+            std::vector<const MemberDef*> selected;
+            const auto selector = entry.members.find(slot);
+            if (selector == entry.members.end()) {
+                selected = members;
+            } else if (!SelectMembers(selector->second,
+                                      binding == nullptr ? std::string() : binding->attribute,
+                                      members, deck->file, result.diagnostics, selected)) {
+                selectors_ok = false;
+            }
+            member_lists.push_back(std::move(selected));
+        }
+        if (!selectors_ok) {
+            continue;
+        }
+
+        const std::optional<std::uint64_t> combinations =
+            ResolveCombinationCount(entry.combine, member_lists, deck->file, entry.pointer,
+                                    result.diagnostics);
+        if (!combinations) {
+            continue;
+        }
+        const std::optional<int> copies = ResolveCopies(entry, *deck, settings, result.diagnostics);
+        if (!copies) {
+            continue;
+        }
+
+        const std::optional<std::uint64_t> contribution =
+            MultiplyCounts(*combinations, static_cast<std::uint64_t>(*copies));
+        if (!contribution || *contribution > limit - total) {
+            const std::string amount =
+                contribution ? std::to_string(total + *contribution)
+                             : "more than " + std::to_string(limit);
+            AddError(result.diagnostics, deck->file, entry.pointer,
+                     "deck \"" + deck->identifier + "\" has " + amount + " cards, the limit is " +
+                         std::to_string(limit));
+            result.total = static_cast<int>(total);
+            DedupeDiagnostics(result.diagnostics);
+            return result;
+        }
+        total += *contribution;
+
+        ForEachCombination(entry.combine, member_lists,
+                           [&](const std::vector<const MemberDef*>& members) {
+                               std::map<std::string, std::string> slot_values;
+                               for (std::size_t index = 0; index < slot_order.size(); ++index) {
+                                   slot_values[slot_order[index]] = MemberLocal(*members[index]);
+                               }
+                               const std::optional<std::string> kind_id =
+                                   GenerateIdentifier(kind, slot_values, result.diagnostics);
+                               if (!kind_id) {
+                                   return;
+                               }
+                               // INFO: an id the active catalog does not hold would be a
+                               // card the deck deals but the match cannot build; the
+                               // diagnostic belongs to the deck entry that asked for it.
+                               if (active_kind_ids.count(*kind_id) == 0) {
+                                   AddError(result.diagnostics, deck->file, entry.pointer,
+                                            "card \"" + *kind_id +
+                                                "\" is not generated by the active mods");
+                                   return;
+                               }
+                               const auto found = position.find(*kind_id);
+                               if (found == position.end()) {
+                                   position.emplace(*kind_id, result.cards.size());
+                                   result.cards.emplace_back(*kind_id, *copies);
+                                   return;
+                               }
+                               result.cards[found->second].second += *copies;
+                           });
+    }
+
+    result.total = static_cast<int>(total);
+    DedupeDiagnostics(result.diagnostics);
     return result;
 }
 

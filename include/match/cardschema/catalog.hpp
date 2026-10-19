@@ -1,7 +1,10 @@
 #pragma once
 
+#include <cstdint>
 #include <map>
+#include <set>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <match/cardschema/model.hpp>
@@ -40,5 +43,33 @@ struct CatalogResult {
 // formats, behavior) on every concrete template, so the expansion uses the
 // template's own slots and fields alone.
 CatalogResult ExpandCards(const std::vector<ModSchema>& mods);
+
+// INFO: one deck expanded into the engine cards it deals. `cards` merges the
+// copies of one kind from every entry and keeps the order the kinds were first
+// dealt in.
+struct ExpandedDeck {
+    std::string deck_id;
+    std::string name;
+    std::vector<std::string> mods;                    // from DeckSpec.mods
+    std::vector<std::pair<std::string, int>> cards;   // kind_id -> count, first-seen order
+    int total = 0;
+    std::vector<Diagnostic> diagnostics;
+};
+
+// INFO: expands the deck `deck_id` of `mods` over the members of the active
+// mods. `active_mods` filters which loaded mods contribute members and
+// templates; an empty set means every loaded mod is active. `settings` holds
+// the `@settings.<name>` values of a `copies` expression.
+//
+// INFO: a selector picks the members of the attribute bound to its slot; a slot
+// the entry does not name selects every member. A selector that matches no
+// member adds no cards and is not an error, except an `identifiers` entry that
+// names no member of the attribute. A `copies` expression is checked against a
+// Schema whose settings are all ints and evaluated with only `@settings`
+// readable. The running total is checked against the deck limit before a card
+// is built.
+ExpandedDeck ExpandDeck(const std::vector<ModSchema>& mods, const std::string& deck_id,
+                        const std::set<std::string>& active_mods,
+                        const std::map<std::string, int64_t>& settings);
 
 }  // namespace match::cardschema

@@ -581,3 +581,273 @@ TEST_CASE("legacy_entry_shape") {
 }
 
 }  // TEST_SUITE("cardschema catalog")
+
+namespace {
+
+namespace combine_mode = match::cardschema::combine_mode;
+namespace selector_mode = match::cardschema::selector_mode;
+
+using match::cardschema::DeckEntry;
+using match::cardschema::DeckSpec;
+using match::cardschema::ExpandedDeck;
+using match::cardschema::ExpandDeck;
+using match::cardschema::MemberSelector;
+
+// INFO: MiniUni with the value members 2..9, so the shipped classic deck's
+// numbered values 0..9 are all present.
+ModSchema DeckUni() {
+    ModSchema mod = MiniUni();
+    for (int value = 2; value <= 9; ++value) {
+        MemberDef member;
+        member.attribute = "uni:value";
+        member.identifier = "uni:" + std::to_string(value);
+        member.display_name = "test";
+        member.order = value;
+        member.file = "mods/uni/attributes/test.json";
+        mod.members.push_back(member);
+    }
+    return mod;
+}
+
+MemberDef ColorMember(std::string identifier, std::vector<std::string> tags, int order,
+                      std::string file) {
+    MemberDef member;
+    member.attribute = "uni:color";
+    member.identifier = std::move(identifier);
+    member.display_name = "test";
+    member.tags = std::move(tags);
+    member.order = order;
+    member.file = std::move(file);
+    return member;
+}
+
+// INFO: the shipped classic deck as an in-memory spec: colors join through the
+// "colored" tag, and the numbered values are spelled out as identifiers.
+DeckSpec ClassicDeck() {
+    DeckSpec deck;
+    deck.identifier = "uni:classic";
+    deck.name = "Classic";
+    deck.file = "mods/uni/decks/classic.json";
+
+    DeckEntry zeros;
+    zeros.kind = "uni:numbered";
+    zeros.copies = 1;
+    zeros.pointer = "/deck/cards/0";
+    MemberSelector colored_zero;
+    colored_zero.mode = selector_mode::kTag;
+    colored_zero.tag = "colored";
+    colored_zero.pointer = "/deck/cards/0/members/color";
+    zeros.members["color"] = colored_zero;
+    MemberSelector zero;
+    zero.mode = selector_mode::kIdentifiers;
+    zero.identifiers = {"uni:0"};
+    zero.pointer = "/deck/cards/0/members/value";
+    zeros.members["value"] = zero;
+
+    DeckEntry numbered;
+    numbered.kind = "uni:numbered";
+    numbered.copies = "@settings.count_numbered";
+    numbered.pointer = "/deck/cards/1";
+    MemberSelector colored;
+    colored.mode = selector_mode::kTag;
+    colored.tag = "colored";
+    colored.pointer = "/deck/cards/1/members/color";
+    numbered.members["color"] = colored;
+    MemberSelector one_to_nine;
+    one_to_nine.mode = selector_mode::kIdentifiers;
+    for (int value = 1; value <= 9; ++value) {
+        one_to_nine.identifiers.push_back("uni:" + std::to_string(value));
+    }
+    one_to_nine.pointer = "/deck/cards/1/members/value";
+    numbered.members["value"] = one_to_nine;
+
+    DeckEntry wild;
+    wild.kind = "uni:wild";
+    wild.copies = "@settings.count_wild";
+    wild.pointer = "/deck/cards/2";
+
+    deck.cards = {zeros, numbered, wild};
+    return deck;
+}
+
+ModSchema ClassicMod() {
+    ModSchema mod = DeckUni();
+    mod.decks = {ClassicDeck()};
+    return mod;
+}
+
+std::map<std::string, int64_t> DefaultSettings() {
+    return {{"count_numbered", 2}, {"count_wild", 4}};
+}
+
+int CountOf(const ExpandedDeck& deck, const std::string& kind_id) {
+    for (const auto& [id, count] : deck.cards) {
+        if (id == kind_id) {
+            return count;
+        }
+    }
+    return 0;
+}
+
+}  // namespace
+
+TEST_SUITE("cardschema deck") {
+
+TEST_CASE("mini_deck_counts") {
+    const ExpandedDeck deck =
+        ExpandDeck({ClassicMod()}, "uni:classic", {}, DefaultSettings());
+
+    CHECK(deck.diagnostics.empty());
+    CHECK(deck.total == 42);
+    CHECK(CountOf(deck, "uni:red_0") == 1);
+    CHECK(CountOf(deck, "uni:red_5") == 2);
+    CHECK(CountOf(deck, "uni:wild") == 4);
+    CHECK(deck.cards.size() == 21);
+}
+
+TEST_CASE("tag_selector_grows_with_new_color") {
+    ModSchema magenta;
+    magenta.mod_id = "magenta";
+    magenta.directory = "mods/magenta";
+    magenta.members = {ColorMember("magenta:magenta", {"colored", "magenta"}, 2,
+                                   "mods/magenta/attributes/color/magenta.json")};
+
+    const ExpandedDeck both = ExpandDeck({ClassicMod(), magenta}, "uni:classic",
+                                         {"uni", "magenta"}, DefaultSettings());
+    CHECK(both.diagnostics.empty());
+    CHECK(both.total == 61);
+    CHECK(CountOf(both, "uni:magenta_5") == 2);
+
+    const ExpandedDeck only_uni =
+        ExpandDeck({ClassicMod(), magenta}, "uni:classic", {"uni"}, DefaultSettings());
+    CHECK(only_uni.diagnostics.empty());
+    CHECK(only_uni.total == 42);
+    CHECK(CountOf(only_uni, "uni:magenta_5") == 0);
+}
+
+TEST_CASE("unknown_identifier_suggestion") {
+    ModSchema mod = ClassicMod();
+    mod.decks[0].cards[0].members["value"].identifiers = {"uni:5x"};
+
+    const ExpandedDeck deck = ExpandDeck({mod}, "uni:classic", {}, DefaultSettings());
+
+    REQUIRE(deck.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(deck.diagnostics[0]) ==
+          "mods/uni/decks/classic.json#/deck/cards/0/members/value: unknown member "
+          "\"uni:5x\" of attribute \"uni:value\" (did you mean \"uni:5\")");
+}
+
+TEST_CASE("zip_length_mismatch") {
+    ModSchema mod = ClassicMod();
+    DeckSpec deck;
+    deck.identifier = "uni:zip";
+    deck.file = "mods/uni/decks/zip.json";
+
+    DeckEntry entry;
+    entry.kind = "uni:numbered";
+    entry.copies = 1;
+    entry.combine = combine_mode::kZip;
+    entry.pointer = "/deck/cards/0";
+    MemberSelector colors;
+    colors.mode = selector_mode::kIdentifiers;
+    colors.identifiers = {"uni:red", "uni:blue"};
+    colors.pointer = "/deck/cards/0/members/color";
+    entry.members["color"] = colors;
+    MemberSelector value;
+    value.mode = selector_mode::kIdentifiers;
+    value.identifiers = {"uni:0"};
+    value.pointer = "/deck/cards/0/members/value";
+    entry.members["value"] = value;
+    deck.cards = {entry};
+    mod.decks = {deck};
+
+    const ExpandedDeck result = ExpandDeck({mod}, "uni:zip", {}, DefaultSettings());
+
+    REQUIRE(result.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(result.diagnostics[0]) ==
+          "mods/uni/decks/zip.json#/deck/cards/0: zip combine needs equal slot lengths, "
+          "got 2 and 1");
+}
+
+TEST_CASE("unique_pairs") {
+    ModSchema mod = ClassicMod();
+    mod.members.push_back(
+        ColorMember("uni:green", {"colored", "green"}, 2, "mods/uni/attributes/test.json"));
+
+    KindTemplate split;
+    split.identifier = "uni:split";
+    split.identifier_format = "{left}_{right}";
+    split.slots = {SlotBinding{"uni:color", "left", "", ""},
+                   SlotBinding{"uni:color", "right", "", ""}};
+    split.slot_order = {"left", "right"};
+    split.file = "mods/uni/kinds/split.json";
+    mod.kinds.push_back(split);
+
+    DeckSpec deck;
+    deck.identifier = "uni:pairs";
+    deck.file = "mods/uni/decks/pairs.json";
+    DeckEntry entry;
+    entry.kind = "uni:split";
+    entry.copies = 1;
+    entry.combine = combine_mode::kUniquePairs;
+    entry.pointer = "/deck/cards/0";
+    deck.cards = {entry};
+    mod.decks = {deck};
+
+    const ExpandedDeck result = ExpandDeck({mod}, "uni:pairs", {}, DefaultSettings());
+
+    CHECK(result.diagnostics.empty());
+    CHECK(result.total == 3);
+    CHECK(result.cards.size() == 3);
+}
+
+TEST_CASE("copies_negative") {
+    ModSchema mod = ClassicMod();
+    mod.decks[0].cards[1].copies = "@settings.count_wild - 10";
+
+    const ExpandedDeck result = ExpandDeck({mod}, "uni:classic", {}, DefaultSettings());
+
+    REQUIRE(result.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(result.diagnostics[0]) ==
+          "mods/uni/decks/classic.json#/deck/cards/1: copies expression "
+          "\"@settings.count_wild - 10\" is -6; the count must not be negative");
+}
+
+TEST_CASE("copies_division_by_zero") {
+    ModSchema mod = ClassicMod();
+    mod.decks[0].cards[1].copies = "4 / (@settings.count_wild - 4)";
+
+    const ExpandedDeck result = ExpandDeck({mod}, "uni:classic", {}, DefaultSettings());
+
+    REQUIRE(result.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(result.diagnostics[0]) ==
+          "mods/uni/decks/classic.json#/deck/cards/1: copies expression "
+          "\"4 / (@settings.count_wild - 4)\" failed: division_by_zero: division by zero");
+}
+
+TEST_CASE("deck_cap") {
+    ModSchema mod = ClassicMod();
+    std::map<std::string, int64_t> settings = DefaultSettings();
+    settings["count_numbered"] = 200;
+
+    const ExpandedDeck result = ExpandDeck({mod}, "uni:classic", {}, settings);
+
+    REQUIRE(result.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(result.diagnostics[0]) ==
+          "mods/uni/decks/classic.json#/deck/cards/1: deck \"uni:classic\" has 3602 cards, "
+          "the limit is 1024");
+}
+
+TEST_CASE("copies_unknown_setting") {
+    ModSchema mod = ClassicMod();
+    mod.decks[0].cards[2].copies = "@settings.count_wilds";
+
+    const ExpandedDeck result = ExpandDeck({mod}, "uni:classic", {}, DefaultSettings());
+
+    REQUIRE(result.diagnostics.size() == 1);
+    CHECK(FormatDiagnostic(result.diagnostics[0]) ==
+          "mods/uni/decks/classic.json#/deck/cards/2/copies: unknown property "
+          "\"count_wilds\" on settings (did you mean \"count_wild\")");
+}
+
+}  // TEST_SUITE("cardschema deck")
