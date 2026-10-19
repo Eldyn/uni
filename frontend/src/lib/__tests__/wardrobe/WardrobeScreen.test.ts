@@ -325,4 +325,11 @@ describe("WardrobeScreen", () => {
 		await fireEvent.click(locked!);
 		expect(storeNavigation.goto).toHaveBeenCalledWith("shop");
 	});
+
+	it("gives the stage the main space of the screen", () => {
+		expect(cssBlock(wardrobeSource, ".wardrobe-body")).toMatch(
+			/grid-template-columns:\s*minmax\(0, 1\.2fr\) minmax\(0, 1fr\)/
+		);
+		expect(cssBlock(wardrobeSource, ".wardrobe-stage")).toMatch(/min-height:\s*384px/);
+	});
 });

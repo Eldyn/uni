@@ -7,10 +7,11 @@
 	import { onDestroy, onMount } from "svelte";
 	import { Canvas, T } from "@threlte/core";
 	import type { CanvasTexture } from "three";
-	import Avatar from "$components/common/Avatar.svelte";
+	import AvatarFit from "$components/common/AvatarFit.svelte";
 	import AvatarStageStrip from "$components/shop/AvatarStageStrip.svelte";
 	import { loadAvatarTexture } from "$components/game/three/avatarTexture";
-	import { FRAME_COUNT, FRAME_MS, type Loadout } from "$lib/avatar/types";
+	import { wholePixelScale } from "$lib/avatar/pixelScale";
+	import { FRAME_COUNT, FRAME_MS, FRAME_SIZE, type Loadout } from "$lib/avatar/types";
 
 	let { loadout = null, bot = false }: { loadout: Loadout | null; bot?: boolean } = $props();
 
@@ -32,6 +33,9 @@
 
 	let texture = $state.raw<CanvasTexture | null>(null);
 	let frame = $state(0);
+	let stageWidth = $state(0);
+	let stageHeight = $state(0);
+	const pixelScale = $derived(wholePixelScale(Math.min(stageWidth, stageHeight)));
 
 	let rafId: number | null = null;
 	let lastTime: number | null = null;
@@ -120,10 +124,23 @@
 	});
 </script>
 
-<div class="avatar-stage" data-webgl={webgl} data-frame={frame}>
+<div
+	class="avatar-stage"
+	data-webgl={webgl}
+	data-frame={frame}
+	data-pixel-scale={pixelScale}
+	bind:clientWidth={stageWidth}
+	bind:clientHeight={stageHeight}
+>
 	{#if webgl}
 		<Canvas>
-			<T.OrthographicCamera makeDefault position={[0, 0, 4]} zoom={170} near={0.1} far={100} />
+			<T.OrthographicCamera
+				makeDefault
+				position={[0, 0, 4]}
+				zoom={FRAME_SIZE * pixelScale}
+				near={0.1}
+				far={100}
+			/>
 
 			<T.Group>
 				{#if texture}
@@ -143,7 +160,7 @@
 	     so the stage never reads as an empty box. -->
 	{#if !webgl || !texture}
 		<div class="avatar-stage-fallback">
-			<Avatar {loadout} {bot} size={96} />
+			<AvatarFit {loadout} {bot} />
 		</div>
 	{/if}
 </div>

@@ -369,7 +369,7 @@
 
 	.wardrobe-body {
 		display: grid;
-		grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr);
+		grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
 		gap: 1.5rem;
 		align-items: start;
 	}
@@ -382,7 +382,8 @@
 
 	.wardrobe-stage {
 		position: relative;
-		min-height: 280px;
+		height: min(70vh, 44rem);
+		min-height: 384px;
 	}
 
 	.wardrobe-right {

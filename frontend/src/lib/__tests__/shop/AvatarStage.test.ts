@@ -217,4 +217,11 @@ describe("AvatarStage", () => {
 		expect(requestAnimationFrame).not.toHaveBeenCalled();
 		expect(container.querySelector(".avatar-stage")?.getAttribute("data-frame")).toBe("0");
 	});
+
+	it("scales the strip by a whole pixel factor", () => {
+		mockContext(true);
+		const { container } = render(AvatarStage, { props: { loadout: loadout("basic:red") } });
+		flushSync();
+		expect(container.querySelector(".avatar-stage")?.getAttribute("data-pixel-scale")).toBe("1");
+	});
 });
