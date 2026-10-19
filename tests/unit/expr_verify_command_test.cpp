@@ -308,6 +308,22 @@ TEST_CASE("every_argument_and_schema_failure_reports_the_same_way") {
     }
 }
 
+TEST_CASE("a_deeply_nested_schema_file_is_rejected") {
+    TempSchemas schemas;
+    std::string text;
+    for (int level = 0; level < 65; ++level) {
+        text += "{\"a\":";
+    }
+    text += "1";
+    for (int level = 0; level < 65; ++level) {
+        text += "}";
+    }
+    const std::string path = schemas.Write("deep.json", text);
+    const Outcome outcome = Run({"verify", "--schema", path, "--expression", "1"});
+    CHECK(outcome.code == 1);
+    CHECK(outcome.err == path + "#/: schema is nested too deeply (more than 64 levels)\n");
+}
+
 TEST_CASE("a_schema_object_with_many_keys_loads_quickly") {
     TempSchemas schemas;
     std::string text = "{\"seat_properties\":{";

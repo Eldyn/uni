@@ -23,10 +23,20 @@ struct DuplicateKey {
     std::string key;
 };
 
+// INFO: what scanning a schema file's text finds: the repeated keys, capped at
+// a small number so a hostile file cannot exhaust memory. `duplicates_truncated`
+// says repeats were dropped past the cap, so the loader adds one summary
+// diagnostic; `nested_too_deep` says the text nested past the scan limit, which
+// the caller reports as a diagnostic rather than as invalid JSON.
+struct SchemaScan {
+    std::vector<DuplicateKey> duplicates;
+    bool duplicates_truncated = false;
+    bool nested_too_deep = false;
+};
+
 // INFO: parses `text` as JSON and records every key repeated inside one object;
 // returns an empty optional when the text is not valid JSON.
-std::optional<json> ParseSchemaJson(const std::string& text,
-                                    std::vector<DuplicateKey>& duplicates);
+std::optional<json> ParseSchemaJson(const std::string& text, SchemaScan& scan);
 
 // INFO: builds the Schema the conformance corpus and the verifier share. The
 // JSON keys are `seat_properties`, `card_properties`, `match_properties` and
@@ -42,11 +52,10 @@ std::optional<json> ParseSchemaJson(const std::string& text,
 std::optional<Schema> LoadSchema(const json& value, std::string_view file_label,
                                  std::vector<Diagnostic>& diagnostics);
 
-// INFO: also reports every key listed in `duplicates` as a diagnostic, with the
-// pointer of the object that holds it.
+// INFO: also reports every key listed in `scan`, with the pointer of the object
+// that holds it, and one summary line when the scan dropped repeats.
 std::optional<Schema> LoadSchema(const json& value, std::string_view file_label,
-                                 const std::vector<DuplicateKey>& duplicates,
-                                 std::vector<Diagnostic>& diagnostics);
+                                 const SchemaScan& scan, std::vector<Diagnostic>& diagnostics);
 
 // INFO: the readable-error overload for callers that only need one message; the
 // schema is still built by the same loader.

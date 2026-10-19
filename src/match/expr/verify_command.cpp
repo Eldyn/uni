@@ -106,10 +106,9 @@ std::optional<std::string> ParseArgs(const std::vector<std::string>& args, Optio
 }
 
 // INFO: a regular file at `path` whose contents fit the size limit. Streams the
-// reason to `err` and returns false otherwise. `duplicates` collects every key
-// repeated inside one JSON object.
-bool ReadSchemaFile(const std::string& path, json& value, std::vector<DuplicateKey>& duplicates,
-                    std::ostream& err) {
+// reason to `err` and returns false otherwise. `scan` collects the repeated keys
+// and reports a nesting past the scanner limit.
+bool ReadSchemaFile(const std::string& path, json& value, SchemaScan& scan, std::ostream& err) {
     std::error_code status_error;
     const fs::file_status status = fs::status(path, status_error);
     if (status_error) {
@@ -141,7 +140,7 @@ bool ReadSchemaFile(const std::string& path, json& value, std::vector<DuplicateK
     }
     const std::istreambuf_iterator<char> first(stream);
     const std::string text{first, std::istreambuf_iterator<char>()};
-    const std::optional<json> parsed = ParseSchemaJson(text, duplicates);
+    const std::optional<json> parsed = ParseSchemaJson(text, scan);
     if (!parsed.has_value()) {
         err << "the schema file \"" << path << "\" is not valid JSON\n";
         return false;
@@ -161,14 +160,20 @@ int RunVerifyImpl(const std::vector<std::string>& args, std::ostream& out, std::
     }
 
     json value;
-    std::vector<DuplicateKey> duplicates;
-    if (!ReadSchemaFile(options.schema_path, value, duplicates, err)) {
+    SchemaScan scan;
+    if (!ReadSchemaFile(options.schema_path, value, scan, err)) {
         return 3;
+    }
+    if (scan.nested_too_deep) {
+        const Diagnostic nested{options.schema_path, std::string(kRootPointer),
+                                "schema is nested too deeply (more than 64 levels)", ""};
+        err << FormatDiagnostic(nested) << "\n";
+        return 1;
     }
 
     std::vector<Diagnostic> schema_diagnostics;
     const std::optional<Schema> schema =
-        LoadSchema(value, options.schema_path, duplicates, schema_diagnostics);
+        LoadSchema(value, options.schema_path, scan, schema_diagnostics);
     if (!schema.has_value()) {
         for (const Diagnostic& diagnostic : schema_diagnostics) {
             err << FormatDiagnostic(diagnostic) << "\n";
