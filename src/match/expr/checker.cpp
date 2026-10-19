@@ -751,13 +751,11 @@ private:
             return Narrowed{Type::kBool, bound, bound};
         }
         if (symbol == "<" || symbol == "<=" || symbol == ">" || symbol == ">=") {
-            // INFO: the evaluator orders two strings as well as two numbers, so
-            // the checker accepts both and rejects a mixture.
-            const bool numbers = IsNumber(left->type) && IsNumber(right->type);
-            const bool strings =
-                left->type == Type::kString && right->type == Type::kString;
-            if (!numbers && !strings) {
-                if (IsSet(left->type) || IsSet(right->type)) {
+            // INFO: v1 orders neither strings (byte order here, UTF-16 code
+            // units in the phase 2b client) nor sets, so both need numbers.
+            if (!IsNumber(left->type) || !IsNumber(right->type)) {
+                if (IsSet(left->type) || IsSet(right->type) ||
+                    left->type == Type::kString || right->type == Type::kString) {
                     Error("operator " + symbol + " needs numbers");
                 } else {
                     Error("cannot compare " + TypeName(left->type) + " with " +

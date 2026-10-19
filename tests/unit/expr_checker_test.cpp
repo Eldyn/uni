@@ -96,6 +96,18 @@ TEST_CASE("member_sets_compare_by_equality_only") {
                    "operator < needs numbers"));
 }
 
+TEST_CASE("ordered_comparison_rejects_strings") {
+    CHECK(Mentions(Check("'a' < 'b'"), "operator < needs numbers"));
+    CHECK(Mentions(Check("'a' <= 'b'"), "operator <= needs numbers"));
+    CHECK(Mentions(Check("'b' > 'a'"), "operator > needs numbers"));
+    CHECK(Mentions(Check("'a' >= 1"), "operator >= needs numbers"));
+    CHECK(Mentions(Check("'a' < $played.color"), "operator < needs numbers"));
+
+    const CheckResult equal = Check("'a' == 'b'");
+    REQUIRE(equal.diagnostics.empty());
+    CHECK(equal.type == Type::kBool);
+}
+
 TEST_CASE("unknown_variable_and_bare_name") {
     CHECK(Mentions(Check("$nope"), "unknown variable $nope"));
     CHECK(Mentions(Check("hand_size"),

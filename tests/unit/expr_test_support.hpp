@@ -64,8 +64,8 @@ inline Schema MakeTestSchema() {
 // set is an array of member names, a seat is a seat name, a card is an object
 // `{ "name", "properties", "tags" }` and a card set is an array of those. A
 // float may be the string "nan", "inf" or "-inf" because JSON has no such
-// literals. A write succeeds only for a property the world already holds, so an
-// assignment to an unknown key reports `write_failed`.
+// literals. A property the schema does not declare is decoded from its JSON
+// kind alone.
 class JsonWorld : public EvalContext {
 public:
     static constexpr EntityRef kMatchEntity{Type::kMatch, 0};
@@ -202,8 +202,8 @@ public:
         }
     }
 
-    // INFO: decodes a JSON value without a declared type; used for the value an
-    // assignment leaves in its target.
+    // INFO: decodes a JSON value without a declared type; used for a property
+    // the schema does not declare.
     bool DecodeNatural(const json& value, Value& out, std::string& error) {
         if (value.is_boolean()) {
             out = Value(value.get<bool>());
