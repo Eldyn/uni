@@ -68,7 +68,7 @@
 		<button
 			type="button"
 			role="tab"
-			class="slot-tab font-tiny"
+			class="slot-tab pixel-bordered font-tiny"
 			data-tab-id={tab.id}
 			aria-selected={tab.id === active}
 			tabindex={tab.id === active ? 0 : -1}
@@ -93,21 +93,18 @@
 
 	.slot-tab {
 		padding: 0.35rem 0.7rem;
-		border: 2px solid var(--border);
-		background: var(--surface);
 		color: var(--text-h);
 		cursor: pointer;
-		/* INFO: tabs are square tiles, so they opt out of the global notch clip. */
-		clip-path: none;
+		--pc-fill: var(--surface);
 	}
 
 	.slot-tab:hover {
-		border-color: var(--accent);
+		--pc-border: var(--accent);
 	}
 
 	.slot-tab[aria-selected="true"] {
-		border-color: var(--accent);
-		background: var(--accent-bg);
+		--pc-border: var(--accent);
+		--pc-fill: var(--surface-deep);
 		color: var(--accent);
 	}
 </style>
