@@ -56,6 +56,16 @@
 
 	const saved = $derived<Loadout>(storeAvatar.loadout ?? defaultLoadout());
 	let draft = $state<Loadout>(cloneLoadout(storeAvatar.loadout ?? defaultLoadout()));
+	/** True once the player changes the draft, so a late loadout never overwrites it. */
+	let userEdited = $state(false);
+
+	// INFO: the App hydrates the loadout after the session check, so a wardrobe
+	// opened before that adopts the saved look for as long as the draft is untouched.
+	$effect(() => {
+		if (storeAvatar.loadout !== null && !userEdited) {
+			draft = cloneLoadout(storeAvatar.loadout);
+		}
+	});
 
 	let activeTab = $state<AvatarSlot>("shape");
 	let confirmOpen = $state(false);
@@ -174,14 +184,18 @@
 	}
 
 	function equipCard(item: CatalogueItem): void {
+		userEdited = true;
 		draft = equip(draft, catalogue, item);
 	}
 
 	function clearSlot(): void {
-		if (activeTab !== "shape") draft = unequip(draft, activeTab);
+		if (activeTab === "shape") return;
+		userEdited = true;
+		draft = unequip(draft, activeTab);
 	}
 
 	function pickColour(slot: AvatarSlot, region: number, swatchId: string): void {
+		userEdited = true;
 		draft = setColour(draft, slot, region, swatchId);
 	}
 
@@ -191,6 +205,7 @@
 		const result = await storeAvatar.save(cloneLoadout(draft));
 		if (result.ok) {
 			saveError = null;
+			userEdited = false;
 			return;
 		}
 		saveError = result.code;
@@ -200,6 +215,7 @@
 	}
 
 	function revert(): void {
+		userEdited = false;
 		draft = cloneLoadout(saved);
 	}
 
@@ -224,7 +240,13 @@
 	}
 
 	onMount(() => {
-		if (!guest) void storeShop.fetchMine?.();
+		if (!guest) {
+			// INFO: the deep-link fallback; the App's hydration is the primary path.
+			if (storeAvatar.loadout === null && storeAvatar.status === "idle") {
+				void storeAvatar.fetchMine();
+			}
+			void storeShop.fetchMine?.();
+		}
 		storeNavigation.setLeaveGuard(guardLeave);
 		return () => storeNavigation.setLeaveGuard(null);
 	});
