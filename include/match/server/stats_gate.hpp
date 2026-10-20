@@ -4,6 +4,10 @@
 #include <utility>
 #include <vector>
 
+namespace match::modload {
+struct LoadedMod;
+}
+
 /**
  * @file stats_gate.hpp
  * @brief Stats gate: a pure comparator deciding whether a
@@ -15,11 +19,11 @@
  * placements are recorded for every match regardless (match history stays
  * complete); this gate governs ONLY the per-player aggregate update.
  *
- * The comparator is pure: no DB, no file IO, no mutable globals beyond the
- * constant uni deck. `ExpandKindMultiset` turns a `DeckDef::cards`
- * kind -> count list into a sorted vector of kind string IDs (one entry per
- * card copy), and `DeckKindMultisetsEqual` is sorted-multiset equality over
- * those IDs.
+ * The comparator is pure: no DB, no file IO, no mutable globals. The classic
+ * deck is expanded from the already-loaded `uni:classic` data deck.
+ * `ExpandKindMultiset` turns a `DeckDef::cards` kind -> count list into a
+ * sorted vector of kind string IDs (one entry per card copy), and
+ * `DeckKindMultisetsEqual` is sorted-multiset equality over those IDs.
  *
  * ADDITIVE: new `match::server` files only. The controller wires the gate into
  * the new-engine match-end stats path; the old-engine `MatchInstance` path is
@@ -31,12 +35,17 @@ namespace match::server {
 /**
  * @brief The uni classic deck as kind -> count pairs (`DeckDef::cards`).
  *
- * Mirrors `mods/uni/decks/classic.json`: four colours of 0 x1, 1-9 x2,
- * skip x2, reverse x2, draw2 x2, plus wild x4 and wild_draw4 x4 (108 cards).
+ * Expands the `uni:classic` data deck from the loaded mods with the `uni`
+ * mod's manifest default settings. The shipped data file is
+ * `mods/uni/decks/classic.json`: four colours of 0 x1, 1-9 x2, skip x2,
+ * reverse x2, draw2 x2, plus wild x4 and wild_draw4 x4 (108 cards, 54 kinds).
  *
- * @return The canonical uni classic deck cards, in declaration order.
+ * @param mods The loaded mods contributing schemas.
+ * @return The expanded uni classic deck cards, or an empty list when the
+ *         `uni` mod is absent or the deck does not expand.
  */
-const std::vector<std::pair<std::string, int>>& UniClassicDeckCards();
+std::vector<std::pair<std::string, int>> UniClassicDeckCards(
+    const std::vector<match::modload::LoadedMod>& mods);
 
 /**
  * @brief Expand a kind -> count list into a sorted multiset of kind IDs.
@@ -65,13 +74,16 @@ bool DeckKindMultisetsEqual(const std::vector<std::string>& lhs,
 /**
  * @brief The gate: may `player_stats` be updated for this match?
  *
- * @param mods       The match's active mod set (must be exactly `["uni"]`).
- * @param deck_cards The match deck's kind -> count list.
- * @return true when mods is exactly `{"uni"}` and the deck kind multiset
- *         equals the uni classic deck multiset.
+ * @param mods        The match's active mod set (must be exactly `["uni"]`).
+ * @param deck_cards  The match deck's kind -> count list.
+ * @param loaded_mods The loaded mods used to expand the classic deck.
+ * @return true when mods is exactly `{"uni"}`, the expanded classic deck is
+ *         non-empty, and the deck kind multiset equals it.
  */
 bool StatsGateAllows(const std::vector<std::string>& mods,
                      const std::vector<std::pair<std::string, int>>&
-                         deck_cards);
+                         deck_cards,
+                     const std::vector<match::modload::LoadedMod>&
+                         loaded_mods);
 
 }  // namespace match::server

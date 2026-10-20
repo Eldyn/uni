@@ -1763,13 +1763,15 @@ TEST_CASE("match end: a deck that requires uni resolves to the base mod") {
 
     Lobby* lobby = f.lobby.GetLobbyByCode(code);
     REQUIRE(lobby != nullptr);
+    const auto shipped = ShippedMods();
+    REQUIRE(!shipped.empty());
     json deck = json{{"id", "classic"},
                      {"name", "Classic"},
                      {"namespace", "uni"},
                      {"mods", json::array({"uni"})},
                      {"cards", json::object()}};
     for (const auto& [kind, count] :
-         match::server::UniClassicDeckCards()) {
+         match::server::UniClassicDeckCards(shipped)) {
         deck["cards"][kind] = count;
     }
     lobby->settings.deck = std::move(deck);
@@ -1833,13 +1835,15 @@ TEST_CASE("match end: changed deck multiset keeps player_stats untouched") {
     //       must reject it.
     Lobby* lobby = f.lobby.GetLobbyByCode(code);
     REQUIRE(lobby != nullptr);
+    const auto shipped = ShippedMods();
+    REQUIRE(!shipped.empty());
     json deck = json{{"id", "classic"},
                      {"name", "Classic"},
                      {"namespace", "uni"},
                      {"mods", json::array({"uni"})},
                      {"cards", json::object()}};
     for (const auto& [kind, count] :
-         match::server::UniClassicDeckCards()) {
+         match::server::UniClassicDeckCards(shipped)) {
         deck["cards"][kind] = count;
     }
     deck["cards"]["uni:red_0"] = 2;

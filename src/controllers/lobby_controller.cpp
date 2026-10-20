@@ -157,9 +157,9 @@ void AppendActiveMods(match::modload::DeckDef& def,
  * @brief Resolves the deck definition a lobby's settings describe.
  *
  * Mirrors `HandleStartGame`'s selection (deck snapshot when present, else the
- * expanded freestyle deck) so the match-end persistence path evaluates the
- * stats gate on the same mod set / card multiset the match was assembled
- * from.
+ * expanded freestyle deck). The match-end path resolves against the current
+ * mods scan, so a mods tree changed mid-match can differ from what the match
+ * was assembled from; the stats gate then fails closed.
  *
  * @param mods     Loaded mods available to expand a freestyle deck.
  * @param settings Lobby settings to resolve.
@@ -441,7 +441,8 @@ void LobbyController::RecordMatchResult(Lobby& lobby,
         ResolveMatchDeck(snapshot->loaded.mods, lobby.settings);
     const bool stats_allowed =
         !lobby.settings.creative &&
-        match::server::StatsGateAllows(deck.mods, deck.cards);
+        match::server::StatsGateAllows(deck.mods, deck.cards,
+                                       snapshot->loaded.mods);
 
     const json state = lobby.session->Engine().ExportState();
     const std::vector<std::string> placements =
