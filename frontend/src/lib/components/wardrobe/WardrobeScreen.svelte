@@ -137,6 +137,7 @@
 	const lockedLabel = $derived(
 		wardrobeText("wardrobe_swatch_locked", "Buy this color in the Shop", locale)
 	);
+	const palettesLabel = $derived(wardrobeText("wardrobe_palettes", "Palettes", locale));
 	const leaveTitle = $derived(
 		wardrobeText("wardrobe_leave_title", "Leave without saving?", locale)
 	);
@@ -257,9 +258,10 @@
 				<ColourRow
 					regions={1}
 					colours={[draft.skin]}
-					{swatches}
+					palettes={catalogue.palettes}
 					locked={lockedSwatches}
 					{lockedLabel}
+					paletteLabel={palettesLabel}
 					onlocked={() => storeNavigation.goto("shop")}
 					regionLabels={[skinLabel]}
 					label={skinLabel}
@@ -289,9 +291,10 @@
 					<ColourRow
 						regions={activeItem.regions}
 						colours={activeChoice?.colours ?? []}
-						{swatches}
+						palettes={catalogue.palettes}
 						locked={lockedSwatches}
 						{lockedLabel}
+						paletteLabel={palettesLabel}
 						onlocked={() => storeNavigation.goto("shop")}
 						{regionLabels}
 						label={coloursLabel}

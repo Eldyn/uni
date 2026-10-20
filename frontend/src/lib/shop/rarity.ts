@@ -4,7 +4,7 @@
  */
 
 import { RARITIES } from "$lib/avatar/types";
-import type { Rarity } from "$lib/avatar/types";
+import type { Palette, Rarity } from "$lib/avatar/types";
 import { HOME_BACKGROUND_HINT_HEX, hexToCss } from "$lib/shaders/homePalette";
 
 /** The border and badge colour for each rarity. */
@@ -24,6 +24,15 @@ export function rarityLabelColour(rarity: Rarity): string {
 /** Sort order: basic, common, rare, epic, special. */
 export function compareRarity(a: Rarity, b: Rarity): number {
 	return RARITIES.indexOf(a) - RARITIES.indexOf(b);
+}
+
+/** A starter palette is basic; any other takes its highest swatch rarity. */
+export function paletteRarity(palette: Palette): Rarity {
+	if (palette.starter === true) return "basic";
+	return palette.swatches.reduce<Rarity>((top, swatch) => {
+		const rarity = swatch.rarity ?? "common";
+		return compareRarity(rarity, top) > 0 ? rarity : top;
+	}, "common");
 }
 
 /** The paraglide message key that names a rarity. */

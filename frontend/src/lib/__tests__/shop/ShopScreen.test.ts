@@ -276,18 +276,21 @@ describe("ShopScreen", () => {
 		expect(container.querySelectorAll(".shop-backdrop")).toHaveLength(1);
 	});
 
-	it("lists the paid swatches in the Palettes tab", async () => {
+	it("shows each paid palette as one card with its colors", async () => {
 		const { container } = render(ShopScreen);
 		flushSync();
 
 		await fireEvent.click(screen.getByRole("tab", { name: "Palettes" }));
 
-		expect(cardIds(container)).toEqual(["uni:neon:hot", "uni:neon:volt"]);
+		expect(cardIds(container)).toEqual(["uni:neon"]);
+		const cells = [
+			...cardFor(container, "uni:neon").querySelectorAll<HTMLElement>(".palette-cell")
+		];
+		expect(cells.map((cell) => cell.dataset.hex)).toEqual(["#ff2d95", "#00e5ff"]);
 		expect(screen.getByText("250")).toBeInTheDocument();
-		expect(screen.getByText("600")).toBeInTheDocument();
 	});
 
-	it("buys a swatch and marks it owned", async () => {
+	it("buys a swatch from the palette detail", async () => {
 		shopMock.buy.mockImplementation(async (id: string): Promise<BuyResult> => {
 			shopMock.owned.add(id);
 			shopMock.balance = 1250;
@@ -297,11 +300,33 @@ describe("ShopScreen", () => {
 		flushSync();
 
 		await fireEvent.click(screen.getByRole("tab", { name: "Palettes" }));
-		await fireEvent.click(cardFor(container, "uni:neon:hot"));
-		await fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "BUY" }));
+		await fireEvent.click(cardFor(container, "uni:neon"));
+		const dialog = screen.getByRole("dialog");
+		await fireEvent.click(dialog.querySelector('[data-swatch-id="uni:neon:hot"]')!);
+		await fireEvent.click(within(dialog).getByRole("button", { name: "BUY" }));
 
 		await vi.waitFor(() => expect(shopMock.buy).toHaveBeenCalledWith("uni:neon:hot"));
-		expect(container.querySelector("[data-balance]")?.getAttribute("data-balance")).toBe("1250");
-		expect(screen.getAllByText("OWNED")).toHaveLength(1);
+		expect(within(dialog).getByText("You already own this.")).toBeInTheDocument();
+	});
+
+	it("tries a palette color on the banner preview", async () => {
+		setCatalogueForTest(fixture({ featured: ["uni:hat_cap"] }));
+		const { container } = render(ShopScreen);
+		flushSync();
+
+		await fireEvent.click(screen.getByRole("tab", { name: "Palettes" }));
+		await fireEvent.click(cardFor(container, "uni:neon"));
+		await fireEvent.click(
+			screen.getByRole("dialog").querySelector('[data-swatch-id="uni:neon:volt"]')!
+		);
+
+		expect(bakedSets).toContainEqual(
+			expect.objectContaining({
+				skin: "uni:neon:volt",
+				slots: expect.objectContaining({
+					head_top: expect.objectContaining({ item: "uni:hat_cap" })
+				})
+			})
+		);
 	});
 });
