@@ -140,6 +140,17 @@ struct MatchRegistries {
     ops::TableRegistry tables;
 
     /**
+     * @brief Frozen card-schema data for the card-state ops.
+     *
+     * Filled once at assembly from the active mods' card schemas and their
+     * generated cards, then read-only during play.
+     */
+    std::map<std::string, std::map<std::string, std::string>> kind_slot_members;
+    std::map<std::string, std::string> attribute_visibility;
+    std::map<std::string, std::string> member_attribute;
+    std::map<std::string, cardschema::PropertyDef> card_properties;
+
+    /**
      * @brief Frozen full-`namespace:id` -> entity def for this match.
      *
      * Same per-match rule as `tables`: filled once at assembly from the active

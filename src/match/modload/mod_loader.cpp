@@ -2972,6 +2972,7 @@ LoadResult ScanModsDirectory(const std::string& root) {
              *       `modload::CardActive`; the loader drops a card whose
              *       required mod did not load. */
             card.requires_mods = generated.requires_mods;
+            card.slot_members = generated.slot_members;
             card.template_id = generated.template_id;
             entry.mod.cards.push_back(std::move(card));
         }

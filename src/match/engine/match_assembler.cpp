@@ -564,6 +564,28 @@ AssemblyResult MatchAssembler::Assemble(
         }
     }
 
+    // INFO: card-schema catalog data for the card-state ops. Only the active
+    //       mods contribute, so an inactive mod's members never reach a match.
+    for (const modload::LoadedMod* mod : active) {
+        for (const cardschema::AttributeDef& attribute :
+             mod->card_schema.attributes) {
+            registries.attribute_visibility[attribute.identifier] =
+                attribute.visibility;
+        }
+        for (const cardschema::MemberDef& member : mod->card_schema.members) {
+            registries.member_attribute[member.identifier] = member.attribute;
+        }
+        for (const cardschema::PropertyDef& property :
+             mod->card_schema.properties) {
+            if (property.scope == "card") {
+                registries.card_properties[property.identifier] = property;
+            }
+        }
+    }
+    for (const modload::CardDef& card : active_cards) {
+        registries.kind_slot_members[card.kind_id] = card.slot_members;
+    }
+
     // INFO: mutations are applied at assembly, not walk time.
     //       Collect them per target in the frozen mod-list order (priority).
     std::map<std::string, std::vector<const modload::MutationDef*>>

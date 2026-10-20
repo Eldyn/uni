@@ -145,6 +145,8 @@ struct CardDef {
      * drops a card whose required mod did not load.
      */
     std::vector<std::string> requires_mods;
+    /** Slot name -> member identifier the generated card was dealt with. */
+    std::map<std::string, std::string> slot_members;
     std::string template_id;                /**< Kind template the card came from. */
     std::vector<BehaviorEntry> behaviors;
     std::optional<WindowSpec> window;
