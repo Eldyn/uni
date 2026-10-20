@@ -301,7 +301,7 @@ json ProjectCardChanged(const match::engine::MatchInstance& match,
     //       get its own card identity, or it cannot apply the change. Limbo
     //       and out-of-play cards have no public identity, so omit the bits.
     const bool identity_public =
-        in_zone != nullptr && in_zone->zone.kind != ecs::ZoneKind::kLimbo;
+        in_zone != nullptr && CardStateIdentityAllowed(in_zone->zone.kind);
     if (payload.contains("card") && identity_public) {
         CopyCardBits(match, payload, out);
     }

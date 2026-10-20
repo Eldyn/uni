@@ -1,5 +1,6 @@
 #pragma once
 
+#include <match/ecs/components.hpp>
 #include <match/ecs/entity_store.hpp>
 #include <match/view/event_audience.hpp>
 #include <match/view/view_builder.hpp>
@@ -75,6 +76,16 @@ SeatRoles ResolveSeatRoles(const match::engine::MatchInstance& match,
  */
 bool IsCardHiddenFrom(const match::engine::MatchInstance& match,
                       ecs::Entity card, const Viewer& viewer);
+
+/**
+ * @brief True when a card in `kind` may carry a card-state identity.
+ *
+ * The hand (subject to the owner/redaction rules) and the discard pile
+ * (public) do. The draw pile keeps its order hidden and a limbo card is out
+ * of play, so neither carries an identity. This is the one rule shared by the
+ * `card_changed` projection and the snapshot `card_state`.
+ */
+bool CardStateIdentityAllowed(ecs::ZoneKind kind);
 
 /**
  * @brief Project the payload of a mod event for one viewer.

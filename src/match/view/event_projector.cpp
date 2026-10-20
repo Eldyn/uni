@@ -175,6 +175,11 @@ SeatRoles ResolveSeatRoles(const match::engine::MatchInstance& match,
     return roles;
 }
 
+bool CardStateIdentityAllowed(ecs::ZoneKind kind) {
+    return kind == ecs::ZoneKind::kHand
+           || kind == ecs::ZoneKind::kDiscardPile;
+}
+
 bool IsCardHiddenFrom(const match::engine::MatchInstance& match,
                       ecs::Entity card, const Viewer& viewer) {
     const ecs::InZone* in_zone = match.Store().Get<ecs::InZone>(card);
