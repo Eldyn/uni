@@ -25,6 +25,8 @@ import { storeGame } from "$stores/game.svelte";
 import { storeMatchIntro } from "$stores/matchIntro.svelte";
 import { storeMatRipple, MAT_INITIAL_COLOR } from "$components/game/three/ripple/matRipple.svelte";
 import { CARD_COLOR_MAP } from "$lib/palette";
+import { loadTexture } from "$components/game/three/textures";
+import { storeCosmetics } from "$stores/cosmetics.svelte";
 import type { MatPlacement } from "$components/game/layout/playmat";
 import type { ViewportInfo } from "$components/game/layout/seatLayout";
 import { DESKTOP_MAT_SHEET, PHONE_MAT_SHEET } from "$components/game/layout/playmat";
@@ -366,5 +368,57 @@ describe("Playmat3D turn loop", () => {
 		loop = uniformSets().find((uniforms) => "uLoopLength" in uniforms)!;
 		const phone = fittedLoopRect(PHONE_MAT_SHEET);
 		expect((loop.uLoopHalfSize.value as THREE.Vector2).x).toBeCloseTo(phone.halfWidth);
+	});
+});
+
+describe("Playmat3D playmat skins", () => {
+	beforeEach(() => {
+		vi.mocked(loadTexture).mockClear();
+		resetMockState();
+		storeGame.state = { active_type: "red", play_direction: 1 } as never;
+		storeCosmetics.reset();
+	});
+
+	afterEach(() => {
+		cleanup();
+		vi.restoreAllMocks();
+		vi.mocked(loadTexture).mockResolvedValue(new THREE.Texture());
+		storeGame.state = null;
+		storeMatchIntro.end();
+		storeMatRipple.reset();
+		storeCosmetics.reset();
+	});
+
+	it("loads the desktop sheet on a landscape viewport", async () => {
+		render(Playmat3D, { props: { mat, viewport } });
+		await flush();
+
+		expect(loadTexture).toHaveBeenCalledWith("/assets/playmat.png");
+	});
+
+	it("loads the mobile sheet on a phone viewport", async () => {
+		const phoneViewport: ViewportInfo = { width: 390, height: 844, orientation: "portrait" };
+		render(Playmat3D, { props: { mat, viewport: phoneViewport } });
+		await flush();
+
+		expect(loadTexture).toHaveBeenCalledWith("/assets/mobile_playmat.png");
+	});
+
+	it("reloads the sheet when the equipped playmat changes", async () => {
+		const baseTexture = new THREE.Texture();
+		const duskTexture = new THREE.Texture();
+		vi.mocked(loadTexture).mockImplementation(async (url: string) =>
+			url.includes("/playmat/dusk") ? duskTexture : baseTexture
+		);
+
+		render(Playmat3D, { props: { mat, viewport } });
+		await flush();
+		expect(feltUniforms().uMap.value).toBe(baseTexture);
+
+		storeCosmetics.slots = { ...storeCosmetics.slots, playmat: "uni:playmat_dusk" };
+		await flush();
+
+		expect(loadTexture).toHaveBeenCalledWith("/assets/playmat/dusk.png");
+		expect(feltUniforms().uMap.value).toBe(duskTexture);
 	});
 });
