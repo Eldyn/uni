@@ -103,6 +103,7 @@ version; each release below corresponds to a `vX.Y.Z` git tag.
 
 ### Changed
 
+- **Marketplace landing** — the Shop opens on a Minecraft-style landing page with a hero row, Character/Table/Collections categories, a secondary sidebar, rarity/name filters, wishlist toggles and counts, a 7-day popular shelf, and the Blank balance chip in the top bar.
 - **Marketplace backend** — a private wishlist, a 7-day most-bought ranking with wishlist counts, and equipped card-face, card-back and playmat skins are served by new authenticated routes.
 - **Internal: lobbies share one mod set** — `LobbyController::ActiveModSet` hands every match that plays the same mods (same content hashes) one immutable `shared_ptr<const std::vector<LoadedMod>>`, and `MatchSession` keeps that pointer instead of a copy, so a lobby no longer pays 1.3 MB for its own copy of the mods: creation drops from 2.4 MB to 1.0 MB per lobby and a 16-seat match ends at 2.3 MB (`uni_soak`). No wire change.
 - **Internal: a match frees its engine events once they are sent** — `MatchSession::EmitEvents` now drains `MatchInstance::Events()` after the sinks and the tail have read them, so the log no longer grows for the whole match: a 16-seat lobby ends a match at about 3.6 MB instead of 8.2 MB, a 4-seat lobby at 3.0 MB instead of 4.0 MB (`uni_soak`). No wire change.
