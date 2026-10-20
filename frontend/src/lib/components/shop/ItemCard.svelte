@@ -27,6 +27,7 @@
 
 <script lang="ts">
 	import AvatarFit from "$components/common/AvatarFit.svelte";
+	import BlankIcon from "$components/common/BlankIcon.svelte";
 	import RarityFrame from "$components/shop/RarityFrame.svelte";
 	import { itemPreviewLoadout } from "$lib/avatar/previewLoadout";
 	import type { Loadout } from "$lib/avatar/types";
@@ -48,6 +49,7 @@
 	} = $props();
 
 	const locale = $derived(storeI18n.locale);
+	const currencyName = $derived(shopItemText("shop_currency_name", "Blank", locale));
 	const name = $derived(shopItemText(itemLabelKey(item.id), item.id, locale));
 	const ownedLabel = $derived(shopItemText("shop_owned", "OWNED", locale));
 	const preview = $derived(itemPreviewLoadout(item, loadout, owned));
@@ -78,7 +80,7 @@
 			<span class="item-owned font-tiny">{ownedLabel}</span>
 		{:else}
 			<span class="item-price font-pixel">
-				<span class="coin" aria-hidden="true"></span>{item.price}
+				<BlankIcon label={currencyName} />{item.price}
 			</span>
 		{/if}
 	</RarityFrame>
@@ -155,19 +157,11 @@
 	}
 
 	.item-price {
-		color: var(--gold);
+		color: var(--accent);
 	}
 
 	.item-owned {
 		color: var(--accent);
 		letter-spacing: 0.06em;
-	}
-
-	.coin {
-		display: inline-block;
-		width: 0.6em;
-		height: 0.6em;
-		border-radius: 50%;
-		background: var(--gold);
 	}
 </style>

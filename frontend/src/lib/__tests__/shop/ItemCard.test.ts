@@ -66,6 +66,7 @@ describe("ItemCard", () => {
 	it("shows the price for an unowned item and no OWNED ribbon", () => {
 		renderCard(makeItem({ price: 250 }));
 		expect(screen.getByText("250")).toBeInTheDocument();
+		expect(screen.getByRole("img", { name: "Blank" })).toBeInTheDocument();
 		expect(screen.queryByText("OWNED")).toBeNull();
 	});
 
