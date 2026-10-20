@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render } from "@testing-library/svelte";
 import { storeAuth } from "$lib/stores/auth.svelte";
+import { storeAvatar } from "$stores/avatar.svelte";
 import { storeToast } from "$lib/stores/toast.svelte";
 import { storeNavigation } from "$lib/stores/navigation.svelte";
 import * as m from "$lib/paraglide/messages.js";
@@ -33,6 +34,11 @@ vi.mock("$lib/stores/lobby.svelte", () => ({
 }));
 vi.mock("$stores/session", () => ({ installSessionResets: vi.fn() }));
 
+const { fetchMine } = vi.hoisted(() => ({ fetchMine: vi.fn() }));
+vi.mock("$stores/avatar.svelte", () => ({
+	storeAvatar: { loadout: null, status: "idle", fetchMine }
+}));
+
 vi.mock("$lib/stores/auth.svelte", () => ({
 	storeAuth: {
 		username: "eldyn",
@@ -52,11 +58,79 @@ describe("App", () => {
 		vi.mocked(storeAuth).isLoggedIn = false;
 		vi.mocked(storeAuth).isGuest = false;
 		vi.mocked(storeAuth).emailVerified = false;
+		(storeAvatar as { loadout: unknown }).loadout = null;
+		(storeAvatar as { status: string }).status = "idle";
+		fetchMine.mockReset();
+		fetchMine.mockResolvedValue(undefined);
 		storeNavigation.pendingVerifyCode = null;
 		storeNavigation.activeVerifyCode = null;
 		storeNavigation.current = "main";
 		storeNavigation.initialScreen = null;
 		storeNavigation.deferredScreen = null;
+	});
+
+	it("hydrates the avatar loadout after a logged-in session check", async () => {
+		vi.mocked(storeAuth).isLoggedIn = true;
+
+		render(App);
+
+		await vi.waitFor(() => {
+			expect(fetchMine).toHaveBeenCalledTimes(1);
+		});
+	});
+
+	it("hydrates the loadout before applying a deferred deep link", async () => {
+		vi.mocked(storeAuth).isLoggedIn = true;
+		storeNavigation.deferredScreen = "wardrobe";
+		const calls: string[] = [];
+		fetchMine.mockImplementation(async () => {
+			calls.push("fetch");
+		});
+		const applySpy = vi.spyOn(storeNavigation, "applyInitialScreen").mockImplementation(() => {
+			calls.push("apply");
+		});
+
+		render(App);
+
+		await vi.waitFor(() => {
+			expect(applySpy).toHaveBeenCalled();
+		});
+		expect(calls).toEqual(["fetch", "apply"]);
+	});
+
+	it("does not hydrate the loadout for a guest", async () => {
+		vi.mocked(storeAuth).isGuest = true;
+
+		render(App);
+
+		await vi.waitFor(() => {
+			expect(vi.mocked(storeAuth).checkSession).toHaveBeenCalled();
+		});
+		expect(fetchMine).not.toHaveBeenCalled();
+	});
+
+	it("does not refetch a loadout that is already hydrated", async () => {
+		vi.mocked(storeAuth).isLoggedIn = true;
+		(storeAvatar as { loadout: unknown }).loadout = { shape: "uni:shape_round" };
+
+		render(App);
+
+		await vi.waitFor(() => {
+			expect(vi.mocked(storeAuth).checkSession).toHaveBeenCalled();
+		});
+		expect(fetchMine).not.toHaveBeenCalled();
+	});
+
+	it("does not start a second fetch while one is already in flight", async () => {
+		vi.mocked(storeAuth).isLoggedIn = true;
+		(storeAvatar as { status: string }).status = "loading";
+
+		render(App);
+
+		await vi.waitFor(() => {
+			expect(vi.mocked(storeAuth).checkSession).toHaveBeenCalled();
+		});
+		expect(fetchMine).not.toHaveBeenCalled();
 	});
 
 	it("applies a deferred /wardrobe deep link once the session resolves", async () => {

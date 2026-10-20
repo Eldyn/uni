@@ -35,6 +35,7 @@
 	import { storeAudio } from "./lib/stores/audio.svelte";
 	import { storeOrientation } from "./lib/stores/orientation.svelte";
 	import { storeLobby } from "./lib/stores/lobby.svelte";
+	import { storeAvatar } from "$stores/avatar.svelte";
 	// Eagerly construct the game store so its WebSocket listeners (state capture
 	// and the lobby→game switch) are live from boot. Otherwise it would only load
 	// with the lazy GameScreen chunk and miss the match's first state broadcast,
@@ -128,6 +129,13 @@
 
 		await storeAuth.checkSession();
 		sessionChecked = true;
+
+		// The avatar store is otherwise only hydrated by the Profile screen, so
+		// a cold session would render the default look in the Wardrobe and the
+		// top bar. Guests have no saved loadout; skip them.
+		if (storeAuth.isLoggedIn && storeAvatar.loadout === null && storeAvatar.status === "idle") {
+			await storeAvatar.fetchMine();
+		}
 
 		// A guarded deep link (e.g. /wardrobe) lost its guard race at
 		// construction because the session was not restored yet; apply it now.
