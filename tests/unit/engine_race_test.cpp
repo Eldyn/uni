@@ -418,7 +418,9 @@ TEST_CASE("race: bot takeover after start does not move the target") {
     const ecs::Entity wild0 = wilds[0];
     const ecs::Entity wild1 = wilds[1];
 
-    match::server::MatchSession session(std::move(engine), {}, {});
+    match::server::MatchSession session(
+        std::move(engine),
+        std::vector<match::modload::LoadedMod>{}, {});
     MatchInstance& live = session.Engine();
     REQUIRE(session.HandSeatToBot("player3", "bot_three"));
     REQUIRE(session.HandSeatToBot("player2", "bot_two"));
