@@ -78,7 +78,8 @@ std::set<std::string> KeysOf(const TextsFileDef& file) {
 /** @brief Every key that an entry or a card of the mod points to. */
 std::set<std::string> KeysTheEntriesNeed(const LoadedMod& mod) {
     std::set<std::string> needed;
-    for (const auto& entry : match::modload::BuildGlossaryEntries(mod)) {
+    for (const auto& entry :
+         match::modload::BuildGlossaryEntries(mod, {mod.manifest.id})) {
         needed.insert(entry.label_key);
         needed.insert(entry.description_key);
     }
@@ -199,7 +200,8 @@ TEST_CASE("uni texts: the placeholders of a key are the same in every locale") {
 
 TEST_CASE("uni texts: every [k=...] link points to a glossary entry of the mod") {
     std::set<std::string> entry_ids;
-    for (const auto& entry : match::modload::BuildGlossaryEntries(UniMod())) {
+    for (const auto& entry : match::modload::BuildGlossaryEntries(
+             UniMod(), {UniMod().manifest.id})) {
         entry_ids.insert(entry.id);
     }
     static const std::regex link(R"(\[k=([^\]]+)\])");
@@ -220,7 +222,8 @@ TEST_CASE("uni texts: every [k=...] link points to a glossary entry of the mod")
 
 TEST_CASE("uni texts: the base glossary entries are the 15 explicit entries and the cards") {
     std::map<std::string, std::string> source_by_id;
-    for (const auto& entry : match::modload::BuildGlossaryEntries(UniMod())) {
+    for (const auto& entry : match::modload::BuildGlossaryEntries(
+             UniMod(), {UniMod().manifest.id})) {
         source_by_id[entry.id] = std::string(match::modload::GlossarySourceName(entry.source));
     }
     std::size_t explicit_count = 0;

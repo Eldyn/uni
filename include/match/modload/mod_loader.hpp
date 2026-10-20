@@ -66,6 +66,15 @@ bool IsValidLocalId(const std::string& id);
 bool IsValidKindId(const std::string& id);
 
 /**
+ * @brief True when every mod in `card.requires_mods` is in `active_mod_ids`.
+ *
+ * An empty `requires_mods` means the card is always active. A required mod that
+ * is not in the active list makes the card inactive.
+ */
+bool CardActive(const CardDef& card,
+                const std::vector<std::string>& active_mod_ids);
+
+/**
  * @brief The namespace rule: a mod defines ids only in its own namespace, and
  *        only the `uni` mod defines `uni:` ids.
  *

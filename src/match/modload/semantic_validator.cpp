@@ -647,7 +647,12 @@ class Checker {
    public:
     Checker(std::vector<const LoadedMod*> mods, bool match_set,
             const DeckDef* deck)
-        : mods_(std::move(mods)), match_set_(match_set), deck_(deck) {}
+        : mods_(std::move(mods)), match_set_(match_set), deck_(deck) {
+        active_mod_ids_.reserve(mods_.size());
+        for (const LoadedMod* mod : mods_) {
+            active_mod_ids_.push_back(mod->manifest.id);
+        }
+    }
 
     void Run() {
         CollectDeclarations();
@@ -689,6 +694,9 @@ class Checker {
         for (const LoadedMod* mod : mods_) {
             const std::string& ns = mod->manifest.id;
             for (const auto& card : mod->cards) {
+                // TODO(2a-2 T1): LoadedMod.cards still holds foreign cards;
+                // skip the ones whose mods are not active.
+                if (!CardActive(card, active_mod_ids_)) continue;
                 kind_ids_.insert(card.kind_id);
                 for (const auto& tag : card.tags) tags_.insert(tag);
                 for (const auto& be : card.behaviors) {
@@ -768,6 +776,9 @@ class Checker {
             }
             std::set<std::string> seen;
             for (const auto& card : mod->cards) {
+                // TODO(2a-2 T1): LoadedMod.cards still holds foreign cards;
+                // skip the ones whose mods are not active.
+                if (!CardActive(card, active_mod_ids_)) continue;
                 if (!IsValidLocalId(card.id)) {
                     buckets_.ids.push_back(Err("id.syntax", "cards", mod->path,
                                                "invalid card id '" + card.id
@@ -1905,7 +1916,7 @@ class Checker {
      *       A key without the namespace of the mod belongs to the core
      *       catalog of the interface; it is not checked here.
      *       The keys of the glossary entries join the used keys. */
-    static std::set<std::string> UsedTextKeys(const LoadedMod& mod) {
+    std::set<std::string> UsedTextKeys(const LoadedMod& mod) const {
         const std::string prefix = mod.manifest.id + ":";
         std::set<std::string> used;
         for (const BindingDef& binding : mod.bindings) {
@@ -1916,7 +1927,8 @@ class Checker {
                 }
             }
         }
-        for (const std::string& key : UsedGlossaryKeys(mod)) {
+        for (const std::string& key :
+             UsedGlossaryKeys(mod, active_mod_ids_)) {
             if (IsValidTextKey(key) && key.rfind(prefix, 0) == 0) {
                 used.insert(key);
             }
@@ -2040,6 +2052,9 @@ class Checker {
             if (file.locale == "en") english = &file;
         }
         for (const CardDef& card : mod.cards) {
+            // TODO(2a-2 T1): LoadedMod.cards still holds foreign cards; skip
+            // the ones whose mods are not active.
+            if (!CardActive(card, active_mod_ids_)) continue;
             if (replaced.count(card.kind_id) != 0) continue;
             const std::string path = mod.path + "/cards/" + card.id + ".json";
             const std::string owner = "card '" + card.kind_id + "'";
@@ -2373,6 +2388,9 @@ class Checker {
         for (const LoadedMod* mod : mods_) {
             const std::string& ns = mod->manifest.id;
             for (const auto& card : mod->cards) {
+                // TODO(2a-2 T1): LoadedMod.cards still holds foreign cards;
+                // skip the ones whose mods are not active.
+                if (!CardActive(card, active_mod_ids_)) continue;
                 for (const auto& be : card.behaviors) {
                     CheckHook(be, ns, "cards");
                     WalkGraph(be.graph,
@@ -3624,7 +3642,16 @@ class Checker {
                                         "mod list exceeds 256 mods"));
         }
         for (const LoadedMod* mod : mods_) {
-            if (mod->cards.size() > static_cast<std::size_t>(kMaxKindsPerMod)) {
+            // TODO(2a-2 T1): LoadedMod.cards still holds foreign cards; count
+            // only the ones whose mods are active.
+            const auto active_kind_count =
+                static_cast<std::size_t>(std::count_if(
+                    mod->cards.begin(), mod->cards.end(),
+                    [this](const CardDef& card) {
+                        return CardActive(card, active_mod_ids_);
+                    }));
+            if (active_kind_count
+                > static_cast<std::size_t>(kMaxKindsPerMod)) {
                 buckets_.deck.push_back(Err(
                     "deck.count", "deck", path,
                     "mod '" + mod->manifest.id + "' exceeds 4096 kinds"));
@@ -3750,6 +3777,7 @@ class Checker {
     }
 
     std::vector<const LoadedMod*> mods_;
+    std::vector<std::string> active_mod_ids_;
     bool match_set_ = false;
     const DeckDef* deck_ = nullptr;
 
@@ -3837,7 +3865,8 @@ std::vector<LoadError> ValidateAgainstSchema(
 std::vector<LoadError> SchemaErrors(
     const std::vector<const LoadedMod*>& mods,
     const SemanticValidator& validator,
-    const std::vector<const DeckDef*>& decks) {
+    const std::vector<const DeckDef*>& decks,
+    const std::vector<std::string>& active_mod_ids) {
     std::vector<LoadError> errors;
     for (const LoadedMod* mod : mods) {
         const std::string base = mod->path;
@@ -3853,6 +3882,9 @@ std::vector<LoadError> SchemaErrors(
              *       it and point the error at that entry's file. */
             const auto& compiled = validator.Schema(schema_files::kCards);
             for (const auto& card : mod->cards) {
+                // TODO(2a-2 T1): LoadedMod.cards still holds foreign cards;
+                // skip the ones whose mods are not active.
+                if (!CardActive(card, active_mod_ids)) continue;
                 std::vector<LoadError> local = ValidateAgainstSchema(
                     compiled, card.raw, "cards",
                     base + "/cards/" + card.id + ".json");
@@ -4027,8 +4059,10 @@ std::vector<LoadError> FirstFailingStage(
 std::vector<LoadError> SemanticValidator::ValidateMod(
     const LoadedMod& mod) const {
     std::vector<const LoadedMod*> mods = {&mod};
+    const std::vector<std::string> active_mod_ids = {mod.manifest.id};
     std::vector<LoadError> schema_errors =
-        SchemaErrors(mods, *this, std::vector<const DeckDef*>{});
+        SchemaErrors(mods, *this, std::vector<const DeckDef*>{},
+                     active_mod_ids);
     if (!schema_errors.empty()) return schema_errors;
 
     Checker checker(mods, /*match_set=*/false, nullptr);
@@ -4049,10 +4083,16 @@ std::vector<LoadError> SemanticValidator::ValidateMatchSet(
     const DeckDef& deck) const {
     std::vector<const LoadedMod*> mod_ptrs;
     mod_ptrs.reserve(mods.size());
-    for (const auto& mod : mods) mod_ptrs.push_back(&mod);
+    std::vector<std::string> active_mod_ids;
+    active_mod_ids.reserve(mods.size());
+    for (const auto& mod : mods) {
+        mod_ptrs.push_back(&mod);
+        active_mod_ids.push_back(mod.manifest.id);
+    }
 
     std::vector<const DeckDef*> decks = {&deck};
-    std::vector<LoadError> schema_errors = SchemaErrors(mod_ptrs, *this, decks);
+    std::vector<LoadError> schema_errors =
+        SchemaErrors(mod_ptrs, *this, decks, active_mod_ids);
     if (!schema_errors.empty()) return schema_errors;
 
     Checker checker(mod_ptrs, /*match_set=*/true, &deck);

@@ -2563,6 +2563,17 @@ bool IsValidKindId(const std::string& id) {
         && IsValidLocalId(id.substr(colon + 1));
 }
 
+bool CardActive(const CardDef& card,
+                const std::vector<std::string>& active_mod_ids) {
+    for (const std::string& required : card.requires_mods) {
+        if (std::find(active_mod_ids.begin(), active_mod_ids.end(), required)
+            == active_mod_ids.end()) {
+            return false;
+        }
+    }
+    return true;
+}
+
 std::string NamespaceRuleViolation(const std::string& mod_id,
                                    const std::string& full_id) {
     if (!IsValidKindId(full_id)) {

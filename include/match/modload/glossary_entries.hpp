@@ -87,17 +87,21 @@ struct GlossaryEntryView {
 
 /**
  * @brief The entries of one mod, sorted by id: one automatic entry for each
- *        card, and the explicit entries. An explicit entry replaces the
+ *        active card, and the explicit entries. An explicit entry replaces the
  *        automatic entry with the same id.
+ *
+ * A card whose `requires_mods` are not all in `active_mod_ids` is skipped.
  */
-std::vector<GlossaryEntryView> BuildGlossaryEntries(const LoadedMod& mod);
+std::vector<GlossaryEntryView> BuildGlossaryEntries(
+    const LoadedMod& mod, const std::vector<std::string>& active_mod_ids);
 
 /**
  * @brief The keys that the entries of the mod need in `en.json`: the keys of
- *        the explicit entries, and the keys that a card file declares (a
- *        derived key is not needed). The keys of a replaced automatic entry
+ *        the explicit entries, and the keys that an active card file declares
+ *        (a derived key is not needed). The keys of a replaced automatic entry
  *        are not listed.
  */
-std::set<std::string> UsedGlossaryKeys(const LoadedMod& mod);
+std::set<std::string> UsedGlossaryKeys(
+    const LoadedMod& mod, const std::vector<std::string>& active_mod_ids);
 
 }  // namespace match::modload

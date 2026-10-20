@@ -2,6 +2,7 @@
 
 #include "match/content_wiring.hpp"
 #include "match/engine/mutation_compiler.hpp"
+#include "match/modload/mod_loader.hpp"
 #include "match/ops/op_helpers.hpp"
 #include "match/rng.hpp"
 
@@ -504,6 +505,7 @@ AssemblyResult MatchAssembler::Assemble(
         std::vector<std::string> kinds;
         kinds.reserve(mod->cards.size());
         for (const modload::CardDef& card : mod->cards) {
+            if (!modload::CardActive(card, deck.mods)) continue;
             kinds.push_back(card.kind_id);
         }
         std::sort(kinds.begin(), kinds.end());
@@ -551,6 +553,7 @@ AssemblyResult MatchAssembler::Assemble(
     std::map<std::string, bool> numbered;
     for (const modload::LoadedMod* mod : active) {
         for (const modload::CardDef& card : mod->cards) {
+            if (!modload::CardActive(card, deck.mods)) continue;
             modload::PlayCardFacts facts;
             facts.color = card.face.color.value_or("");
             facts.value = card.face.label.value_or("");
@@ -582,6 +585,7 @@ AssemblyResult MatchAssembler::Assemble(
     std::set<std::string, std::less<>> declared_restrictions;
     for (const modload::LoadedMod* mod : active) {
         for (const modload::CardDef& card : mod->cards) {
+            if (!modload::CardActive(card, deck.mods)) continue;
             kind_ids.insert(card.kind_id);
             for (const modload::BehaviorEntry& entry : card.behaviors) {
                 CollectRestrictionEntryIds(entry.graph, declared_restrictions);
@@ -689,6 +693,7 @@ AssemblyResult MatchAssembler::Assemble(
             const int count = count_it == counts.end() ? 0 : count_it->second;
             const modload::CardDef* def = nullptr;
             for (const modload::CardDef& card : mod->cards) {
+                if (!modload::CardActive(card, deck.mods)) continue;
                 if (card.kind_id == kind_id) {
                     def = &card;
                     break;
@@ -859,6 +864,7 @@ AssemblyResult MatchAssembler::Assemble(
             }
         }
         for (const modload::CardDef& card : mod->cards) {
+            if (!modload::CardActive(card, deck.mods)) continue;
             for (const modload::BehaviorEntry& entry : card.behaviors) {
                 const std::optional<ecs::HookId> hook =
                     ResolveEntryHook(entry);
