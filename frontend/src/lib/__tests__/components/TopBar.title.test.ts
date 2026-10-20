@@ -21,18 +21,18 @@ describe("TopBar title", () => {
 		expect(getByRole("heading", { level: 1 })).toHaveTextContent("Decks");
 	});
 
-	it("centers the shop title in the middle slot", () => {
+	it("puts the shop title top left like every other screen", () => {
 		storeNavigation.current = "shop";
 		const { container } = render(TopBar);
-		expect(container.querySelector(".shell-topbar-content h1")).toHaveTextContent("Shop");
-		expect(container.querySelector(".shell-topbar-left h1")).toBeNull();
+		expect(container.querySelector(".shell-topbar-left h1")).toHaveTextContent("Shop");
+		expect(container.querySelector(".shell-topbar-content h1")).toBeNull();
 	});
 
-	it("centers the wardrobe title in the middle slot", () => {
+	it("puts the wardrobe title top left like every other screen", () => {
 		storeNavigation.current = "wardrobe";
 		const { container } = render(TopBar);
-		expect(container.querySelector(".shell-topbar-content h1")).toHaveTextContent("Wardrobe");
-		expect(container.querySelector(".shell-topbar-left h1")).toBeNull();
+		expect(container.querySelector(".shell-topbar-left h1")).toHaveTextContent("Wardrobe");
+		expect(container.querySelector(".shell-topbar-content h1")).toBeNull();
 	});
 
 	it("keeps the title of other screens on the left", () => {

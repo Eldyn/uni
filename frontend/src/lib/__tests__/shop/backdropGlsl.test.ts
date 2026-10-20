@@ -33,8 +33,21 @@ describe("backdrop fragment source", () => {
 		expect(BACKDROP_MAX_SHADE).toBeLessThanOrEqual(0.5);
 	});
 
+	it("makes the bands cross the viewport often enough to see", () => {
+		expect(source).toContain("(uv.x + uv.y) * 1.8");
+		expect(source).toContain("(uv.x - uv.y) * 1.4");
+		expect(source).toContain("const float BAND_SHADE = 0.35;");
+	});
+
+	it("keeps the bands narrow and symmetric around the middle", () => {
+		expect(source).toContain("smoothstep(0.50, 0.80, waveA)");
+		expect(source).toContain("smoothstep(0.50, 0.80, waveB)");
+		expect(source).toContain("0.6 * smoothstep(0.50, 0.80, waveB)");
+		expect(source).toContain("BAND_SHADE * (bands - 0.75)");
+	});
+
 	it("adds the bands to the shade before the dither step", () => {
-		const bandTerm = source.indexOf("uShade + BAND_SHADE * bands");
+		const bandTerm = source.indexOf("uShade + BAND_SHADE * (bands - 0.75)");
 		expect(bandTerm).toBeGreaterThan(-1);
 		expect(bandTerm).toBeLessThan(source.indexOf("step(threshold, shade)"));
 	});

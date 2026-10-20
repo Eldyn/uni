@@ -84,9 +84,11 @@
 
 	.palette-card-art {
 		display: grid;
+		grid-template-columns: minmax(0, 1fr);
 		place-items: center;
 		width: 100%;
 		aspect-ratio: 1;
+		overflow: hidden;
 	}
 
 	.palette-card-name {

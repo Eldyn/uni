@@ -7,7 +7,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render } from "@testing-library/svelte";
 import { flushSync } from "svelte";
 import ShopBackdrop from "$components/shop/ShopBackdrop.svelte";
+import backdropSource from "../../components/shop/ShopBackdrop.svelte?raw";
 import { BACKDROP_STILL_TIME_S } from "$lib/shop/backdropTiming";
+
+/** The body of a top-level function in the component source. */
+function functionBody(source: string, name: string): string {
+	const start = source.indexOf(`function ${name}(`);
+	expect(start).toBeGreaterThan(-1);
+	const end = source.indexOf("\n\tfunction ", start + 1);
+	return source.slice(start, end === -1 ? source.length : end);
+}
 
 /** A stand-in WebGL2 context: every method is a spy, so the tests can see the
  *  calls a real GPU would receive. */
@@ -245,5 +254,30 @@ describe("ShopBackdrop", () => {
 
 		expect(cancelAnimationFrame).toHaveBeenCalled();
 		expect(fake.loseContext).toHaveBeenCalled();
+	});
+});
+
+describe("ShopBackdrop resize handling", () => {
+	it("redraws the still frame after a resize reallocates the canvas", () => {
+		const body = functionBody(backdropSource, "resize");
+		const viewport = body.indexOf("context.viewport(0, 0, width, height);");
+		const redraw = body.indexOf("draw(lastDrawSeconds);");
+		expect(viewport).toBeGreaterThan(-1);
+		expect(redraw).toBeGreaterThan(viewport);
+	});
+
+	it("remembers the last drawn time", () => {
+		expect(functionBody(backdropSource, "draw")).toContain("lastDrawSeconds = timeSeconds;");
+	});
+
+	it("repaints on a window resize, including DPR changes", () => {
+		const mounted = backdropSource.slice(backdropSource.indexOf("onMount("));
+		expect(mounted).toContain('window.addEventListener("resize"');
+	});
+
+	it("removes the window resize listener on destroy", () => {
+		expect(functionBody(backdropSource, "dispose")).toContain(
+			'window.removeEventListener("resize"'
+		);
 	});
 });

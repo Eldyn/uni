@@ -15,8 +15,9 @@ export const BACKDROP_MAX_SHADE = 0.5;
 
 /**
  * A flat field of the home hint color. An ordered (Bayer) dither replaces a
- * uShade share of the cells with the home base color, so the picture only
- * gets darker and every cell is exactly one of the two palette colors.
+ * uShade share of the cells with the home base color; uShade is the middle
+ * dark share, and the crossing bands move around it. The picture only gets
+ * darker and every cell is exactly one of the two palette colors.
  * WebGL2 / GLSL ES 3.00. Alpha is always 1.0.
  */
 export const BACKDROP_FRAGMENT_SOURCE = `#version 300 es
@@ -36,7 +37,7 @@ const float MAX_SHADE = ${BACKDROP_MAX_SHADE.toFixed(2)};
 const float TAU = 6.28318530718;
 const float BAND_A_PERIOD_S = 32.0;
 const float BAND_B_PERIOD_S = 48.0;
-const float BAND_SHADE = 0.22;
+const float BAND_SHADE = 0.35;
 
 ${bayerDither}
 
@@ -45,12 +46,12 @@ void main() {
 	vec2 cell = floor(gl_FragCoord.xy / cellSize);
 	vec2 shift = vec2(floor(uTime / SHIFT_STEP_S), 0.0);
 	vec2 uv = (cell * cellSize) / max(uResolution, vec2(1.0));
-	float waveA = 0.5 + 0.5 * sin(TAU * ((uv.x + uv.y) * 0.8 - uTime / BAND_A_PERIOD_S));
-	float waveB = 0.5 + 0.5 * sin(TAU * ((uv.x - uv.y) * 0.6 + uTime / BAND_B_PERIOD_S));
-	float bands = smoothstep(0.55, 0.95, waveA) + 0.6 * smoothstep(0.65, 0.95, waveB);
+	float waveA = 0.5 + 0.5 * sin(TAU * ((uv.x + uv.y) * 1.8 - uTime / BAND_A_PERIOD_S));
+	float waveB = 0.5 + 0.5 * sin(TAU * ((uv.x - uv.y) * 1.4 + uTime / BAND_B_PERIOD_S));
+	float bands = smoothstep(0.50, 0.80, waveA) + 0.6 * smoothstep(0.50, 0.80, waveB);
 	// INFO: the epsilon keeps the 0.0 Bayer cell off at uShade 0 (see home).
 	float threshold = bayer4(cell + shift) + 0.0001;
-	float shade = clamp(uShade + BAND_SHADE * bands, 0.0, MAX_SHADE);
+	float shade = clamp(uShade + BAND_SHADE * (bands - 0.75), 0.0, MAX_SHADE);
 	float dark = step(threshold, shade);
 	fragColor = vec4(mix(uHint, uBase, dark), 1.0);
 }

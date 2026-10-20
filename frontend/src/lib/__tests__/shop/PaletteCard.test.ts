@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/svelte";
 import PaletteCard from "$components/shop/PaletteCard.svelte";
+import paletteSource from "../../components/shop/PaletteCard.svelte?raw";
 import type { Palette } from "$lib/avatar/types";
 import swatchesSource from "../../components/shop/PaletteSwatches.svelte?raw";
 
@@ -59,6 +60,13 @@ describe("PaletteCard", () => {
 		await fireEvent.click(card);
 		await fireEvent.keyDown(card, { key: "Enter" });
 		expect(onselect).toHaveBeenCalledTimes(2);
+	});
+
+	it("keeps the art square after a live resize", () => {
+		const tile = cssBlock(paletteSource, ".palette-card-art");
+		expect(tile).toMatch(/aspect-ratio:\s*1/);
+		expect(tile).toMatch(/grid-template-columns:\s*minmax\(0,\s*1fr\)/);
+		expect(tile).toMatch(/overflow:\s*hidden/);
 	});
 
 	it("fills the card with a fluid six-column grid of square cells", () => {

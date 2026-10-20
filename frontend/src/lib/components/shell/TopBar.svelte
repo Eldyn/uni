@@ -28,10 +28,6 @@
 	// when to make room for it.
 	const isLobbyScreen = $derived(storeNavigation.current === "lobby");
 
-	/** Screens whose title sits in the centered middle slot. */
-	const CENTERED_TITLE_SCREENS: ReadonlySet<string> = new Set(["shop", "wardrobe"]);
-	const centerTitle = $derived(CENTERED_TITLE_SCREENS.has(storeNavigation.current));
-
 	const readyCount = $derived(
 		storeLobby.current
 			? (storeLobby.current.members as Array<{ is_ready?: boolean }>).filter((m) => m.is_ready)
@@ -57,9 +53,7 @@
 
 <header class="shell-topbar">
 	<div class="shell-topbar-left">
-		{#if !centerTitle}
-			<h1 class="shell-topbar-title" class:hide-mobile-title={isLobbyScreen}>{title}</h1>
-		{/if}
+		<h1 class="shell-topbar-title" class:hide-mobile-title={isLobbyScreen}>{title}</h1>
 		{#if storeTopbarContent.actions}
 			<div class="shell-topbar-actions">
 				{@render storeTopbarContent.actions()}
@@ -67,11 +61,7 @@
 		{/if}
 	</div>
 
-	{#if centerTitle}
-		<div class="shell-topbar-content">
-			<h1 class="shell-topbar-title">{title}</h1>
-		</div>
-	{:else if storeTopbarContent.current}
+	{#if storeTopbarContent.current}
 		<div class="shell-topbar-content" class:hide-mobile-content={isLobbyScreen}>
 			{@render storeTopbarContent.current()}
 		</div>

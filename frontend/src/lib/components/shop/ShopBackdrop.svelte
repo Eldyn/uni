@@ -52,6 +52,7 @@ void main() {
 	let rafId: number | null = null;
 	let stillFrame = false;
 	let resizeObserver: ResizeObserver | null = null;
+	let windowResizeHandler: (() => void) | null = null;
 
 	function compileShader(context: WebGL2RenderingContext, type: number, source: string) {
 		const shader = context.createShader(type);
@@ -108,7 +109,13 @@ void main() {
 		if (target.width !== width) target.width = width;
 		if (target.height !== height) target.height = height;
 		context.viewport(0, 0, width, height);
+		// INFO: a resize reallocates and clears the canvas, so still mode must
+		// repaint the last frame instead of waiting for a loop that never runs.
+		// Before the first frame there is nothing to repaint.
+		if (lastDrawSeconds !== null) draw(lastDrawSeconds);
 	}
+
+	let lastDrawSeconds: number | null = null;
 
 	function draw(timeSeconds: number): void {
 		if (!gl || !program || !uniforms || !canvas) return;
@@ -119,6 +126,7 @@ void main() {
 		gl.uniform3f(uniforms.hint, HINT_RGB[0], HINT_RGB[1], HINT_RGB[2]);
 		gl.uniform1f(uniforms.shade, Math.min(Math.max(dim, 0), BACKDROP_MAX_SHADE));
 		gl.drawArrays(gl.TRIANGLES, 0, 3);
+		lastDrawSeconds = timeSeconds;
 	}
 
 	let lastDrawMs = Number.NEGATIVE_INFINITY;
@@ -155,6 +163,10 @@ void main() {
 		stop();
 		resizeObserver?.disconnect();
 		resizeObserver = null;
+		if (windowResizeHandler) {
+			window.removeEventListener("resize", windowResizeHandler);
+			windowResizeHandler = null;
+		}
 		if (gl) {
 			gl.getExtension("WEBGL_lose_context")?.loseContext();
 		}
@@ -199,6 +211,10 @@ void main() {
 			resizeObserver = new ResizeObserver(() => resize(context, target));
 			resizeObserver.observe(host);
 		}
+
+		// INFO: the ResizeObserver misses DPR and zoom changes; repaint on those too.
+		windowResizeHandler = () => resize(context, target);
+		window.addEventListener("resize", windowResizeHandler);
 
 		document.addEventListener("visibilitychange", onVisibilityChange);
 		start();
