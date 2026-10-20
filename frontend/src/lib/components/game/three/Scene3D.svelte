@@ -21,6 +21,7 @@
 	import { storeTurnSkip } from "$stores/turnSkip.svelte";
 	import { storeBoardCamera } from "$stores/boardCamera.svelte";
 	import { storeCameraOffset } from "$stores/cameraOffset.svelte";
+	import { storeCosmetics } from "$stores/cosmetics.svelte";
 	import { offsetCameraPosition } from "../layout/cameraRig";
 	import { isChoosePlayerTarget } from "../prompts/promptTargets";
 	import Playmat3D from "./Playmat3D.svelte";
@@ -201,13 +202,23 @@
 
 	let artLoaded = $state(false);
 
+	// The equipped skin ids are part of the atlas hash, so a change needs its own
+	// preload to fill the freshly allocated slots. The mount path reads the slots
+	// once (below) and this effect takes over for later changes.
+	$effect(() => {
+		const faceSkin = storeCosmetics.slots.card_face;
+		const backSkin = storeCosmetics.slots.card_back;
+		if (!artLoaded) return;
+		void preloadCardArt(faceSkin, backSkin);
+	});
+
 	onMount(() => {
 		let cancelled = false;
 
 		async function prepare(): Promise<void> {
 			// 1. Decode the card art and bake the atlas (async, network + canvas).
 			try {
-				await preloadCardArt();
+				await preloadCardArt(storeCosmetics.slots.card_face, storeCosmetics.slots.card_back);
 			} catch (err) {
 				console.error("Scene3D: card art preload failed", err);
 			}

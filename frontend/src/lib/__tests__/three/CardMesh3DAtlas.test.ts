@@ -4,6 +4,7 @@ import { patchCardShader } from "$components/game/three/CardMesh3D.svelte";
 import {
 	getFaceTexture,
 	getAtlasPage,
+	cardFaceKeyFor,
 	type CardFaceKey
 } from "$components/game/three/cardFaceAtlas";
 
@@ -129,5 +130,21 @@ describe("CardMesh3DAtlas onBeforeCompile shader", () => {
 		// Mesh's left vertex (uv=0) is in the viewer's right position.
 		// Mirrored UV lookup (1 - 0 = 1) correctly samples the texture's right edge (u1)!
 		expect(computeU(false, 0.0)).toBeCloseTo(0.25);
+	});
+
+	it("samples a fresh atlas entry when the equipped face or back skin changes", () => {
+		const card = { type: "red" as const, value: "7" };
+
+		const plainFront = getFaceTexture(cardFaceKeyFor(card, undefined, false));
+		const skinnedFront = getFaceTexture(
+			cardFaceKeyFor(card, undefined, false, "uni:card_face_midnight", null)
+		);
+		expect(skinnedFront).not.toBe(plainFront);
+
+		const plainBack = getFaceTexture(cardFaceKeyFor(card, undefined, true));
+		const skinnedBack = getFaceTexture(
+			cardFaceKeyFor(card, undefined, true, null, "uni:card_back_stars")
+		);
+		expect(skinnedBack).not.toBe(plainBack);
 	});
 });
