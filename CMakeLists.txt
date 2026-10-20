@@ -355,4 +355,26 @@ add_executable(uni_bench tests/perf/bench_main.cpp tests/perf/bench_db.cpp tests
 target_include_directories(uni_bench PRIVATE include src "${CMAKE_BINARY_DIR}/generated" tests/perf)
 target_link_libraries(uni_bench PRIVATE SQLite::SQLite3 nlohmann_json::nlohmann_json glaze::glaze)
 
+# --- Memory/latency soak (uni_soak) ---
+# N headless bot lobbies through the real engine, view projector and wire dump.
+# Reports RSS and heap per lobby, step latency and bytes per lobby. Not built
+# by default; `cmake --build --preset release --target uni_soak`.
+file(GLOB_RECURSE SOAK_MATCH_SOURCES CONFIGURE_DEPENDS "src/match/*.cpp")
+list(FILTER SOAK_MATCH_SOURCES EXCLUDE REGEX "src/match/(expr|cardschema)/")
+add_executable(uni_soak EXCLUDE_FROM_ALL tests/perf/soak_main.cpp ${SOAK_MATCH_SOURCES}
+  src/common/crypto_hash.cpp)
+target_include_directories(uni_soak PRIVATE include src "${CMAKE_BINARY_DIR}/generated" tests/perf)
+target_link_libraries(uni_soak PRIVATE
+    uni_expr
+    uni_cardschema
+    nlohmann_json::nlohmann_json
+    glaze::glaze
+    uwebsockets::uwebsockets
+    usockets::usockets
+    libuv::uv_a
+    OpenSSL::SSL OpenSSL::Crypto
+    ZLIB::ZLIB
+    Threads::Threads)
+add_dependencies(uni_soak gen_ws_messages gen_contract_hpp gen_ws_actions_hpp gen_email_copy_hpp)
+
 message(STATUS "Configuration complete for system: ${CMAKE_SYSTEM_NAME}")
