@@ -11,14 +11,23 @@
 	import { isBuyableNow, isSwatchBuyable } from "$lib/shop/shopBackend";
 	import { compareRarity, paletteRarity } from "$lib/shop/rarity";
 	import type { BuyFailure } from "$lib/shop/shopBackend";
-	import type { AvatarSlot, CatalogueItem, Loadout, Palette, Swatch } from "$lib/avatar/types";
+	import type {
+		AvatarSlot,
+		CatalogueItem,
+		Loadout,
+		Palette,
+		Rarity,
+		Swatch
+	} from "$lib/avatar/types";
 	import { storeShop } from "$lib/stores/shop.svelte";
 	import { storeAuth } from "$stores/auth.svelte";
 	import { storeAvatar } from "$stores/avatar.svelte";
 	import { storeI18n } from "$stores/i18n.svelte";
 	import { storeNavigation } from "$stores/navigation.svelte";
-	import { shopItemText } from "$components/shop/ItemCard.svelte";
-	import ItemCard from "$components/shop/ItemCard.svelte";
+	import { itemLabelKey, shopItemText } from "$components/shop/ItemCard.svelte";
+	import MarketplaceCard from "$components/shop/MarketplaceCard.svelte";
+	import ShopFilters from "$components/shop/ShopFilters.svelte";
+	import type { ShopRarityFilter, ShopSort } from "$components/shop/ShopFilters.svelte";
 	import ItemDetail from "$components/shop/ItemDetail.svelte";
 	import ShopBackdrop from "$components/shop/ShopBackdrop.svelte";
 	import { HOME_BACKGROUND_HINT_CSS } from "$lib/shaders/homePalette";
@@ -87,6 +96,10 @@
 	let needsLogin = $state(false);
 
 	let section = $state<ShopSection>("featured");
+	/** Shelf filters: they apply to every section, not only the catalogue ones. */
+	let rarity = $state<ShopRarityFilter>("all");
+	let query = $state("");
+	let sort = $state<ShopSort>("popular");
 	let selected = $state<CatalogueItem | null>(null);
 	let selectedPalette = $state<Palette | null>(null);
 	let buyError = $state<BuyFailure | null>(null);
@@ -119,31 +132,33 @@
 		return sectionLinks.find((link) => link.id === id)?.label ?? id;
 	}
 
-	/** Every item for sale now, plus every owned item. */
-	const baseItems = $derived.by(() =>
-		catalogue.items
-			.filter((item) => isBuyableNow(item, nowMs) || owned.has(item.id))
-			.sort((a, b) => compareRarity(a.rarity, b.rarity))
+	/** Every item for sale now, plus every owned item, in catalogue order. */
+	const catalogueOrderItems = $derived(
+		catalogue.items.filter((item) => isBuyableNow(item, nowMs) || owned.has(item.id))
+	);
+
+	/** The same items, lowest rarity first. The shelves read this by default. */
+	const baseItems = $derived(
+		[...catalogueOrderItems].sort((a, b) => compareRarity(a.rarity, b.rarity))
 	);
 
 	/** The section's buyable-now items, plus every owned item, as OWNED. */
-	const items = $derived.by(() => {
+	const sectionItems = $derived.by(() => {
 		switch (section) {
 			case "featured": {
 				const featuredIds = new Set(catalogue.featured);
-				if (featuredIds.size === 0) return baseItems;
-				const chosen = baseItems.filter((item) => featuredIds.has(item.id));
-				return chosen.length > 0 ? chosen : baseItems;
+				return baseItems.filter((item) => featuredIds.has(item.id));
 			}
 			case "popular": {
 				const order = new Map(storeShop.popular.map((entry, index) => [entry.item, index]));
-				if (order.size === 0) return baseItems;
-				return [...baseItems].sort(
+				// INFO: an empty popular shelf falls back to the catalogue's order.
+				if (order.size === 0) return catalogueOrderItems;
+				return [...catalogueOrderItems].sort(
 					(a, b) => (order.get(a.id) ?? Infinity) - (order.get(b.id) ?? Infinity)
 				);
 			}
 			case "new":
-				return baseItems.filter((item) => item.starter !== true);
+				return catalogueOrderItems.filter((item) => item.starter !== true);
 			case "wishlist": {
 				const wanted = storeShop.wishlist;
 				return baseItems.filter((item) => wanted.has(item.id));
@@ -154,6 +169,50 @@
 				return baseItems.filter((item) => TABLE_SLOTS.has(item.slot));
 			case "collections":
 				return baseItems.filter((item) => item.slot === "set");
+		}
+	});
+
+	/** The shelf name shown to the viewer: its localized label, else the id. */
+	function itemName(item: CatalogueItem): string {
+		return shopItemText(itemLabelKey(item.id), item.id, locale);
+	}
+
+	function paletteName(palette: Palette): string {
+		return shopItemText(`shop_palette_${palette.id.replaceAll(":", "_")}`, palette.name, locale);
+	}
+
+	function matchesQuery(name: string): boolean {
+		const needle = query.trim().toLocaleLowerCase(locale);
+		return needle.length === 0 || name.toLocaleLowerCase(locale).includes(needle);
+	}
+
+	function matchesRarity(value: Rarity): boolean {
+		return rarity === "all" || value === rarity;
+	}
+
+	/** The section's items after the toolbar's rarity and name filters. */
+	const filteredItems = $derived(
+		sectionItems.filter((item) => matchesRarity(item.rarity) && matchesQuery(itemName(item)))
+	);
+
+	/** The filtered items in the chosen sort order. */
+	const visibleItems = $derived.by(() => {
+		const list = filteredItems;
+		switch (sort) {
+			case "popular": {
+				const order = new Map(storeShop.popular.map((entry, index) => [entry.item, index]));
+				return [...list].sort(
+					(a, b) => (order.get(a.id) ?? Infinity) - (order.get(b.id) ?? Infinity)
+				);
+			}
+			case "wishlist":
+				return [...list].sort(
+					(a, b) => storeShop.wishlistCount(b.id) - storeShop.wishlistCount(a.id)
+				);
+			case "price":
+				return [...list].sort((a, b) => a.price - b.price);
+			case "name":
+				return [...list].sort((a, b) => itemName(a).localeCompare(itemName(b), locale));
 		}
 	});
 
@@ -179,7 +238,16 @@
 
 	/** Palettes are character colours, so they shelf beside the avatar items. */
 	const paletteShelf = $derived(section === "character" ? paletteCards : []);
-	const cardCount = $derived(items.length + paletteShelf.length);
+
+	/** The character palettes after the same rarity and name filters. */
+	const visiblePalettes = $derived(
+		paletteShelf.filter(
+			(palette) => matchesRarity(paletteRarity(palette)) && matchesQuery(paletteName(palette))
+		)
+	);
+
+	const cardCount = $derived(visibleItems.length + visiblePalettes.length);
+	const noResultsLabel = $derived(shopItemText("shop_no_results", "No items match.", locale));
 
 	/** The hero row: featured first, then sets and collections, then the catalogue. */
 	const heroItems = $derived.by(() => {
@@ -295,6 +363,11 @@
 		} else {
 			buyError = result.reason;
 		}
+	}
+
+	/** The card's wishlist control; the store updates optimistically. */
+	function toggleWishlist(item: CatalogueItem): void {
+		void storeShop.toggleWishlist(item.id);
 	}
 
 	onMount(async () => {
@@ -419,6 +492,8 @@
 				{/each}
 			</div>
 
+			<ShopFilters bind:rarity bind:query bind:sort />
+
 			{#if cardCount > 0}
 				<div
 					class="shop-grid"
@@ -429,26 +504,32 @@
 					onfocusin={handleGridFocus}
 					onkeydown={handleGridKeydown}
 				>
-					{#each items as item, index (item.id)}
-						<ItemCard
+					{#each visibleItems as item, index (item.id)}
+						<MarketplaceCard
 							{item}
 							owned={owned.has(item.id)}
 							selected={index === focusedCard}
 							loadout={viewerLoadout}
+							wishlisted={storeShop.wishlist.has(item.id)}
+							wishlistCount={storeShop.wishlistCount(item.id)}
+							showWishlist={!guest}
 							onselect={() => openDetail(item)}
+							ontoggle={() => toggleWishlist(item)}
 						/>
 					{/each}
-					{#each paletteShelf as palette, index (palette.id)}
+					{#each visiblePalettes as palette, index (palette.id)}
 						<PaletteCard
 							{palette}
 							price={lowestPrice(palette)}
-							selected={items.length + index === focusedCard}
+							selected={visibleItems.length + index === focusedCard}
 							onselect={() => openPalette(palette)}
 						/>
 					{/each}
 				</div>
 			{:else}
-				<p class="shop-empty font-tiny">{emptyLabel}</p>
+				<p class="shop-empty font-tiny">
+					{sectionItems.length + paletteShelf.length > 0 ? noResultsLabel : emptyLabel}
+				</p>
 			{/if}
 		</main>
 	</div>

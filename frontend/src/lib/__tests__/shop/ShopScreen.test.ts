@@ -8,15 +8,28 @@ import { cleanup, fireEvent, render, screen, within } from "@testing-library/sve
 import { flushSync } from "svelte";
 import ShopScreen from "$components/shop/ShopScreen.svelte";
 import { setCatalogueForTest } from "$lib/avatar/catalogue";
-import { setShopBackend } from "$lib/stores/shop.svelte";
+import { setShopBackend, storeShop } from "$lib/stores/shop.svelte";
 import { storeAuth } from "$stores/auth.svelte";
 import { storeNavigation } from "$stores/navigation.svelte";
-import type { BuyResult } from "$lib/shop/shopBackend";
+import type { BuyResult, PopularItem } from "$lib/shop/shopBackend";
 import type { Catalogue } from "$lib/avatar/types";
 import { avatarFixture } from "$lib/__tests__/avatar/avatarFixture";
 import shopSource from "../../components/shop/ShopScreen.svelte?raw";
 
 const STARTERS = ["uni:round", "uni:eyes_dot", "uni:mouth_smile"];
+
+const ALL_IDS = [
+	"uni:round",
+	"uni:eyes_dot",
+	"uni:eyes_wide",
+	"uni:mouth_smile",
+	"uni:hat_cap",
+	"uni:hat_float",
+	"uni:mask_bandit",
+	"uni:body_scarf",
+	"uni:set_suit",
+	"uni:motif_patches"
+];
 
 const { shopMock } = vi.hoisted(() => ({
 	shopMock: {
@@ -24,6 +37,9 @@ const { shopMock } = vi.hoisted(() => ({
 		owned: new Set(["uni:round", "uni:eyes_dot", "uni:mouth_smile"]),
 		buy: vi.fn(),
 		fetchMine: vi.fn(),
+		wishlist: vi.fn(),
+		toggleWishlist: vi.fn(),
+		popular: vi.fn(),
 		needsLogin: false
 	}
 }));
@@ -49,7 +65,7 @@ vi.mock("$lib/avatar/useBakedAvatar.svelte", () => ({
 }));
 
 function fixture(overrides: Partial<Catalogue> = {}): Catalogue {
-	return { ...avatarFixture(), ...overrides };
+	return { ...avatarFixture(), featured: ALL_IDS, ...overrides };
 }
 
 function cardIds(container: HTMLElement): string[] {
@@ -70,7 +86,7 @@ function sidebar(container: HTMLElement): HTMLElement {
 	return nav;
 }
 
-beforeEach(() => {
+beforeEach(async () => {
 	vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
 	setCatalogueForTest(fixture());
 	setShopBackend(shopMock);
@@ -78,11 +94,24 @@ beforeEach(() => {
 	shopMock.owned = new Set(STARTERS);
 	shopMock.buy.mockReset();
 	shopMock.fetchMine.mockReset();
+	shopMock.wishlist.mockReset();
+	shopMock.wishlist.mockResolvedValue({ ok: true, items: [] });
+	shopMock.toggleWishlist.mockReset();
+	shopMock.toggleWishlist.mockImplementation(async (itemId: string) => ({
+		ok: true,
+		items: [itemId]
+	}));
+	shopMock.popular.mockReset();
+	shopMock.popular.mockResolvedValue({ ok: true, items: [] });
 	shopMock.needsLogin = false;
 	storeAuth.isGuest = false;
 	storeAuth.isLoggedIn = true;
 	storeNavigation.gotoAuth.mockReset();
 	bakedSets.length = 0;
+	// INFO: the wishlist and popular shelves live in the store module, so clear
+	// the previous test's state before the screen mounts.
+	await storeShop.fetchWishlist();
+	await storeShop.fetchPopular(7);
 });
 
 afterEach(() => {
@@ -238,6 +267,135 @@ describe("ShopScreen", () => {
 
 		expect(cardIds(container)).toEqual([]);
 		expect(screen.getByText(/nothing here/i)).toBeInTheDocument();
+	});
+
+	it("lists the wanted items on the Wishlist shelf", async () => {
+		shopMock.wishlist.mockResolvedValue({ ok: true, items: ["uni:hat_cap"] });
+		const { container } = render(ShopScreen);
+		flushSync();
+
+		await vi.waitFor(() => expect(storeShop.wishlist.has("uni:hat_cap")).toBe(true));
+		await fireEvent.click(screen.getByRole("tab", { name: "Wishlist" }));
+
+		expect(cardIds(container)).toEqual(["uni:hat_cap"]);
+	});
+
+	it("renders the marketplace card name, price and wishlist count", () => {
+		const { container } = render(ShopScreen);
+		flushSync();
+
+		const card = cardFor(container, "uni:hat_cap");
+		expect(card.querySelector(".marketplace-name")).toHaveTextContent("Cap");
+		expect(card.querySelector(".marketplace-price")).toHaveTextContent("80");
+		expect(
+			card.querySelector('.marketplace-price [role="img"][aria-label="Blank"]')
+		).toBeInTheDocument();
+		expect(card.querySelector("[data-wishlist-count]")).toHaveAttribute("data-wishlist-count", "0");
+	});
+
+	it("toggles the wishlist without opening the detail drawer", async () => {
+		const { container } = render(ShopScreen);
+		flushSync();
+
+		const card = cardFor(container, "uni:hat_cap");
+		const toggle = card.parentElement?.querySelector<HTMLElement>("[data-wishlist-toggle]");
+		expect(toggle).toBeTruthy();
+		expect(toggle?.getAttribute("aria-pressed")).toBe("false");
+		// INFO: let the mount's wishlist fetch settle before the local toggle.
+		await vi.waitFor(() => expect(shopMock.wishlist).toHaveBeenCalledTimes(2));
+
+		await fireEvent.click(toggle!);
+
+		expect(screen.queryByRole("dialog")).toBeNull();
+		await vi.waitFor(() => expect(shopMock.toggleWishlist).toHaveBeenCalledWith("uni:hat_cap"));
+		await vi.waitFor(() => expect(toggle?.getAttribute("aria-pressed")).toBe("true"));
+	});
+
+	it("hides the wishlist controls from guests", () => {
+		storeAuth.isGuest = true;
+		const { container } = render(ShopScreen);
+		flushSync();
+
+		expect(container.querySelector("[data-wishlist-toggle]")).toBeNull();
+		expect(container.querySelector("[data-wishlist-count]")).toBeNull();
+	});
+
+	it("filters the shelf by rarity and name", async () => {
+		const { container } = render(ShopScreen);
+		flushSync();
+
+		const rarity = container.querySelector<HTMLSelectElement>('[data-filter="rarity"]')!;
+		await fireEvent.change(rarity, { target: { value: "common" } });
+
+		expect(cardIds(container)).toEqual(["uni:eyes_wide", "uni:hat_cap", "uni:hat_float"]);
+
+		const name = container.querySelector<HTMLInputElement>('[data-filter="name"]')!;
+		await fireEvent.input(name, { target: { value: "cap" } });
+
+		expect(cardIds(container)).toEqual(["uni:hat_cap"]);
+	});
+
+	it("sorts the shelf by popular, price, name and wishlist count", async () => {
+		const popular: PopularItem[] = [
+			{ item: "uni:motif_patches", purchases: 4, wishlists: 2 },
+			{ item: "uni:eyes_dot", purchases: 2, wishlists: 12 }
+		];
+		shopMock.popular.mockResolvedValue({ ok: true, items: popular });
+		setCatalogueForTest(
+			fixture({ featured: ["uni:motif_patches", "uni:hat_cap", "uni:eyes_dot"] })
+		);
+		const { container } = render(ShopScreen);
+		flushSync();
+
+		await vi.waitFor(() => expect(storeShop.popular).toHaveLength(2));
+		expect(cardIds(container)).toEqual(["uni:motif_patches", "uni:eyes_dot", "uni:hat_cap"]);
+
+		const sort = container.querySelector<HTMLSelectElement>('[data-filter="sort"]')!;
+		await fireEvent.change(sort, { target: { value: "price" } });
+		expect(cardIds(container)).toEqual(["uni:eyes_dot", "uni:hat_cap", "uni:motif_patches"]);
+
+		await fireEvent.change(sort, { target: { value: "name" } });
+		expect(cardIds(container)).toEqual(["uni:hat_cap", "uni:eyes_dot", "uni:motif_patches"]);
+
+		await fireEvent.change(sort, { target: { value: "wishlist" } });
+		expect(cardIds(container)).toEqual(["uni:eyes_dot", "uni:motif_patches", "uni:hat_cap"]);
+	});
+
+	it("uses the catalogue order for Popular when the shelf is empty", async () => {
+		const { container } = render(ShopScreen);
+		flushSync();
+
+		await fireEvent.click(screen.getByRole("tab", { name: "Popular" }));
+
+		expect(cardIds(container)).toEqual([
+			"uni:round",
+			"uni:eyes_dot",
+			"uni:eyes_wide",
+			"uni:mouth_smile",
+			"uni:hat_cap",
+			"uni:hat_float",
+			"uni:mask_bandit",
+			"uni:body_scarf",
+			"uni:set_suit",
+			"uni:motif_patches"
+		]);
+	});
+
+	it("lists non-starter items on the New shelf", async () => {
+		const { container } = render(ShopScreen);
+		flushSync();
+
+		await fireEvent.click(screen.getByRole("tab", { name: "New" }));
+
+		expect(cardIds(container)).toEqual([
+			"uni:eyes_wide",
+			"uni:hat_cap",
+			"uni:hat_float",
+			"uni:mask_bandit",
+			"uni:body_scarf",
+			"uni:set_suit",
+			"uni:motif_patches"
+		]);
 	});
 
 	it("opens the detail panel when a card is selected", async () => {

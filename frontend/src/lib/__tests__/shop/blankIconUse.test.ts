@@ -6,6 +6,7 @@ import featuredBanner from "../../components/shop/FeaturedBanner.svelte?raw";
 import itemDetail from "../../components/shop/ItemDetail.svelte?raw";
 import swatchDetail from "../../components/shop/PaletteDetail.svelte?raw";
 import shopHero from "../../components/shop/ShopHero.svelte?raw";
+import marketplaceCard from "../../components/shop/MarketplaceCard.svelte?raw";
 import matchEarningsLine from "../../components/game/MatchEarningsLine.svelte?raw";
 
 const SOURCES: Record<string, string> = {
@@ -15,6 +16,7 @@ const SOURCES: Record<string, string> = {
 	ItemDetail: itemDetail,
 	SwatchDetail: swatchDetail,
 	ShopHero: shopHero,
+	MarketplaceCard: marketplaceCard,
 	MatchEarningsLine: matchEarningsLine
 };
 
