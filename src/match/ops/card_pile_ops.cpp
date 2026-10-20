@@ -357,11 +357,15 @@ bool CoercePropertyValue(
 /**
  * @brief Wrap one already-built value change into a `card_changed` event.
  *
- * Adds the card handle and, when the card is in a hand, the seat target.
+ * Adds the card handle, the emit-time `in_hand` flag and, when the card is in
+ * a hand, the seat target. The flag freezes the value decision for a late-join
+ * tail: a later move must not change who may see the value. It is not in the
+ * audience table, so it never reaches the wire.
  */
 json CardChangedEvent(ecs::Entity card, json payload,
                       const std::optional<ecs::ZoneRef>& zone) {
     payload["card"] = EntityJson(card);
+    payload["in_hand"] = zone.has_value() && zone->kind == ecs::ZoneKind::kHand;
     if (zone.has_value()) AddZoneSeat(payload, "target", *zone);
     return MakeEvent("card_changed", std::move(payload));
 }

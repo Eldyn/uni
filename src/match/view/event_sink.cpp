@@ -286,12 +286,22 @@ json ProjectCardChanged(const match::engine::MatchInstance& match,
     }
     const bool in_hand =
         in_zone != nullptr && in_zone->zone.kind == ecs::ZoneKind::kHand;
+    // INFO: the value decision uses the emit-time flag when the engine put it
+    //       in the body. A synthetic or older payload falls back to the
+    //       current zone. The identity and drop decisions below still read the
+    //       current zone, so a later move can change them; only the value
+    //       decision is frozen here.
+    bool value_in_hand = in_hand;
+    const auto in_hand_entry = payload.find("in_hand");
+    if (in_hand_entry != payload.end() && in_hand_entry->is_boolean()) {
+        value_in_hand = in_hand_entry->get<bool>();
+    }
     // INFO: the card bits go to every viewer here; the per-seat `kCard` rule
     //       keeps them only for a viewer that may see the card. A holder must
     //       get its own card identity, or it cannot apply the change. Limbo
     //       and out-of-play cards have no public identity, so omit the bits.
     const bool identity_public =
-        in_zone != nullptr && in_zone->zone.kind != ecs::ZoneKind::kLimbo;
+        in_zone != nullptr && CardStateIdentityAllowed(in_zone->zone.kind);
     if (payload.contains("card") && identity_public) {
         CopyCardBits(match, payload, out);
     }
@@ -300,8 +310,14 @@ json ProjectCardChanged(const match::engine::MatchInstance& match,
     //       holder and a privacy-off spectator, `strict_owner` only to the
     //       holder, and `hidden` to nobody. A card in the discard pile or limbo
     //       has no holder, so only a public value reaches the wire there.
-    const std::string visibility =
-        payload.value("visibility", std::string());
+    //       The schema default is `public`, but a missing engine key is
+    //       `hidden`: an event that does not declare its visibility never
+    //       leaks a value. A non-string value is treated as missing.
+    std::string visibility;
+    const auto visibility_entry = payload.find("visibility");
+    if (visibility_entry != payload.end() && visibility_entry->is_string()) {
+        visibility = visibility_entry->get<std::string>();
+    }
     bool synced = true;
     if (payload.contains("property") && payload["property"].is_string()) {
         const auto& properties = match.Registries().card_properties;
@@ -310,7 +326,14 @@ json ProjectCardChanged(const match::engine::MatchInstance& match,
         synced = property != properties.end()
                  && property->second.sync_to_clients;
     }
-    if ((visibility == "public" || in_hand) && synced) {
+    const bool state_value =
+        visibility == "public"
+        || (value_in_hand
+            && (visibility == "owner" || visibility == "strict_owner"));
+    // INFO: the per-seat drop rule reads the emit-time hand decision. The key
+    //       is undeclared, so it never reaches the wire.
+    out["in_hand"] = value_in_hand;
+    if (state_value && synced) {
         if (payload.contains("member") && payload["member"].is_string()) {
             out["member"] = payload["member"];
         }
@@ -457,8 +480,18 @@ std::optional<nlohmann::json> EventSink::WrapPublic(
     const std::optional<nlohmann::json> projected =
         ProjectPublicEvent(type, payload, match);
     if (!projected.has_value()) return std::nullopt;
+    // INFO: resolve the event roles from the engine body, with the actor from
+    //       the causal frame. Without them an owner/hidden hand value would
+    //       look targetless, and a public hand value would be dropped.
+    const nlohmann::json frame =
+        engine_event.value("causal_frame", nlohmann::json::object());
+    const std::string actor =
+        frame.contains("actor") && frame["actor"].is_string()
+            ? frame["actor"].get<std::string>()
+            : std::string();
+    const SeatRoles roles = ResolveSeatRoles(match, type, payload, actor);
     const nlohmann::json projected_payload =
-        ProjectForViewer(match, type, *projected, SeatRoles{},
+        ProjectForViewer(match, type, *projected, roles,
                          Viewer::PublicSpectator());
     // INFO: an empty projection means no field may reach this viewer; wrap
     //       nothing and do not consume a sequence for it.

@@ -981,9 +981,11 @@ nlohmann::json ViewBuilder::BuildSnapshot(
         const ecs::CardState* component = store.Get<ecs::CardState>(card);
         if (component == nullptr) continue;
         const ecs::InZone* in_zone = store.Get<ecs::InZone>(card);
-        // INFO: a limbo or out-of-play card has no public snapshot identity.
-        //       `card_removed` is owner-only, so keep the same rule here.
-        if (in_zone == nullptr || in_zone->zone.kind == ecs::ZoneKind::kLimbo) {
+        // INFO: a limbo card has no public snapshot identity. A draw-pile
+        //       card may carry one only through a per-viewer identity grant;
+        //       `IsCardHiddenFrom` below enforces that.
+        if (in_zone == nullptr
+            || !CardStateIdentityAllowed(in_zone->zone.kind)) {
             continue;
         }
         // INFO: a seated director sees another player's hand through x-ray,

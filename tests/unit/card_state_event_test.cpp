@@ -6,6 +6,7 @@
 #include <match/modload/mod_loader.hpp>
 #include <match/ops/op_helpers.hpp>
 #include <match/ops/ops.hpp>
+#include <match/view/event_projector.hpp>
 #include <match/view/event_sink.hpp>
 #include <match/view/event_tail.hpp>
 #include <match/view/view_builder.hpp>
@@ -46,6 +47,7 @@ using match::modload::LoadResult;
 using match::modload::LoadedMod;
 using match::view::EventSink;
 using match::view::EventTail;
+using match::view::SeatRoles;
 using match::view::ViewBuilder;
 using match::view::Viewer;
 using nlohmann::json;
@@ -300,7 +302,14 @@ TEST_CASE("strict_owner_reaches_the_holder_only") {
     CHECK_FALSE(CardChangedFor(builder, event, kPrivateSpectator).has_value());
     CHECK_FALSE(CardChangedFor(builder, event, kBob).has_value());
     CHECK_FALSE(CardChangedFor(builder, event, kSpectator).has_value());
-    CHECK_FALSE(CardChangedFor(builder, event, kDirector).has_value());
+
+    const std::optional<json> director =
+        CardChangedFor(builder, event, kDirector);
+    REQUIRE(director.has_value());
+    CHECK((*director)["slot"] == "suit");
+    CHECK(director->contains("card"));
+    CHECK_FALSE(director->contains("member"));
+    CHECK_FALSE(director->contains("previous"));
 }
 
 TEST_CASE("strict_owner_property_reaches_the_holder_only") {
@@ -333,7 +342,14 @@ TEST_CASE("strict_owner_property_reaches_the_holder_only") {
     CHECK_FALSE(CardChangedFor(builder, event, kPrivateSpectator).has_value());
     CHECK_FALSE(CardChangedFor(builder, event, kBob).has_value());
     CHECK_FALSE(CardChangedFor(builder, event, kSpectator).has_value());
-    CHECK_FALSE(CardChangedFor(builder, event, kDirector).has_value());
+
+    const std::optional<json> director =
+        CardChangedFor(builder, event, kDirector);
+    REQUIRE(director.has_value());
+    CHECK((*director)["property"] == "uni:revealed");
+    CHECK(director->contains("card"));
+    CHECK_FALSE(director->contains("value"));
+    CHECK_FALSE(director->contains("previous"));
 }
 
 TEST_CASE("strict_owner_on_discard_has_no_value") {
@@ -409,11 +425,19 @@ TEST_CASE("non_synced_property_keeps_value_off_the_event") {
     }
 
     for (const Viewer* viewer :
-         {&kBob, &kPrivateSpectator, &kSpectator, &kDirector}) {
+         {&kBob, &kPrivateSpectator, &kSpectator}) {
         CAPTURE(viewer->username);
         CAPTURE(viewer->is_spectator);
         CHECK_FALSE(CardChangedFor(builder, event, *viewer).has_value());
     }
+
+    const std::optional<json> director =
+        CardChangedFor(builder, event, kDirector);
+    REQUIRE(director.has_value());
+    CHECK((*director)["property"] == "uni:locked");
+    CHECK(director->contains("card"));
+    CHECK_FALSE(director->contains("value"));
+    CHECK_FALSE(director->contains("previous"));
 }
 
 TEST_CASE("hidden_change_reaches_nobody_with_value") {
@@ -511,6 +535,201 @@ TEST_CASE("a_dropped_event_does_not_consume_a_sequence") {
     CHECK(sink.NextSeq() == 1);
 }
 
+TEST_CASE("wrap_public_resolves_public_hand_roles") {
+    const std::vector<LoadedMod> mods = LoadMods();
+    const std::unique_ptr<MatchInstance> engine = MakeMatch(mods);
+    const ecs::Entity card = HandCard(*engine, "uni:red_spade_alpha");
+
+    const json event =
+        Emit(*engine, "set_card_member",
+             json{{"slot", "color"}, {"member", "uni:blue"}}, card);
+
+    EventSink sink;
+    const std::optional<json> packet = sink.WrapPublic(event, *engine);
+    REQUIRE(packet.has_value());
+    const json& payload = (*packet)["payload"];
+    CHECK(payload["slot"] == "color");
+    CHECK(payload["member"] == "uni:blue");
+    CHECK(payload["previous"] == "uni:red");
+    CHECK_FALSE(payload.contains("_card"));
+    CHECK_FALSE(payload.contains("card"));
+    CHECK(sink.NextSeq() == 1);
+}
+
+TEST_CASE("wrap_public_drops_private_hand_changes") {
+    const std::vector<LoadedMod> mods = LoadMods();
+    const std::unique_ptr<MatchInstance> engine = MakeMatch(mods);
+    const ecs::Entity card = HandCard(*engine, "uni:red_spade_alpha");
+
+    const json owner_event =
+        Emit(*engine, "set_card_member",
+             json{{"slot", "suit"}, {"member", "uni:heart"}}, card);
+    const json hidden_event =
+        Emit(*engine, "set_card_member",
+             json{{"slot", "secret"}, {"member", "uni:beta"}}, card);
+
+    EventSink sink;
+    CHECK_FALSE(sink.WrapPublic(owner_event, *engine).has_value());
+    CHECK(sink.NextSeq() == 0);
+    CHECK_FALSE(sink.WrapPublic(hidden_event, *engine).has_value());
+    CHECK(sink.NextSeq() == 0);
+}
+
+TEST_CASE("non_string_visibility_resolves_hidden") {
+    const std::vector<LoadedMod> mods = LoadMods();
+    const std::unique_ptr<MatchInstance> engine = MakeMatch(mods);
+    const ecs::Entity card = HandCard(*engine, "uni:red_spade_alpha");
+
+    json event =
+        Emit(*engine, "set_card_member",
+             json{{"slot", "suit"}, {"member", "uni:heart"}}, card);
+    event["payload"]["visibility"] = 5;
+
+    SeatRoles roles;
+    CHECK_NOTHROW(roles = match::view::ResolveSeatRoles(
+                      *engine, "card_changed", event["payload"], "Alice"));
+    CHECK_FALSE(roles.state_public);
+    CHECK_FALSE(roles.state_owner);
+    CHECK_FALSE(roles.state_strict_owner);
+
+    std::optional<json> projected;
+    CHECK_NOTHROW(projected = match::view::ProjectPublicEvent(
+                      "card_changed", event["payload"], *engine));
+    REQUIRE(projected.has_value());
+    CHECK((*projected)["slot"] == "suit");
+    CHECK_FALSE(projected->contains("member"));
+    CHECK_FALSE(projected->contains("value"));
+    CHECK_FALSE(projected->contains("previous"));
+}
+
+TEST_CASE("director_sees_hand_card_bits_without_private_values") {
+    const Viewer director = Viewer::PlayerDirector("Bob");
+    {
+        const std::vector<LoadedMod> mods = LoadMods();
+        const std::unique_ptr<MatchInstance> engine = MakeMatch(mods);
+        ViewBuilder builder(*engine, mods);
+        const ecs::Entity card = HandCard(*engine, "uni:red_spade_alpha");
+
+        const json public_event =
+            Emit(*engine, "set_card_member",
+                 json{{"slot", "color"}, {"member", "uni:blue"}}, card);
+        const std::optional<json> public_payload =
+            CardChangedFor(builder, public_event, director);
+        REQUIRE(public_payload.has_value());
+        CHECK((*public_payload)["slot"] == "color");
+        CHECK((*public_payload)["member"] == "uni:blue");
+        CHECK(public_payload->contains("card"));
+
+        const json owner_event =
+            Emit(*engine, "set_card_member",
+                 json{{"slot", "suit"}, {"member", "uni:heart"}}, card);
+        const std::optional<json> owner_payload =
+            CardChangedFor(builder, owner_event, director);
+        REQUIRE(owner_payload.has_value());
+        CHECK((*owner_payload)["slot"] == "suit");
+        CHECK(owner_payload->contains("card"));
+        CHECK_FALSE(owner_payload->contains("member"));
+        CHECK_FALSE(owner_payload->contains("previous"));
+
+        MoveTo(*engine, card,
+               ecs::ZoneRef{ecs::ZoneKind::kDrawPile, ecs::Entity{}});
+        const json draw_event =
+            Emit(*engine, "set_card_member",
+                 json{{"slot", "color"}, {"member", "uni:red"}}, card);
+        const std::optional<json> draw_payload =
+            CardChangedFor(builder, draw_event, director);
+        REQUIRE(draw_payload.has_value());
+        CHECK_FALSE(draw_payload->contains("card"));
+    }
+    {
+        std::vector<LoadedMod> mods = LoadMods();
+        SetAttributeVisibility(mods, "uni:suit", "strict_owner");
+        const std::unique_ptr<MatchInstance> engine = MakeMatch(mods);
+        ViewBuilder builder(*engine, mods);
+        const ecs::Entity card = HandCard(*engine, "uni:red_spade_alpha");
+
+        const json event =
+            Emit(*engine, "set_card_member",
+                 json{{"slot", "suit"}, {"member", "uni:heart"}}, card);
+        const std::optional<json> payload =
+            CardChangedFor(builder, event, director);
+        REQUIRE(payload.has_value());
+        CHECK((*payload)["slot"] == "suit");
+        CHECK(payload->contains("card"));
+        CHECK_FALSE(payload->contains("member"));
+        CHECK_FALSE(payload->contains("previous"));
+    }
+}
+
+TEST_CASE("late_join_tail_keeps_owner_value_after_hand_move") {
+    const std::vector<LoadedMod> mods = LoadMods();
+    const std::unique_ptr<MatchInstance> engine = MakeMatch(mods);
+    ViewBuilder builder(*engine, mods);
+    const ecs::Entity card = HandCard(*engine, "uni:red_spade_alpha");
+
+    const json event =
+        Emit(*engine, "set_card_member",
+             json{{"slot", "suit"}, {"member", "uni:heart"}}, card);
+    EventTail tail;
+    tail.Record(event);
+
+    MoveTo(*engine, card,
+           ecs::ZoneRef{ecs::ZoneKind::kDiscardPile, ecs::Entity{}});
+
+    const json alice_envelopes = builder.BuildTail(kAlice, tail);
+    REQUIRE(alice_envelopes.size() == 1);
+    const json& alice_payload = alice_envelopes.front()["payload"];
+    CHECK(alice_payload["member"] == "uni:heart");
+    CHECK(alice_payload["previous"] == "uni:spade");
+
+    const json bob_envelopes = builder.BuildTail(kBob, tail);
+    CHECK(bob_envelopes.empty());
+
+    MoveTo(*engine, card, ecs::ZoneRef{ecs::ZoneKind::kLimbo, ecs::Entity{}});
+    const json alice_limbo = builder.BuildTail(kAlice, tail);
+    REQUIRE(alice_limbo.size() == 1);
+    CHECK(alice_limbo.front()["payload"]["member"] == "uni:heart");
+    CHECK_FALSE(alice_limbo.front()["payload"].contains("card"));
+    CHECK(builder.BuildTail(kBob, tail).empty());
+}
+
+TEST_CASE("public_body_is_internal_and_wire_redacts_the_handle") {
+    const std::vector<LoadedMod> mods = LoadMods();
+    const std::unique_ptr<MatchInstance> engine = MakeMatch(mods);
+    const ecs::Entity card = HandCard(*engine, "uni:red_spade_alpha");
+
+    const json owner_event =
+        Emit(*engine, "set_card_member",
+             json{{"slot", "suit"}, {"member", "uni:heart"}}, card);
+
+    const std::optional<json> owner_body = match::view::ProjectPublicEvent(
+        "card_changed", owner_event["payload"], *engine);
+    REQUIRE(owner_body.has_value());
+    CHECK(owner_body->contains("_card"));
+    CHECK((*owner_body)["member"] == "uni:heart");
+
+    EventSink sink;
+    CHECK_FALSE(sink.WrapPublic(owner_event, *engine).has_value());
+    CHECK(sink.NextSeq() == 0);
+
+    const json public_event =
+        Emit(*engine, "set_card_member",
+             json{{"slot", "color"}, {"member", "uni:blue"}}, card);
+
+    const std::optional<json> public_body = match::view::ProjectPublicEvent(
+        "card_changed", public_event["payload"], *engine);
+    REQUIRE(public_body.has_value());
+    CHECK(public_body->contains("_card"));
+
+    const std::optional<json> wire = sink.WrapPublic(public_event, *engine);
+    REQUIRE(wire.has_value());
+    const json& wire_payload = (*wire)["payload"];
+    CHECK(wire_payload["member"] == "uni:blue");
+    CHECK_FALSE(wire_payload.contains("_card"));
+    CHECK_FALSE(wire_payload.contains("card"));
+    CHECK_FALSE(wire_payload.contains("in_hand"));
+}
+
 TEST_CASE("late_join_tail_respects_redaction") {
     const std::vector<LoadedMod> mods = LoadMods();
     const std::unique_ptr<MatchInstance> engine = MakeMatch(mods);
@@ -530,5 +749,4 @@ TEST_CASE("late_join_tail_respects_redaction") {
     const json bob_envelopes = builder.BuildTail(kBob, tail);
     CHECK(bob_envelopes.empty());
 }
-
 }  // namespace

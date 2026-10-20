@@ -94,8 +94,12 @@ public:
      *
      * Accepts both descriptor shapes the engine emits: the `{type, payload}`
      * form (`MakeEvent`) and the flat resolver abort form
-     * (`{type, mod, node}`). Returns `nullopt` for a non-public or unknown
-     * type, or a non-object descriptor, without consuming a `seq`.
+     * (`{type, mod, node}`). Resolves the event roles from the engine body
+     * (using the causal-frame actor when present) before projecting for
+     * `Viewer::PublicSpectator()`, so a public hand value is not mistaken for
+     * a targetless one. Returns `nullopt` for a non-public or unknown type, a
+     * non-object descriptor, or an empty projection, without consuming a
+     * `seq`.
      *
      * @param engine_event One `MatchInstance::Events()` descriptor.
      * @param match        The live match (for state + registries).
@@ -134,12 +138,18 @@ private:
  * Handles the `all`-visibility rows of the table: `card_played`,
  * `reshuffle`, `turn_advance`, `round_advance`, `placement_set`,
  * `window_opened`, `window_responded`, `window_closed`, `auto_played`,
- * `match_ended`, `outcome_rolled`. `match_start` is
+ * `card_moved`, `card_changed`, `card_removed`, `card_created`,
+ * `card_replaced`, `match_ended`, `outcome_rolled`. `match_start` is
  * content-derived and built by `DefsBuilder::BuildMatchStart`. `signal` is
  * not handled here: its audience is declared per mod manifest and resolved
- * per recipient by `ViewBuilder`. All other types return `nullopt`
- * the per-recipient (filtered) rows are built by `ViewBuilder` in
+ * per recipient by `ViewBuilder`. All other types return `nullopt`; the
+ * per-recipient (filtered) rows are built by `ViewBuilder` in
  * `view_builder.hpp`.
+ *
+ * The returned body is an internal projection, not a wire body. It may carry
+ * audience-redacted values (for example an `owner` value on a hand) and the
+ * `_card` handle; `ProjectForViewer` and the envelope wrappers remove both.
+ * `_card` is a redaction handle only and never reaches the wire.
  *
  * @param type    Engine event type token.
  * @param payload Descriptor body (or the flat descriptor minus `type`).

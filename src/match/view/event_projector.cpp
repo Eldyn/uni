@@ -65,6 +65,17 @@ bool IsHiddenBits(const match::engine::MatchInstance& match,
     return card.has_value() && IsCardHiddenFrom(match, *card, viewer);
 }
 
+/** @brief True when `value` is the packed identity of a card in a hand. */
+bool IsHandBits(const match::engine::MatchInstance& match,
+                const json& value) {
+    if (!value.is_number_unsigned()) return false;
+    const std::optional<ecs::Entity> card =
+        CardForBits(match, value.get<uint32_t>());
+    if (!card.has_value()) return false;
+    const ecs::InZone* in_zone = match.Store().Get<ecs::InZone>(*card);
+    return in_zone != nullptr && in_zone->zone.kind == ecs::ZoneKind::kHand;
+}
+
 /** @brief Replace the handle of every hidden card inside `value` by null. */
 void ScrubHiddenHandles(const match::engine::MatchInstance& match,
                         const Viewer& viewer, json& value) {
@@ -147,14 +158,28 @@ SeatRoles ResolveSeatRoles(const match::engine::MatchInstance& match,
     roles.target = resolve(rule->target_key);
     roles.owner = resolve(rule->owner_key);
     roles.zone_card_public = engine_payload.value("card_public", false);
-    const std::string visibility =
-        engine_payload.value("visibility", std::string());
+    // INFO: the schema default is `public`, but a missing engine key is
+    //       `hidden`. A non-string value counts as missing, so a malformed
+    //       descriptor resolves to `hidden` instead of throwing.
+    std::string visibility;
+    const auto visibility_entry = engine_payload.find("visibility");
+    if (visibility_entry != engine_payload.end()
+        && visibility_entry->is_string()) {
+        visibility = visibility_entry->get<std::string>();
+    }
     roles.state_public = visibility == "public";
     roles.state_owner = visibility == "owner";
     roles.state_strict_owner = visibility == "strict_owner";
     roles.offered_card_public =
         engine_payload.value("outcome", std::string()) != "lost";
     return roles;
+}
+
+bool CardStateIdentityAllowed(ecs::ZoneKind kind) {
+    // INFO: a granted draw-pile card may reveal its identity; the per-viewer
+    //       `IsCardHiddenFrom` check still hides it from everyone else. Limbo
+    //       is out of play and never carries an identity.
+    return kind != ecs::ZoneKind::kLimbo;
 }
 
 bool IsCardHiddenFrom(const match::engine::MatchInstance& match,
@@ -217,9 +242,18 @@ json ProjectForViewer(const match::engine::MatchInstance& match,
             if (!allowed) continue;
         }
         json kept = value;
-        if (field->kind == FieldKind::kCard
-            && IsHiddenBits(match, value, viewer)) {
-            continue;
+        if (field->kind == FieldKind::kCard) {
+            // INFO: a live director keeps the identity of a hand card, just
+            //       like the snapshot's public card state. This is x-ray of
+            //       the card face only: owner/strict_owner values stay under
+            //       the usual value rule below. Draw-pile identities stay
+            //       hidden.
+            const bool director_hand =
+                viewer.director && event_type == "card_changed"
+                && IsHandBits(match, value);
+            if (IsHiddenBits(match, value, viewer) && !director_hand) {
+                continue;
+            }
         }
         if (field->kind == FieldKind::kCardList && value.is_array()) {
             kept = json::array();
@@ -232,16 +266,31 @@ json ProjectForViewer(const match::engine::MatchInstance& match,
     }
 
     // Drop a card_changed whose card this viewer cannot see when no value
-    // survives.
+    // survives. A director x-ray keeps the card bits, so the packet stays even
+    // when every value is private. The emit-time `in_hand` flag keeps a move
+    // to discard or limbo from turning a dropped hand event into a late
+    // metadata packet.
     const bool has_value = projected.contains("member")
                            || projected.contains("value")
                            || projected.contains("previous");
     if (!has_value && wire_payload.contains("_card")) {
-        ecs::Entity card{};
-        if (EntityFromJson(wire_payload["_card"], card)
-            && match.Store().IsAlive(card)
-            && IsCardHiddenFrom(match, card, viewer)) {
-            return json::object();
+        bool was_hand = false;
+        const auto in_hand = wire_payload.find("in_hand");
+        if (in_hand != wire_payload.end() && in_hand->is_boolean()) {
+            was_hand = in_hand->get<bool>();
+        }
+        if (was_hand) {
+            const bool sees_hand =
+                AudienceAllows(Audience::kOwner, roles, viewer)
+                || viewer.director;
+            if (!sees_hand) return json::object();
+        } else if (!projected.contains("card")) {
+            ecs::Entity card{};
+            if (EntityFromJson(wire_payload["_card"], card)
+                && match.Store().IsAlive(card)
+                && IsCardHiddenFrom(match, card, viewer)) {
+                return json::object();
+            }
         }
     }
     return projected;
