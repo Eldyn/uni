@@ -50,7 +50,7 @@ namespace {
 
 const std::vector<std::string> kShippedMods = {
     "uni", "seven_zero", "test", "draw_stacking", "jump_in"};
-const std::vector<std::string> kSeats = {"bot0", "bot1", "bot2", "bot3"};
+std::vector<std::string> kSeats = {"bot0", "bot1", "bot2", "bot3"};
 constexpr const char* kSpectator = "watcher";
 constexpr const char* kDeckId = "test:classic_bombs";
 constexpr int64_t kStalledStepMs = 1000;
@@ -60,6 +60,8 @@ constexpr double kBytesPerKb = 1024.0;
 
 struct Options {
     int lobbies = 100;
+    int seats = 4;
+    bool breakdown = false;
     int max_steps = 20000;
     uint64_t seed = 7;
     std::string root = ".";
@@ -74,6 +76,8 @@ Options ParseOptions(int argc, char** argv) {
             return argument.substr(key.size());
         };
         if (auto text = value("--lobbies=")) options.lobbies = std::stoi(*text);
+        else if (auto text = value("--seats=")) options.seats = std::stoi(*text);
+        else if (argument == "--breakdown") options.breakdown = true;
         else if (auto text = value("--max-steps=")) options.max_steps = std::stoi(*text);
         else if (auto text = value("--seed=")) options.seed = std::stoull(*text);
         else if (auto text = value("--root=")) options.root = *text;
@@ -148,7 +152,17 @@ struct Lobby {
     bool finished = false;
 };
 
-std::unique_ptr<Lobby> CreateLobby(const Content& content, uint64_t seed) {
+double HeapKb();
+
+std::unique_ptr<Lobby> CreateLobby(const Content& content, uint64_t seed,
+                                   bool breakdown = false) {
+    double mark = HeapKb();
+    const auto stage = [&](const char* name) {
+        if (!breakdown) return;
+        const double now = HeapKb();
+        std::fprintf(stderr, "stage %-22s +%.0f kb\n", name, now - mark);
+        mark = now;
+    };
     MatchAssemblyOptions options;
     options.starting_cards = 7;
     options.seed = seed;
@@ -160,7 +174,9 @@ std::unique_ptr<Lobby> CreateLobby(const Content& content, uint64_t seed) {
         sockets[kSeats[index]] = SocketOf(index);
     }
     std::vector<LoadedMod> mods = content.mods;
+    stage("copy mod vector");
     auto assembly = MatchAssembler::Assemble(mods, content.deck, options);
+    stage("assemble");
     if (!assembly.ok()) return nullptr;
 
     auto lobby = std::make_unique<Lobby>();
@@ -169,12 +185,16 @@ std::unique_ptr<Lobby> CreateLobby(const Content& content, uint64_t seed) {
     window.mode = match::WindowMode::kFixed;
     auto engine = std::make_unique<MatchInstance>(std::move(assembly.assembly),
                                                   window, lobby->clock.Fn());
+    stage("match instance");
     lobby->session = std::make_unique<MatchSession>(std::move(engine),
                                                     std::move(mods), sockets);
+    stage("match session");
     lobby->session->BindViewer(kSpectator, SocketOf(kSeats.size()));
     lobby->policy = std::make_unique<HeuristicBotPolicy>(seed * 31 + 1);
     lobby->session->EmitMatchStart(lobby->broadcaster);
+    stage("emit match start");
     lobby->session->BroadcastSnapshot(lobby->broadcaster);
+    stage("first snapshot");
     return lobby;
 }
 
@@ -234,6 +254,8 @@ double Percentile(std::vector<double>& samples, double fraction) {
 
 int main(int argc, char** argv) {
     const Options options = ParseOptions(argc, argv);
+    kSeats.clear();
+    for (int seat = 0; seat < options.seats; ++seat) kSeats.push_back("bot" + std::to_string(seat));
     std::ostringstream discarded_log;
     std::streambuf* original_log = std::cout.rdbuf(discarded_log.rdbuf());
 
@@ -250,7 +272,7 @@ int main(int argc, char** argv) {
     std::vector<std::unique_ptr<Lobby>> lobbies;
     lobbies.reserve(static_cast<std::size_t>(options.lobbies));
     for (int index = 0; index < options.lobbies; ++index) {
-        auto lobby = CreateLobby(*content, options.seed + static_cast<uint64_t>(index));
+        auto lobby = CreateLobby(*content, options.seed + static_cast<uint64_t>(index), options.breakdown && index == 0);
         if (!lobby) {
             std::cout.rdbuf(original_log);
             std::fprintf(stderr, "soak: assembly failed for lobby %d\n", index);
@@ -259,7 +281,7 @@ int main(int argc, char** argv) {
         lobbies.push_back(std::move(lobby));
     }
     std::cout.rdbuf(original_log);
-    std::printf("lobbies=%d mods_loaded=%zu\n", options.lobbies, content->mods.size());
+    std::printf("lobbies=%d seats=%d mods_loaded=%zu\n", options.lobbies, options.seats, content->mods.size());
     ReportMemory("created", baseline_rss_kb, baseline_heap_kb, options.lobbies);
 
     std::vector<double> step_ns;
@@ -287,6 +309,17 @@ int main(int argc, char** argv) {
     std::cout.rdbuf(original_log);
     ReportMemory("finished", baseline_rss_kb, baseline_heap_kb, options.lobbies);
 
+    std::size_t engine_events = 0;
+    std::size_t engine_event_json_bytes = 0;
+    for (const auto& lobby : lobbies) {
+        for (const json& event : lobby->session->Engine().Events()) {
+            ++engine_events;
+            engine_event_json_bytes += event.dump().size();
+        }
+    }
+    std::printf("engine events_per_lobby=%.0f json_kb_per_lobby=%.0f\n",
+                static_cast<double>(engine_events) / std::max(options.lobbies, 1),
+                static_cast<double>(engine_event_json_bytes) / kBytesPerKb / std::max(options.lobbies, 1));
     uint64_t total_bytes = 0;
     uint64_t total_frames = 0;
     long total_steps = 0;
