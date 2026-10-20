@@ -75,6 +75,17 @@ public:
                  std::vector<match::modload::LoadedMod> mods,
                  SocketMap sockets);
 
+    /**
+     * @brief Bind an assembled match to a mod set shared with other matches.
+     *
+     * Lobbies that play the same mods point at one immutable vector instead
+     * of holding a copy each.
+     */
+    MatchSession(
+        std::unique_ptr<match::engine::MatchInstance> engine,
+        std::shared_ptr<const std::vector<match::modload::LoadedMod>> mods,
+        SocketMap sockets);
+
     MatchSession(const MatchSession&) = delete;
     MatchSession& operator=(const MatchSession&) = delete;
     MatchSession(MatchSession&&) = delete;
@@ -620,7 +631,7 @@ private:
     const nlohmann::json& CachedDefs() const;
 
     std::unique_ptr<match::engine::MatchInstance> engine_;
-    std::vector<match::modload::LoadedMod> mods_;
+    std::shared_ptr<const std::vector<match::modload::LoadedMod>> mods_;
     match::view::ViewBuilder builder_;
     match::view::EventTail tail_;
     SocketMap sockets_;

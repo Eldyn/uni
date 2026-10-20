@@ -290,6 +290,14 @@ private:
     /** @brief Returns the cached snapshot, rescanning once it is older than the TTL. */
     std::shared_ptr<const ModsSnapshot> HttpModsSnapshot();
 
+    /**
+     * @brief The mods that `required` names, shared with every running match
+     * that plays the same content (same content hashes).
+     */
+    std::shared_ptr<const std::vector<match::modload::LoadedMod>> ActiveModSet(
+        const std::vector<match::modload::LoadedMod>& loaded,
+        const std::vector<std::string>& required);
+
     /** @brief Scans `mods_root_` and runs the ordered validation stages. */
     match::modload::LoadResult ScanAndValidateMods() const;
 
@@ -510,6 +518,11 @@ private:
     std::string mods_root_;
     std::mutex mods_snapshot_mutex_;
     std::shared_ptr<const ModsSnapshot> mods_snapshot_;
+    /** Mod sets alive in running matches, keyed by their content hashes. */
+    std::unordered_map<
+        std::string,
+        std::weak_ptr<const std::vector<match::modload::LoadedMod>>>
+        shared_mod_sets_;
 
     std::unordered_map<uint32_t, Lobby> lobbies_;        /**< Primary storage of the lobbies. */
     std::unordered_map<std::string, uint32_t> code_to_id_; /**< Secondary index for fast lookup. */

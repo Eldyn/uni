@@ -62,6 +62,7 @@ struct Options {
     int lobbies = 100;
     int seats = 4;
     bool breakdown = false;
+    bool copy_mods = false;
     int max_steps = 20000;
     uint64_t seed = 7;
     std::string root = ".";
@@ -78,6 +79,7 @@ Options ParseOptions(int argc, char** argv) {
         if (auto text = value("--lobbies=")) options.lobbies = std::stoi(*text);
         else if (auto text = value("--seats=")) options.seats = std::stoi(*text);
         else if (argument == "--breakdown") options.breakdown = true;
+        else if (argument == "--copy-mods") options.copy_mods = true;
         else if (auto text = value("--max-steps=")) options.max_steps = std::stoi(*text);
         else if (auto text = value("--seed=")) options.seed = std::stoull(*text);
         else if (auto text = value("--root=")) options.root = *text;
@@ -119,6 +121,7 @@ AppWebSocket* SocketOf(std::size_t index) {
 
 struct Content {
     std::vector<LoadedMod> mods;
+    std::shared_ptr<const std::vector<LoadedMod>> shared_mods;
     DeckDef deck;
 };
 
@@ -138,6 +141,8 @@ std::optional<Content> LoadContent(const fs::path& root) {
     }
     if (content.deck.deck_id.empty()) return std::nullopt;
     content.deck.mods = kShippedMods;
+    content.shared_mods =
+        std::make_shared<const std::vector<LoadedMod>>(content.mods);
     return content;
 }
 
@@ -155,7 +160,7 @@ struct Lobby {
 double HeapKb();
 
 std::unique_ptr<Lobby> CreateLobby(const Content& content, uint64_t seed,
-                                   bool breakdown = false) {
+                                   bool copy_mods, bool breakdown = false) {
     double mark = HeapKb();
     const auto stage = [&](const char* name) {
         if (!breakdown) return;
@@ -173,9 +178,13 @@ std::unique_ptr<Lobby> CreateLobby(const Content& content, uint64_t seed,
         options.players.push_back(spec);
         sockets[kSeats[index]] = SocketOf(index);
     }
-    std::vector<LoadedMod> mods = content.mods;
-    stage("copy mod vector");
-    auto assembly = MatchAssembler::Assemble(mods, content.deck, options);
+    // INFO: one shared vector per run mirrors LobbyController::ActiveModSet;
+    //       --copy-mods rebuilds the old copy-per-lobby layout.
+    std::shared_ptr<const std::vector<LoadedMod>> mods =
+        copy_mods ? std::make_shared<const std::vector<LoadedMod>>(content.mods)
+                  : content.shared_mods;
+    stage("mod vector");
+    auto assembly = MatchAssembler::Assemble(*mods, content.deck, options);
     stage("assemble");
     if (!assembly.ok()) return nullptr;
 
@@ -187,7 +196,7 @@ std::unique_ptr<Lobby> CreateLobby(const Content& content, uint64_t seed,
                                                   window, lobby->clock.Fn());
     stage("match instance");
     lobby->session = std::make_unique<MatchSession>(std::move(engine),
-                                                    std::move(mods), sockets);
+                                                    mods, sockets);
     stage("match session");
     lobby->session->BindViewer(kSpectator, SocketOf(kSeats.size()));
     lobby->policy = std::make_unique<HeuristicBotPolicy>(seed * 31 + 1);
@@ -272,7 +281,7 @@ int main(int argc, char** argv) {
     std::vector<std::unique_ptr<Lobby>> lobbies;
     lobbies.reserve(static_cast<std::size_t>(options.lobbies));
     for (int index = 0; index < options.lobbies; ++index) {
-        auto lobby = CreateLobby(*content, options.seed + static_cast<uint64_t>(index), options.breakdown && index == 0);
+        auto lobby = CreateLobby(*content, options.seed + static_cast<uint64_t>(index), options.copy_mods, options.breakdown && index == 0);
         if (!lobby) {
             std::cout.rdbuf(original_log);
             std::fprintf(stderr, "soak: assembly failed for lobby %d\n", index);
