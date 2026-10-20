@@ -2,8 +2,9 @@
 	/**
 	 * @file CardsPlayedChart.svelte
 	 * @brief Cards played section chart: a group switch (Colours, Values,
-	 * Actions), vertical bars for counts, and an action podium carousel with
-	 * a comparison caption. Pure: receives groups, holds no store state.
+	 * Actions), vertical bars for counts, and the single most played action
+	 * card with a comparison caption. Pure: receives groups, holds no store
+	 * state.
 	 */
 	import { storeI18n } from "$stores/i18n.svelte";
 	import * as m from "$lib/paraglide/messages.js";
@@ -11,9 +12,9 @@
 	import {
 		actionCardValue,
 		percentVersusOthers,
-		podiumOrder,
 		type CardsPlayedGroup,
-		type CardsPlayedGroupId
+		type CardsPlayedGroupId,
+		type CardsPlayedRow
 	} from "$components/profile/profileModel";
 	import { CARD_PALETTE, type CardColorName } from "$lib/palette";
 
@@ -26,7 +27,6 @@
 	// null means "not chosen yet": activeGroup then falls back to the first
 	// group, so the initial value never reads props outside a derived.
 	let activeId = $state<CardsPlayedGroupId | null>(null);
-	let selectedAction = $state<string | null>(null);
 	let tabEls = $state<(HTMLButtonElement | undefined)[]>([]);
 
 	const activeGroup = $derived(groups.find((group) => group.id === activeId) ?? groups[0]);
@@ -36,18 +36,32 @@
 	const topActionKey = $derived(
 		actionRows.reduce((best, row) => (row.count > best.count ? row : best), actionRows[0])?.key
 	);
-	const centreKey = $derived(selectedAction ?? topActionKey);
-	const podium = $derived(podiumOrder(actionRows, centreKey));
+	const topRow = $derived<CardsPlayedRow | undefined>(
+		actionRows.find((row) => row.key === topActionKey)
+	);
+
+	const percent = $derived(topRow ? percentVersusOthers(actionRows, topRow.key) : null);
 
 	const caption = $derived.by(() => {
-		if (!centreKey) return "";
-		const percent = percentVersusOthers(actionRows, centreKey);
-		const card = rowLabel(centreKey);
+		if (!topRow) return "";
+		const card = rowLabel(topRow.key);
 		const options = { locale: storeI18n.locale };
 		if (percent === null) return m.profile_cards_top({ card }, options);
 		if (percent > 0) return m.profile_cards_more({ card, percent: Math.abs(percent) }, options);
-		if (percent < 0) return m.profile_cards_less({ card, percent: Math.abs(percent) }, options);
 		return m.profile_cards_same({ card }, options);
+	});
+
+	/** The caption split around its percentage, so only the number can shake. */
+	const captionParts = $derived.by(() => {
+		if (percent === null || percent === 0) return null;
+		const number = `${Math.abs(percent)}%`;
+		const at = caption.indexOf(number);
+		if (at < 0) return null;
+		return {
+			before: caption.slice(0, at),
+			percent: number,
+			after: caption.slice(at + number.length)
+		};
 	});
 
 	function tabLabel(id: CardsPlayedGroupId): string {
@@ -100,23 +114,6 @@
 		activeId = groups[next].id;
 		tabEls[next]?.focus();
 	}
-
-	/** Cards scale down with their distance from the podium centre. */
-	function podiumScale(index: number): number {
-		const centreIndex = podium.findIndex((row) => row.key === centreKey);
-		const distance = Math.abs(index - centreIndex);
-		if (distance === 0) return 1;
-		if (distance === 1) return 0.85;
-		return 0.7;
-	}
-
-	function onCardKeydown(event: KeyboardEvent, key: string): void {
-		if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
-		event.preventDefault();
-		const index = podium.findIndex((row) => row.key === key);
-		const step = event.key === "ArrowRight" ? 1 : -1;
-		selectedAction = podium[(index + step + podium.length) % podium.length].key;
-	}
 </script>
 
 <div class="cards-played">
@@ -140,27 +137,27 @@
 	<div class="chart-panel" role="tabpanel" aria-labelledby="cards-played-tab-{activeGroup.id}">
 		{#if activeGroup.id === "actions"}
 			<div class="podium">
-				{#each podium as row, index (row.key)}
-					{@const faceValue = actionCardValue(row.key)}
-					<button
-						type="button"
-						class="podium-card pixel-bordered"
-						aria-pressed={row.key === centreKey}
-						style="transform: scale({podiumScale(index)});"
-						onclick={() => (selectedAction = row.key)}
-						onkeydown={(event) => onCardKeydown(event, row.key)}
-					>
+				{#if topRow}
+					{@const faceValue = actionCardValue(topRow.key)}
+					<div class="podium-card">
 						{#if faceValue}
 							<span class="podium-art" aria-hidden="true">
 								<LoaderCard face={{ type: "white", value: faceValue }} color={ACTION_CARD_COLOR} />
 							</span>
 						{/if}
-						<span class="podium-face" class:sr-only={faceValue !== null}>{rowLabel(row.key)}</span>
-						<span class="podium-count">{row.count}</span>
-					</button>
-				{/each}
+						<span class="podium-face font-tiny">{rowLabel(topRow.key)}</span>
+						<span class="podium-count font-tiny">{topRow.count}</span>
+					</div>
+				{/if}
 			</div>
-			<p class="podium-caption" aria-live="polite">{caption}</p>
+			<p class="podium-caption font-tiny" aria-live="polite">
+				{#if captionParts}
+					{captionParts.before}<span class="podium-percent shake">{captionParts.percent}</span
+					>{captionParts.after}
+				{:else}
+					{caption}
+				{/if}
+			</p>
 		{:else}
 			<div class="plot">
 				{#each activeGroup.rows as row (row.key)}
@@ -248,44 +245,52 @@
 
 	.podium {
 		display: flex;
-		align-items: flex-end;
-		gap: var(--space-3);
-		/* Cards scroll sideways instead of overflowing at 390 px. */
-		overflow-x: auto;
+		justify-content: center;
 		padding: var(--space-2) 0;
 	}
 
 	.podium-card {
 		display: flex;
-		flex: 0 0 auto;
 		flex-direction: column;
 		align-items: center;
 		gap: var(--space-1);
-		padding: var(--space-2) var(--space-3);
 		color: var(--text);
-		cursor: pointer;
-		--pc-fill: var(--surface-deep);
-	}
-
-	.podium-card[aria-pressed="true"] {
-		--pc-border: var(--accent);
-		color: var(--text-h);
-	}
-
-	.podium-face {
-		font-weight: bold;
 	}
 
 	.podium-art {
 		display: block;
-		--loader-card-width: 3.5rem;
-	}
-
-	.podium-count {
-		font-size: var(--text-small);
+		--loader-card-width: 4.5rem;
 	}
 
 	.podium-caption {
 		text-align: center;
+	}
+
+	.podium-percent {
+		display: inline-block;
+	}
+
+	.shake {
+		display: inline-block;
+		animation: shake 1.6s ease-in-out infinite;
+	}
+
+	@keyframes shake {
+		0%,
+		100% {
+			transform: translateX(0);
+		}
+		25% {
+			transform: translateX(-0.5px);
+		}
+		75% {
+			transform: translateX(0.5px);
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.shake {
+			animation: none;
+		}
 	}
 </style>
