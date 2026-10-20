@@ -102,6 +102,7 @@ version; each release below corresponds to a `vX.Y.Z` git tag.
 
 ### Changed
 
+- **The wardrobe saves** — the avatar loadout loads right after login, so the Wardrobe opens on the saved look after a reload and the top bar icon uses the saved avatar.
 - **Motifs are body textures** — motif art is a full square clipped to the body, Stripes gains a second colour region, dot eyes and the smile are flat and non-colorable, and a checkerboard swatch returns any region to its item default.
 - **The currency is called Blank** — prices, the Shop balance chip and the end screen earnings line show a small purple pixel-art blank card (`BlankIcon`, brand `--accent`) instead of the gold dot, and the text says "Blank" in every locale ("Earned +100 Blank", "Not enough Blank."). API, store and server names (`balance`, `cash`, `insufficient_cash`) do not change.
 - **Five rarities** — rarities are now basic, common, rare, epic and special (was common, uncommon, rare, epic); the C++ loader and the client schema accept only the new set; every starter item and starter swatch is basic (home slate `#2c354d`), common stays gray, rare is green, epic is blue and special is uni purple for event items; old uncommon entries became rare and old rare entries became epic, prices did not change; epic and special frames get the sunburst, and the Shop sorts cards from basic to special.
