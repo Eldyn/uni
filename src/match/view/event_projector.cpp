@@ -147,8 +147,15 @@ SeatRoles ResolveSeatRoles(const match::engine::MatchInstance& match,
     roles.target = resolve(rule->target_key);
     roles.owner = resolve(rule->owner_key);
     roles.zone_card_public = engine_payload.value("card_public", false);
-    const std::string visibility =
-        engine_payload.value("visibility", std::string());
+    // INFO: the schema default is `public`, but a missing engine key is
+    //       `hidden`. A non-string value counts as missing, so a malformed
+    //       descriptor resolves to `hidden` instead of throwing.
+    std::string visibility;
+    const auto visibility_entry = engine_payload.find("visibility");
+    if (visibility_entry != engine_payload.end()
+        && visibility_entry->is_string()) {
+        visibility = visibility_entry->get<std::string>();
+    }
     roles.state_public = visibility == "public";
     roles.state_owner = visibility == "owner";
     roles.state_strict_owner = visibility == "strict_owner";

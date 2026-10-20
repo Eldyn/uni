@@ -35,6 +35,11 @@ struct SeatRoles {
     bool offered_card_public = true;
     /** True when the engine marked the card public at emit time. */
     bool zone_card_public = false;
+    /**
+     * `card_changed` visibility flags. The schema default is `public`, but a
+     * missing engine key is `hidden`: an event that does not declare its
+     * visibility never sends a value. A non-string value counts as missing.
+     */
     /** True when `card_changed` visibility is `public`. */
     bool state_public = false;
     /** True when `card_changed` visibility is `owner`. */

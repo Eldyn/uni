@@ -6,6 +6,7 @@
 #include <match/modload/mod_loader.hpp>
 #include <match/ops/op_helpers.hpp>
 #include <match/ops/ops.hpp>
+#include <match/view/event_projector.hpp>
 #include <match/view/event_sink.hpp>
 #include <match/view/event_tail.hpp>
 #include <match/view/view_builder.hpp>
@@ -46,6 +47,7 @@ using match::modload::LoadResult;
 using match::modload::LoadedMod;
 using match::view::EventSink;
 using match::view::EventTail;
+using match::view::SeatRoles;
 using match::view::ViewBuilder;
 using match::view::Viewer;
 using nlohmann::json;
@@ -511,6 +513,73 @@ TEST_CASE("a_dropped_event_does_not_consume_a_sequence") {
     CHECK(sink.NextSeq() == 1);
 }
 
+TEST_CASE("wrap_public_resolves_public_hand_roles") {
+    const std::vector<LoadedMod> mods = LoadMods();
+    const std::unique_ptr<MatchInstance> engine = MakeMatch(mods);
+    const ecs::Entity card = HandCard(*engine, "uni:red_spade_alpha");
+
+    const json event =
+        Emit(*engine, "set_card_member",
+             json{{"slot", "color"}, {"member", "uni:blue"}}, card);
+
+    EventSink sink;
+    const std::optional<json> packet = sink.WrapPublic(event, *engine);
+    REQUIRE(packet.has_value());
+    const json& payload = (*packet)["payload"];
+    CHECK(payload["slot"] == "color");
+    CHECK(payload["member"] == "uni:blue");
+    CHECK(payload["previous"] == "uni:red");
+    CHECK_FALSE(payload.contains("_card"));
+    CHECK_FALSE(payload.contains("card"));
+    CHECK(sink.NextSeq() == 1);
+}
+
+TEST_CASE("wrap_public_drops_private_hand_changes") {
+    const std::vector<LoadedMod> mods = LoadMods();
+    const std::unique_ptr<MatchInstance> engine = MakeMatch(mods);
+    const ecs::Entity card = HandCard(*engine, "uni:red_spade_alpha");
+
+    const json owner_event =
+        Emit(*engine, "set_card_member",
+             json{{"slot", "suit"}, {"member", "uni:heart"}}, card);
+    const json hidden_event =
+        Emit(*engine, "set_card_member",
+             json{{"slot", "secret"}, {"member", "uni:beta"}}, card);
+
+    EventSink sink;
+    CHECK_FALSE(sink.WrapPublic(owner_event, *engine).has_value());
+    CHECK(sink.NextSeq() == 0);
+    CHECK_FALSE(sink.WrapPublic(hidden_event, *engine).has_value());
+    CHECK(sink.NextSeq() == 0);
+}
+
+TEST_CASE("non_string_visibility_resolves_hidden") {
+    const std::vector<LoadedMod> mods = LoadMods();
+    const std::unique_ptr<MatchInstance> engine = MakeMatch(mods);
+    const ecs::Entity card = HandCard(*engine, "uni:red_spade_alpha");
+
+    json event =
+        Emit(*engine, "set_card_member",
+             json{{"slot", "suit"}, {"member", "uni:heart"}}, card);
+    event["payload"]["visibility"] = 5;
+
+    SeatRoles roles;
+    CHECK_NOTHROW(roles = match::view::ResolveSeatRoles(
+                      *engine, "card_changed", event["payload"], "Alice"));
+    CHECK_FALSE(roles.state_public);
+    CHECK_FALSE(roles.state_owner);
+    CHECK_FALSE(roles.state_strict_owner);
+
+    std::optional<json> projected;
+    CHECK_NOTHROW(projected = match::view::ProjectPublicEvent(
+                      "card_changed", event["payload"], *engine));
+    REQUIRE(projected.has_value());
+    CHECK((*projected)["slot"] == "suit");
+    CHECK_FALSE(projected->contains("member"));
+    CHECK_FALSE(projected->contains("value"));
+    CHECK_FALSE(projected->contains("previous"));
+}
+
 TEST_CASE("late_join_tail_respects_redaction") {
     const std::vector<LoadedMod> mods = LoadMods();
     const std::unique_ptr<MatchInstance> engine = MakeMatch(mods);
@@ -530,5 +599,4 @@ TEST_CASE("late_join_tail_respects_redaction") {
     const json bob_envelopes = builder.BuildTail(kBob, tail);
     CHECK(bob_envelopes.empty());
 }
-
 }  // namespace

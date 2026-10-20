@@ -245,7 +245,11 @@ public:
      * pile count only, discard top identity + count, played/public info);
      * `VisibilityGrant` entries reveal the granted aspects of another hand or
      * a pile. A spectator is omniscient except for players opted into
-     * the private seats. Own-hand entries carry a `can_play` flag
+     * the private seats. Own-hand entries carry a `can_play` flag.
+     *
+     * `card_state` lists the non-default card overrides (members and synced
+     * properties) that this viewer may see, with the same redaction rules as
+     * the event stream. The key is absent when no entry survives.
      *
      * `match_state.context` holds the engine-owned values (active color,
      * direction, draw debt, play-drawn hold, live timers, sequence of the last
