@@ -1,8 +1,12 @@
 <!-- Row of player/bot/empty slot sprites, shared by lobby cards and the
      sort-order preview. `labeled` adds tooltips + screen-reader text. Humans
-     and bots render the shared Avatar; bots keep the gray robot strip. -->
+     show the classic white body strip, bots the gray robot strip. -->
 <script lang="ts">
 	import Avatar from "$components/common/Avatar.svelte";
+	import AvatarSprite from "$components/common/AvatarSprite.svelte";
+	import { assetUrl } from "$lib/utils/assetUrl";
+
+	const BASE_STRIP = assetUrl("/assets/base_player_strip.png");
 
 	let {
 		humans = 0,
@@ -25,7 +29,7 @@
 	{#each Array(humans) as _}
 		<div class={sizeClass} title={labeled ? "Player" : undefined}>
 			{#if labeled}<span class="sr-only">Player</span>{/if}
-			<Avatar size={16} />
+			<AvatarSprite url={BASE_STRIP} size={16} />
 		</div>
 	{/each}
 	{#each Array(bots) as _}

@@ -174,4 +174,98 @@ describe("ShopServer", () => {
 			expect(store.owned.has("uni:neon:volt")).toBe(true);
 		});
 	});
+
+	describe("wishlist", () => {
+		it("reads the items from GET /shop/wishlist", async () => {
+			vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ items: ["uni:hat_cap", "uni:round"] }));
+
+			const result = await store.wishlist();
+
+			expect(result).toEqual({ ok: true, items: ["uni:hat_cap", "uni:round"] });
+			expect(fetch).toHaveBeenCalledWith("/shop/wishlist", {
+				method: "GET",
+				credentials: "include",
+				headers: { "Content-Type": "application/json" }
+			});
+		});
+
+		it("adds with POST and the item body, then returns the updated list", async () => {
+			vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ items: ["uni:hat_cap"] }));
+
+			const result = await store.toggleWishlist("uni:hat_cap");
+
+			expect(result).toEqual({ ok: true, items: ["uni:hat_cap"] });
+			const [url, init] = vi.mocked(fetch).mock.calls[0];
+			expect(url).toBe("/shop/wishlist");
+			expect(init).toMatchObject({ method: "POST", credentials: "include" });
+			expect(JSON.parse(String(init?.body))).toEqual({ item: "uni:hat_cap" });
+		});
+
+		it("removes with DELETE once the item is on the wishlist", async () => {
+			vi.mocked(fetch)
+				.mockResolvedValueOnce(jsonResponse({ items: ["uni:hat_cap"] }))
+				.mockResolvedValueOnce(jsonResponse({ items: [] }));
+
+			await store.wishlist();
+			const result = await store.toggleWishlist("uni:hat_cap");
+
+			expect(result).toEqual({ ok: true, items: [] });
+			const [url, init] = vi.mocked(fetch).mock.calls[1];
+			expect(url).toBe("/shop/wishlist");
+			expect(init).toMatchObject({ method: "DELETE", credentials: "include" });
+			expect(JSON.parse(String(init?.body))).toEqual({ item: "uni:hat_cap" });
+		});
+
+		it("returns the server's error code", async () => {
+			vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ error: "guest" }, 403));
+
+			expect(await store.toggleWishlist("uni:hat_cap")).toEqual({
+				ok: false,
+				code: "guest"
+			});
+		});
+
+		it("returns network for a malformed body or a dropped connection", async () => {
+			vi.mocked(fetch)
+				.mockResolvedValueOnce(jsonResponse({ items: "none" }))
+				.mockRejectedValueOnce(new TypeError("connection lost"));
+
+			expect(await store.wishlist()).toEqual({ ok: false, code: "network" });
+			expect(await store.wishlist()).toEqual({ ok: false, code: "network" });
+		});
+	});
+
+	describe("popular", () => {
+		it("requests seven days by default and parses the rows", async () => {
+			const items = [
+				{ item: "uni:hat_cap", purchases: 9, wishlists: 4 },
+				{ item: "uni:round", purchases: 3, wishlists: 0 }
+			];
+			vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ days: 7, items }));
+
+			const result = await store.popular();
+
+			expect(result).toEqual({ ok: true, items });
+			expect(fetch).toHaveBeenCalledWith("/shop/popular?days=7", {
+				credentials: "include",
+				headers: { "Content-Type": "application/json" }
+			});
+		});
+
+		it("passes a custom window through the query string", async () => {
+			vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ days: 30, items: [] }));
+
+			await store.popular(30);
+
+			expect(vi.mocked(fetch).mock.calls[0][0]).toBe("/shop/popular?days=30");
+		});
+
+		it("returns network for a malformed body", async () => {
+			vi.mocked(fetch).mockResolvedValueOnce(
+				jsonResponse({ days: 7, items: [{ item: 1, purchases: "many", wishlists: 0 }] })
+			);
+
+			expect(await store.popular()).toEqual({ ok: false, code: "network" });
+		});
+	});
 });

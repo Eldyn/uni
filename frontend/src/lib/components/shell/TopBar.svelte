@@ -4,7 +4,9 @@
 	import { storeAvatar } from "$stores/avatar.svelte";
 	import { storeLobby } from "$stores/lobby.svelte";
 	import { storeI18n } from "$stores/i18n.svelte";
+	import { storeShop } from "$stores/shop.svelte";
 	import Avatar from "$components/common/Avatar.svelte";
+	import BalanceChip from "$components/shop/BalanceChip.svelte";
 	import TextEffects from "$components/common/TextEffects.svelte";
 	import { acceleratorKey } from "$lib/actions/keyboardAccelerators";
 	import { storeTopbarContent } from "$stores/topbarContent.svelte";
@@ -41,6 +43,9 @@
 		storeLobby.current?.members.find((member) => member.username === storeAuth.username)
 			?.is_ready ?? false
 	);
+
+	// Guests have no account economy, and an unfetched balance reads as unknown.
+	const showBalance = $derived(!storeAuth.isGuest && storeShop.balance !== undefined);
 
 	function openLobby() {
 		storeNavigation.goto("lobby");
@@ -111,6 +116,9 @@
 				frequency={0.15}
 			/>
 		</button>
+		{#if showBalance}
+			<BalanceChip balance={storeShop.balance} />
+		{/if}
 	</div>
 </header>
 
