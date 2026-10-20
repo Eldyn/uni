@@ -103,6 +103,7 @@ version; each release below corresponds to a `vX.Y.Z` git tag.
 
 ### Changed
 
+- **Internal: lobbies share one mod set** — `LobbyController::ActiveModSet` hands every match that plays the same mods (same content hashes) one immutable `shared_ptr<const std::vector<LoadedMod>>`, and `MatchSession` keeps that pointer instead of a copy, so a lobby no longer pays 1.3 MB for its own copy of the mods: creation drops from 2.4 MB to 1.0 MB per lobby and a 16-seat match ends at 2.3 MB (`uni_soak`). No wire change.
 - **Internal: a match frees its engine events once they are sent** — `MatchSession::EmitEvents` now drains `MatchInstance::Events()` after the sinks and the tail have read them, so the log no longer grows for the whole match: a 16-seat lobby ends a match at about 3.6 MB instead of 8.2 MB, a 4-seat lobby at 3.0 MB instead of 4.0 MB (`uni_soak`). No wire change.
 - **UI polish** — Shop and Wardrobe titles sit top left, the menu popover centers on its button, card art stays square after a live resize, the backdrop shows dithered diagonals again and repaints after resize, and the profile shows one larger non-clickable most-played card with a shaking percentage.
 - **Shop visuals** — the backdrop brings back the diagonal lines as a dithered two-tone pattern, avatar sprites shrink to fit their card in portrait, and the grid returns to six columns with larger previews.

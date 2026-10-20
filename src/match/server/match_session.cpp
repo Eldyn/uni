@@ -48,9 +48,19 @@ std::optional<match::ecs::Entity> CardForBits(
 MatchSession::MatchSession(std::unique_ptr<match::engine::MatchInstance> engine,
                            std::vector<match::modload::LoadedMod> mods,
                            SocketMap sockets)
+    : MatchSession(
+          std::move(engine),
+          std::make_shared<const std::vector<match::modload::LoadedMod>>(
+              std::move(mods)),
+          std::move(sockets)) {}
+
+MatchSession::MatchSession(
+    std::unique_ptr<match::engine::MatchInstance> engine,
+    std::shared_ptr<const std::vector<match::modload::LoadedMod>> mods,
+    SocketMap sockets)
     : engine_(std::move(engine)),
       mods_(std::move(mods)),
-      builder_(*engine_, mods_),
+      builder_(*engine_, *mods_),
       sockets_(std::move(sockets)) {
     // INFO: pre-create one sink (and prompt-dedupe) entry per recipient so the
     //       emit loops never insert into the maps while iterating them.
@@ -612,7 +622,7 @@ void MatchSession::EmitMatchStart(IBroadcaster& broadcaster) {
     const json& defs = CachedDefs();
     const match::engine::MatchDeckSnapshot& deck = engine_->Assembly().Deck();
     const json start = match::view::DefsBuilder::BuildMatchStart(
-        engine_->Registries(), mods_, deck.deck_id, deck.name, deck.settings);
+        engine_->Registries(), *mods_, deck.deck_id, deck.name, deck.settings);
 
     // INFO: `defs` is content-derived and identical for every recipient; the
     //       digest doubles as the `match_start` correlation id. The payloads
@@ -650,7 +660,7 @@ void MatchSession::EnsureDefs(IBroadcaster& broadcaster, AppWebSocket* socket,
 const nlohmann::json& MatchSession::CachedDefs() const {
     if (!defs_cache_.has_value()) {
         defs_cache_ = match::view::DefsBuilder::Build(engine_->Registries(),
-                                                      mods_);
+                                                      *mods_);
     }
     return *defs_cache_;
 }
@@ -1024,7 +1034,7 @@ void MatchSession::BuildPromptSchemas() {
     // INFO: A card choice is a `CompactCardV2.bits` integer.
     prompt_schemas_["choose_card"] = {{"type", "integer"}};
 
-    for (const match::modload::LoadedMod& mod : mods_) {
+    for (const match::modload::LoadedMod& mod : *mods_) {
         if (!mod.manifest.prompts.is_array()) continue;
         for (const json& decl : mod.manifest.prompts) {
             if (!decl.is_object()) continue;

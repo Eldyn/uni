@@ -1321,6 +1321,32 @@ bool LobbyController::ApplyDeckSnapshot(
     return true;
 }
 
+std::shared_ptr<const std::vector<match::modload::LoadedMod>>
+LobbyController::ActiveModSet(
+    const std::vector<match::modload::LoadedMod>& loaded,
+    const std::vector<std::string>& required) {
+    std::vector<const match::modload::LoadedMod*> selected;
+    std::string key;
+    for (const auto& mod : loaded) {
+        const bool required_by_deck = std::ranges::any_of(
+            required, [&mod](const std::string& id) {
+                return mod.manifest.id == id;
+            });
+        if (!required_by_deck) continue;
+        selected.push_back(&mod);
+        key += mod.manifest.id + ':' + mod.content_hash + ';';
+    }
+    std::erase_if(shared_mod_sets_,
+                  [](const auto& entry) { return entry.second.expired(); });
+    if (auto alive = shared_mod_sets_[key].lock()) return alive;
+
+    auto fresh =
+        std::make_shared<std::vector<match::modload::LoadedMod>>();
+    for (const auto* mod : selected) fresh->push_back(*mod);
+    shared_mod_sets_[key] = fresh;
+    return fresh;
+}
+
 match::modload::LoadResult LobbyController::ScanAndValidateMods() const {
     match::modload::LoadResult loaded =
         match::modload::ScanModsDirectory(mods_root_);
@@ -1828,14 +1854,7 @@ void LobbyController::HandleStartGame(WsContext context, const nlohmann::json& m
         }
     }
 
-    std::vector<match::modload::LoadedMod> active_mods;
-    for (const auto& mod : loaded.mods) {
-        const bool required_by_deck = std::ranges::any_of(
-            deck_def.mods, [&mod](const std::string& required) {
-                return mod.manifest.id == required;
-            });
-        if (required_by_deck) active_mods.push_back(mod);
-    }
+    const auto active_mods = ActiveModSet(loaded.mods, deck_def.mods);
 
     match::engine::MatchAssemblyOptions options;
     options.starting_cards = lobby.settings.starting_cards;
@@ -1858,7 +1877,7 @@ void LobbyController::HandleStartGame(WsContext context, const nlohmann::json& m
     }
 
     match::engine::AssemblyResult assembly =
-        match::engine::MatchAssembler::Assemble(active_mods, deck_def,
+        match::engine::MatchAssembler::Assemble(*active_mods, deck_def,
                                                 options);
     if (!assembly.ok()) {
         Logger::Error("[Lobby] Start failed: assembly error (",
@@ -1880,7 +1899,7 @@ void LobbyController::HandleStartGame(WsContext context, const nlohmann::json& m
     }
 
     lobby.session = std::make_unique<match::server::MatchSession>(
-        std::move(engine), std::move(active_mods), std::move(sockets));
+        std::move(engine), active_mods, std::move(sockets));
     lobby.match_id =
         "match_" + Lobby::GenerateInviteCode() + Lobby::GenerateInviteCode();
     for (const LobbyMember* member : seated) {
