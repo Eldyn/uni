@@ -661,6 +661,72 @@ TEST_CASE("director_sees_hand_card_bits_without_private_values") {
     }
 }
 
+TEST_CASE("late_join_tail_keeps_owner_value_after_hand_move") {
+    const std::vector<LoadedMod> mods = LoadMods();
+    const std::unique_ptr<MatchInstance> engine = MakeMatch(mods);
+    ViewBuilder builder(*engine, mods);
+    const ecs::Entity card = HandCard(*engine, "uni:red_spade_alpha");
+
+    const json event =
+        Emit(*engine, "set_card_member",
+             json{{"slot", "suit"}, {"member", "uni:heart"}}, card);
+    EventTail tail;
+    tail.Record(event);
+
+    MoveTo(*engine, card,
+           ecs::ZoneRef{ecs::ZoneKind::kDiscardPile, ecs::Entity{}});
+
+    const json alice_envelopes = builder.BuildTail(kAlice, tail);
+    REQUIRE(alice_envelopes.size() == 1);
+    const json& alice_payload = alice_envelopes.front()["payload"];
+    CHECK(alice_payload["member"] == "uni:heart");
+    CHECK(alice_payload["previous"] == "uni:spade");
+
+    const json bob_envelopes = builder.BuildTail(kBob, tail);
+    REQUIRE(bob_envelopes.size() == 1);
+    const json& bob_payload = bob_envelopes.front()["payload"];
+    CHECK_FALSE(bob_payload.contains("member"));
+    CHECK_FALSE(bob_payload.contains("value"));
+    CHECK_FALSE(bob_payload.contains("previous"));
+}
+
+TEST_CASE("public_body_is_internal_and_wire_redacts_the_handle") {
+    const std::vector<LoadedMod> mods = LoadMods();
+    const std::unique_ptr<MatchInstance> engine = MakeMatch(mods);
+    const ecs::Entity card = HandCard(*engine, "uni:red_spade_alpha");
+
+    const json owner_event =
+        Emit(*engine, "set_card_member",
+             json{{"slot", "suit"}, {"member", "uni:heart"}}, card);
+
+    const std::optional<json> owner_body = match::view::ProjectPublicEvent(
+        "card_changed", owner_event["payload"], *engine);
+    REQUIRE(owner_body.has_value());
+    CHECK(owner_body->contains("_card"));
+    CHECK((*owner_body)["member"] == "uni:heart");
+
+    EventSink sink;
+    CHECK_FALSE(sink.WrapPublic(owner_event, *engine).has_value());
+    CHECK(sink.NextSeq() == 0);
+
+    const json public_event =
+        Emit(*engine, "set_card_member",
+             json{{"slot", "color"}, {"member", "uni:blue"}}, card);
+
+    const std::optional<json> public_body = match::view::ProjectPublicEvent(
+        "card_changed", public_event["payload"], *engine);
+    REQUIRE(public_body.has_value());
+    CHECK(public_body->contains("_card"));
+
+    const std::optional<json> wire = sink.WrapPublic(public_event, *engine);
+    REQUIRE(wire.has_value());
+    const json& wire_payload = (*wire)["payload"];
+    CHECK(wire_payload["member"] == "uni:blue");
+    CHECK_FALSE(wire_payload.contains("_card"));
+    CHECK_FALSE(wire_payload.contains("card"));
+    CHECK_FALSE(wire_payload.contains("in_hand"));
+}
+
 TEST_CASE("late_join_tail_respects_redaction") {
     const std::vector<LoadedMod> mods = LoadMods();
     const std::unique_ptr<MatchInstance> engine = MakeMatch(mods);

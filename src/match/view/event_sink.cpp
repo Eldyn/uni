@@ -286,6 +286,16 @@ json ProjectCardChanged(const match::engine::MatchInstance& match,
     }
     const bool in_hand =
         in_zone != nullptr && in_zone->zone.kind == ecs::ZoneKind::kHand;
+    // INFO: the value decision uses the emit-time flag when the engine put it
+    //       in the body. A synthetic or older payload falls back to the
+    //       current zone. The identity and drop decisions below still read the
+    //       current zone, so a later move can change them; only the value
+    //       decision is frozen here.
+    bool value_in_hand = in_hand;
+    const auto in_hand_entry = payload.find("in_hand");
+    if (in_hand_entry != payload.end() && in_hand_entry->is_boolean()) {
+        value_in_hand = in_hand_entry->get<bool>();
+    }
     // INFO: the card bits go to every viewer here; the per-seat `kCard` rule
     //       keeps them only for a viewer that may see the card. A holder must
     //       get its own card identity, or it cannot apply the change. Limbo
@@ -318,7 +328,7 @@ json ProjectCardChanged(const match::engine::MatchInstance& match,
     }
     const bool state_value =
         visibility == "public"
-        || (in_hand
+        || (value_in_hand
             && (visibility == "owner" || visibility == "strict_owner"));
     if (state_value && synced) {
         if (payload.contains("member") && payload["member"].is_string()) {

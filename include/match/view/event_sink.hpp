@@ -146,6 +146,11 @@ private:
  * per-recipient (filtered) rows are built by `ViewBuilder` in
  * `view_builder.hpp`.
  *
+ * The returned body is an internal projection, not a wire body. It may carry
+ * audience-redacted values (for example an `owner` value on a hand) and the
+ * `_card` handle; `ProjectForViewer` and the envelope wrappers remove both.
+ * `_card` is a redaction handle only and never reaches the wire.
+ *
  * @param type    Engine event type token.
  * @param payload Descriptor body (or the flat descriptor minus `type`).
  * @param match   The live match (for entity -> wire conversion + end state).
