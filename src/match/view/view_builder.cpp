@@ -973,6 +973,86 @@ nlohmann::json ViewBuilder::BuildSnapshot(
     if (json prompt_wait = BuildPromptWait(match); !prompt_wait.is_null()) {
         state["prompt_wait"] = std::move(prompt_wait);
     }
+    // INFO: non-default card state, redacted per viewer. The key is absent
+    //       when no entry survives, so the tail golden and every default
+    //       snapshot stay byte-equal.
+    json card_state = json::array();
+    for (ecs::Entity card : registries.cards) {
+        const ecs::CardState* component = store.Get<ecs::CardState>(card);
+        if (component == nullptr) continue;
+        if (IsCardHiddenFrom(match, card, viewer)) continue;
+        const std::optional<ecs::CompactCardV2> identity =
+            registries.CardId(card);
+        if (!identity.has_value()) continue;
+
+        std::string holder;
+        if (const ecs::InZone* in_zone = store.Get<ecs::InZone>(card);
+            in_zone != nullptr
+            && in_zone->zone.kind == ecs::ZoneKind::kHand) {
+            const ecs::PlayerInfo* info =
+                store.Get<ecs::PlayerInfo>(in_zone->zone.owner);
+            if (info != nullptr) holder = info->username;
+        }
+        // INFO: `owner` reaches the holder and a privacy-off spectator (the
+        //       Task 8 semantics); `strict_owner` reaches the holder seat
+        //       only and never a spectator; a missing visibility is `hidden`.
+        const auto visible_to = [&](const std::string& visibility) {
+            if (visibility == "public") return true;
+            if (visibility == "owner") {
+                SeatRoles roles;
+                roles.owner = holder;
+                return AudienceAllows(Audience::kOwner, roles, viewer);
+            }
+            if (visibility == "strict_owner") {
+                return ViewerIs(viewer, holder);
+            }
+            return false;
+        };
+
+        std::string kind_id;
+        if (const ecs::CardIdentity* card_identity =
+                store.Get<ecs::CardIdentity>(card)) {
+            kind_id = card_identity->kind_id;
+        }
+        json members = json::object();
+        for (const auto& [slot, member] : component->member_overrides) {
+            const auto dealt_kind =
+                registries.kind_slot_members.find(kind_id);
+            if (dealt_kind != registries.kind_slot_members.end()) {
+                const auto dealt = dealt_kind->second.find(slot);
+                if (dealt != dealt_kind->second.end()
+                    && dealt->second == member) {
+                    continue;
+                }
+            }
+            const auto attribute = registries.member_attribute.find(member);
+            if (attribute == registries.member_attribute.end()) continue;
+            const auto visibility =
+                registries.attribute_visibility.find(attribute->second);
+            if (visibility == registries.attribute_visibility.end()) continue;
+            if (!visible_to(visibility->second)) continue;
+            members[slot] = member;
+        }
+
+        json properties = json::object();
+        for (const auto& [property_id, value] : component->properties) {
+            const auto property = registries.card_properties.find(property_id);
+            if (property == registries.card_properties.end()) continue;
+            if (value == property->second.default_value) continue;
+            // INFO: a non-synced property never reaches the wire, even when
+            //       its visibility is public.
+            if (!property->second.sync_to_clients) continue;
+            if (!visible_to(property->second.visibility)) continue;
+            properties[property_id] = value;
+        }
+
+        if (members.empty() && properties.empty()) continue;
+        card_state.push_back(json{{"card", identity->bits},
+                                  {"members", std::move(members)},
+                                  {"properties", std::move(properties)}});
+    }
+    if (!card_state.empty()) state["card_state"] = std::move(card_state);
+
     // INFO: lobby-owned total; the client HUD reads the per-player counts off
     //       `players[]` for the POV-aware eye count.
     state["spectator_count"] = options.spectator_count;

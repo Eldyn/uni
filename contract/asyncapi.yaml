@@ -405,6 +405,15 @@ components:
                 type: array
                 items:
                   $ref: "#/components/schemas/MatchEventPayload"
+              card_state:
+                type: array
+                description: >
+                  Non-default card state for the cards this viewer may see.
+                  Omitted when empty. Each entry carries the card identity and
+                  only the member overrides and property values whose
+                  visibility allows this viewer to see them.
+                items:
+                  $ref: "#/components/schemas/CardStateEntryPayload"
           action_required:
             type: integer
             description: >
@@ -1949,6 +1958,23 @@ components:
         previous:
           x-any: true
           description: The old member or property value. Absent when the viewer may not see it.
+
+    # One entry of the optional snapshot `card_state` array. `members` maps a
+    # slot to its overridden member; `properties` maps a property id to a
+    # boolean, number or string value. Both carry only what this viewer sees.
+    CardStateEntryPayload:
+      type: object
+      required: [card, members, properties]
+      properties:
+        card:
+          $ref: "#/components/schemas/CompactCardV2"
+        members:
+          type: object
+          additionalProperties:
+            type: string
+        properties:
+          type: object
+          additionalProperties: true
 
     CardCreatedPayload:
       type: object
