@@ -157,9 +157,14 @@ TEST_CASE("generates_cards_and_deck") {
 
     std::vector<std::string> kind_ids;
     for (const CardDef& card : uni.cards) kind_ids.push_back(card.kind_id);
-    CHECK(kind_ids == std::vector<std::string>{"uni:blue_0", "uni:blue_1",
-                                               "uni:red_0", "uni:red_1",
-                                               "uni:wild"});
+    CHECK(kind_ids == std::vector<std::string>{
+                          "uni:blue_0",           "uni:blue_1",
+                          "uni:blue_heart_alpha", "uni:blue_heart_beta",
+                          "uni:blue_spade_alpha", "uni:blue_spade_beta",
+                          "uni:red_0",            "uni:red_1",
+                          "uni:red_heart_alpha",  "uni:red_heart_beta",
+                          "uni:red_spade_alpha",  "uni:red_spade_beta",
+                          "uni:wild"});
 
     REQUIRE(uni.decks.size() == 1);
     CHECK(uni.decks[0].deck_id == "uni:mini");

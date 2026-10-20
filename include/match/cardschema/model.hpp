@@ -46,7 +46,7 @@ using ContributionMap = std::map<std::string, Contribution>;  // slot name -> co
 struct AttributeDef {
     std::string identifier;   // "uni:color"
     bool extensible = true;
-    std::string visibility = "public";  // public|owner|hidden
+    std::string visibility = "public";  // public|owner|strict_owner|hidden
     std::string file;
 };
 
@@ -125,7 +125,7 @@ struct PropertyDef {
     std::string type;                    // int|float|boolean|string|member
     json default_value;
     std::optional<std::pair<double, double>> range;
-    std::string visibility = "public";
+    std::string visibility = "public";  // public|owner|strict_owner|hidden
     bool sync_to_clients = true;
     std::vector<std::string> writable_by;   // empty means "owner"
     std::vector<std::string> values;        // string enum

@@ -56,8 +56,8 @@ class EventTail;
  *
  * A player viewer is identified by `username`. A spectator has an empty
  * username and `is_spectator == true`; the view layer does not make spectators
- * omniscient, so a spectator never matches a target-only or
- * owner-only rule.
+ * omniscient, so a spectator never matches a target-only rule. An owner-only
+ * rule matches a privacy-off spectator; `strict_owner` matches only the holder.
  */
 struct Viewer {
     std::string username;         /**< player username; empty for spectator. */

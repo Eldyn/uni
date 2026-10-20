@@ -24,9 +24,11 @@
 #include <logger.hpp>
 #include <algorithm>
 #include <chrono>
+#include <cstdint>
 #include <ctime>
 #include <fstream>
 #include <iterator>
+#include <map>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -92,40 +94,32 @@ match::modload::DeckDef DeckDefFromSnapshot(const json& deck) {
 }
 
 /**
- * @brief Synthesizes the classic-shaped `DeckDef` for a freestyle lobby.
+ * @brief Expands the freestyle data deck for a lobby's count tuning.
  *
- * Freestyle lobbies carry no deck snapshot, so the pool is rebuilt from the
- * legacy scalar `count_*` fields (mirroring `MatchInstance::GenerateDeck`)
- * with the kind ids of `mods/uni/decks/classic.json`. The base mod is
- * seeded here; the lobby's toggled `active_mods` are appended by the caller.
+ * Freestyle lobbies carry no deck snapshot, so `uni:classic` is expanded from
+ * the loaded mods with the lobby's scalar `count_*` fields as the deck
+ * settings. The base mod is seeded by the expansion; the lobby's toggled
+ * `active_mods` are appended by the caller.
  *
+ * @param mods     Loaded mods whose card schema expands the deck.
  * @param settings Lobby settings holding the `count_*` tuning.
- * @return DeckDef The synthesized freestyle deck.
+ * @param error    Receives the first diagnostic when the expansion fails.
+ * @return DeckDef The expanded deck, or an empty deck with `error` set.
  */
-match::modload::DeckDef SynthesizeFreestyleDeck(
-    const LobbySettings& settings) {
-    match::modload::DeckDef def;
-    def.id = "classic";
-    def.name = "Classic";
-    def.namespace_id = "uni";
-    def.deck_id = "uni:classic";
-    def.mods.push_back("uni");
-
-    for (const char* color : {"red", "blue", "green", "yellow"}) {
-        const std::string prefix = std::string("uni:") + color + "_";
-        def.cards.emplace_back(prefix + "0", settings.count_zeros);
-        for (int number = 1; number <= 9; ++number) {
-            def.cards.emplace_back(prefix + std::to_string(number),
-                                   settings.count_numbered);
-        }
-        def.cards.emplace_back(prefix + "skip", settings.count_skips);
-        def.cards.emplace_back(prefix + "reverse", settings.count_reverses);
-        def.cards.emplace_back(prefix + "draw2", settings.count_draw_two);
-    }
-    def.cards.emplace_back("uni:wild", settings.count_wild);
-    def.cards.emplace_back("uni:wild_draw4",
-                           settings.count_wild_draw_four);
-    return def;
+match::modload::DeckDef ExpandFreestyleDeck(
+    const std::vector<match::modload::LoadedMod>& mods,
+    const LobbySettings& settings, std::string& error) {
+    const std::map<std::string, std::int64_t> counts{
+        {"count_zeros", settings.count_zeros},
+        {"count_numbered", settings.count_numbered},
+        {"count_skips", settings.count_skips},
+        {"count_reverses", settings.count_reverses},
+        {"count_draw_two", settings.count_draw_two},
+        {"count_wild", settings.count_wild},
+        {"count_wild_draw_four", settings.count_wild_draw_four},
+    };
+    return match::modload::ExpandDeckDef(mods, "uni:classic", {"uni"}, counts,
+                                         error);
 }
 
 /**
@@ -139,17 +133,6 @@ bool HasLoadedMod(const std::vector<match::modload::LoadedMod>& mods,
         });
 }
 
-/**
- * @brief Resolves the deck definition a lobby's settings describe.
- *
- * Mirrors `HandleStartGame`'s selection (deck snapshot when present, else the
- * synthesized freestyle deck) so the match-end persistence path evaluates the
- * stats gate on the same mod set / card multiset the match was
- * assembled from.
- *
- * @param settings Lobby settings to resolve.
- * @return DeckDef The resolved deck definition, always carrying a mod list.
- */
 /**
  * @brief Appends the lobby's toggled rule mods to a resolved deck.
  *
@@ -170,11 +153,29 @@ void AppendActiveMods(match::modload::DeckDef& def,
     }
 }
 
-match::modload::DeckDef ResolveMatchDeck(const LobbySettings& settings) {
+/**
+ * @brief Resolves the deck definition a lobby's settings describe.
+ *
+ * Mirrors `HandleStartGame`'s selection (deck snapshot when present, else the
+ * expanded freestyle deck). The match-end path resolves against the current
+ * mods scan, so a mods tree changed mid-match can differ from what the match
+ * was assembled from; the stats gate then fails closed.
+ *
+ * @param mods     Loaded mods available to expand a freestyle deck.
+ * @param settings Lobby settings to resolve.
+ * @return DeckDef The resolved deck definition, always carrying a mod list.
+ */
+match::modload::DeckDef ResolveMatchDeck(
+    const std::vector<match::modload::LoadedMod>& mods,
+    const LobbySettings& settings) {
+    std::string error;
     match::modload::DeckDef def =
         DeckSnapshotHasCards(settings.deck)
             ? DeckDefFromSnapshot(settings.deck)
-            : SynthesizeFreestyleDeck(settings);
+            : ExpandFreestyleDeck(mods, settings, error);
+    if (!error.empty()) {
+        Logger::Warn("[Lobby] Match deck expansion failed: ", error);
+    }
     if (def.mods.empty()) def.mods.push_back("uni");
     AppendActiveMods(def, settings);
     return def;
@@ -427,11 +428,21 @@ void LobbyController::RecordMatchResult(Lobby& lobby,
     if (!db.IsOpen()) return;
 
     // INFO: Gate only the player_stats aggregate; match rows and
-    //       ledger placements are recorded for every match.
-    const match::modload::DeckDef deck = ResolveMatchDeck(lobby.settings);
+    //       ledger placements are recorded for every match. The cached scan
+    //       is the only mod list available on this path; an unreadable mods
+    //       root leaves the freestyle expansion empty, so the gate fails
+    //       closed without dropping the rows.
+    const std::shared_ptr<const ModsSnapshot> snapshot = HttpModsSnapshot();
+    if (snapshot->loaded.fatal()) {
+        Logger::Warn("[Lobby] Match end: mods root unreadable for '",
+                     mods_root_, "'");
+    }
+    const match::modload::DeckDef deck =
+        ResolveMatchDeck(snapshot->loaded.mods, lobby.settings);
     const bool stats_allowed =
         !lobby.settings.creative &&
-        match::server::StatsGateAllows(deck.mods, deck.cards);
+        match::server::StatsGateAllows(deck.mods, deck.cards,
+                                       snapshot->loaded.mods);
 
     const json state = lobby.session->Engine().ExportState();
     const std::vector<std::string> placements =
@@ -1784,10 +1795,21 @@ void LobbyController::HandleStartGame(WsContext context, const nlohmann::json& m
         return;
     }
 
-    match::modload::DeckDef deck_def =
-        DeckSnapshotHasCards(lobby.settings.deck)
-            ? DeckDefFromSnapshot(lobby.settings.deck)
-            : SynthesizeFreestyleDeck(lobby.settings);
+    match::modload::DeckDef deck_def;
+    if (DeckSnapshotHasCards(lobby.settings.deck)) {
+        deck_def = DeckDefFromSnapshot(lobby.settings.deck);
+    } else {
+        std::string deck_error;
+        deck_def =
+            ExpandFreestyleDeck(loaded.mods, lobby.settings, deck_error);
+        if (!deck_error.empty()) {
+            Logger::Error("[Lobby] Start failed: ", deck_error);
+            broadcaster_.SendError(context.socket, context.op_code,
+                                   contract::ErrorCode::kInvalidPayload,
+                                   request_id, deck_error);
+            return;
+        }
+    }
     if (deck_def.mods.empty()) deck_def.mods.push_back("uni");
     AppendActiveMods(deck_def, lobby.settings);
 

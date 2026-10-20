@@ -415,6 +415,84 @@ TEST_CASE("start: succeeds once every human member is ready") {
     CHECK(lp->session != nullptr);
 }
 
+/* INFO: cards live in the draw pile, the discard pile and the hands; the
+ *       three sizes together are the deck the assembler dealt. */
+static int DealtCardTotal(const match::engine::MatchInstance& engine) {
+    const json state = engine.ExportState();
+    int total = state.value("draw_pile_size", 0) +
+                state.value("discard_pile_size", 0);
+    for (const auto& player : state["players"]) {
+        total += player.value("card_count", 0);
+    }
+    return total;
+}
+
+TEST_CASE("freestyle_start_uses_the_data_deck") {
+    LobbyFixture f{ProjectModsRoot()};
+    std::string code = f.alice_creates();
+    f.bob_joins(code);
+    f.bus.Clear();
+
+    f.router.Dispatch(f.actx(), toggle_ready_msg());
+    f.router.Dispatch(f.bctx(), toggle_ready_msg());
+    f.bus.Clear();
+
+    f.router.Dispatch(f.actx(), start_msg());
+
+    Lobby* lp = f.lobby.GetLobbyByCode(code);
+    REQUIRE(lp);
+    REQUIRE(lp->session != nullptr);
+    CHECK(lp->settings.DeckSize() == 108);
+    CHECK(DealtCardTotal(lp->session->Engine()) == lp->settings.DeckSize());
+}
+
+TEST_CASE("freestyle_start_honors_count_wild") {
+    LobbyFixture f{ProjectModsRoot()};
+    std::string code = f.alice_creates();
+    f.bob_joins(code);
+    f.bus.Clear();
+
+    Lobby* lp = f.lobby.GetLobbyByCode(code);
+    REQUIRE(lp);
+    lp->settings.count_wild = 0;
+
+    f.router.Dispatch(f.actx(), toggle_ready_msg());
+    f.router.Dispatch(f.bctx(), toggle_ready_msg());
+    f.bus.Clear();
+
+    f.router.Dispatch(f.actx(), start_msg());
+
+    REQUIRE(lp->session != nullptr);
+    CHECK(lp->settings.DeckSize() == 104);
+    CHECK(DealtCardTotal(lp->session->Engine()) == lp->settings.DeckSize());
+}
+
+TEST_CASE("freestyle_start_over_limit_is_refused") {
+    LobbyFixture f{ProjectModsRoot()};
+    std::string code = f.alice_creates();
+    f.bob_joins(code);
+    f.bus.Clear();
+
+    Lobby* lp = f.lobby.GetLobbyByCode(code);
+    REQUIRE(lp);
+    lp->settings.count_numbered = 20;
+    lp->settings.count_zeros = 20;
+    lp->settings.count_skips = 20;
+    lp->settings.count_reverses = 20;
+    lp->settings.count_draw_two = 20;
+
+    f.router.Dispatch(f.actx(), toggle_ready_msg());
+    f.router.Dispatch(f.bctx(), toggle_ready_msg());
+    f.bus.Clear();
+
+    f.router.Dispatch(f.actx(), start_msg());
+
+    auto resp = json::parse(f.bus.FramesFor(f.alice_sock).back().payload);
+    CHECK(resp.value("action", "") == "error");
+    CHECK(resp.value("code", "") == "invalid_payload");
+    CHECK(lp->session == nullptr);
+}
+
 static void InsertPrivacyUser(const std::string& username) {
     REQUIRE(Database::Get()
                 .Exec("INSERT OR IGNORE INTO users "
@@ -1685,13 +1763,15 @@ TEST_CASE("match end: a deck that requires uni resolves to the base mod") {
 
     Lobby* lobby = f.lobby.GetLobbyByCode(code);
     REQUIRE(lobby != nullptr);
+    const auto shipped = ShippedMods();
+    REQUIRE(!shipped.empty());
     json deck = json{{"id", "classic"},
                      {"name", "Classic"},
                      {"namespace", "uni"},
                      {"mods", json::array({"uni"})},
                      {"cards", json::object()}};
     for (const auto& [kind, count] :
-         match::server::UniClassicDeckCards()) {
+         match::server::UniClassicDeckCards(shipped)) {
         deck["cards"][kind] = count;
     }
     lobby->settings.deck = std::move(deck);
@@ -1755,13 +1835,15 @@ TEST_CASE("match end: changed deck multiset keeps player_stats untouched") {
     //       must reject it.
     Lobby* lobby = f.lobby.GetLobbyByCode(code);
     REQUIRE(lobby != nullptr);
+    const auto shipped = ShippedMods();
+    REQUIRE(!shipped.empty());
     json deck = json{{"id", "classic"},
                      {"name", "Classic"},
                      {"namespace", "uni"},
                      {"mods", json::array({"uni"})},
                      {"cards", json::object()}};
     for (const auto& [kind, count] :
-         match::server::UniClassicDeckCards()) {
+         match::server::UniClassicDeckCards(shipped)) {
         deck["cards"][kind] = count;
     }
     deck["cards"]["uni:red_0"] = 2;

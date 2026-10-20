@@ -260,6 +260,22 @@ inline const std::vector<OpSignature>& OpCatalog() {
         }
         {
             OpSignature s;
+            s.name = "set_card_member";
+            s.args = {Arg("card", ArgType::kSelector),
+                      Arg("slot", ArgType::kString),
+                      Arg("member", ArgType::kString)};
+            add(std::move(s));
+        }
+        {
+            OpSignature s;
+            s.name = "set_card_property";
+            s.args = {Arg("card", ArgType::kSelector),
+                      Arg("property", ArgType::kString),
+                      Arg("value", ArgType::kAny)};
+            add(std::move(s));
+        }
+        {
+            OpSignature s;
             s.name = "remove_card";
             s.args = {Arg("card", ArgType::kSelector)};
             add(std::move(s));

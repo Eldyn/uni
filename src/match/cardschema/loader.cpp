@@ -1428,7 +1428,8 @@ bool ParseProperty(const json& value, const std::string& mod_id, const std::stri
     ParsePropertyDefault(value, file, pointer, diagnostics, property);
 
     if (const std::optional<std::string> visibility =
-            ReadEnum(value, "visibility", {"public", "owner", "hidden"}, file, pointer,
+            ReadEnum(value, "visibility",
+                     {"public", "owner", "strict_owner", "hidden"}, file, pointer,
                      diagnostics)) {
         property.visibility = *visibility;
     }
@@ -1641,7 +1642,8 @@ bool ParseAttribute(const json& value, const std::string& mod_id, const std::str
     }
 
     if (const std::optional<std::string> visibility =
-            ReadEnum(value, "visibility", {"public", "owner", "hidden"}, file, pointer,
+            ReadEnum(value, "visibility",
+                     {"public", "owner", "strict_owner", "hidden"}, file, pointer,
                      diagnostics)) {
         attribute.visibility = *visibility;
     }

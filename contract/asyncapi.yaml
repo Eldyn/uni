@@ -107,6 +107,7 @@ components:
     hands_passed: HandsPassedPayload
     hands_redistributed: HandsRedistributedPayload
     card_moved: CardMovedPayload
+    card_changed: CardChangedPayload
     card_created: CardCreatedPayload
     card_removed: CardRemovedPayload
     card_replaced: CardReplacedPayload
@@ -404,6 +405,15 @@ components:
                 type: array
                 items:
                   $ref: "#/components/schemas/MatchEventPayload"
+              card_state:
+                type: array
+                description: >
+                  Non-default card state for the cards this viewer may see.
+                  Omitted when empty. Each entry carries the card identity and
+                  only the member overrides and property values whose
+                  visibility allows this viewer to see them.
+                items:
+                  $ref: "#/components/schemas/CardStateEntryPayload"
           action_required:
             type: integer
             description: >
@@ -1920,6 +1930,51 @@ components:
         target:
           $ref: "#/components/schemas/PlayerRef"
           description: The seat whose hand the card entered. Absent for a pile.
+
+    CardChangedPayload:
+      type: object
+      x-packet-version: "1"
+      properties:
+        card:
+          $ref: "#/components/schemas/CompactCardV2"
+          description: >
+            The changed card. The server sends it only when the viewer may see
+            the card identity.
+        target:
+          $ref: "#/components/schemas/PlayerRef"
+          description: The seat that holds the card, when it is in a hand.
+        slot:
+          type: string
+          description: The attribute slot that changed (member change).
+        member:
+          type: string
+          description: The new member identifier. Absent when the viewer may not see it.
+        property:
+          type: string
+          description: The card property that changed (property change).
+        value:
+          x-any: true
+          description: The new property value. Absent when the viewer may not see it.
+        previous:
+          x-any: true
+          description: The old member or property value. Absent when the viewer may not see it.
+
+    # One entry of the optional snapshot `card_state` array. `members` maps a
+    # slot to its overridden member; `properties` maps a property id to a
+    # boolean, number or string value. Both carry only what this viewer sees.
+    CardStateEntryPayload:
+      type: object
+      required: [card, members, properties]
+      properties:
+        card:
+          $ref: "#/components/schemas/CompactCardV2"
+        members:
+          type: object
+          additionalProperties:
+            type: string
+        properties:
+          type: object
+          additionalProperties: true
 
     CardCreatedPayload:
       type: object

@@ -27,6 +27,8 @@ OpResult OpPassHands(ecs::EntityStore&, const OpArgs&, OpContext&);
 OpResult OpSwapHands(ecs::EntityStore&, const OpArgs&, OpContext&);
 OpResult OpRedistributeHands(ecs::EntityStore&, const OpArgs&, OpContext&);
 OpResult OpMaterializeCard(ecs::EntityStore&, const OpArgs&, OpContext&);
+OpResult OpSetCardMember(ecs::EntityStore&, const OpArgs&, OpContext&);
+OpResult OpSetCardProperty(ecs::EntityStore&, const OpArgs&, OpContext&);
 OpResult OpRemoveCard(ecs::EntityStore&, const OpArgs&, OpContext&);
 OpResult OpReplaceCard(ecs::EntityStore&, const OpArgs&, OpContext&);
 OpResult OpPeekPile(ecs::EntityStore&, const OpArgs&, OpContext&);

@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <limits>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -271,6 +272,98 @@ void AddZoneSeat(json& payload, std::string_view key,
     if (zone.kind == ecs::ZoneKind::kHand) {
         payload[std::string(key)] = EntityJson(zone.owner);
     }
+}
+
+/**
+ * @brief Coerce a raw `set_card_property` value to the property's declared
+ *        type, clamping numeric values to its range.
+ *
+ * @return false on a type mismatch, an unlisted string value or a member of a
+ *         different attribute; the caller then leaves the state untouched.
+ */
+bool CoercePropertyValue(
+    const match::cardschema::PropertyDef& property,
+    const match::engine::MatchRegistries& registries, const json& raw,
+    json& out) {
+    if (property.type == "int") {
+        if (!raw.is_number_integer()) return false;
+        if (raw.is_number_unsigned()
+            && raw.get<std::uint64_t>()
+                   > static_cast<std::uint64_t>(
+                       std::numeric_limits<std::int64_t>::max())) {
+            return false;
+        }
+        std::int64_t value = raw.get<std::int64_t>();
+        if (property.range.has_value()) {
+            // INFO: a double bound outside the int64 domain must saturate
+            //       first; casting 2^63 to int64 is undefined behaviour.
+            const double low = property.range->first;
+            const double high = property.range->second;
+            const std::int64_t lower =
+                low <= static_cast<double>(
+                           std::numeric_limits<std::int64_t>::min())
+                    ? std::numeric_limits<std::int64_t>::min()
+                    : static_cast<std::int64_t>(low);
+            const std::int64_t upper =
+                high >= static_cast<double>(
+                            std::numeric_limits<std::int64_t>::max())
+                    ? std::numeric_limits<std::int64_t>::max()
+                    : static_cast<std::int64_t>(high);
+            value = std::clamp(value, lower, upper);
+        }
+        out = value;
+        return true;
+    }
+    if (property.type == "float") {
+        if (!raw.is_number()) return false;
+        double value = raw.get<double>();
+        if (property.range.has_value()) {
+            value = std::clamp(value, property.range->first,
+                               property.range->second);
+        }
+        out = value;
+        return true;
+    }
+    if (property.type == "boolean") {
+        if (!raw.is_boolean()) return false;
+        out = raw;
+        return true;
+    }
+    if (property.type == "string") {
+        if (!raw.is_string()) return false;
+        const std::string value = raw.get<std::string>();
+        if (!property.values.empty()
+            && std::find(property.values.begin(), property.values.end(),
+                         value) == property.values.end()) {
+            return false;
+        }
+        out = value;
+        return true;
+    }
+    if (property.type == "member") {
+        if (!raw.is_string()) return false;
+        const std::string member = raw.get<std::string>();
+        const auto found = registries.member_attribute.find(member);
+        if (found == registries.member_attribute.end()
+            || found->second != property.member_attribute) {
+            return false;
+        }
+        out = member;
+        return true;
+    }
+    return false;
+}
+
+/**
+ * @brief Wrap one already-built value change into a `card_changed` event.
+ *
+ * Adds the card handle and, when the card is in a hand, the seat target.
+ */
+json CardChangedEvent(ecs::Entity card, json payload,
+                      const std::optional<ecs::ZoneRef>& zone) {
+    payload["card"] = EntityJson(card);
+    if (zone.has_value()) AddZoneSeat(payload, "target", *zone);
+    return MakeEvent("card_changed", std::move(payload));
 }
 
 /** @brief The `card_moved` event of a card that went from `from` to `to`. */
@@ -984,6 +1077,123 @@ OpResult OpMaterializeCard(ecs::EntityStore& store, const OpArgs& args,
     AddZoneSeat(created, "target", to);
     OpResult result = OpResult::Resolved(json{{"card", EntityJson(card)}});
     result.events.push_back(MakeEvent("card_created", std::move(created)));
+    return result;
+}
+
+OpResult OpSetCardMember(ecs::EntityStore& store, const OpArgs& args,
+                         OpContext& ctx) {
+    if (ctx.registries == nullptr) return OpResult::Resolved();
+    const std::optional<ecs::Entity> card = args.FirstEntity("card");
+    if (!card.has_value() || !store.IsAlive(*card)) return OpResult::Resolved();
+
+    std::string slot;
+    std::string member;
+    if (!args.GetString("slot", slot) || slot.empty()) {
+        return OpResult::Resolved();
+    }
+    if (!args.GetString("member", member) || member.empty()) {
+        return OpResult::Resolved();
+    }
+
+    const ecs::CardIdentity* identity = store.Get<ecs::CardIdentity>(*card);
+    if (identity == nullptr) return OpResult::Resolved();
+    const auto dealt_slots =
+        ctx.registries->kind_slot_members.find(identity->kind_id);
+    if (dealt_slots == ctx.registries->kind_slot_members.end()) {
+        return OpResult::Resolved();
+    }
+    const auto dealt_member = dealt_slots->second.find(slot);
+    if (dealt_member == dealt_slots->second.end()) return OpResult::Resolved();
+
+    const auto dealt_attribute =
+        ctx.registries->member_attribute.find(dealt_member->second);
+    const auto candidate_attribute =
+        ctx.registries->member_attribute.find(member);
+    if (dealt_attribute == ctx.registries->member_attribute.end()
+        || candidate_attribute == ctx.registries->member_attribute.end()
+        || candidate_attribute->second != dealt_attribute->second) {
+        return OpResult::Resolved();
+    }
+
+    const ecs::CardState* state = store.Get<ecs::CardState>(*card);
+    const std::string previous =
+        ecs::EffectiveMember(state, dealt_slots->second, slot);
+    if (previous == member) return OpResult::Resolved();
+
+    ecs::CardState* mutable_state = store.Get<ecs::CardState>(*card);
+    if (mutable_state == nullptr) {
+        mutable_state = store.Add(*card, ecs::CardState{});
+    }
+    if (mutable_state == nullptr) return OpResult::Resolved();
+    mutable_state->member_overrides[slot] = member;
+
+    // INFO: an active mod can deal a card whose attribute belongs to an
+    //       inactive mod; a missing attribute is hidden, never public.
+    std::string visibility = "hidden";
+    const auto found_visibility = ctx.registries->attribute_visibility.find(
+        dealt_attribute->second);
+    if (found_visibility != ctx.registries->attribute_visibility.end()) {
+        visibility = found_visibility->second;
+    }
+
+    OpResult result = OpResult::Resolved();
+    result.events.push_back(CardChangedEvent(
+        *card,
+        json{{"slot", slot},
+             {"member", member},
+             {"previous", previous},
+             {"visibility", visibility}},
+        FindCardZone(store, *card)));
+    return result;
+}
+
+OpResult OpSetCardProperty(ecs::EntityStore& store, const OpArgs& args,
+                           OpContext& ctx) {
+    if (ctx.registries == nullptr) return OpResult::Resolved();
+    const std::optional<ecs::Entity> card = args.FirstEntity("card");
+    if (!card.has_value() || !store.IsAlive(*card)) return OpResult::Resolved();
+
+    std::string property_id;
+    if (!args.GetString("property", property_id) || property_id.empty()) {
+        return OpResult::Resolved();
+    }
+    const auto property = ctx.registries->card_properties.find(property_id);
+    if (property == ctx.registries->card_properties.end()) {
+        return OpResult::Resolved();
+    }
+    const json* raw_value = args.Find("value");
+    if (raw_value == nullptr) return OpResult::Resolved();
+    json value;
+    if (!CoercePropertyValue(property->second, *ctx.registries, *raw_value,
+                             value)) {
+        return OpResult::Resolved();
+    }
+
+    const ecs::CardState* state = store.Get<ecs::CardState>(*card);
+    json previous = property->second.default_value;
+    if (state != nullptr) {
+        const auto override_it = state->properties.find(property_id);
+        if (override_it != state->properties.end()) {
+            previous = override_it->second;
+        }
+    }
+    if (previous == value) return OpResult::Resolved();
+
+    ecs::CardState* mutable_state = store.Get<ecs::CardState>(*card);
+    if (mutable_state == nullptr) {
+        mutable_state = store.Add(*card, ecs::CardState{});
+    }
+    if (mutable_state == nullptr) return OpResult::Resolved();
+    mutable_state->properties[property_id] = value;
+
+    OpResult result = OpResult::Resolved();
+    result.events.push_back(CardChangedEvent(
+        *card,
+        json{{"property", property_id},
+             {"value", value},
+             {"previous", std::move(previous)},
+             {"visibility", property->second.visibility}},
+        FindCardZone(store, *card)));
     return result;
 }
 

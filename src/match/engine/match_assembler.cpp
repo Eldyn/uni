@@ -2,6 +2,7 @@
 
 #include "match/content_wiring.hpp"
 #include "match/engine/mutation_compiler.hpp"
+#include "match/modload/mod_loader.hpp"
 #include "match/ops/op_helpers.hpp"
 #include "match/rng.hpp"
 
@@ -504,6 +505,7 @@ AssemblyResult MatchAssembler::Assemble(
         std::vector<std::string> kinds;
         kinds.reserve(mod->cards.size());
         for (const modload::CardDef& card : mod->cards) {
+            if (!modload::CardActive(card, deck.mods)) continue;
             kinds.push_back(card.kind_id);
         }
         std::sort(kinds.begin(), kinds.end());
@@ -551,6 +553,7 @@ AssemblyResult MatchAssembler::Assemble(
     std::map<std::string, bool> numbered;
     for (const modload::LoadedMod* mod : active) {
         for (const modload::CardDef& card : mod->cards) {
+            if (!modload::CardActive(card, deck.mods)) continue;
             modload::PlayCardFacts facts;
             facts.color = card.face.color.value_or("");
             facts.value = card.face.label.value_or("");
@@ -559,6 +562,28 @@ AssemblyResult MatchAssembler::Assemble(
             numbered[card.kind_id] = IsNumbered(card);
             active_cards.push_back(card);
         }
+    }
+
+    // INFO: card-schema catalog data for the card-state ops. Only the active
+    //       mods contribute, so an inactive mod's members never reach a match.
+    for (const modload::LoadedMod* mod : active) {
+        for (const cardschema::AttributeDef& attribute :
+             mod->card_schema.attributes) {
+            registries.attribute_visibility[attribute.identifier] =
+                attribute.visibility;
+        }
+        for (const cardschema::MemberDef& member : mod->card_schema.members) {
+            registries.member_attribute[member.identifier] = member.attribute;
+        }
+        for (const cardschema::PropertyDef& property :
+             mod->card_schema.properties) {
+            if (property.scope == "card") {
+                registries.card_properties[property.identifier] = property;
+            }
+        }
+    }
+    for (const modload::CardDef& card : active_cards) {
+        registries.kind_slot_members[card.kind_id] = card.slot_members;
     }
 
     // INFO: mutations are applied at assembly, not walk time.
@@ -582,6 +607,7 @@ AssemblyResult MatchAssembler::Assemble(
     std::set<std::string, std::less<>> declared_restrictions;
     for (const modload::LoadedMod* mod : active) {
         for (const modload::CardDef& card : mod->cards) {
+            if (!modload::CardActive(card, deck.mods)) continue;
             kind_ids.insert(card.kind_id);
             for (const modload::BehaviorEntry& entry : card.behaviors) {
                 CollectRestrictionEntryIds(entry.graph, declared_restrictions);
@@ -689,6 +715,7 @@ AssemblyResult MatchAssembler::Assemble(
             const int count = count_it == counts.end() ? 0 : count_it->second;
             const modload::CardDef* def = nullptr;
             for (const modload::CardDef& card : mod->cards) {
+                if (!modload::CardActive(card, deck.mods)) continue;
                 if (card.kind_id == kind_id) {
                     def = &card;
                     break;
@@ -859,6 +886,7 @@ AssemblyResult MatchAssembler::Assemble(
             }
         }
         for (const modload::CardDef& card : mod->cards) {
+            if (!modload::CardActive(card, deck.mods)) continue;
             for (const modload::BehaviorEntry& entry : card.behaviors) {
                 const std::optional<ecs::HookId> hook =
                     ResolveEntryHook(entry);

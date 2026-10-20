@@ -217,16 +217,15 @@ std::string KindFileLabel(const match::cardschema::ModSchema& schema,
  *        with, so the lobby snapshot, the `match_start` hook payload, the wire
  *        `match_start.settings` and the validator's `CheckSettings` all keep
  *        the values they had with the old deck files. */
-DeckDef BuildDeckDef(const std::string& host_mod,
-                     const match::cardschema::ExpandedDeck& expanded,
+DeckDef BuildDeckDef(const match::cardschema::ExpandedDeck& expanded,
+                     const std::vector<std::string>& active_mod_ids,
                      const std::map<std::string, std::int64_t>& settings) {
     DeckDef deck;
     deck.id = match::cardschema::LocalNameOf(expanded.deck_id);
-    deck.namespace_id = host_mod;
+    deck.namespace_id = match::cardschema::NamespaceOf(expanded.deck_id);
     deck.deck_id = expanded.deck_id;
     deck.name = expanded.name;
-    deck.mods = expanded.mods;
-    if (deck.mods.empty()) deck.mods.push_back(host_mod);
+    deck.mods = active_mod_ids;
     deck.cards = expanded.cards;
     deck.settings = nlohmann::json::object();
     for (const auto& [name, value] : settings) deck.settings[name] = value;
@@ -239,6 +238,25 @@ DeckDef BuildDeckDef(const std::string& host_mod,
     deck.raw["mods"] = deck.mods;
     deck.raw["cards"] = std::move(cards);
     return deck;
+}
+
+/** INFO: the expansion shared by the public entry point and the load-time pass.
+ *        The load-time pass already holds the expanded catalog and keeps the
+ *        diagnostics for `AppendSchemaErrors`, so it passes `catalog`; the
+ *        public entry point expands the catalog from the schemas. */
+match::cardschema::ExpandedDeck ExpandDeckFromSchemas(
+    const std::vector<match::cardschema::ModSchema>& schemas,
+    const match::cardschema::CatalogResult* catalog,
+    const std::string& deck_id,
+    const std::vector<std::string>& active_mod_ids,
+    const std::map<std::string, std::int64_t>& settings) {
+    const std::set<std::string> active_set(active_mod_ids.begin(),
+                                           active_mod_ids.end());
+    if (catalog != nullptr) {
+        return match::cardschema::ExpandDeck(*catalog, schemas, deck_id,
+                                             active_set, settings);
+    }
+    return match::cardschema::ExpandDeck(schemas, deck_id, active_set, settings);
 }
 
 /** INFO: the settings a deck expands with: the manifest defaults of every mod
@@ -2500,6 +2518,36 @@ std::string CatalogDiagnosticModId(const std::string& file) {
     return DiagnosticModId(file);
 }
 
+std::map<std::string, std::int64_t> DefaultSettings(const LoadedMod& mod) {
+    std::map<std::string, std::int64_t> settings;
+    for (const SettingDecl& setting : mod.manifest.settings) {
+        if (setting.id.empty()) continue;
+        if (setting.type != "int") continue;
+        if (!setting.default_value.is_number_integer()) continue;
+        settings[setting.id] = setting.default_value.get<std::int64_t>();
+    }
+    return settings;
+}
+
+DeckDef ExpandDeckDef(const std::vector<LoadedMod>& mods,
+                      const std::string& deck_id,
+                      const std::vector<std::string>& active_mod_ids,
+                      const std::map<std::string, std::int64_t>& settings,
+                      std::string& error) {
+    std::vector<match::cardschema::ModSchema> schemas;
+    schemas.reserve(mods.size());
+    for (const LoadedMod& mod : mods) schemas.push_back(mod.card_schema);
+
+    const match::cardschema::ExpandedDeck expanded = ExpandDeckFromSchemas(
+        schemas, nullptr, deck_id, active_mod_ids, settings);
+    error.clear();
+    if (!expanded.diagnostics.empty()) {
+        error = match::expr::FormatDiagnostic(expanded.diagnostics.front());
+        return {};
+    }
+    return BuildDeckDef(expanded, active_mod_ids, settings);
+}
+
 std::vector<std::string> CatalogDiagnosticOwners(
     const std::string& file, const std::vector<std::string>& loaded_mod_ids) {
     const std::string candidate = DiagnosticModId(file);
@@ -2561,6 +2609,17 @@ bool IsValidKindId(const std::string& id) {
     if (id.find(':', colon + 1) != std::string::npos) return false;
     return IsValidLocalId(id.substr(0, colon))
         && IsValidLocalId(id.substr(colon + 1));
+}
+
+bool CardActive(const CardDef& card,
+                const std::vector<std::string>& active_mod_ids) {
+    for (const std::string& required : card.requires_mods) {
+        if (std::find(active_mod_ids.begin(), active_mod_ids.end(), required)
+            == active_mod_ids.end()) {
+            return false;
+        }
+    }
+    return true;
 }
 
 std::string NamespaceRuleViolation(const std::string& mod_id,
@@ -2909,11 +2968,11 @@ LoadResult ScanModsDirectory(const std::string& root) {
             }
             /* INFO: `requires_mods` is recorded here and not filtered here: a
              *       match that does not enable one of those mods must not deal
-             *       the card, and Plan 2a-2 Task 1 filters `LoadedMod.cards` by
-             *       the active mod list. The list is therefore expected to hold
-             *       cards of foreign mods.
-             * TODO(2a-2 T1): filter the readers that still see every card. */
+             *       the card. Readers filter the generated card with
+             *       `modload::CardActive`; the loader drops a card whose
+             *       required mod did not load. */
             card.requires_mods = generated.requires_mods;
+            card.slot_members = generated.slot_members;
             card.template_id = generated.template_id;
             entry.mod.cards.push_back(std::move(card));
         }
@@ -2967,17 +3026,16 @@ LoadResult ScanModsDirectory(const std::string& root) {
                 entry.ok = false;
                 break;
             }
-            const std::set<std::string> active_set(active_mods.begin(),
-                                                   active_mods.end());
             const match::cardschema::ExpandedDeck expanded =
-                match::cardschema::ExpandDeck(catalog, schemas, deck.identifier,
-                                              active_set, settings);
+                ExpandDeckFromSchemas(schemas, &catalog, deck.identifier,
+                                      active_mods, settings);
             if (!expanded.diagnostics.empty()) {
                 AppendSchemaErrors(entry.errors, expanded.diagnostics);
                 entry.ok = false;
                 break;
             }
-            entry.mod.decks.push_back(BuildDeckDef(host_mod, expanded, settings));
+            entry.mod.decks.push_back(
+                BuildDeckDef(expanded, active_mods, settings));
         }
     }
 

@@ -1,8 +1,12 @@
 #include <match/server/stats_gate.hpp>
 
 #include <match/modload/base_mod.hpp>
+#include <match/modload/mod_loader.hpp>
 
 #include <algorithm>
+#include <ranges>
+#include <string>
+#include <vector>
 
 /**
  * @file stats_gate.cpp
@@ -10,32 +14,21 @@
  */
 
 namespace match::server {
-namespace {
 
-/** @brief Build the uni classic deck kind -> count list. */
-std::vector<std::pair<std::string, int>> BuildUniClassicCards() {
-    std::vector<std::pair<std::string, int>> cards;
-    for (const char* color : {"red", "blue", "green", "yellow"}) {
-        const std::string prefix = std::string("uni:") + color + "_";
-        cards.emplace_back(prefix + "0", 1);
-        for (int number = 1; number <= 9; ++number) {
-            cards.emplace_back(prefix + std::to_string(number), 2);
-        }
-        cards.emplace_back(prefix + "skip", 2);
-        cards.emplace_back(prefix + "reverse", 2);
-        cards.emplace_back(prefix + "draw2", 2);
-    }
-    cards.emplace_back("uni:wild", 4);
-    cards.emplace_back("uni:wild_draw4", 4);
-    return cards;
-}
+std::vector<std::pair<std::string, int>> UniClassicDeckCards(
+    const std::vector<match::modload::LoadedMod>& mods) {
+    const auto uni = std::ranges::find_if(
+        mods, [](const match::modload::LoadedMod& mod) {
+            return modload::IsBaseModId(mod.manifest.id);
+        });
+    if (uni == mods.end()) return {};
 
-}  // namespace
-
-const std::vector<std::pair<std::string, int>>& UniClassicDeckCards() {
-    static const std::vector<std::pair<std::string, int>> kCards =
-        BuildUniClassicCards();
-    return kCards;
+    std::string error;
+    const match::modload::DeckDef deck = match::modload::ExpandDeckDef(
+        mods, "uni:classic", {"uni"}, match::modload::DefaultSettings(*uni),
+        error);
+    if (!error.empty()) return {};
+    return deck.cards;
 }
 
 std::vector<std::string> ExpandKindMultiset(
@@ -62,13 +55,17 @@ bool DeckKindMultisetsEqual(const std::vector<std::string>& lhs,
 
 bool StatsGateAllows(const std::vector<std::string>& mods,
                      const std::vector<std::pair<std::string, int>>&
-                         deck_cards) {
+                         deck_cards,
+                     const std::vector<match::modload::LoadedMod>&
+                         loaded_mods) {
     if (mods.size() != 1 || !modload::IsBaseModId(mods.front())) {
         return false;
     }
-    return DeckKindMultisetsEqual(
-        ExpandKindMultiset(deck_cards),
-        ExpandKindMultiset(UniClassicDeckCards()));
+    const std::vector<std::pair<std::string, int>> classic =
+        UniClassicDeckCards(loaded_mods);
+    if (classic.empty()) return false;
+    return DeckKindMultisetsEqual(ExpandKindMultiset(deck_cards),
+                                  ExpandKindMultiset(classic));
 }
 
 }  // namespace match::server

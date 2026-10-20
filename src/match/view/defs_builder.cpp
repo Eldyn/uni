@@ -139,12 +139,13 @@ json EventManifestEntry(const match::modload::EventDef& event) {
  *        files.
  */
 json GlossaryListing(const std::vector<match::modload::LoadedMod>& mods,
-                     const std::string& mod_id) {
+                     const std::string& mod_id,
+                     const std::vector<std::string>& active_mod_ids) {
     json listing = json::array();
     for (const match::modload::LoadedMod& loaded : mods) {
         if (loaded.manifest.id != mod_id) continue;
         for (const match::modload::GlossaryEntryView& entry :
-             match::modload::BuildGlossaryEntries(loaded)) {
+             match::modload::BuildGlossaryEntries(loaded, active_mod_ids)) {
             const std::string source(
                 match::modload::GlossarySourceName(entry.source));
             listing.push_back(json{{"id", entry.id},
@@ -180,11 +181,16 @@ json TextsListing(const std::vector<match::modload::LoadedMod>& mods,
 nlohmann::json DefsBuilder::BuildTextListing(
     const std::vector<match::modload::LoadedMod>& mods) {
     json listing = json::array();
+    std::vector<std::string> active_mod_ids;
+    active_mod_ids.reserve(mods.size());
+    for (const match::modload::LoadedMod& loaded : mods) {
+        active_mod_ids.push_back(loaded.manifest.id);
+    }
     for (const match::modload::LoadedMod& loaded : mods) {
         const std::string& mod_id = loaded.manifest.id;
         json mod_json = json{{"id", mod_id}};
         json texts = TextsListing(mods, mod_id);
-        json glossary = GlossaryListing(mods, mod_id);
+        json glossary = GlossaryListing(mods, mod_id, active_mod_ids);
         if (texts.empty() && glossary.empty()) continue;
         if (!texts.empty()) mod_json["texts"] = std::move(texts);
         if (!glossary.empty()) mod_json["glossary"] = std::move(glossary);
@@ -208,9 +214,17 @@ nlohmann::json DefsBuilder::Build(
     };
     const match::modload::AssetIndex asset_index =
         match::modload::AssetIndex::BuildFromMods(mods);
+    std::vector<std::string> active_mod_ids;
+    active_mod_ids.reserve(registries.mods.size());
+    for (const match::ecs::ModRef& mod : registries.mods) {
+        active_mod_ids.push_back(mod.id);
+    }
     std::unordered_map<std::string, KindSource> by_kind;
     for (const LoadedMod& mod : mods) {
         for (const CardDef& card : mod.cards) {
+            // TODO(2a-2 T1): LoadedMod.cards still holds foreign cards; only
+            // index the ones whose mods are active.
+            if (!match::modload::CardActive(card, active_mod_ids)) continue;
             by_kind[card.kind_id] = KindSource{&mod, &card};
         }
     }
@@ -230,7 +244,7 @@ nlohmann::json DefsBuilder::Build(
                              {"index", static_cast<int>(i)}};
         json texts = TextsListing(mods, mod.id);
         if (!texts.empty()) mod_json["texts"] = std::move(texts);
-        json glossary = GlossaryListing(mods, mod.id);
+        json glossary = GlossaryListing(mods, mod.id, active_mod_ids);
         if (!glossary.empty()) mod_json["glossary"] = std::move(glossary);
         mods_json.push_back(std::move(mod_json));
     }

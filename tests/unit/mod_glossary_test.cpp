@@ -375,7 +375,8 @@ TEST_CASE("glossary entries: each card creates an entry with derived keys") {
     const LoadResult loaded = LoadMod({{"kinds/foo.json", CardFile("foo")},
                                        {"kinds/bar.json", CardFile("bar")}});
     REQUIRE(loaded.ok());
-    const auto entries = match::modload::BuildGlossaryEntries(loaded.mods[0]);
+    const auto entries = match::modload::BuildGlossaryEntries(
+        loaded.mods[0], {loaded.mods[0].manifest.id});
     REQUIRE(entries.size() == 2);
     const GlossaryEntryView* foo = Find(entries, "my_mod:foo");
     REQUIRE(foo != nullptr);
@@ -390,7 +391,8 @@ TEST_CASE("glossary entries: a card with declared keys uses them") {
         {{"kinds/foo.json",
           CardFile("foo", R"(, "label_key": "my_mod:name.foo")")}});
     REQUIRE(loaded.ok());
-    const auto entries = match::modload::BuildGlossaryEntries(loaded.mods[0]);
+    const auto entries = match::modload::BuildGlossaryEntries(
+        loaded.mods[0], {loaded.mods[0].manifest.id});
     REQUIRE(entries.size() == 1);
     CHECK(entries[0].label_key == "my_mod:name.foo");
     CHECK(entries[0].description_key == "my_mod:foo.description");
@@ -404,7 +406,8 @@ TEST_CASE("glossary entries: an explicit entry overrides the automatic one") {
       "uni:label_key": "my_mod:custom.label",
       "uni:description_key": "my_mod:custom.description")")}});
     REQUIRE(loaded.ok());
-    const auto entries = match::modload::BuildGlossaryEntries(loaded.mods[0]);
+    const auto entries = match::modload::BuildGlossaryEntries(
+        loaded.mods[0], {loaded.mods[0].manifest.id});
     REQUIRE(entries.size() == 1);
     CHECK(entries[0].id == "my_mod:foo");
     CHECK(entries[0].label_key == "my_mod:custom.label");
@@ -417,7 +420,8 @@ TEST_CASE("glossary entries: an explicit entry needs no card") {
                                        {"glossary/combo.json",
                                         EntryFile("my_mod:combo")}});
     REQUIRE(loaded.ok());
-    const auto entries = match::modload::BuildGlossaryEntries(loaded.mods[0]);
+    const auto entries = match::modload::BuildGlossaryEntries(
+        loaded.mods[0], {loaded.mods[0].manifest.id});
     REQUIRE(entries.size() == 2);
     CHECK(Find(entries, "my_mod:combo")->source == GlossarySource::kExplicit);
     CHECK(Find(entries, "my_mod:foo")->source == GlossarySource::kCard);
@@ -429,7 +433,8 @@ TEST_CASE("glossary entries: the list is sorted by id") {
                  {"kinds/alpha.json", CardFile("alpha")},
                  {"glossary/mid.json", EntryFile("my_mod:mid")}});
     REQUIRE(loaded.ok());
-    const auto entries = match::modload::BuildGlossaryEntries(loaded.mods[0]);
+    const auto entries = match::modload::BuildGlossaryEntries(
+        loaded.mods[0], {loaded.mods[0].manifest.id});
     REQUIRE(entries.size() == 3);
     CHECK(entries[0].id == "my_mod:alpha");
     CHECK(entries[1].id == "my_mod:mid");
@@ -439,7 +444,9 @@ TEST_CASE("glossary entries: the list is sorted by id") {
 TEST_CASE("glossary entries: a mod without a card or a file has none") {
     const LoadResult loaded = LoadMod({});
     REQUIRE(loaded.ok());
-    CHECK(match::modload::BuildGlossaryEntries(loaded.mods[0]).empty());
+    CHECK(match::modload::BuildGlossaryEntries(
+              loaded.mods[0], {loaded.mods[0].manifest.id})
+              .empty());
 }
 
 TEST_CASE("glossary entries: the source names are card and explicit") {
@@ -604,7 +611,8 @@ TEST_CASE("glossary validation: the glossary keys join the used keys") {
         LoadMod({{"glossary/foo.json", EntryFile("my_mod:foo")},
                  {"texts/en.json", kEnglish}});
     REQUIRE(loaded.ok());
-    CHECK(match::modload::UsedGlossaryKeys(loaded.mods[0])
+    CHECK(match::modload::UsedGlossaryKeys(
+              loaded.mods[0], {loaded.mods[0].manifest.id})
           == std::set<std::string>{"my_mod:foo.description",
                                    "my_mod:foo.label"});
 }

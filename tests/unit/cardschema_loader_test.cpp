@@ -318,7 +318,8 @@ TEST_CASE("bad_visibility") {
     REQUIRE(outcome.diagnostics.size() == 1);
     CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
           "mods/uni/attributes/color.json#/attribute/visibility: "
-          "key \"visibility\" must be one of \"public\", \"owner\", \"hidden\"");
+          "key \"visibility\" must be one of \"public\", \"owner\", "
+          "\"strict_owner\", \"hidden\"");
 }
 
 TEST_CASE("duplicate_attribute") {
@@ -1907,6 +1908,26 @@ TEST_CASE("loads_property") {
     CHECK(property.writable_by == std::vector<std::string>{"tree", "axe"});
 }
 
+TEST_CASE("loads_strict_owner_visibility") {
+    CardSchemaTempDir dir;
+    dir.Write("tree/attributes/secret.json",
+              R"({"format_version":"1.0.0","attribute":{"identifier":"tree:secret",)"
+              R"("visibility":"strict_owner","members":[{"identifier":"tree:alpha",)"
+              R"("order":0}]}})");
+    dir.Write("tree/properties/secret_state.json",
+              R"({"format_version":"1.0.0","property":{"identifier":"tree:secret_state",)"
+              R"("scope":"card","type":"boolean","default":false,)"
+              R"("visibility":"strict_owner"}})");
+
+    const match::cardschema::LoadOutcome outcome = LoadModSchema(dir.root / "tree", "tree");
+
+    REQUIRE(outcome.ok());
+    REQUIRE(outcome.schema.attributes.size() == 1);
+    CHECK(outcome.schema.attributes[0].visibility == "strict_owner");
+    REQUIRE(outcome.schema.properties.size() == 1);
+    CHECK(outcome.schema.properties[0].visibility == "strict_owner");
+}
+
 TEST_CASE("default_out_of_range") {
     CardSchemaTempDir dir;
     dir.Write("tree/properties/growth.json",
@@ -2005,7 +2026,8 @@ TEST_CASE("property_visibility_values_listed") {
     REQUIRE(outcome.diagnostics.size() == 1);
     CHECK(FormatDiagnostic(outcome.diagnostics[0]) ==
           "mods/tree/properties/growth.json#/property/visibility: "
-          "key \"visibility\" must be one of \"public\", \"owner\", \"hidden\"");
+          "key \"visibility\" must be one of \"public\", \"owner\", "
+          "\"strict_owner\", \"hidden\"");
 }
 
 TEST_CASE("property_sync_to_clients_must_be_boolean") {

@@ -139,12 +139,14 @@ struct CardDef {
      *
      * The loader expands every template over the members of every loaded mod,
      * so a card of one mod may need another. `LoadedMod.cards` therefore holds
-     * those cards unfiltered on purpose: a match that does not enable one of
-     * these mods must not deal the card. Plan 2a-2 Task 1 adds `CardActive` and
-     * filters the readers; until then every reader sees the card.
-     * TODO(2a-2 T1): filter the readers listed in the Plan 2a-2 Task 1 notes.
+     * those cards unfiltered by the match's active mod list, on purpose: a
+     * match that does not enable one of these mods must not deal the card.
+     * Readers filter the generated card with `modload::CardActive`; the loader
+     * drops a card whose required mod did not load.
      */
     std::vector<std::string> requires_mods;
+    /** Slot name -> member identifier the generated card was dealt with. */
+    std::map<std::string, std::string> slot_members;
     std::string template_id;                /**< Kind template the card came from. */
     std::vector<BehaviorEntry> behaviors;
     std::optional<WindowSpec> window;

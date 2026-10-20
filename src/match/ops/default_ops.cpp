@@ -40,6 +40,8 @@ void RegisterDefaultOps(OpRuntime& runtime) {
         {"swap_hands", &detail::OpSwapHands},
         {"redistribute_hands", &detail::OpRedistributeHands},
         {"materialize_card", &detail::OpMaterializeCard},
+        {"set_card_member", &detail::OpSetCardMember},
+        {"set_card_property", &detail::OpSetCardProperty},
         {"remove_card", &detail::OpRemoveCard},
         {"replace_card", &detail::OpReplaceCard},
         {"peek_pile", &detail::OpPeekPile},

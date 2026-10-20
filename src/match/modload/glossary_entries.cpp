@@ -1,5 +1,7 @@
 #include "match/modload/glossary_entries.hpp"
 
+#include "match/modload/mod_loader.hpp"
+
 #include <algorithm>
 #include <map>
 
@@ -53,9 +55,13 @@ std::string_view GlossarySourceName(GlossarySource source) {
     return source == GlossarySource::kCard ? "card" : "explicit";
 }
 
-std::vector<GlossaryEntryView> BuildGlossaryEntries(const LoadedMod& mod) {
+std::vector<GlossaryEntryView> BuildGlossaryEntries(
+    const LoadedMod& mod, const std::vector<std::string>& active_mod_ids) {
     std::map<std::string, GlossaryEntryView> by_id;
     for (const CardDef& card : mod.cards) {
+        // TODO(2a-2 T1): LoadedMod.cards still holds foreign cards; only list
+        // the ones whose mods are active.
+        if (!CardActive(card, active_mod_ids)) continue;
         GlossaryEntryView entry;
         entry.id = card.kind_id;
         entry.label_key =
@@ -84,15 +90,20 @@ std::vector<GlossaryEntryView> BuildGlossaryEntries(const LoadedMod& mod) {
     return entries;
 }
 
-std::set<std::string> UsedGlossaryKeys(const LoadedMod& mod) {
+std::set<std::string> UsedGlossaryKeys(
+    const LoadedMod& mod, const std::vector<std::string>& active_mod_ids) {
     std::set<std::string> used;
-    for (const GlossaryEntryView& entry : BuildGlossaryEntries(mod)) {
+    for (const GlossaryEntryView& entry :
+         BuildGlossaryEntries(mod, active_mod_ids)) {
         if (entry.source == GlossarySource::kExplicit) {
             used.insert(entry.label_key);
             used.insert(entry.description_key);
         }
     }
     for (const CardDef& card : mod.cards) {
+        // TODO(2a-2 T1): LoadedMod.cards still holds foreign cards; only list
+        // the keys of the ones whose mods are active.
+        if (!CardActive(card, active_mod_ids)) continue;
         const bool replaced = std::any_of(
             mod.glossary.begin(), mod.glossary.end(),
             [&](const GlossaryEntryDef& entry) {

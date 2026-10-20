@@ -1,0 +1,1 @@
+{"format_version":"1.0.0","property":{"identifier":"uni:power","scope":"card","type":"int","default":0,"range":[0,5],"visibility":"public"}}
