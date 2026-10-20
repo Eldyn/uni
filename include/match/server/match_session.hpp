@@ -535,6 +535,18 @@ public:
     /** @brief Spectator viewer socket map. */
     const SocketMap& Viewers() const { return viewers_; }
 
+    /**
+     * @brief The content-derived `defs` table.
+     *
+     * `defs` depends only on the engine registries + mods fixed at
+     * construction, so every recipient (and every late joiner via
+     * `EnsureDefs`) shares one copy. When the assembly content publishes a
+     * shared DOM (`AssemblyContent::defs`) every session with that content
+     * returns the same object; otherwise the session builds and caches its own.
+     * Same bytes as before; wire format unchanged.
+     */
+    const nlohmann::json& CachedDefs() const;
+
 private:
     /** @brief Look up a prompt kind's `response_schema`, or nullptr. */
     const nlohmann::json* FindPromptSchema(const std::string& kind) const;
@@ -620,16 +632,6 @@ private:
     /** @brief `{ready, total}` from the ready barrier. */
     nlohmann::json ReadyProgressPayload() const;
 
-    /**
-     * @brief The content-derived `defs` table, built once per session.
-     *
-     * `defs` depends only on the engine registries + mods fixed at
-     * construction, so every recipient (and every late joiner via
-     * `EnsureDefs`) shares one built copy instead of rebuilding the table
-     * per recipient. Same bytes as before; wire format unchanged.
-     */
-    const nlohmann::json& CachedDefs() const;
-
     std::unique_ptr<match::engine::MatchInstance> engine_;
     std::shared_ptr<const std::vector<match::modload::LoadedMod>> mods_;
     match::view::ViewBuilder builder_;
@@ -670,7 +672,7 @@ private:
     bool payouts_settled_ = false;
     /** `defs` + `match_start` already emitted for the seated recipients. */
     bool match_start_sent_ = false;
-    /** Built-once `defs` table shared by `EmitMatchStart`/`EnsureDefs`. */
+    /** Built-once `defs` table, only when the content does not share one. */
     mutable std::optional<nlohmann::json> defs_cache_;
 };
 

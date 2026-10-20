@@ -1375,6 +1375,11 @@ LobbyController::ActiveAssemblyContent(
         error = prepared.error->check + ": " + prepared.error->message;
         return nullptr;
     }
+    // INFO: `defs` depends only on the content, so build it once here and let
+    //       every match with this mod set serve the same DOM. Read-only after
+    //       this point; sessions fall back to their own build when it is null.
+    prepared.content->defs = std::make_shared<const nlohmann::json>(
+        match::view::DefsBuilder::Build(*prepared.content, active));
     shared_content_sets_[key] = prepared.content;
     return prepared.content;
 }

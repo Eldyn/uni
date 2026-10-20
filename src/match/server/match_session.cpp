@@ -622,7 +622,7 @@ void MatchSession::EmitMatchStart(IBroadcaster& broadcaster) {
     const json& defs = CachedDefs();
     const match::engine::MatchDeckSnapshot& deck = engine_->Assembly().Deck();
     const json start = match::view::DefsBuilder::BuildMatchStart(
-        engine_->Registries(), *mods_, deck.deck_id, deck.name, deck.settings);
+        defs, deck.deck_id, deck.name, deck.settings);
 
     // INFO: `defs` is content-derived and identical for every recipient; the
     //       digest doubles as the `match_start` correlation id. The payloads
@@ -658,6 +658,13 @@ void MatchSession::EnsureDefs(IBroadcaster& broadcaster, AppWebSocket* socket,
 }
 
 const nlohmann::json& MatchSession::CachedDefs() const {
+    // INFO: production content carries one `defs` DOM shared by every match
+    //       with the same mod set; the lazy per-session build below is the
+    //       fallback for fixtures and the three-argument `Assemble`, whose
+    //       content is never published.
+    const std::shared_ptr<const match::engine::AssemblyContent>& content =
+        engine_->Registries().content;
+    if (content != nullptr && content->defs != nullptr) return *content->defs;
     if (!defs_cache_.has_value()) {
         defs_cache_ = match::view::DefsBuilder::Build(engine_->Registries(),
                                                       *mods_);

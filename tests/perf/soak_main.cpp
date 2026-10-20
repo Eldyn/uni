@@ -29,6 +29,7 @@
 #include <match/server/bot_policy.hpp>
 #include <match/server/match_session.hpp>
 #include <match/timers.hpp>
+#include <match/view/defs_builder.hpp>
 #include <match/view/view_util.hpp>
 #include <transport/ibroadcaster.hpp>
 
@@ -150,6 +151,11 @@ std::optional<Content> LoadContent(const fs::path& root, bool share_assembly) {
         auto prepared = match::engine::MatchAssembler::PrepareContent(
             *content.shared_mods, content.deck);
         if (!prepared.ok()) return std::nullopt;
+        // INFO: mirrors LobbyController::ActiveAssemblyContent - the defs DOM
+        //       is built once per content and shared by every match.
+        prepared.content->defs = std::make_shared<const json>(
+            match::view::DefsBuilder::Build(*prepared.content,
+                                            *content.shared_mods));
         content.assembly_content = std::move(prepared.content);
     }
     return content;

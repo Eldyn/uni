@@ -202,6 +202,12 @@ nlohmann::json DefsBuilder::BuildTextListing(
 nlohmann::json DefsBuilder::Build(
     const match::engine::MatchRegistries& registries,
     const std::vector<match::modload::LoadedMod>& mods) {
+    return Build(*registries.content, mods);
+}
+
+nlohmann::json DefsBuilder::Build(
+    const match::engine::AssemblyContent& content,
+    const std::vector<match::modload::LoadedMod>& mods) {
     using match::modload::CardDef;
     using match::modload::LoadedMod;
 
@@ -215,8 +221,8 @@ nlohmann::json DefsBuilder::Build(
     const match::modload::AssetIndex asset_index =
         match::modload::AssetIndex::BuildFromMods(mods);
     std::vector<std::string> active_mod_ids;
-    active_mod_ids.reserve(registries.content->mods.size());
-    for (const match::ecs::ModRef& mod : registries.content->mods) {
+    active_mod_ids.reserve(content.mods.size());
+    for (const match::ecs::ModRef& mod : content.mods) {
         active_mod_ids.push_back(mod.id);
     }
     std::unordered_map<std::string, KindSource> by_kind;
@@ -230,8 +236,8 @@ nlohmann::json DefsBuilder::Build(
     }
 
     json mods_json = json::array();
-    for (std::size_t i = 0; i < registries.content->mods.size(); ++i) {
-        const match::ecs::ModRef& mod = registries.content->mods[i];
+    for (std::size_t i = 0; i < content.mods.size(); ++i) {
+        const match::ecs::ModRef& mod = content.mods[i];
         std::string content_hash;
         for (const LoadedMod& loaded : mods) {
             if (loaded.manifest.id == mod.id) {
@@ -251,9 +257,9 @@ nlohmann::json DefsBuilder::Build(
 
     json kinds_json = json::array();
     for (std::size_t mod_index = 0;
-         mod_index < registries.content->kinds_by_mod.size(); ++mod_index) {
+         mod_index < content.kinds_by_mod.size(); ++mod_index) {
         const std::vector<std::string>& kinds =
-            registries.content->kinds_by_mod[mod_index];
+            content.kinds_by_mod[mod_index];
         for (std::size_t kind_index = 0; kind_index < kinds.size();
              ++kind_index) {
             const std::string& kind_id = kinds[kind_index];
@@ -286,18 +292,18 @@ nlohmann::json DefsBuilder::Build(
     defs["kinds"] = kinds_json;
     // INFO: entities/presentations are client-consumed, so unlike
     //       tables they are published here, hash-addressed per def.
-    defs["entities"] = ManifestArray(registries.content->entities);
+    defs["entities"] = ManifestArray(content.entities);
     // INFO: a presentation binding (file kind `uni:binding`) shares the
     //       `presentations` array with the old kind. The old kind has a
     //       `target`; the client tells them apart by the `uni:binding` key.
     //       A binding is static: it holds no audience and no event value.
-    json presentations = ManifestArray(registries.content->presentations);
-    for (const json& binding : ManifestArray(registries.content->bindings)) {
+    json presentations = ManifestArray(content.presentations);
+    for (const json& binding : ManifestArray(content.bindings)) {
         presentations.push_back(binding);
     }
     defs["presentations"] = std::move(presentations);
     json events_json = json::array();
-    for (const auto& [event_id, event] : registries.content->events) {
+    for (const auto& [event_id, event] : content.events) {
         events_json.push_back(EventManifestEntry(event));
     }
     defs["events"] = std::move(events_json);
@@ -333,7 +339,13 @@ nlohmann::json DefsBuilder::BuildMatchStart(
     const std::vector<match::modload::LoadedMod>& mods,
     const std::string& deck_id, const std::string& deck_name,
     const nlohmann::json& settings) {
-    const json defs = Build(registries, mods);
+    return BuildMatchStart(Build(registries, mods), deck_id, deck_name,
+                           settings);
+}
+
+nlohmann::json DefsBuilder::BuildMatchStart(
+    const nlohmann::json& defs, const std::string& deck_id,
+    const std::string& deck_name, const nlohmann::json& settings) {
     json out = json::object();
     out["defs_digest"] = defs["defs_digest"];
     out["mods"] = defs["mods"];

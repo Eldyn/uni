@@ -103,6 +103,42 @@ std::unique_ptr<MatchInstance> MakeEngine(Content& content, int players,
     return std::make_unique<MatchInstance>(std::move(result.assembly));
 }
 
+/**
+ * @brief Prepare content once and attach the `defs` DOM.
+ *
+ * Mirrors `LobbyController::ActiveAssemblyContent`: content is published with
+ * one `defs` table built from it, then every match shares both.
+ */
+std::shared_ptr<const match::engine::AssemblyContent> PrepareSharedContent(
+    Content& content) {
+    match::engine::AssemblyContentResult prepared =
+        MatchAssembler::PrepareContent(content.mods, content.classic);
+    const std::string message = prepared.error.has_value()
+                                    ? prepared.error->message
+                                    : std::string("prepare failed");
+    REQUIRE_MESSAGE(prepared.ok(), message);
+    prepared.content->defs = std::make_shared<const json>(
+        match::view::DefsBuilder::Build(*prepared.content, content.mods));
+    return prepared.content;
+}
+
+/** @brief Assemble one match on top of already prepared content. */
+std::unique_ptr<MatchInstance> MakeEngineFrom(
+    const std::shared_ptr<const match::engine::AssemblyContent>& content,
+    const DeckDef& deck, int players, uint64_t seed) {
+    MatchAssemblyOptions options;
+    options.starting_cards = 7;
+    options.seed = seed;
+    for (int i = 0; i < players; ++i) {
+        MatchPlayerSpec spec;
+        spec.username = "player" + std::to_string(i);
+        options.players.push_back(spec);
+    }
+    AssemblyResult result = MatchAssembler::Assemble(content, deck, options);
+    REQUIRE_MESSAGE(result.ok(), AssemblyMessage(result));
+    return std::make_unique<MatchInstance>(std::move(result.assembly));
+}
+
 std::vector<ecs::Entity> CardsByKind(const MatchInstance& engine,
                                      const std::string& kind) {
     std::vector<ecs::Entity> out;
@@ -769,6 +805,59 @@ TEST_CASE("match session: defs carries the frozen mods and kind table") {
 
     CHECK(defs["defs_digest"] == match::view::DefsBuilder::Digest(defs));
     CHECK(defs["defs_digest"].get<std::string>().size() == 16);
+}
+
+TEST_CASE("match session: matches from one content share the defs DOM") {
+    Content content;
+    REQUIRE(LoadContent(content));
+    const std::shared_ptr<const match::engine::AssemblyContent> shared =
+        PrepareSharedContent(content);
+    REQUIRE(shared->defs != nullptr);
+    const std::shared_ptr<const std::vector<LoadedMod>> mods =
+        std::make_shared<const std::vector<LoadedMod>>(content.mods);
+
+    AppWebSocket* s0 = PlayerSocket(0);
+    AppWebSocket* s1 = PlayerSocket(1);
+    match::server::MatchSession first(
+        MakeEngineFrom(shared, content.classic, 2, 42), mods,
+        {{"player0", s0}, {"player1", s1}});
+    match::server::MatchSession second(
+        MakeEngineFrom(shared, content.classic, 2, 43), mods,
+        {{"player0", s0}, {"player1", s1}});
+
+    // INFO: one `defs` build per content, not per session.
+    CHECK(&first.CachedDefs() == &second.CachedDefs());
+    CHECK(&first.CachedDefs() == shared->defs.get());
+    CHECK_FALSE(first.CachedDefs().empty());
+    REQUIRE(first.CachedDefs().contains("kinds"));
+    CHECK_FALSE(first.CachedDefs()["kinds"].empty());
+    CHECK(first.CachedDefs()["defs_digest"]
+          == match::view::DefsBuilder::Digest(first.CachedDefs()));
+
+    // INFO: the shared DOM seeds `match_start` byte-for-byte like the
+    //       registries overload.
+    const match::engine::MatchDeckSnapshot& deck =
+        first.Engine().Assembly().Deck();
+    const json expected = match::view::DefsBuilder::BuildMatchStart(
+        first.Engine().Registries(), *mods, deck.deck_id, deck.name,
+        deck.settings);
+    const json actual = match::view::DefsBuilder::BuildMatchStart(
+        first.CachedDefs(), deck.deck_id, deck.name, deck.settings);
+    CHECK(actual == expected);
+
+    FakeBroadcaster first_fake;
+    FakeBroadcaster second_fake;
+    first.EmitMatchStart(first_fake);
+    second.EmitMatchStart(second_fake);
+    const std::vector<json> first_packets = PacketsFor(first_fake, s0);
+    const std::vector<json> second_packets = PacketsFor(second_fake, s0);
+    const json* first_start = FindEvent(first_packets, "match_start");
+    const json* second_start = FindEvent(second_packets, "match_start");
+    REQUIRE(first_start != nullptr);
+    REQUIRE(second_start != nullptr);
+    CHECK((*first_start)["payload"] == (*second_start)["payload"]);
+    CHECK((*first_start)["payload"]["defs_digest"]
+          == first.CachedDefs()["defs_digest"]);
 }
 
 TEST_CASE("match session: match_start carries the retained deck snapshot") {
