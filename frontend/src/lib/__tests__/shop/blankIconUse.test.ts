@@ -5,13 +5,15 @@ import swatchCard from "../../components/shop/PaletteCard.svelte?raw";
 import featuredBanner from "../../components/shop/FeaturedBanner.svelte?raw";
 import itemDetail from "../../components/shop/ItemDetail.svelte?raw";
 import swatchDetail from "../../components/shop/PaletteDetail.svelte?raw";
+import shopScreen from "../../components/shop/ShopScreen.svelte?raw";
 
 const SOURCES: Record<string, string> = {
 	ItemCard: itemCard,
 	SwatchCard: swatchCard,
 	FeaturedBanner: featuredBanner,
 	ItemDetail: itemDetail,
-	SwatchDetail: swatchDetail
+	SwatchDetail: swatchDetail,
+	ShopScreen: shopScreen
 };
 
 describe("Blank icon use", () => {

@@ -90,6 +90,15 @@ describe("ShopScreen", () => {
 		expect(screen.queryByRole("heading", { level: 1 })).not.toBeInTheDocument();
 	});
 
+	it("shows the balance chip with the Blank icon", () => {
+		const { container } = render(ShopScreen);
+		flushSync();
+
+		const chip = container.querySelector("[data-balance]");
+		expect(chip?.querySelector('.blank-icon[role="img"]')).not.toBeNull();
+		expect(chip?.querySelector(".blank-icon")?.getAttribute("aria-label")).toBe("Blank");
+	});
+
 	it("lists the buyable and owned items of the chosen tab", async () => {
 		const { container } = render(ShopScreen);
 		flushSync();
