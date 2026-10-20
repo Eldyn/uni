@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { storeNavigation } from "$stores/navigation.svelte";
 	import { storeAuth } from "$stores/auth.svelte";
+	import { storeAvatar } from "$stores/avatar.svelte";
 	import { storeLobby } from "$stores/lobby.svelte";
 	import { storeI18n } from "$stores/i18n.svelte";
 	import Avatar from "$components/common/Avatar.svelte";
@@ -110,7 +111,7 @@
 			onclick={openProfile}
 			aria-keyshortcuts={acceleratorKey("profile")}
 		>
-			<Avatar src={storeAuth.avatar} size={32} />
+			<Avatar loadout={storeAvatar.loadout} size={32} />
 			<TextEffects
 				text={storeAuth.username}
 				effect="undulate"

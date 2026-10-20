@@ -1,7 +1,8 @@
 // The Wardrobe screen: owned items per slot, the live draft on the stage, the
 // blocked-by-set state, save and revert, the unsaved guard and the guest view.
-// The economy, auth and avatar stores are mocked; WebGL is absent, so the real
-// AvatarStage renders its fallback Avatar.
+// The economy and auth stores are mocked; the real avatar store is used with
+// spied requests so a late loadout exercises its reactivity. WebGL is absent,
+// so the real AvatarStage renders its fallback Avatar.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/svelte";
@@ -14,6 +15,7 @@ import { setCatalogueForTest } from "$lib/avatar/catalogue";
 import { avatarFixture, fullLoadout } from "$lib/__tests__/avatar/avatarFixture";
 import type { Loadout } from "$lib/avatar/types";
 import { storeNavigation } from "$stores/navigation.svelte";
+import { storeAvatar } from "$stores/avatar.svelte";
 import wardrobeSource from "../../components/wardrobe/WardrobeScreen.svelte?raw";
 
 vi.mock("@threlte/core", () => ({
@@ -43,15 +45,6 @@ const { storeAuth } = vi.hoisted(() => ({
 }));
 
 vi.mock("$stores/auth.svelte", () => ({ storeAuth }));
-
-const { storeAvatar } = vi.hoisted(() => ({
-	storeAvatar: {
-		loadout: null as Loadout | null,
-		save: vi.fn()
-	}
-}));
-
-vi.mock("$stores/avatar.svelte", () => ({ storeAvatar }));
 
 const { storeNavigation } = vi.hoisted(() => ({
 	storeNavigation: { goto: vi.fn(), setLeaveGuard: vi.fn() }
@@ -109,8 +102,9 @@ beforeEach(() => {
 	storeAuth.isGuest = false;
 	storeAuth.isLoggedIn = true;
 	storeAvatar.loadout = null;
-	storeAvatar.save.mockReset();
-	storeAvatar.save.mockResolvedValue({ ok: true });
+	storeAvatar.status = "idle";
+	vi.spyOn(storeAvatar, "save").mockResolvedValue({ ok: true });
+	vi.spyOn(storeAvatar, "fetchMine").mockResolvedValue(undefined);
 	storeTopbarContent.current = undefined;
 	storeNavigation.goto.mockReset();
 	storeNavigation.setLeaveGuard.mockReset();
@@ -146,6 +140,28 @@ describe("WardrobeScreen", () => {
 		expect(controls()).toEqual(["Discard Changes", "SAVE"]);
 		expect(screen.queryByText(/unsaved/i)).toBeNull();
 		expect(cssBlock(wardrobeSource, ".wardrobe-header")).toMatch(/justify-content:\s*flex-end/);
+	});
+
+	it("adopts a late saved loadout without offering Discard Changes for it", async () => {
+		shopMock.owned = new Set([...STARTERS, "uni:hat_cap"]);
+		const savedLook = fullLoadout({ skin: "basic:green" });
+		vi.mocked(storeAvatar.fetchMine).mockImplementation(async () => {
+			storeAvatar.loadout = savedLook;
+			storeAvatar.status = "ready";
+		});
+
+		const { container } = render(WardrobeScreen);
+		flushSync();
+
+		await vi.waitFor(() =>
+			expect(container.querySelector('[data-swatch-id="basic:green"]')).toHaveAttribute(
+				"aria-pressed",
+				"true"
+			)
+		);
+		expect(storeAvatar.fetchMine).toHaveBeenCalledTimes(1);
+		expect(screen.queryByRole("button", { name: "Discard Changes" })).toBeNull();
+		expect(screen.getByRole("button", { name: "SAVE" })).toBeInTheDocument();
 	});
 
 	it("bakes each item tile with default colors on the draft shape and skin", async () => {
