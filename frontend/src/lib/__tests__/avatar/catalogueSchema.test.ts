@@ -414,4 +414,18 @@ describe("swatch metadata", () => {
 		swatches(catalogue)[0].id = "uni:round";
 		expect(() => parseCatalogue(catalogue)).toThrow(ZodError);
 	});
+
+	it("accepts the reset pattern on a hidden swatch", () => {
+		const catalogue = validCatalogue();
+		swatches(catalogue)[0].pattern = "none";
+		swatches(catalogue)[0].hidden = true;
+
+		expect(parseCatalogue(catalogue).palettes[0].swatches[0].pattern).toBe("none");
+	});
+
+	it("rejects an unknown swatch pattern", () => {
+		const catalogue = validCatalogue();
+		swatches(catalogue)[0].pattern = "checker";
+		expect(() => parseCatalogue(catalogue)).toThrow(ZodError);
+	});
 });

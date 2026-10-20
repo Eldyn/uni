@@ -180,10 +180,18 @@ describe("avatar catalogue file", () => {
 		expect(wrong).toEqual([]);
 	});
 
-	it("the basic palette has 12 swatches and is a starter palette", () => {
+	it("the basic palette has 13 swatches and is a starter palette", () => {
 		const basic = catalogue.palettes.find((palette) => palette.id === "basic");
 		expect(basic?.starter).toBe(true);
-		expect(basic?.swatches.length).toBe(12);
+		expect(basic?.swatches.length).toBe(13);
+	});
+
+	it("the basic palette holds the hidden reset swatch", () => {
+		const basic = catalogue.palettes.find((palette) => palette.id === "basic");
+		const reset = basic?.swatches.find((swatch) => swatch.id === "basic:none");
+
+		expect(reset?.pattern).toBe("none");
+		expect(reset?.hidden).toBe(true);
 	});
 
 	it("launch counts match the spec slice", () => {
@@ -220,7 +228,7 @@ describe("avatar catalogue file", () => {
 		const others = catalogue.items.filter((item) => item.starter !== true);
 		expect(others.some((item) => item.rarity === "basic")).toBe(false);
 		for (const palette of catalogue.palettes) {
-			for (const swatch of palette.swatches) {
+			for (const swatch of palette.swatches.filter((entry) => entry.pattern !== "none")) {
 				expect(swatch.rarity === "basic", swatch.id).toBe(palette.starter === true);
 			}
 		}

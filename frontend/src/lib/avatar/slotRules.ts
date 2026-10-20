@@ -111,7 +111,8 @@ function defaultColour(entry: string | undefined): Rgb | undefined {
 
 function swatchColour(swatchId: string | undefined): Rgb | undefined {
 	const swatch = swatchId ? getSwatch(swatchId) : undefined;
-	return swatch ? hexToRgb(swatch.hex) : undefined;
+	if (!swatch || swatch.pattern === "none") return undefined;
+	return hexToRgb(swatch.hex);
 }
 
 /** 32-bit FNV-1a over the input, as eight hex digits. */
