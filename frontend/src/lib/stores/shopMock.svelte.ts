@@ -10,6 +10,9 @@ import type { Catalogue, CatalogueItem, Palette } from "$lib/avatar/types";
 import { isSwatchBuyable } from "$lib/shop/shopBackend";
 import type {
 	BuyResult,
+	CosmeticSlot,
+	CosmeticSlots,
+	CosmeticsResult,
 	PopularItem,
 	PopularResult,
 	ShopBackend,
@@ -41,6 +44,8 @@ export class ShopMock implements ShopBackend {
 	#owned = $state<Set<string>>(new Set());
 
 	#wishlist = $state<Set<string>>(new Set());
+
+	#slots = $state<CosmeticSlots>({ card_face: null, card_back: null, playmat: null });
 
 	/**
 	 * @param catalogue The catalogue to read items, palettes and starters from.
@@ -135,6 +140,21 @@ export class ShopMock implements ShopBackend {
 				wishlists: this.#wishlist.has(entry.id) ? 1 : 0
 			}));
 		return { ok: true, items };
+	}
+
+	/** @brief The equipped cosmetic slots, all empty until one is equipped. */
+	async cosmetics(): Promise<CosmeticsResult> {
+		if (this.#guest) return { ok: false, code: "guest" };
+		return { ok: true, slots: this.#slots };
+	}
+
+	/**
+	 * @brief Equips `item` in `slot`, following the server's guest rule.
+	 */
+	async equipCosmetic(slot: CosmeticSlot, item: string): Promise<CosmeticsResult> {
+		if (this.#guest) return { ok: false, code: "guest" };
+		this.#slots = { ...this.#slots, [slot]: item };
+		return { ok: true, slots: this.#slots };
 	}
 
 	#findSwatch(id: string): SwatchEntry | undefined {

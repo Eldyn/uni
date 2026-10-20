@@ -268,4 +268,55 @@ describe("ShopServer", () => {
 			expect(await store.popular()).toEqual({ ok: false, code: "network" });
 		});
 	});
+
+	describe("cosmetics", () => {
+		const slots = { card_face: "uni:face_neon", card_back: null, playmat: "uni:mat_felt" };
+
+		it("reads the equipped slots from GET /cosmetics/me", async () => {
+			vi.mocked(fetch).mockResolvedValueOnce(jsonResponse({ slots }));
+
+			const result = await store.cosmetics();
+
+			expect(result).toEqual({ ok: true, slots });
+			expect(fetch).toHaveBeenCalledWith("/cosmetics/me", {
+				method: "GET",
+				credentials: "include",
+				headers: { "Content-Type": "application/json" },
+				body: undefined
+			});
+		});
+
+		it("equips with PUT and returns the slots the server sent", async () => {
+			vi.mocked(fetch).mockResolvedValueOnce(
+				jsonResponse({ slots: { ...slots, card_face: "uni:face_other" } })
+			);
+
+			const result = await store.equipCosmetic("card_face", "uni:face_other");
+
+			expect(result).toEqual({ ok: true, slots: { ...slots, card_face: "uni:face_other" } });
+			const [url, init] = vi.mocked(fetch).mock.calls[0];
+			expect(url).toBe("/cosmetics/me");
+			expect(init).toMatchObject({
+				method: "PUT",
+				credentials: "include",
+				headers: { "Content-Type": "application/json" }
+			});
+			expect(JSON.parse(String(init?.body))).toEqual({
+				slot: "card_face",
+				item: "uni:face_other"
+			});
+		});
+
+		it("returns the server's error code and network for a malformed body", async () => {
+			vi.mocked(fetch)
+				.mockResolvedValueOnce(jsonResponse({ error: "not_owned" }, 400))
+				.mockResolvedValueOnce(jsonResponse({ slots: "none" }));
+
+			expect(await store.equipCosmetic("playmat", "uni:mat_other")).toEqual({
+				ok: false,
+				code: "not_owned"
+			});
+			expect(await store.cosmetics()).toEqual({ ok: false, code: "network" });
+		});
+	});
 });

@@ -10,12 +10,20 @@
 import { storeAuth } from "$stores/auth.svelte";
 import { storeAvatar } from "$stores/avatar.svelte";
 import { chatStore } from "$stores/chat.svelte";
+import { storeCosmetics } from "$stores/cosmetics.svelte";
 import { storeLobby } from "$stores/lobby.svelte";
 import { storeGame } from "$stores/game.svelte";
 import { storeStats } from "$stores/stats.svelte";
 import type { SessionStore } from "$stores/sessionStore";
 
-const sessionStores: SessionStore[] = [chatStore, storeLobby, storeGame, storeStats, storeAvatar];
+const sessionStores: SessionStore[] = [
+	chatStore,
+	storeLobby,
+	storeGame,
+	storeStats,
+	storeAvatar,
+	storeCosmetics
+];
 
 let installed = false;
 
