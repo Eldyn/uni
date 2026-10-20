@@ -14,11 +14,30 @@ export type BuyFailure =
 /** The outcome of a purchase: the new balance, or a reason it did not happen. */
 export type BuyResult = { ok: true; balance: number } | { ok: false; reason: BuyFailure };
 
+/** One row of the 7-day popular shelf. */
+export interface PopularItem {
+	item: string;
+	purchases: number;
+	wishlists: number;
+}
+
+/** The account's wishlist, or the server's error code. */
+export type WishlistResult = { ok: true; items: string[] } | { ok: false; code: string };
+
+/** The popular shelf rows, or the server's error code. */
+export type PopularResult = { ok: true; items: PopularItem[] } | { ok: false; code: string };
+
 /** What the Shop screen needs from an economy backend. */
 export interface ShopBackend {
 	readonly balance: number;
 	readonly owned: ReadonlySet<string>;
 	buy(itemId: string): Promise<BuyResult>;
+	/** Reads the account's wishlist. Absent on backends without one. */
+	wishlist?(): Promise<WishlistResult>;
+	/** Adds the item when missing, removes it otherwise. */
+	toggleWishlist?(itemId: string): Promise<WishlistResult>;
+	/** Reads the most-bought items over `days`. */
+	popular?(days?: number): Promise<PopularResult>;
 }
 
 /**

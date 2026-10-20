@@ -192,6 +192,49 @@ describe("ShopMock", () => {
 		expect(mock.balance).toBe(0);
 		expect(results.filter((result) => result.ok)).toHaveLength(1);
 	});
+
+	it("toggles an item on and off the wishlist", async () => {
+		expect(await mock.toggleWishlist("uni:exact")).toEqual({
+			ok: true,
+			items: ["uni:exact"]
+		});
+		expect(await mock.wishlist()).toEqual({ ok: true, items: ["uni:exact"] });
+
+		expect(await mock.toggleWishlist("uni:exact")).toEqual({ ok: true, items: [] });
+	});
+
+	it("rejects unknown and hidden items from the wishlist", async () => {
+		expect(await mock.toggleWishlist("uni:nope")).toEqual({
+			ok: false,
+			code: "unknown_item"
+		});
+		expect(await mock.toggleWishlist("uni:hidden")).toEqual({
+			ok: false,
+			code: "not_available"
+		});
+	});
+
+	it("lists popular catalogue items with wishlist counts", async () => {
+		await mock.toggleWishlist("uni:exact");
+
+		const result = await mock.popular(30);
+
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		const row = result.items.find((entry) => entry.item === "uni:exact");
+		expect(row).toEqual({ item: "uni:exact", purchases: 0, wishlists: 1 });
+		expect(result.items.some((entry) => entry.item === "uni:hidden")).toBe(false);
+	});
+
+	it("gives a guest code guest and an empty wishlist", async () => {
+		const guest = new ShopMock(catalogue, { guest: true });
+
+		expect(await guest.toggleWishlist("uni:exact")).toEqual({
+			ok: false,
+			code: "guest"
+		});
+		expect(await guest.wishlist()).toEqual({ ok: false, code: "guest" });
+	});
 });
 
 describe("shopMock singleton", () => {

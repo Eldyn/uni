@@ -6,7 +6,14 @@
  */
 
 import { z } from "zod";
-import type { BuyFailure, BuyResult, ShopBackend } from "$lib/shop/shopBackend";
+import type {
+	BuyFailure,
+	BuyResult,
+	PopularItem,
+	PopularResult,
+	ShopBackend,
+	WishlistResult
+} from "$lib/shop/shopBackend";
 
 /** Lifecycle of the account economy: nothing fetched, in flight, loaded, failed. */
 export type ShopStatus = "idle" | "loading" | "ready" | "error";
@@ -39,9 +46,31 @@ const BuyResponseSchema = z.looseObject({
 	item: z.string()
 });
 
+/** Wire shape of `GET/POST/DELETE /shop/wishlist`. */
+const WishlistSchema = z.looseObject({
+	items: z.array(z.string())
+});
+
+/** Wire shape of `GET /shop/popular`. */
+const PopularSchema = z.looseObject({
+	days: z.number().int().positive(),
+	items: z.array(
+		z.looseObject({
+			item: z.string(),
+			purchases: z.number().int().nonnegative(),
+			wishlists: z.number().int().nonnegative()
+		})
+	)
+});
+
+/** Wire shape of a rejected request's `{ error }` body. */
+const ErrorSchema = z.looseObject({ error: z.string() });
+
 /** The economy endpoints, relative to the app origin. */
 const ECONOMY_ME_URL = "/economy/me";
 const BUY_URL = "/shop/buy";
+const WISHLIST_URL = "/shop/wishlist";
+const POPULAR_URL = "/shop/popular";
 
 /** The failure reason each rejected purchase status stands for. */
 const BUY_FAILURE_BY_STATUS: Readonly<Record<number, BuyFailure>> = {
@@ -75,6 +104,9 @@ export class ShopServer implements ShopBackend {
 	ledger = $state<readonly LedgerRow[]>([]);
 
 	#owned = $state<Set<string>>(new Set());
+
+	/** The wishlist as the server last sent it, so a toggle knows which verb to use. */
+	#wishlist = new Set<string>();
 
 	/** Buys currently in flight, keyed by item id. */
 	#inFlight = new Map<string, Promise<BuyResult>>();
@@ -155,6 +187,78 @@ export class ShopServer implements ShopBackend {
 		});
 		this.#inFlight.set(itemId, pending);
 		return pending;
+	}
+
+	/** @brief Reads the account's wishlist. */
+	wishlist(): Promise<WishlistResult> {
+		return this.#sendWishlist("GET");
+	}
+
+	/**
+	 * @brief Adds the item when the server's copy lacks it, removes it otherwise.
+	 * The verb follows the last list the server sent.
+	 * @param itemId The catalogue id to toggle.
+	 */
+	toggleWishlist(itemId: string): Promise<WishlistResult> {
+		const method = this.#wishlist.has(itemId) ? "DELETE" : "POST";
+		return this.#sendWishlist(method, itemId);
+	}
+
+	/**
+	 * @brief Reads the popular shelf over `days`.
+	 * @param days The lookback window, seven days by default.
+	 */
+	async popular(days = 7): Promise<PopularResult> {
+		try {
+			const res = await fetch(`${POPULAR_URL}?days=${days}`, {
+				credentials: "include",
+				headers: { "Content-Type": "application/json" }
+			});
+
+			if (!res.ok) return { ok: false, code: await this.#errorCode(res) };
+
+			const data = await res.json().catch(() => null);
+			const parsed = PopularSchema.safeParse(data);
+			if (!parsed.success) return { ok: false, code: "network" };
+
+			const items: PopularItem[] = parsed.data.items;
+			return { ok: true, items };
+		} catch {
+			return { ok: false, code: "network" };
+		}
+	}
+
+	/**
+	 * @brief Sends one wishlist request and mirrors a good answer locally.
+	 * A malformed 200 body is treated like a network failure.
+	 */
+	async #sendWishlist(method: string, itemId?: string): Promise<WishlistResult> {
+		try {
+			const res = await fetch(WISHLIST_URL, {
+				method,
+				credentials: "include",
+				headers: { "Content-Type": "application/json" },
+				body: itemId === undefined ? undefined : JSON.stringify({ item: itemId })
+			});
+
+			if (!res.ok) return { ok: false, code: await this.#errorCode(res) };
+
+			const data = await res.json().catch(() => null);
+			const parsed = WishlistSchema.safeParse(data);
+			if (!parsed.success) return { ok: false, code: "network" };
+
+			this.#wishlist = new Set(parsed.data.items);
+			return { ok: true, items: parsed.data.items };
+		} catch {
+			return { ok: false, code: "network" };
+		}
+	}
+
+	/** @brief The server's error code, or `network` when the body is not one. */
+	async #errorCode(res: Response): Promise<string> {
+		const data = await res.json().catch(() => null);
+		const parsed = ErrorSchema.safeParse(data);
+		return parsed.success ? parsed.data.error : "network";
 	}
 
 	/**

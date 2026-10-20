@@ -8,7 +8,14 @@
 import { getCatalogue, isAvailable } from "$lib/avatar/catalogue";
 import type { Catalogue, CatalogueItem, Palette } from "$lib/avatar/types";
 import { isSwatchBuyable } from "$lib/shop/shopBackend";
-import type { BuyResult, ShopBackend, SwatchEntry } from "$lib/shop/shopBackend";
+import type {
+	BuyResult,
+	PopularItem,
+	PopularResult,
+	ShopBackend,
+	SwatchEntry,
+	WishlistResult
+} from "$lib/shop/shopBackend";
 
 /** The balance every fresh account starts with in the prototype. */
 export const DEFAULT_BALANCE = 1500;
@@ -32,6 +39,8 @@ export class ShopMock implements ShopBackend {
 	balance = $state(DEFAULT_BALANCE);
 
 	#owned = $state<Set<string>>(new Set());
+
+	#wishlist = $state<Set<string>>(new Set());
 
 	/**
 	 * @param catalogue The catalogue to read items, palettes and starters from.
@@ -88,6 +97,44 @@ export class ShopMock implements ShopBackend {
 		this.balance -= item.price;
 		this.#owned.add(itemId);
 		return { ok: true, balance: this.balance };
+	}
+
+	/** @brief The wishlisted item ids, oldest first. */
+	async wishlist(): Promise<WishlistResult> {
+		if (this.#guest) return { ok: false, code: "guest" };
+		return { ok: true, items: [...this.#wishlist] };
+	}
+
+	/**
+	 * @brief Adds the item when missing, removes it otherwise.
+	 * Follows the server's rules: guests are refused, unknown and hidden items
+	 * are rejected.
+	 */
+	async toggleWishlist(itemId: string): Promise<WishlistResult> {
+		if (this.#guest) return { ok: false, code: "guest" };
+
+		const item = this.#items.find((entry) => entry.id === itemId);
+		if (!item) return { ok: false, code: "unknown_item" };
+		if (item.hidden) return { ok: false, code: "not_available" };
+
+		if (this.#wishlist.has(itemId)) this.#wishlist.delete(itemId);
+		else this.#wishlist.add(itemId);
+		return { ok: true, items: [...this.#wishlist] };
+	}
+
+	/** @brief The listed catalogue items, with how many accounts want each. */
+	async popular(_days = 7): Promise<PopularResult> {
+		if (this.#guest) return { ok: false, code: "guest" };
+
+		const items: PopularItem[] = this.#items
+			.filter((entry) => !entry.hidden)
+			.slice(0, 12)
+			.map((entry) => ({
+				item: entry.id,
+				purchases: 0,
+				wishlists: this.#wishlist.has(entry.id) ? 1 : 0
+			}));
+		return { ok: true, items };
 	}
 
 	#findSwatch(id: string): SwatchEntry | undefined {
