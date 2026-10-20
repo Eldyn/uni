@@ -359,6 +359,36 @@ TEST_CASE("strict_owner_on_discard_has_no_value") {
     }
 }
 
+TEST_CASE("non_synced_property_keeps_value_off_the_event") {
+    const std::vector<LoadedMod> mods = LoadMods();
+    const std::unique_ptr<MatchInstance> engine = MakeMatch(mods);
+    ViewBuilder builder(*engine, mods);
+    const ecs::Entity card = HandCard(*engine, "uni:red_spade_alpha");
+
+    const json event =
+        Emit(*engine, "set_card_property",
+             json{{"property", "uni:locked"}, {"value", true}}, card);
+
+    for (const Viewer* viewer : {&kAlice, &kOwnerSpectator}) {
+        CAPTURE(viewer->username);
+        CAPTURE(viewer->is_spectator);
+        const std::optional<json> payload =
+            CardChangedFor(builder, event, *viewer);
+        REQUIRE(payload.has_value());
+        CHECK((*payload)["property"] == "uni:locked");
+        CHECK(payload->contains("card"));
+        CHECK_FALSE(payload->contains("value"));
+        CHECK_FALSE(payload->contains("previous"));
+    }
+
+    for (const Viewer* viewer :
+         {&kBob, &kPrivateSpectator, &kSpectator, &kDirector}) {
+        CAPTURE(viewer->username);
+        CAPTURE(viewer->is_spectator);
+        CHECK_FALSE(CardChangedFor(builder, event, *viewer).has_value());
+    }
+}
+
 TEST_CASE("hidden_change_reaches_nobody_with_value") {
     const std::vector<LoadedMod> mods = LoadMods();
     const std::unique_ptr<MatchInstance> engine = MakeMatch(mods);

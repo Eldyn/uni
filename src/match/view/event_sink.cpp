@@ -297,7 +297,15 @@ json ProjectCardChanged(const match::engine::MatchInstance& match,
     //       has no holder, so only a public value reaches the wire there.
     const std::string visibility =
         payload.value("visibility", std::string());
-    if (visibility == "public" || in_hand) {
+    bool synced = true;
+    if (payload.contains("property") && payload["property"].is_string()) {
+        const auto& properties = match.Registries().card_properties;
+        const auto property =
+            properties.find(payload["property"].get<std::string>());
+        synced = property != properties.end()
+                 && property->second.sync_to_clients;
+    }
+    if ((visibility == "public" || in_hand) && synced) {
         if (payload.contains("member") && payload["member"].is_string()) {
             out["member"] = payload["member"];
         }
