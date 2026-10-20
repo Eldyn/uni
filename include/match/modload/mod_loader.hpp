@@ -2,6 +2,8 @@
 
 #include "match/modload/artifacts.hpp"
 
+#include <cstdint>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -73,6 +75,34 @@ bool IsValidKindId(const std::string& id);
  */
 bool CardActive(const CardDef& card,
                 const std::vector<std::string>& active_mod_ids);
+
+/**
+ * @brief Expands the data deck `deck_id` ("uni:classic") for the active mods.
+ *
+ * Settings are the lobby count values by manifest id. Returns the `DeckDef`
+ * the assembler takes. On a diagnostic, `error` holds the formatted first
+ * diagnostic and the returned deck is default-constructed with no cards.
+ *
+ * An empty `active_mod_ids` expands with every loaded mod active, but the
+ * returned deck then carries an empty mod list, which the assembler rejects.
+ *
+ * @param mods           The loaded mods that contribute schemas.
+ * @param deck_id        Full deck id, e.g. `uni:classic`.
+ * @param active_mod_ids The mods the match enables, in the order given.
+ * @param settings       Already-merged settings by manifest setting id.
+ * @param error          Set to the formatted first diagnostic on failure.
+ */
+DeckDef ExpandDeckDef(const std::vector<LoadedMod>& mods,
+                      const std::string& deck_id,
+                      const std::vector<std::string>& active_mod_ids,
+                      const std::map<std::string, std::int64_t>& settings,
+                      std::string& error);
+
+/**
+ * @brief Default settings of a mod: each manifest setting of type int, id to
+ *        default. A setting without an id or an integer default is skipped.
+ */
+std::map<std::string, std::int64_t> DefaultSettings(const LoadedMod& mod);
 
 /**
  * @brief The namespace rule: a mod defines ids only in its own namespace, and
