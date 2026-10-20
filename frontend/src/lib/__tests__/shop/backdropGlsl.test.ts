@@ -23,11 +23,27 @@ describe("backdrop fragment source", () => {
 		}
 	});
 
-	it("has no bands, gradient or dust", () => {
-		expect(source).not.toMatch(/\bsin\(/);
-		for (const removed of ["smoothstep", "hash(", "BAND_", "GRADIENT", "DUST", "lift"]) {
+	it("dithers two crossing diagonal waves", () => {
+		expect(source).toMatch(/\bsin\(/);
+		expect(source).toContain("uv.x + uv.y");
+		expect(source).toContain("uv.x - uv.y");
+		expect(source).toContain("smoothstep");
+		expect(source).toContain("const float BAND_A_PERIOD_S = 32.0;");
+		expect(source).toContain("const float BAND_B_PERIOD_S = 48.0;");
+		expect(BACKDROP_MAX_SHADE).toBeLessThanOrEqual(0.5);
+	});
+
+	it("adds the bands to the shade before the dither step", () => {
+		const bandTerm = source.indexOf("uShade + BAND_SHADE * bands");
+		expect(bandTerm).toBeGreaterThan(-1);
+		expect(bandTerm).toBeLessThan(source.indexOf("step(threshold, shade)"));
+	});
+
+	it("has no gradient or dust", () => {
+		for (const removed of ["uDim", "uPixelSize", "uAccent", "hash(", "GRADIENT", "DUST", "lift"]) {
 			expect(source).not.toContain(removed);
 		}
+		expect(source).not.toMatch(/\*=/);
 	});
 
 	it("uses the home Bayer matrix and pixel grid", () => {

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/svelte";
 import PaletteCard from "$components/shop/PaletteCard.svelte";
 import type { Palette } from "$lib/avatar/types";
+import swatchesSource from "../../components/shop/PaletteSwatches.svelte?raw";
 
 const PALETTE: Palette = {
 	id: "uni:neon",
@@ -19,6 +20,14 @@ function renderCard(props: Record<string, unknown> = {}) {
 		props: { palette: PALETTE, price: 250, selected: true, onselect, ...props }
 	});
 	return { onselect, ...utils };
+}
+
+/** The declarations of one CSS rule, read straight from the component source. */
+function cssBlock(source: string, selector: string): string {
+	const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+	const match = source.match(new RegExp(`${escaped}\\s*\\{([^}]*)\\}`));
+	if (!match) throw new Error(`rule not found: ${selector}`);
+	return match[1];
 }
 
 afterEach(cleanup);
@@ -50,5 +59,17 @@ describe("PaletteCard", () => {
 		await fireEvent.click(card);
 		await fireEvent.keyDown(card, { key: "Enter" });
 		expect(onselect).toHaveBeenCalledTimes(2);
+	});
+
+	it("fills the card with a fluid six-column grid of square cells", () => {
+		const grid = cssBlock(swatchesSource, ".palette-swatches");
+		expect(grid).toMatch(/width:\s*100%/);
+		expect(grid).toMatch(/grid-template-columns:\s*repeat\(6, minmax\(0, 1fr\)\)/);
+		expect(grid).toMatch(/grid-auto-rows:\s*1fr/);
+		// INFO: the cap keeps a wide card from growing past the requested cell size.
+		expect(swatchesSource).toContain("--swatch-cap: {cap}");
+		expect(swatchesSource).toContain("const cap = $derived(`${size * 6 + 5}px`);");
+		expect(grid).toMatch(/max-width:\s*var\(--swatch-cap\)/);
+		expect(cssBlock(swatchesSource, ".palette-cell")).toMatch(/aspect-ratio:\s*1/);
 	});
 });

@@ -102,6 +102,7 @@ version; each release below corresponds to a `vX.Y.Z` git tag.
 
 ### Changed
 
+- **Shop visuals** — the backdrop brings back the diagonal lines as a dithered two-tone pattern, avatar sprites shrink to fit their card in portrait, and the grid returns to six columns with larger previews.
 - **The wardrobe saves** — the avatar loadout loads right after login, so the Wardrobe opens on the saved look after a reload and the top bar icon uses the saved avatar.
 - **Motifs are body textures** — motif art is a full square clipped to the body, Stripes gains a second colour region, dot eyes and the smile are flat and non-colorable, and a checkerboard swatch returns any region to its item default.
 - **The currency is called Blank** — prices, the Shop balance chip and the end screen earnings line show a small purple pixel-art blank card (`BlankIcon`, brand `--accent`) instead of the gold dot, and the text says "Blank" in every locale ("Earned +100 Blank", "Not enough Blank."). API, store and server names (`balance`, `cash`, `insufficient_cash`) do not change.
