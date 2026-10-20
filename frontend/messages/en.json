@@ -504,6 +504,8 @@
 	"shop_register_to_buy": "Register to buy",
 	"shop_currency_name": "Blank",
 	"shop_insufficient_cash": "Not enough Blank",
+	"shop_use": "Use",
+	"shop_equipped": "Equipped",
 	"shop_error_insufficient_cash": "Not enough Blank.",
 	"shop_error_already_owned": "You already own this.",
 	"shop_error_not_available": "This item is no longer available.",

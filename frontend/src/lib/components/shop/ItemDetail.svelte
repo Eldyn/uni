@@ -1,7 +1,8 @@
 <!-- The item detail panel: the art on its rarity frame, the name, rarity and
-     price, and the BUY / TRY ON actions. BUY is disabled with a reason line
-     when the item is owned or the balance falls short, and a guest sees
-     "Register to buy" instead. Escape closes the panel. -->
+     price, and the BUY / TRY ON actions. An owned cosmetic offers Use instead,
+     turning into a disabled Equipped state once it is active. BUY is disabled
+     with a reason line when the item is owned or the balance falls short, and a
+     guest sees "Register to buy" instead. Escape closes the panel. -->
 <script lang="ts">
 	import { onMount } from "svelte";
 	import AvatarFit from "$components/common/AvatarFit.svelte";
@@ -9,11 +10,14 @@
 	import RarityFrame from "$components/shop/RarityFrame.svelte";
 	import { itemLabelKey, shopItemText } from "$components/shop/ItemCard.svelte";
 	import { itemPreviewLoadout } from "$lib/avatar/previewLoadout";
+	import { storeCosmetics } from "$stores/cosmetics.svelte";
 	import { storeI18n } from "$stores/i18n.svelte";
 	import { RARITY_COLOURS, rarityLabelColour, rarityLabelKey } from "$lib/shop/rarity";
 	import { BUY_FAILURE_TEXT } from "$lib/shop/buyFailure";
 	import type { BuyFailure } from "$lib/shop/shopBackend";
-	import type { CatalogueItem, Loadout } from "$lib/avatar/types";
+	import type { CatalogueItem, CosmeticSlot, Loadout } from "$lib/avatar/types";
+
+	const COSMETIC_SLOTS: ReadonlySet<string> = new Set(["card_face", "card_back", "playmat"]);
 
 	let {
 		item,
@@ -50,12 +54,21 @@
 			: shopItemText("shop_buy", "BUY", locale)
 	);
 	const tryLabel = $derived(shopItemText("shop_try_on", "TRY ON", locale));
+	const useLabel = $derived(shopItemText("shop_use", "Use", locale));
+	const equippedLabel = $derived(shopItemText("shop_equipped", "Equipped", locale));
 	const closeLabel = $derived(shopItemText("shop_close", "Close", locale));
+
+	/** The cosmetic slot this item equips into, or null for an avatar item. */
+	const cosmeticSlot = $derived(COSMETIC_SLOTS.has(item.slot) ? (item.slot as CosmeticSlot) : null);
+	const showUse = $derived(cosmeticSlot !== null && owned);
+	const equipped = $derived(
+		cosmeticSlot !== null && storeCosmetics.slots[cosmeticSlot] === item.id
+	);
 
 	const tooPoor = $derived(!guest && !owned && balance < item.price);
 	const buyDisabled = $derived(guest || owned || tooPoor);
 	const reason = $derived(
-		owned
+		owned && !showUse
 			? shopItemText("shop_error_already_owned", "You already own this.", locale)
 			: tooPoor
 				? shopItemText("shop_insufficient_cash", "Not enough Blank", locale)
@@ -104,17 +117,32 @@
 	{/if}
 
 	<div class="detail-actions">
-		<button
-			type="button"
-			class="btn detail-buy"
-			disabled={buyDisabled}
-			onclick={() => {
-				if (!buyDisabled) onbuy();
-			}}
-		>
-			{buyLabel}
-		</button>
-		<button type="button" class="btn-secondary detail-try" onclick={ontry}>{tryLabel}</button>
+		{#if showUse}
+			<button
+				type="button"
+				class="btn detail-use"
+				data-cosmetic-use={equipped ? undefined : "true"}
+				data-cosmetic-equipped={equipped ? "true" : undefined}
+				disabled={equipped}
+				onclick={() => {
+					if (!equipped && cosmeticSlot) void storeCosmetics.equip(cosmeticSlot, item.id);
+				}}
+			>
+				{equipped ? equippedLabel : useLabel}
+			</button>
+		{:else}
+			<button
+				type="button"
+				class="btn detail-buy"
+				disabled={buyDisabled}
+				onclick={() => {
+					if (!buyDisabled) onbuy();
+				}}
+			>
+				{buyLabel}
+			</button>
+			<button type="button" class="btn-secondary detail-try" onclick={ontry}>{tryLabel}</button>
+		{/if}
 	</div>
 
 	{#if reason}

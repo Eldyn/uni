@@ -504,6 +504,8 @@
 	"shop_register_to_buy": "Зарегистрируйтесь, чтобы купить",
 	"shop_currency_name": "Blank",
 	"shop_insufficient_cash": "Недостаточно Blank",
+	"shop_use": "Использовать",
+	"shop_equipped": "Экипировано",
 	"shop_error_insufficient_cash": "Недостаточно Blank.",
 	"shop_error_already_owned": "У вас уже есть это.",
 	"shop_error_not_available": "Этот товар больше недоступен.",

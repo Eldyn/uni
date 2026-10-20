@@ -504,6 +504,8 @@
 	"shop_register_to_buy": "구매하려면 가입하세요",
 	"shop_currency_name": "Blank",
 	"shop_insufficient_cash": "Blank 부족",
+	"shop_use": "사용",
+	"shop_equipped": "장착됨",
 	"shop_error_insufficient_cash": "Blank이 부족해요.",
 	"shop_error_already_owned": "이미 보유한 아이템이에요.",
 	"shop_error_not_available": "더 이상 구할 수 없는 아이템이에요.",
