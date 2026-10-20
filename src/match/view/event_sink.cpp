@@ -288,8 +288,13 @@ json ProjectCardChanged(const match::engine::MatchInstance& match,
         in_zone != nullptr && in_zone->zone.kind == ecs::ZoneKind::kHand;
     // INFO: the card bits go to every viewer here; the per-seat `kCard` rule
     //       keeps them only for a viewer that may see the card. A holder must
-    //       get its own card identity, or it cannot apply the change.
-    if (payload.contains("card")) CopyCardBits(match, payload, out);
+    //       get its own card identity, or it cannot apply the change. Limbo
+    //       and out-of-play cards have no public identity, so omit the bits.
+    const bool identity_public =
+        in_zone != nullptr && in_zone->zone.kind != ecs::ZoneKind::kLimbo;
+    if (payload.contains("card") && identity_public) {
+        CopyCardBits(match, payload, out);
+    }
 
     // INFO: a hand value is projected per seat: `owner` grants it to the
     //       holder and a privacy-off spectator, `strict_owner` only to the

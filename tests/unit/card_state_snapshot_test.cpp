@@ -132,6 +132,10 @@ void DiscardCard(MatchInstance& engine, ecs::Entity card) {
            ecs::ZoneRef{ecs::ZoneKind::kDiscardPile, ecs::Entity{}});
 }
 
+void LimboCard(MatchInstance& engine, ecs::Entity card) {
+    MoveTo(engine, card, ecs::ZoneRef{ecs::ZoneKind::kLimbo, ecs::Entity{}});
+}
+
 ops::OpResult RunOp(MatchInstance& engine, const std::string& op,
                     const json& raw, ecs::Entity card) {
     ops::OpArgs args(op, raw);
@@ -369,6 +373,65 @@ TEST_CASE("snapshot_strict_owner_member_reaches_holder_only") {
         CAPTURE(viewer->is_spectator);
         CHECK_FALSE(SnapshotFor(builder, *viewer).contains("card_state"));
     }
+}
+
+TEST_CASE("snapshot_omits_limbo_card_state") {
+    const std::vector<LoadedMod> mods = LoadMods();
+    const std::unique_ptr<MatchInstance> engine = MakeMatch(mods);
+    ViewBuilder builder(*engine, mods);
+    const ecs::Entity card = HandCard(*engine, "uni:red_spade_alpha");
+    SetMember(*engine, card, "color", "uni:blue");
+    LimboCard(*engine, card);
+
+    for (const Viewer* viewer : kAllViewers) {
+        CAPTURE(viewer->username);
+        CAPTURE(viewer->is_spectator);
+        CHECK_FALSE(SnapshotFor(builder, *viewer).contains("card_state"));
+    }
+}
+
+TEST_CASE("snapshot_hides_a_hidden_member") {
+    const std::vector<LoadedMod> mods = LoadMods();
+    const std::unique_ptr<MatchInstance> engine = MakeMatch(mods);
+    ViewBuilder builder(*engine, mods);
+    const ecs::Entity card = HandCard(*engine, "uni:red_spade_alpha");
+    SetMember(*engine, card, "secret", "uni:beta");
+
+    for (const Viewer* viewer : kAllViewers) {
+        CAPTURE(viewer->username);
+        CAPTURE(viewer->is_spectator);
+        CHECK_FALSE(SnapshotFor(builder, *viewer).contains("card_state"));
+    }
+}
+
+TEST_CASE("snapshot_hides_a_hidden_property") {
+    std::vector<LoadedMod> mods = LoadMods();
+    SetPropertyVisibility(mods, "uni:revealed", "hidden");
+    const std::unique_ptr<MatchInstance> engine = MakeMatch(mods);
+    ViewBuilder builder(*engine, mods);
+    const ecs::Entity card = HandCard(*engine, "uni:red_spade_alpha");
+    SetProperty(*engine, card, "uni:revealed", true);
+
+    for (const Viewer* viewer : kAllViewers) {
+        CAPTURE(viewer->username);
+        CAPTURE(viewer->is_spectator);
+        CHECK_FALSE(SnapshotFor(builder, *viewer).contains("card_state"));
+    }
+}
+
+TEST_CASE("snapshot_director_sees_public_state_of_another_hand") {
+    const std::vector<LoadedMod> mods = LoadMods();
+    const std::unique_ptr<MatchInstance> engine = MakeMatch(mods);
+    ViewBuilder builder(*engine, mods);
+    const ecs::Entity card = HandCard(*engine, "uni:red_spade_alpha");
+    const uint32_t bits = engine->Registries().CardId(card)->bits;
+    SetMember(*engine, card, "color", "uni:blue");
+
+    const Viewer director = Viewer::PlayerDirector("Bob");
+    const json state = SnapshotFor(builder, director);
+    const json* entry = EntryFor(state, bits);
+    REQUIRE(entry != nullptr);
+    CHECK((*entry)["members"]["color"] == "uni:blue");
 }
 
 TEST_CASE("snapshot_filters_a_reverted_property") {

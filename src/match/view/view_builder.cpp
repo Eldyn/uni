@@ -980,15 +980,24 @@ nlohmann::json ViewBuilder::BuildSnapshot(
     for (ecs::Entity card : registries.cards) {
         const ecs::CardState* component = store.Get<ecs::CardState>(card);
         if (component == nullptr) continue;
-        if (IsCardHiddenFrom(match, card, viewer)) continue;
+        const ecs::InZone* in_zone = store.Get<ecs::InZone>(card);
+        // INFO: a limbo or out-of-play card has no public snapshot identity.
+        //       `card_removed` is owner-only, so keep the same rule here.
+        if (in_zone == nullptr || in_zone->zone.kind == ecs::ZoneKind::kLimbo) {
+            continue;
+        }
+        // INFO: a seated director sees another player's hand through x-ray,
+        //       so show the public state for that hand as well. Owner and
+        //       strict_owner values still follow the holder rule below.
+        const bool director_hand =
+            viewer.director && in_zone->zone.kind == ecs::ZoneKind::kHand;
+        if (IsCardHiddenFrom(match, card, viewer) && !director_hand) continue;
         const std::optional<ecs::CompactCardV2> identity =
             registries.CardId(card);
         if (!identity.has_value()) continue;
 
         std::string holder;
-        if (const ecs::InZone* in_zone = store.Get<ecs::InZone>(card);
-            in_zone != nullptr
-            && in_zone->zone.kind == ecs::ZoneKind::kHand) {
+        if (in_zone->zone.kind == ecs::ZoneKind::kHand) {
             const ecs::PlayerInfo* info =
                 store.Get<ecs::PlayerInfo>(in_zone->zone.owner);
             if (info != nullptr) holder = info->username;

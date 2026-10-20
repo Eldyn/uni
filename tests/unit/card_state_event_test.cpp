@@ -132,6 +132,10 @@ ecs::Entity HandCard(MatchInstance& engine, const std::string& kind_id) {
     return card;
 }
 
+void LimboCard(MatchInstance& engine, ecs::Entity card) {
+    MoveTo(engine, card, ecs::ZoneRef{ecs::ZoneKind::kLimbo, ecs::Entity{}});
+}
+
 ops::OpResult RunOp(MatchInstance& engine, const std::string& op,
                     const json& raw, ecs::Entity card) {
     ops::OpArgs args(op, raw);
@@ -356,6 +360,29 @@ TEST_CASE("strict_owner_on_discard_has_no_value") {
         CHECK((*payload)["slot"] == "suit");
         CHECK_FALSE(payload->contains("member"));
         CHECK_FALSE(payload->contains("previous"));
+    }
+}
+
+TEST_CASE("limbo_change_has_no_card_identity") {
+    const std::vector<LoadedMod> mods = LoadMods();
+    const std::unique_ptr<MatchInstance> engine = MakeMatch(mods);
+    ViewBuilder builder(*engine, mods);
+    const ecs::Entity card = HandCard(*engine, "uni:red_spade_alpha");
+    LimboCard(*engine, card);
+
+    const json event =
+        Emit(*engine, "set_card_member",
+             json{{"slot", "color"}, {"member", "uni:blue"}}, card);
+
+    for (const Viewer* viewer : {&kAlice, &kBob, &kOwnerSpectator, &kSpectator}) {
+        CAPTURE(viewer->username);
+        CAPTURE(viewer->is_spectator);
+        const std::optional<json> payload =
+            CardChangedFor(builder, event, *viewer);
+        REQUIRE(payload.has_value());
+        CHECK((*payload)["slot"] == "color");
+        CHECK((*payload)["member"] == "uni:blue");
+        CHECK_FALSE(payload->contains("card"));
     }
 }
 
