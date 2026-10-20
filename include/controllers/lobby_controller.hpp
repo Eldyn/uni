@@ -24,6 +24,10 @@ namespace uni::economy {
 class EconomyService;
 }
 
+namespace match::engine {
+struct AssemblyContent;
+}
+
 /**
  * @file lobby_controller.hpp
  * @brief Definition of the controller for managing Lobbies. Handles all the I/O between
@@ -298,6 +302,17 @@ private:
         const std::vector<match::modload::LoadedMod>& loaded,
         const std::vector<std::string>& required);
 
+    /**
+     * @brief Prepared assembly content shared by every match with this content.
+     *
+     * `active` is the output of `ActiveModSet`; `deck.mods` is the frozen mod
+     * order. Returns null and fills `error` when the content is invalid.
+     */
+    std::shared_ptr<const match::engine::AssemblyContent> ActiveAssemblyContent(
+        const std::vector<match::modload::LoadedMod>& active,
+        const match::modload::DeckDef& deck,
+        std::string& error);
+
     /** @brief Scans `mods_root_` and runs the ordered validation stages. */
     match::modload::LoadResult ScanAndValidateMods() const;
 
@@ -523,6 +538,10 @@ private:
         std::string,
         std::weak_ptr<const std::vector<match::modload::LoadedMod>>>
         shared_mod_sets_;
+    /** Prepared assembly content alive in running matches, keyed by content. */
+    std::unordered_map<std::string,
+                       std::weak_ptr<match::engine::AssemblyContent>>
+        shared_content_sets_;
 
     std::unordered_map<uint32_t, Lobby> lobbies_;        /**< Primary storage of the lobbies. */
     std::unordered_map<std::string, uint32_t> code_to_id_; /**< Secondary index for fast lookup. */

@@ -11,6 +11,7 @@
 
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -198,7 +199,9 @@ struct DiceHarness {
 /* INFO: the assembled match registries for the shipped `mods/` tree (the deck
  *       selects the `test` mod, whose `entities/dice.json` carries the
  *       outcome.resolver under test). */
-match::engine::AssemblyResult AssembleShippedMods(const fs::path& root) {
+match::engine::AssemblyResult AssembleShippedMods(
+    const fs::path& root,
+    const std::function<void(match::engine::AssemblyContent&)>& mutate) {
     LoadResult loaded = ScanModsDirectory((root / "mods").string());
     REQUIRE(loaded.ok());
 
@@ -218,7 +221,16 @@ match::engine::AssemblyResult AssembleShippedMods(const fs::path& root) {
         spec.username = "player" + std::to_string(i);
         options.players.push_back(spec);
     }
-    return match::engine::MatchAssembler::Assemble(loaded.mods, deck, options);
+    match::engine::AssemblyContentResult prepared =
+        match::engine::MatchAssembler::PrepareContent(loaded.mods, deck);
+    REQUIRE(prepared.ok());
+    if (mutate) mutate(*prepared.content);
+    return match::engine::MatchAssembler::Assemble(prepared.content, deck,
+                                                   options);
+}
+
+match::engine::AssemblyResult AssembleShippedMods(const fs::path& root) {
+    return AssembleShippedMods(root, {});
 }
 
 }  // namespace
@@ -520,17 +532,20 @@ TEST_CASE("entities_presentations: dice_roll binds the loot outcome and the dice
     REQUIRE(roll_node != nullptr);
     CHECK((*roll_node)["args"]["table"] == "loot");
 
-    match::engine::AssemblyResult assembled = AssembleShippedMods(root);
+    // INFO: force the loot table to its `six` entry before the content is
+    //       published, so the emitted key is deterministic, then drive the roll
+    //       through the real op.
+    match::engine::AssemblyResult assembled = AssembleShippedMods(
+        root, [](match::engine::AssemblyContent& content) {
+            auto loot = content.tables.find("test:loot");
+            REQUIRE(loot != content.tables.end());
+            loot->second.entries = {match::modload::TableEntry{
+                "six", 1, 6, std::nullopt, std::nullopt,
+                nlohmann::json::object()}};
+        });
     REQUIRE(assembled.ok());
     REQUIRE(assembled.assembly != nullptr);
     match::engine::MatchRegistries& registries = assembled.assembly->registries;
-
-    // INFO: force the loot table to its `six` entry so the emitted key is
-    //       deterministic, then drive the roll through the real op.
-    auto loot = registries.tables.find("test:loot");
-    REQUIRE(loot != registries.tables.end());
-    loot->second.entries = {match::modload::TableEntry{
-        "six", 1, 6, std::nullopt, std::nullopt, nlohmann::json::object()}};
 
     DiceHarness harness;
     harness.registries = &registries;
@@ -544,8 +559,8 @@ TEST_CASE("entities_presentations: dice_roll binds the loot outcome and the dice
 
     // INFO: acceptance end-to-end - the key the chain emits is covered by
     //       the dice entity's outcome.resolver payload on the wire.
-    auto dice = registries.entities.find("test:dice");
-    REQUIRE(dice != registries.entities.end());
+    auto dice = registries.content->entities.find("test:dice");
+    REQUIRE(dice != registries.content->entities.end());
     const nlohmann::json& components = dice->second.raw.at("components");
     REQUIRE(components.contains("outcome.resolver"));
     const nlohmann::json& resolver = components["outcome.resolver"];
@@ -683,8 +698,12 @@ TEST_CASE("entities_presentations: manifest def_hash tracks the def content") {
         spec.username = "player" + std::to_string(i);
         options.players.push_back(spec);
     }
+    match::engine::AssemblyContentResult baseline =
+        match::engine::MatchAssembler::PrepareContent(loaded.mods, deck);
+    REQUIRE(baseline.ok());
     match::engine::AssemblyResult assembled =
-        match::engine::MatchAssembler::Assemble(loaded.mods, deck, options);
+        match::engine::MatchAssembler::Assemble(baseline.content, deck,
+                                                options);
     REQUIRE(assembled.assembly != nullptr);
     match::engine::MatchRegistries& registries =
         assembled.assembly->registries;
@@ -703,12 +722,20 @@ TEST_CASE("entities_presentations: manifest def_hash tracks the def content") {
           == hash);
 
     // INFO: changing the def's canonical JSON changes its content hash, so the
-    //       client reloads exactly that def.
-    auto it = registries.entities.find("test:dice");
-    REQUIRE(it != registries.entities.end());
+    //       client reloads exactly that def. Mutate before the content is
+    //       published to a match.
+    match::engine::AssemblyContentResult mutated =
+        match::engine::MatchAssembler::PrepareContent(loaded.mods, deck);
+    REQUIRE(mutated.ok());
+    auto it = mutated.content->entities.find("test:dice");
+    REQUIRE(it != mutated.content->entities.end());
     it->second.raw["components"]["visual.emoji"]["size"] = 0.9;
-    const nlohmann::json third =
-        match::view::DefsBuilder::Build(registries, loaded.mods);
+    match::engine::AssemblyResult changed =
+        match::engine::MatchAssembler::Assemble(mutated.content, deck,
+                                               options);
+    REQUIRE(changed.assembly != nullptr);
+    const nlohmann::json third = match::view::DefsBuilder::Build(
+        changed.assembly->registries, loaded.mods);
     REQUIRE(FindManifest(third, "entities", "test:dice") != nullptr);
     CHECK(FindManifest(third, "entities", "test:dice")->at("def_hash") != hash);
 }

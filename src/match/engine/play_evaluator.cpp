@@ -148,7 +148,7 @@ bool PlayEvaluator::IsEligible(const nlohmann::json& respond_with,
         return matcher != nullptr && matcher->Matches(respond_with, attempt);
     }
 
-    const auto& card_facts = match_.Assembly().card_facts;
+    const auto& card_facts = match_.Assembly().CardFacts();
     const auto facts_it = card_facts.find(attempt.card_kind);
     if (facts_it == card_facts.end()) return false;
     const modload::PlayCardFacts& facts = facts_it->second;

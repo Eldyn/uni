@@ -102,7 +102,8 @@ Content LoadContent() {
     return content;
 }
 
-std::unique_ptr<MatchInstance> MakeEngine(Content& content) {
+std::unique_ptr<MatchInstance> MakeEngine(
+    Content& content, std::optional<EventDef> extra_event = std::nullopt) {
     MatchAssemblyOptions options;
     options.starting_cards = 7;
     options.seed = 42;
@@ -111,8 +112,14 @@ std::unique_ptr<MatchInstance> MakeEngine(Content& content) {
         spec.username = "player" + std::to_string(index);
         options.players.push_back(spec);
     }
+    AssemblyContentResult prepared =
+        MatchAssembler::PrepareContent(content.mods, content.deck);
+    REQUIRE(prepared.ok());
+    if (extra_event.has_value()) {
+        prepared.content->events[extra_event->event_id] = *extra_event;
+    }
     AssemblyResult result =
-        MatchAssembler::Assemble(content.mods, content.deck, options);
+        MatchAssembler::Assemble(prepared.content, content.deck, options);
     REQUIRE(result.ok());
     return std::make_unique<MatchInstance>(std::move(result.assembly));
 }
@@ -155,17 +162,6 @@ void AttachDrawAttemptSystem(MatchInstance& engine, const std::string& mod_id,
         [&assembly, index](ecs::HookPayload& payload) {
             assembly.RunSystem(index, payload);
         });
-}
-
-void DefineEventFor(MatchInstance& engine, const std::string& mod_id) {
-    EventDef definition;
-    definition.id = "ping";
-    definition.namespace_id = mod_id;
-    definition.event_id = mod_id + ":ping";
-    definition.retention = "log";
-    definition.fields.push_back(EventFieldDef{"count", "integer", "all"});
-    definition.fields.push_back(EventFieldDef{"color", "color", "all"});
-    engine.Assembly().registries.events[definition.event_id] = definition;
 }
 
 uint32_t CurrentTurn(MatchInstance& engine) {
@@ -409,8 +405,15 @@ TEST_CASE("mod event flood: an offender does not disarm or limit another "
     EnvOverride per_turn("UNI_MOD_EVENTS_PER_TURN", "2");
     EnvOverride chain("UNI_MOD_CAUSE_CHAIN_MAX", "1000");
     Content content = LoadContent();
-    auto engine = MakeEngine(content);
-    DefineEventFor(*engine, "seven_zero");
+    EventDef seven_zero_event;
+    seven_zero_event.id = "ping";
+    seven_zero_event.namespace_id = "seven_zero";
+    seven_zero_event.event_id = "seven_zero:ping";
+    seven_zero_event.retention = "log";
+    seven_zero_event.fields.push_back(
+        EventFieldDef{"count", "integer", "all"});
+    seven_zero_event.fields.push_back(EventFieldDef{"color", "color", "all"});
+    auto engine = MakeEngine(content, seven_zero_event);
     AttachDrawAttemptSystem(*engine, "test", FloodNodes(4));
     AttachDrawAttemptSystem(*engine, "seven_zero",
                             FloodNodes(2, "seven_zero:ping"));

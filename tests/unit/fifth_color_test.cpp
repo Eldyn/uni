@@ -304,7 +304,9 @@ TEST_CASE("match_with_magenta_deals_magenta_cards") {
     REQUIRE(assembly.assembly != nullptr);
 
     CHECK(CardsInZones(*assembly.assembly) == 133);
-    CHECK(assembly.assembly->registries.kind_index.count("uni:magenta_5") == 1);
+    CHECK(assembly.assembly->registries.content->kind_index.count(
+              "uni:magenta_5")
+          == 1);
     CHECK(HasMagentaFive(*assembly.assembly));
 }
 

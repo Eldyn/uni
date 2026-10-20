@@ -58,7 +58,7 @@ std::string KindIdFor(const match::engine::MatchInstance& match,
     const std::optional<ecs::CompactCardV2> id =
         match.Registries().CardId(entity);
     if (!id.has_value()) return std::string();
-    const auto& kinds = match.Registries().kinds_by_mod;
+    const auto& kinds = match.Registries().content->kinds_by_mod;
     if (id->ModIndex() >= kinds.size()) return std::string();
     const std::vector<std::string>& of_mod = kinds[id->ModIndex()];
     if (id->KindIndex() >= of_mod.size()) return std::string();

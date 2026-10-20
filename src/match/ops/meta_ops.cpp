@@ -90,8 +90,8 @@ uint32_t CurrentTurn(const ecs::EntityStore& store) {
 void AppendModEvent(ecs::EntityStore& store, const OpContext& ctx,
                     const std::string& event_id,
                     const nlohmann::json* provided, OpResult& result) {
-    const auto definition = ctx.registries->events.find(event_id);
-    if (definition == ctx.registries->events.end()) {
+    const auto definition = ctx.registries->content->events.find(event_id);
+    if (definition == ctx.registries->content->events.end()) {
         Logger::Warn("[emit_event] dropped: '", event_id, "' is not defined");
         return;
     }

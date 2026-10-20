@@ -30,8 +30,8 @@
  * - the `rolled` / `turns_elapsed` condition seams (reserved `ResolutionFrame`
  *   prompt keys) so the op layer's `roll` op and the engine's turn tracking can
  *   bind them;
- * - the per-match card tag table `has_card_tag` reads (assembly
- *   populates `MatchRegistries::card_tags` from loaded `CardDef`s);
+ * - the card tag table `has_card_tag` reads (content preparation
+ *   populates `MatchRegistries::content->card_tags` from loaded `CardDef`s);
  * - `RegisterDefaultConditions`, the one place the evaluators are bound
  *   to the `ConditionRegistry` (the condition analogue of
  *   `RegisterDefaultOps`).
@@ -272,11 +272,11 @@ std::optional<int64_t> TurnsElapsed(const ResolutionFrame& frame);
 // --- `$last_outcome` seam -----------------------------
 
 /**
- * @brief Immutable full-`namespace:id` -> table map for one match.
+ * @brief Immutable full-`namespace:id` -> table map for one mod set.
  *
- * Mirrors `CardTagTable`: per-match, filled once at assembly from the loaded
- * `TableDef`s and read-only during play, so concurrent matches cannot clobber
- * each other's outcome content.
+ * Mirrors `CardTagTable`: shared per mod set, filled once during content
+ * preparation from the loaded `TableDef`s and read-only during play, so
+ * concurrent matches cannot clobber each other's outcome content.
  */
 using TableRegistry =
     std::map<std::string, modload::TableDef, std::less<>>;
@@ -319,10 +319,10 @@ std::optional<std::string> LastOutcomeTable(
  *
  * Tags live in a card's definition and are not part of any the store
  * component. moved the table off a process-global static and onto the
- * per-match `MatchRegistries` (`card_tags`), so two concurrent matches with
- * different content can no longer clobber each other's tag semantics. Assembly
- * fills it once before resolution starts; it is never mutated during play and
- * is read-only thereafter.
+ * shared `MatchRegistries::content` (`card_tags`), so two concurrent matches
+ * with different content can no longer clobber each other's tag semantics.
+ * Content preparation fills it once before resolution starts; it is never
+ * mutated during play and is read-only thereafter.
  */
 using CardTagTable =
     std::map<std::string, std::vector<std::string>, std::less<>>;

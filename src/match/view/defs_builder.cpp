@@ -215,8 +215,8 @@ nlohmann::json DefsBuilder::Build(
     const match::modload::AssetIndex asset_index =
         match::modload::AssetIndex::BuildFromMods(mods);
     std::vector<std::string> active_mod_ids;
-    active_mod_ids.reserve(registries.mods.size());
-    for (const match::ecs::ModRef& mod : registries.mods) {
+    active_mod_ids.reserve(registries.content->mods.size());
+    for (const match::ecs::ModRef& mod : registries.content->mods) {
         active_mod_ids.push_back(mod.id);
     }
     std::unordered_map<std::string, KindSource> by_kind;
@@ -230,8 +230,8 @@ nlohmann::json DefsBuilder::Build(
     }
 
     json mods_json = json::array();
-    for (std::size_t i = 0; i < registries.mods.size(); ++i) {
-        const match::ecs::ModRef& mod = registries.mods[i];
+    for (std::size_t i = 0; i < registries.content->mods.size(); ++i) {
+        const match::ecs::ModRef& mod = registries.content->mods[i];
         std::string content_hash;
         for (const LoadedMod& loaded : mods) {
             if (loaded.manifest.id == mod.id) {
@@ -251,9 +251,9 @@ nlohmann::json DefsBuilder::Build(
 
     json kinds_json = json::array();
     for (std::size_t mod_index = 0;
-         mod_index < registries.kinds_by_mod.size(); ++mod_index) {
+         mod_index < registries.content->kinds_by_mod.size(); ++mod_index) {
         const std::vector<std::string>& kinds =
-            registries.kinds_by_mod[mod_index];
+            registries.content->kinds_by_mod[mod_index];
         for (std::size_t kind_index = 0; kind_index < kinds.size();
              ++kind_index) {
             const std::string& kind_id = kinds[kind_index];
@@ -286,18 +286,18 @@ nlohmann::json DefsBuilder::Build(
     defs["kinds"] = kinds_json;
     // INFO: entities/presentations are client-consumed, so unlike
     //       tables they are published here, hash-addressed per def.
-    defs["entities"] = ManifestArray(registries.entities);
+    defs["entities"] = ManifestArray(registries.content->entities);
     // INFO: a presentation binding (file kind `uni:binding`) shares the
     //       `presentations` array with the old kind. The old kind has a
     //       `target`; the client tells them apart by the `uni:binding` key.
     //       A binding is static: it holds no audience and no event value.
-    json presentations = ManifestArray(registries.presentations);
-    for (const json& binding : ManifestArray(registries.bindings)) {
+    json presentations = ManifestArray(registries.content->presentations);
+    for (const json& binding : ManifestArray(registries.content->bindings)) {
         presentations.push_back(binding);
     }
     defs["presentations"] = std::move(presentations);
     json events_json = json::array();
-    for (const auto& [event_id, event] : registries.events) {
+    for (const auto& [event_id, event] : registries.content->events) {
         events_json.push_back(EventManifestEntry(event));
     }
     defs["events"] = std::move(events_json);

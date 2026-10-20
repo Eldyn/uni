@@ -571,11 +571,12 @@ FixtureDefs LoadFixtureDefs(const fs::path& mods_root) {
     FixtureDefs fixture;
     fixture.loaded = ScanModsDirectory(mods_root.string());
     REQUIRE(fixture.loaded.ok());
+    auto content = std::make_shared<match::engine::AssemblyContent>();
     for (const auto& mod : fixture.loaded.mods) {
-        fixture.registries.mods.push_back(
-            {mod.manifest.id, mod.manifest.version});
-        fixture.registries.kinds_by_mod.emplace_back();
+        content->mods.push_back({mod.manifest.id, mod.manifest.version});
+        content->kinds_by_mod.emplace_back();
     }
+    fixture.registries.content = std::move(content);
     return fixture;
 }
 
@@ -586,9 +587,11 @@ TEST_CASE("defs: a mod lists its texts files with locale, hash, and size") {
     const LoadResult loaded = LoadMod(
         R"(["my_mod:greeting"])",
         {{"en.json", english}, {"it.json", R"({"my_mod:greeting":"Ciao"})"}});
+    auto content = std::make_shared<match::engine::AssemblyContent>();
+    content->mods.push_back({"my_mod", "1"});
+    content->kinds_by_mod.emplace_back();
     match::engine::MatchRegistries registries;
-    registries.mods.push_back({"my_mod", "1"});
-    registries.kinds_by_mod.emplace_back();
+    registries.content = std::move(content);
     const json defs =
         match::view::DefsBuilder::Build(registries, loaded.mods);
     const json& listing = defs["mods"][0]["texts"];
@@ -601,9 +604,11 @@ TEST_CASE("defs: a mod lists its texts files with locale, hash, and size") {
 
 TEST_CASE("defs: a mod with no texts has no texts key") {
     const LoadResult loaded = LoadMod(R"(["log_a"])", {});
+    auto content = std::make_shared<match::engine::AssemblyContent>();
+    content->mods.push_back({"my_mod", "1"});
+    content->kinds_by_mod.emplace_back();
     match::engine::MatchRegistries registries;
-    registries.mods.push_back({"my_mod", "1"});
-    registries.kinds_by_mod.emplace_back();
+    registries.content = std::move(content);
     const json defs =
         match::view::DefsBuilder::Build(registries, loaded.mods);
     CHECK_FALSE(defs["mods"][0].contains("texts"));
@@ -613,9 +618,11 @@ TEST_CASE("defs: a changed texts file changes the digest") {
     const LoadResult first = LoadMod(R"(["log_a"])", {{"en.json", "{}"}});
     const LoadResult second =
         LoadMod(R"(["log_a"])", {{"en.json", R"({"my_mod:a":"b"})"}});
+    auto content = std::make_shared<match::engine::AssemblyContent>();
+    content->mods.push_back({"my_mod", "1"});
+    content->kinds_by_mod.emplace_back();
     match::engine::MatchRegistries registries;
-    registries.mods.push_back({"my_mod", "1"});
-    registries.kinds_by_mod.emplace_back();
+    registries.content = std::move(content);
     CHECK(match::view::DefsBuilder::Build(registries, first.mods)["defs_digest"]
           != match::view::DefsBuilder::Build(registries,
                                              second.mods)["defs_digest"]);

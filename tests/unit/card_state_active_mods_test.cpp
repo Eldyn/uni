@@ -163,7 +163,8 @@ TEST_CASE("assembly_without_magenta_has_no_magenta_kind") {
         MatchAssembler::Assemble(result.mods, deck, TwoPlayers());
 
     REQUIRE_MESSAGE(assembly.ok(), AssemblyMessage(assembly));
-    CHECK(assembly.assembly->registries.kind_index.count("uni:magenta_0")
+    CHECK(assembly.assembly->registries.content->kind_index.count(
+              "uni:magenta_0")
           == 0);
 }
 
@@ -179,7 +180,8 @@ TEST_CASE("assembly_with_magenta_has_it") {
         MatchAssembler::Assemble(result.mods, deck, TwoPlayers());
 
     REQUIRE_MESSAGE(assembly.ok(), AssemblyMessage(assembly));
-    CHECK(assembly.assembly->registries.kind_index.count("uni:magenta_0")
+    CHECK(assembly.assembly->registries.content->kind_index.count(
+              "uni:magenta_0")
           == 1);
 }
 

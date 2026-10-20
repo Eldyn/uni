@@ -330,8 +330,8 @@ bool MatchSession::StackDrawPile(const std::vector<std::string>& kinds) {
     ecs::EntityStore& store = engine_->Store();
     const auto& registries = engine_->Registries();
     for (auto it = kinds.rbegin(); it != kinds.rend(); ++it) {
-        const auto pos = registries.kind_index.find(*it);
-        if (pos == registries.kind_index.end()) return false;
+        const auto pos = registries.content->kind_index.find(*it);
+        if (pos == registries.content->kind_index.end()) return false;
         const ecs::Entity card = store.Create();
         ecs::CardIdentity identity;
         identity.mod_index = pos->second.mod_index;

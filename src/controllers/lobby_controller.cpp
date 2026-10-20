@@ -1347,6 +1347,38 @@ LobbyController::ActiveModSet(
     return fresh;
 }
 
+std::shared_ptr<const match::engine::AssemblyContent>
+LobbyController::ActiveAssemblyContent(
+    const std::vector<match::modload::LoadedMod>& active,
+    const match::modload::DeckDef& deck, std::string& error) {
+    // INFO: order matters: the frozen kind index and system dispatch follow
+    //       `deck.mods`, so the key includes the ordered id list, not just the
+    //       set of hashes.
+    std::string key;
+    for (const std::string& id : deck.mods) {
+        key += id;
+        key += ':';
+        for (const auto& mod : active) {
+            if (mod.manifest.id != id) continue;
+            key += mod.content_hash;
+            break;
+        }
+        key += ';';
+    }
+    std::erase_if(shared_content_sets_,
+                  [](const auto& entry) { return entry.second.expired(); });
+    if (auto alive = shared_content_sets_[key].lock()) return alive;
+
+    match::engine::AssemblyContentResult prepared =
+        match::engine::MatchAssembler::PrepareContent(active, deck);
+    if (!prepared.ok()) {
+        error = prepared.error->check + ": " + prepared.error->message;
+        return nullptr;
+    }
+    shared_content_sets_[key] = prepared.content;
+    return prepared.content;
+}
+
 match::modload::LoadResult LobbyController::ScanAndValidateMods() const {
     match::modload::LoadResult loaded =
         match::modload::ScanModsDirectory(mods_root_);
@@ -1876,9 +1908,19 @@ void LobbyController::HandleStartGame(WsContext context, const nlohmann::json& m
             lobby.settings.RaceTarget(static_cast<int>(seated.size())));
     }
 
+    std::string content_error;
+    const std::shared_ptr<const match::engine::AssemblyContent> content =
+        ActiveAssemblyContent(*active_mods, deck_def, content_error);
+    if (content == nullptr) {
+        Logger::Error("[Lobby] Start failed: prepare content (", content_error,
+                      ")");
+        broadcaster_.SendError(context.socket, context.op_code,
+                               contract::ErrorCode::kInternalError, request_id);
+        return;
+    }
+
     match::engine::AssemblyResult assembly =
-        match::engine::MatchAssembler::Assemble(*active_mods, deck_def,
-                                                options);
+        match::engine::MatchAssembler::Assemble(content, deck_def, options);
     if (!assembly.ok()) {
         Logger::Error("[Lobby] Start failed: assembly error (",
                       assembly.error->check, "): ", assembly.error->message);

@@ -87,7 +87,8 @@ Content LoadContent() {
     return content;
 }
 
-std::unique_ptr<MatchInstance> MakeEngine(Content& content) {
+std::unique_ptr<MatchInstance> MakeEngine(
+    Content& content, std::optional<EventDef> extra_event = std::nullopt) {
     MatchAssemblyOptions options;
     options.starting_cards = 7;
     options.seed = 42;
@@ -96,8 +97,14 @@ std::unique_ptr<MatchInstance> MakeEngine(Content& content) {
         spec.username = "player" + std::to_string(index);
         options.players.push_back(spec);
     }
+    AssemblyContentResult prepared =
+        MatchAssembler::PrepareContent(content.mods, content.deck);
+    REQUIRE(prepared.ok());
+    if (extra_event.has_value()) {
+        prepared.content->events[extra_event->event_id] = *extra_event;
+    }
     AssemblyResult result =
-        MatchAssembler::Assemble(content.mods, content.deck, options);
+        MatchAssembler::Assemble(prepared.content, content.deck, options);
     REQUIRE(result.ok());
     return std::make_unique<MatchInstance>(std::move(result.assembly));
 }
@@ -227,8 +234,8 @@ std::optional<json> WrapFor(const ViewBuilder& builder, const json& event,
 TEST_CASE("mod event: the match registries hold the event definition") {
     Content content = LoadContent();
     auto engine = MakeEngine(content);
-    const auto found = engine->Registries().events.find(kEventId);
-    REQUIRE(found != engine->Registries().events.end());
+    const auto found = engine->Registries().content->events.find(kEventId);
+    REQUIRE(found != engine->Registries().content->events.end());
     CHECK(found->second.retention == "log");
 }
 
@@ -406,7 +413,6 @@ namespace {
 
 /** @brief A registry with one event of the given string fields. */
 MatchRegistries RegistriesWithStringEvent(int field_count) {
-    MatchRegistries registries;
     EventDef definition;
     definition.id = "wide";
     definition.namespace_id = "test";
@@ -416,7 +422,10 @@ MatchRegistries RegistriesWithStringEvent(int field_count) {
         definition.fields.push_back(
             EventFieldDef{"f" + std::to_string(index), "string", "all"});
     }
-    registries.events["test:wide"] = definition;
+    auto content = std::make_shared<AssemblyContent>();
+    content->events["test:wide"] = definition;
+    MatchRegistries registries;
+    registries.content = std::move(content);
     return registries;
 }
 
@@ -466,7 +475,6 @@ TEST_CASE("mod event limits: a payload at the byte limit passes, one over "
 
 TEST_CASE("mod event roles: only a seat typed field fills the owner role") {
     Content content = LoadContent();
-    auto engine = MakeEngine(content);
     EventDef definition;
     definition.id = "probe";
     definition.namespace_id = "test";
@@ -474,7 +482,7 @@ TEST_CASE("mod event roles: only a seat typed field fills the owner role") {
     definition.retention = "log";
     definition.fields.push_back(EventFieldDef{"owner", "string", "owner"});
     definition.fields.push_back(EventFieldDef{"target", "string", "target"});
-    engine->Assembly().registries.events["test:probe"] = definition;
+    auto engine = MakeEngine(content, definition);
     const json event = {
         {"type", "mod_event"},
         {"payload",

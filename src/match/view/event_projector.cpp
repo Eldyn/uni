@@ -317,10 +317,10 @@ json ProjectModEventForViewer(const match::engine::MatchInstance& match,
                               const std::string& actor, const Viewer& viewer) {
     json projected = json::object();
     if (!engine_body.is_object()) return projected;
-    const auto definition = match.Registries().events.find(
+    const auto definition = match.Registries().content->events.find(
         engine_body.value("id", std::string()));
     const auto payload = engine_body.find("payload");
-    if (definition == match.Registries().events.end()
+    if (definition == match.Registries().content->events.end()
         || payload == engine_body.end() || !payload->is_object()) {
         return projected;
     }

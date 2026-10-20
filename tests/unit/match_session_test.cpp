@@ -731,9 +731,9 @@ TEST_CASE("match session: defs carries the frozen mods and kind table") {
     const match::engine::MatchRegistries& regs = session.Engine().Registries();
 
     REQUIRE(defs["mods"].is_array());
-    REQUIRE(defs["mods"].size() == regs.mods.size());
-    for (std::size_t i = 0; i < regs.mods.size(); ++i) {
-        CHECK(defs["mods"][i]["id"] == regs.mods[i].id);
+    REQUIRE(defs["mods"].size() == regs.content->mods.size());
+    for (std::size_t i = 0; i < regs.content->mods.size(); ++i) {
+        CHECK(defs["mods"][i]["id"] == regs.content->mods[i].id);
         CHECK(defs["mods"][i]["index"] == static_cast<int>(i));
     }
 
@@ -741,11 +741,12 @@ TEST_CASE("match session: defs carries the frozen mods and kind table") {
     //       `kind_index` within its owning mod.
     REQUIRE(defs["kinds"].is_array());
     std::size_t cursor = 0;
-    for (std::size_t mi = 0; mi < regs.kinds_by_mod.size(); ++mi) {
-        for (std::size_t ki = 0; ki < regs.kinds_by_mod[mi].size(); ++ki) {
+    for (std::size_t mi = 0; mi < regs.content->kinds_by_mod.size(); ++mi) {
+        for (std::size_t ki = 0; ki < regs.content->kinds_by_mod[mi].size();
+             ++ki) {
             const json& kind = defs["kinds"][cursor];
             CHECK(kind["index"] == static_cast<int>(ki));
-            CHECK(kind["string_id"] == regs.kinds_by_mod[mi][ki]);
+            CHECK(kind["string_id"] == regs.content->kinds_by_mod[mi][ki]);
             CHECK(kind["face"].is_object());
             CHECK(kind["tags"].is_array());
             ++cursor;

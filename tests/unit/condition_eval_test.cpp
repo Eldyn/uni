@@ -165,8 +165,10 @@ struct Fixture : Harness {
         frame.BindSelector("@target", {target});
         frame.BindSelector("@all_players", {self, target});
 
-        registries.card_tags = {{"uni:red_5", {"stackable"}},
-                                {"uni:red_7", {"stackable"}}};
+        auto content = std::make_shared<match::engine::AssemblyContent>();
+        content->card_tags = {{"uni:red_5", {"stackable"}},
+                              {"uni:red_7", {"stackable"}}};
+        registries.content = std::move(content);
     }
 };
 
@@ -230,7 +232,9 @@ TEST_CASE("condition_eval: has_card_tag") {
     //       match's tag semantics (the old global table was clobbered by the
     //       most recent assembly).
     MatchRegistries other;
-    other.card_tags["uni:red_5"] = {"ghost"};
+    auto other_content = std::make_shared<match::engine::AssemblyContent>();
+    other_content->card_tags["uni:red_5"] = {"ghost"};
+    other.content = std::move(other_content);
     f.ctx.registries = &other;
     CHECK_FALSE(f.Eval(
         Cond("has_card_tag", {{"target", "@self"}, {"tag", "stackable"}})));

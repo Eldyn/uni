@@ -155,8 +155,8 @@ TEST_CASE("engine assembler: classic deck builds entities and hands") {
     CHECK(assembly.store.LiveCount() == 108 + 4 + 2 + 1);
     CHECK(assembly.registries.cards.size() == 108);
     CHECK(assembly.registries.players.size() == 4);
-    CHECK(assembly.registries.mods.size() == 1);
-    CHECK(assembly.registries.mods.front().id == "uni");
+    CHECK(assembly.registries.content->mods.size() == 1);
+    CHECK(assembly.registries.content->mods.front().id == "uni");
 
     for (ecs::Entity player : assembly.registries.players) {
         CHECK(HandKinds(assembly, player).size() == 7);
@@ -185,10 +185,10 @@ TEST_CASE("engine assembler: kind table and CompactCardV2 round-trip") {
     MatchAssembly& assembly = *result.assembly;
     const MatchRegistries& reg = assembly.registries;
 
-    REQUIRE(reg.kinds_by_mod.size() == 1);
-    CHECK(reg.kinds_by_mod.front().size() == 54);
-    CHECK(std::is_sorted(reg.kinds_by_mod.front().begin(),
-                         reg.kinds_by_mod.front().end()));
+    REQUIRE(reg.content->kinds_by_mod.size() == 1);
+    CHECK(reg.content->kinds_by_mod.front().size() == 54);
+    CHECK(std::is_sorted(reg.content->kinds_by_mod.front().begin(),
+                         reg.content->kinds_by_mod.front().end()));
 
     std::map<std::string, uint32_t> instances;
     for (std::size_t i = 0; i < reg.cards.size(); ++i) {
@@ -200,7 +200,8 @@ TEST_CASE("engine assembler: kind table and CompactCardV2 round-trip") {
         const ecs::CompactCardV2 packed = reg.card_ids[i];
         CHECK(packed.ModIndex() == 0);
         CHECK(packed.KindIndex() == identity->kind_index);
-        CHECK(identity->kind_id == reg.kinds_by_mod[0][packed.KindIndex()]);
+        CHECK(identity->kind_id ==
+              reg.content->kinds_by_mod[0][packed.KindIndex()]);
 
         const std::optional<ecs::CompactCardV2> looked_up = reg.CardId(card);
         REQUIRE(looked_up.has_value());
@@ -244,6 +245,48 @@ TEST_CASE("engine assembler: same seed assembles identically") {
         CHECK(a.assembly->registries.card_ids[i].bits
               == b.assembly->registries.card_ids[i].bits);
     }
+}
+
+TEST_CASE("engine assembler: matches share prepared content, not entities") {
+    Content content;
+    REQUIRE(LoadContent(content));
+
+    AssemblyContentResult prepared =
+        MatchAssembler::PrepareContent(content.mods, content.classic);
+    REQUIRE(prepared.ok());
+
+    MatchAssemblyOptions second_options = Players(2, 7, 222);
+    second_options.players[0].username = "other0";
+    second_options.players[1].username = "other1";
+
+    AssemblyResult first =
+        MatchAssembler::Assemble(prepared.content, content.classic,
+                                 Players(2, 7, 111));
+    AssemblyResult second =
+        MatchAssembler::Assemble(prepared.content, content.classic,
+                                 second_options);
+    REQUIRE_MESSAGE(first.ok(), AssemblyMessage(first));
+    REQUIRE_MESSAGE(second.ok(), AssemblyMessage(second));
+
+    CHECK(first.assembly->registries.content.get()
+          == second.assembly->registries.content.get());
+    CHECK(first.assembly->registries.content.get() == prepared.content.get());
+
+    CHECK(first.assembly->registries.cards.size()
+          == second.assembly->registries.cards.size());
+    CHECK(first.assembly->registries.cards.size() > 0);
+    CHECK(first.assembly->registries.cards.data()
+          != second.assembly->registries.cards.data());
+    CHECK(first.assembly->registries.players.size()
+          == second.assembly->registries.players.size());
+    CHECK(first.assembly->registries.players.size() > 0);
+    CHECK(first.assembly->registries.players.data()
+          != second.assembly->registries.players.data());
+
+    AssemblyResult legacy =
+        MatchAssembler::Assemble(content.mods, content.classic,
+                                 Players(2, 7, 333));
+    REQUIRE_MESSAGE(legacy.ok(), AssemblyMessage(legacy));
 }
 
 TEST_CASE("engine assembler: RNG seeding is explicit and deterministic") {

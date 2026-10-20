@@ -299,13 +299,15 @@ TEST_CASE("op_helpers: last-roll and turns-elapsed frame seams") {
     CHECK(*TurnsElapsed(frame) == 5);
 }
 
-TEST_CASE("op_helpers: card tag table is per-match") {
-    // INFO: Tags live on the per-match registries, not a process
+TEST_CASE("op_helpers: card tag table is shared per mod set") {
+    // INFO: Tags live on the shared registries content, not a process
     //       global, so two matches with different content stay isolated.
     match::engine::MatchRegistries registries;
     CHECK_FALSE(CardHasTag(&registries, "uni:red_5", "stackable"));
 
-    registries.card_tags["uni:red_5"] = {"stackable", "draw_penalty"};
+    auto content = std::make_shared<match::engine::AssemblyContent>();
+    content->card_tags["uni:red_5"] = {"stackable", "draw_penalty"};
+    registries.content = content;
     CHECK(CardHasTag(&registries, "uni:red_5", "stackable"));
     CHECK(CardHasTag(&registries, "uni:red_5", "draw_penalty"));
     CHECK_FALSE(CardHasTag(&registries, "uni:red_5", "ghost"));
@@ -315,7 +317,9 @@ TEST_CASE("op_helpers: card tag table is per-match") {
     CHECK_FALSE(CardHasTag(nullptr, "uni:red_5", "stackable"));
 
     match::engine::MatchRegistries other;
-    other.card_tags["uni:blue_2"] = {"stackable"};
+    auto other_content = std::make_shared<match::engine::AssemblyContent>();
+    other_content->card_tags["uni:blue_2"] = {"stackable"};
+    other.content = other_content;
     CHECK_FALSE(CardHasTag(&other, "uni:red_5", "stackable"));
     CHECK(CardHasTag(&other, "uni:blue_2", "stackable"));
     CHECK(CardHasTag(&registries, "uni:red_5", "stackable"));

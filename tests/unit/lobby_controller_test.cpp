@@ -1262,7 +1262,7 @@ TEST_CASE("start: toggled rule mods apply beside a selected deck") {
 
     std::vector<std::string> ids;
     for (const match::ecs::ModRef& mod :
-         lp->session->Engine().Registries().mods) {
+         lp->session->Engine().Registries().content->mods) {
         ids.push_back(mod.id);
     }
     CHECK(std::find(ids.begin(), ids.end(), "uni") != ids.end());

@@ -212,7 +212,7 @@ TEST_CASE("view event sink: a real auto-played wild carries its kind tags") {
 
     // INFO: the packet carries the tags of the played kind, `uni:wild` among
     //       them, so the client's `auto_play` binding can skip a wild.
-    const auto& card_tags = engine->Registries().card_tags;
+    const auto& card_tags = engine->Registries().content->card_tags;
     const auto declared = card_tags.find("uni:wild");
     REQUIRE(declared != card_tags.end());
     const std::vector<std::string> expected = declared->second;

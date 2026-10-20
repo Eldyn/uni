@@ -63,6 +63,7 @@ struct Options {
     int seats = 4;
     bool breakdown = false;
     bool copy_mods = false;
+    bool copy_assembly = false;
     int max_steps = 20000;
     uint64_t seed = 7;
     std::string root = ".";
@@ -80,6 +81,7 @@ Options ParseOptions(int argc, char** argv) {
         else if (auto text = value("--seats=")) options.seats = std::stoi(*text);
         else if (argument == "--breakdown") options.breakdown = true;
         else if (argument == "--copy-mods") options.copy_mods = true;
+        else if (argument == "--copy-assembly") options.copy_assembly = true;
         else if (auto text = value("--max-steps=")) options.max_steps = std::stoi(*text);
         else if (auto text = value("--seed=")) options.seed = std::stoull(*text);
         else if (auto text = value("--root=")) options.root = *text;
@@ -122,10 +124,11 @@ AppWebSocket* SocketOf(std::size_t index) {
 struct Content {
     std::vector<LoadedMod> mods;
     std::shared_ptr<const std::vector<LoadedMod>> shared_mods;
+    std::shared_ptr<match::engine::AssemblyContent> assembly_content;
     DeckDef deck;
 };
 
-std::optional<Content> LoadContent(const fs::path& root) {
+std::optional<Content> LoadContent(const fs::path& root, bool share_assembly) {
     auto load = match::modload::ScanModsDirectory((root / "mods").string());
     if (!load.ok()) return std::nullopt;
     const match::modload::SemanticValidator validator(
@@ -143,6 +146,12 @@ std::optional<Content> LoadContent(const fs::path& root) {
     content.deck.mods = kShippedMods;
     content.shared_mods =
         std::make_shared<const std::vector<LoadedMod>>(content.mods);
+    if (share_assembly) {
+        auto prepared = match::engine::MatchAssembler::PrepareContent(
+            *content.shared_mods, content.deck);
+        if (!prepared.ok()) return std::nullopt;
+        content.assembly_content = std::move(prepared.content);
+    }
     return content;
 }
 
@@ -160,7 +169,8 @@ struct Lobby {
 double HeapKb();
 
 std::unique_ptr<Lobby> CreateLobby(const Content& content, uint64_t seed,
-                                   bool copy_mods, bool breakdown = false) {
+                                   bool copy_mods, bool copy_assembly,
+                                   bool breakdown = false) {
     double mark = HeapKb();
     const auto stage = [&](const char* name) {
         if (!breakdown) return;
@@ -184,7 +194,11 @@ std::unique_ptr<Lobby> CreateLobby(const Content& content, uint64_t seed,
         copy_mods ? std::make_shared<const std::vector<LoadedMod>>(content.mods)
                   : content.shared_mods;
     stage("mod vector");
-    auto assembly = MatchAssembler::Assemble(*mods, content.deck, options);
+    auto assembly =
+        copy_assembly
+            ? MatchAssembler::Assemble(*mods, content.deck, options)
+            : MatchAssembler::Assemble(content.assembly_content, content.deck,
+                                       options);
     stage("assemble");
     if (!assembly.ok()) return nullptr;
 
@@ -268,7 +282,8 @@ int main(int argc, char** argv) {
     std::ostringstream discarded_log;
     std::streambuf* original_log = std::cout.rdbuf(discarded_log.rdbuf());
 
-    const std::optional<Content> content = LoadContent(options.root);
+    const std::optional<Content> content =
+        LoadContent(options.root, !options.copy_assembly);
     if (!content) {
         std::cout.rdbuf(original_log);
         std::fprintf(stderr, "soak: mods or deck not found under %s\n", options.root.c_str());
@@ -281,7 +296,7 @@ int main(int argc, char** argv) {
     std::vector<std::unique_ptr<Lobby>> lobbies;
     lobbies.reserve(static_cast<std::size_t>(options.lobbies));
     for (int index = 0; index < options.lobbies; ++index) {
-        auto lobby = CreateLobby(*content, options.seed + static_cast<uint64_t>(index), options.copy_mods, options.breakdown && index == 0);
+        auto lobby = CreateLobby(*content, options.seed + static_cast<uint64_t>(index), options.copy_mods, options.copy_assembly, options.breakdown && index == 0);
         if (!lobby) {
             std::cout.rdbuf(original_log);
             std::fprintf(stderr, "soak: assembly failed for lobby %d\n", index);

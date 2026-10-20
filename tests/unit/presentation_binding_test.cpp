@@ -862,20 +862,20 @@ FixtureDefs LoadFixtureDefs(const fs::path& mods_root) {
     std::vector<match::modload::EventDef> events;
     std::vector<match::modload::BindingDef> bindings;
     std::vector<match::modload::PresentationDef> presentations;
+    auto content = std::make_shared<match::engine::AssemblyContent>();
     for (const auto& mod : fixture.loaded.mods) {
-        fixture.registries.mods.push_back(
-            {mod.manifest.id, mod.manifest.version});
-        fixture.registries.kinds_by_mod.emplace_back();
+        content->mods.push_back({mod.manifest.id, mod.manifest.version});
+        content->kinds_by_mod.emplace_back();
         events.insert(events.end(), mod.events.begin(), mod.events.end());
         bindings.insert(bindings.end(), mod.bindings.begin(),
                         mod.bindings.end());
         presentations.insert(presentations.end(), mod.presentations.begin(),
                              mod.presentations.end());
     }
-    match::wiring::LoadEvents(events, fixture.registries.events);
-    match::wiring::LoadBindings(bindings, fixture.registries.bindings);
-    match::wiring::LoadPresentations(presentations,
-                                     fixture.registries.presentations);
+    match::wiring::LoadEvents(events, content->events);
+    match::wiring::LoadBindings(bindings, content->bindings);
+    match::wiring::LoadPresentations(presentations, content->presentations);
+    fixture.registries.content = std::move(content);
     return fixture;
 }
 
@@ -888,8 +888,8 @@ fs::path FixtureMods() {
 
 TEST_CASE("binding wiring: the registry is keyed by the full id") {
     FixtureDefs fixture = LoadFixtureDefs(FixtureMods());
-    REQUIRE(fixture.registries.bindings.size() == 1);
-    CHECK(fixture.registries.bindings.count("fixture_mod:apple_shown") == 1);
+    REQUIRE(fixture.registries.content->bindings.size() == 1);
+    CHECK(fixture.registries.content->bindings.count("fixture_mod:apple_shown") == 1);
 }
 
 TEST_CASE("defs: the presentations manifest lists a binding with its id and "
@@ -923,9 +923,13 @@ TEST_CASE("defs: a changed binding changes the entry hash and the digest") {
     FixtureDefs before = LoadFixtureDefs(FixtureMods());
     const json first = match::view::DefsBuilder::Build(before.registries,
                                                        before.loaded.mods);
-    before.registries.bindings["fixture_mod:apple_shown"]
+    auto mutated =
+        std::make_shared<match::engine::AssemblyContent>(
+            *before.registries.content);
+    mutated->bindings["fixture_mod:apple_shown"]
         .raw[std::string(keys::kBinding)][std::string(keys::kEvent)] =
         "turn_skipped";
+    before.registries.content = std::move(mutated);
     const json second = match::view::DefsBuilder::Build(before.registries,
                                                         before.loaded.mods);
     CHECK(first["defs_digest"] != second["defs_digest"]);
@@ -1020,10 +1024,12 @@ TEST_CASE("test mod: the bindings manifest matches the golden file") {
     const LoadResult loaded = LoadRealMods();
     const auto& mod = TestMod(loaded);
     match::engine::MatchRegistries registries;
-    registries.mods.push_back({mod.manifest.id, mod.manifest.version});
-    registries.kinds_by_mod.emplace_back();
-    match::wiring::LoadEvents(mod.events, registries.events);
-    match::wiring::LoadBindings(mod.bindings, registries.bindings);
+    auto content = std::make_shared<match::engine::AssemblyContent>();
+    content->mods.push_back({mod.manifest.id, mod.manifest.version});
+    content->kinds_by_mod.emplace_back();
+    match::wiring::LoadEvents(mod.events, content->events);
+    match::wiring::LoadBindings(mod.bindings, content->bindings);
+    registries.content = std::move(content);
     const json defs = match::view::DefsBuilder::Build(registries, {mod});
     json bindings = json::array();
     for (const json& entry : defs["presentations"]) {

@@ -61,9 +61,9 @@ json ModEventFields(const match::engine::MatchInstance& match,
                     const json& body, std::string& event_id) {
     json kept = json::object();
     event_id = body.value("id", std::string());
-    const auto definition = match.Registries().events.find(event_id);
+    const auto definition = match.Registries().content->events.find(event_id);
     const auto payload = body.find("payload");
-    if (definition == match.Registries().events.end()
+    if (definition == match.Registries().content->events.end()
         || payload == body.end() || !payload->is_object()) {
         event_id.clear();
         return kept;

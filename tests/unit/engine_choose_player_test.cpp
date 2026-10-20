@@ -148,11 +148,13 @@ void AttachChoosePlayerSystem(MatchInstance& engine) {
     system.registration_index = 0;
     system.hook = ecs::HookId{"play", ecs::HookPhase::kAfter};
     system.source_id = "test:choose_player_probe";
-    system.graph.nodes = json::array({json{
+    BehaviorGraph graph;
+    graph.nodes = json::array({json{
         {"id", "n1"},
         {"op", "draw_cards"},
         {"args", json{{"target", "@choose_player"}, {"n", 2}}}}});
-    system.graph.raw = json{{"nodes", system.graph.nodes}};
+    graph.raw = json{{"nodes", graph.nodes}};
+    system.graph = std::move(graph);
     const std::size_t index = assembly.systems.size();
     assembly.systems.push_back(std::move(system));
     MatchAssembly* self = &engine.Assembly();

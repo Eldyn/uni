@@ -185,8 +185,8 @@ MatchInstance::MatchInstance(std::unique_ptr<MatchAssembly> assembly,
     if (assembly_->resolver != nullptr) {
         assembly_->resolver->SetCausalSource(&causal_frame_);
     }
-    streaks_.SetDefinitions(assembly_->registries.streaks);
-    derived_.SetDefinitions(assembly_->registries.derived);
+    streaks_.SetDefinitions(assembly_->registries.content->streaks);
+    derived_.SetDefinitions(assembly_->registries.content->derived);
     Start();
 }
 
@@ -1151,9 +1151,9 @@ std::string MatchInstance::ResponseDigest(
         }
         const auto any_tag = filter.find("any_tag");
         if (any_tag != filter.end()) {
-            const auto facts = assembly_->card_facts.find(
+            const auto facts = assembly_->CardFacts().find(
                 ops::CardKindId(assembly_->store, card));
-            if (facts != assembly_->card_facts.end()) {
+            if (facts != assembly_->CardFacts().end()) {
                 if (any_tag->is_string()) {
                     return any_tag->get<std::string>();
                 }
@@ -1306,13 +1306,13 @@ void MatchInstance::AdoptPlayedColor(ecs::Entity card,
         req->type = face->color;
         return;
     }
-    const auto facts = assembly_->card_facts.find(kind_id);
+    const auto facts = assembly_->CardFacts().find(kind_id);
     // INFO: a wild carries no colour of its own until its prompt answers.
     //       Adopting an empty colour would strand the table on no active
     //       colour - which is what a stacked +4 response does, because the
     //       winning response's graph is not drained - so the previous
     //       colour stands until a prompt sets a new one.
-    if (facts != assembly_->card_facts.end() && !facts->second.color.empty()) {
+    if (facts != assembly_->CardFacts().end() && !facts->second.color.empty()) {
         req->type = facts->second.color;
     }
 }
@@ -2782,8 +2782,8 @@ std::optional<ecs::Entity> MatchInstance::TopDiscard() const {
 std::optional<uint32_t> MatchInstance::RegisterStackedCard(
     ecs::Entity card, const std::string& kind_id) {
     MatchRegistries& registries = assembly_->registries;
-    const auto pos = registries.kind_index.find(kind_id);
-    if (pos == registries.kind_index.end()) return std::nullopt;
+    const auto pos = registries.content->kind_index.find(kind_id);
+    if (pos == registries.content->kind_index.end()) return std::nullopt;
     uint32_t instance = 0;
     for (const ecs::CompactCardV2& id : registries.card_ids) {
         if (id.ModIndex() == pos->second.mod_index &&
@@ -2845,8 +2845,8 @@ json MatchInstance::ExportState() const {
         const std::string kind =
             identity == nullptr ? std::string() : identity->kind_id;
         json top_json = json{{"kind", kind}};
-        const auto facts = assembly_->card_facts.find(kind);
-        if (facts != assembly_->card_facts.end()) {
+        const auto facts = assembly_->CardFacts().find(kind);
+        if (facts != assembly_->CardFacts().end()) {
             top_json["color"] = facts->second.color;
             top_json["value"] = facts->second.value;
         }
@@ -2993,8 +2993,8 @@ std::vector<match::streak::Derivation> MatchInstance::ObserveStreaks(
 
     std::vector<std::string> requested;
     if (event.value("type", std::string()) == "mod_event") {
-        const auto definition = assembly_->registries.events.find(view->id);
-        if (definition != assembly_->registries.events.end()) {
+        const auto definition = assembly_->registries.content->events.find(view->id);
+        if (definition != assembly_->registries.content->events.end()) {
             requested = definition->second.context;
         }
     } else {

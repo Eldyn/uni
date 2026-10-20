@@ -95,20 +95,33 @@ struct KindIndex {
     uint32_t kind_index = 0;  /**< position in that mod's sorted kind list. */
 };
 
+struct AssemblyContent;
+
 /**
  * @struct MatchRegistries
- * @brief The frozen per-match index maps plus root entity handles.
+ * @brief The frozen per-match index maps and root entity handles plus the
+ *        content shared by every match with the same mod set.
  *
+ * Only the entity handles and their index maps are per match; anything derived
+ * from the mods or the deck's mod list lives in `content` and is shared.
  * Kind ids are sorted per mod so `kind_index` is deterministic; instance ids
  * are assigned kind-sorted with a per-kind counter, so two assemblies of the
  * same content produce identical `CompactCardV2` values.
  */
 struct MatchRegistries {
-    std::vector<ecs::ModRef> mods;  /**< frozen mod list, priority order. */
-    /** Sorted kind ids per `mod_index` (position in `mods`). */
-    std::vector<std::vector<std::string>> kinds_by_mod;
-    /** `kind_id` -> frozen position. */
-    std::unordered_map<std::string, KindIndex> kind_index;
+    /** @brief Build with an empty shared content (unit fixtures). */
+    MatchRegistries();
+
+    /**
+     * @brief Frozen content shared by every match with the same mod set.
+     *
+     * Owned through a shared pointer so lobbies that play the same content pay
+     * for one copy of the mod-derived registries and system graphs. The
+     * default content is empty, so this pointer is never null; fixtures can
+     * populate it directly.
+     */
+    std::shared_ptr<const AssemblyContent> content;
+
     /** Card entities in creation (kind-sorted) order. */
     std::vector<ecs::Entity> cards;
     /** Compact identity parallel to `cards`. */
@@ -118,88 +131,6 @@ struct MatchRegistries {
     ecs::Entity match{};
     ecs::Entity draw_pile{};
     ecs::Entity discard_pile{};
-
-    /**
-     * @brief Frozen `kind_id -> declared tags` for this match's content.
-     *
-     * the card tag table lives here, per match, instead of a
-     * process-global static. `has_card_tag` / `draw_penalty` / `tag:` routing
-     * read it through `OpContext::registries`, so two concurrent matches with
-     * different content cannot clobber each other. Assembly fills it once
-     * (before `match_start`) and it is read-only during play.
-     */
-    ops::CardTagTable card_tags;
-
-    /**
-     * @brief Frozen full-`namespace:id` -> outcome table for this match.
-     *
-     * Same per-match rule as `card_tags`: filled once at assembly from the
-     * active mods' `TableDef`s and read-only during play, so concurrent matches
-     * with different content cannot clobber each other's `roll_table` targets.
-     */
-    ops::TableRegistry tables;
-
-    /**
-     * @brief Frozen card-schema data for the card-state ops.
-     *
-     * Filled once at assembly from the active mods' card schemas and their
-     * generated cards, then read-only during play.
-     */
-    std::map<std::string, std::map<std::string, std::string>> kind_slot_members;
-    std::map<std::string, std::string> attribute_visibility;
-    std::map<std::string, std::string> member_attribute;
-    std::map<std::string, cardschema::PropertyDef> card_properties;
-
-    /**
-     * @brief Frozen full-`namespace:id` -> entity def for this match.
-     *
-     * Same per-match rule as `tables`: filled once at assembly from the active
-     * mods' `EntityDef`s and read-only during play. The `defs` packet publishes
-     * them so the client's entity runtime can spawn by def id.
-     */
-    modload::EntityRegistry entities;
-
-    /**
-     * @brief Frozen full-`namespace:id` -> presentation def for this match
-     *.
-     *
-     * Same per-match rule as `entities`: filled once at assembly and read-only
-     * during play; client-consumed through the `defs` packet.
-     */
-    modload::PresentationRegistry presentations;
-
-    /**
-     * @brief Frozen full-`namespace:id` -> event definition for this match.
-     *
-     * Same per-match rule as `entities`. The `emit_event` op validates a mod
-     * event against it, and the view layer reads the field audiences from it.
-     */
-    modload::EventRegistry events;
-
-    /**
-     * @brief Frozen full-`namespace:id` -> streak definition for this match.
-     *
-     * Filled once at assembly from the active mods. The streak engine of the
-     * match reads it when the match starts.
-     */
-    modload::StreakRegistry streaks;
-
-    /**
-     * @brief Frozen full-`namespace:id` -> derived event definition.
-     *
-     * Same per-match rule as `streaks`. The derived engine of the match reads
-     * it when the match starts.
-     */
-    modload::DerivedRegistry derived;
-
-    /**
-     * @brief Frozen full-`namespace:id` -> presentation binding.
-     *
-     * Per match like `presentations`. The `defs` packet publishes it in the
-     * `presentations` array; the client binds the beats, sounds, and play log
-     * line to the event id.
-     */
-    modload::BindingRegistry bindings;
 
     /** @brief Frozen position of `kind_id`, or nullopt when not active. */
     std::optional<KindIndex> FindKind(const std::string& kind_id) const;
@@ -227,6 +158,41 @@ struct MatchRegistries {
 };
 
 /**
+ * @class SharedGraph
+ * @brief Immutable behavior graph shared by every consumer of one mod set.
+ *
+ * Mod systems and card kinds reference the same compiled graph instead of
+ * copying its JSON per match. Assignment from a `BehaviorGraph` copies once;
+ * copying a `SharedGraph` only bumps a reference count. A default-constructed
+ * graph owns an empty `BehaviorGraph`, so dereferencing is always safe, and
+ * only const access is published.
+ */
+class SharedGraph {
+public:
+    SharedGraph() : graph_(std::make_shared<modload::BehaviorGraph>()) {}
+    SharedGraph(const modload::BehaviorGraph& graph)
+        : graph_(std::make_shared<modload::BehaviorGraph>(graph)) {}
+    SharedGraph(modload::BehaviorGraph&& graph)
+        : graph_(std::make_shared<modload::BehaviorGraph>(std::move(graph))) {}
+
+    SharedGraph& operator=(const modload::BehaviorGraph& graph) {
+        graph_ = std::make_shared<modload::BehaviorGraph>(graph);
+        return *this;
+    }
+    SharedGraph& operator=(modload::BehaviorGraph&& graph) {
+        graph_ = std::make_shared<modload::BehaviorGraph>(std::move(graph));
+        return *this;
+    }
+
+    const modload::BehaviorGraph& operator*() const { return *graph_; }
+    const modload::BehaviorGraph* operator->() const { return graph_.get(); }
+    operator const modload::BehaviorGraph&() const { return *graph_; }
+
+private:
+    std::shared_ptr<modload::BehaviorGraph> graph_;
+};
+
+/**
  * @struct ModSystem
  * @brief One subscribed mod system: a rule hook or a card behavior.
  *
@@ -240,7 +206,62 @@ struct ModSystem {
     std::string source_id;                 /**< rule id or card kind id. */
     std::optional<std::string> card_kind;  /**< set for card behaviors. */
     std::optional<nlohmann::json> where;   /**< hook condition filter. */
-    modload::BehaviorGraph graph;          /**< behavior graph to walk. */
+    SharedGraph graph;                     /**< behavior graph to walk. */
+};
+
+/**
+ * @struct CardKindContent
+ * @brief ECS components derived from one card kind at prepare time.
+ *
+ * Built once per mod set; assembly copies the (small) components onto each
+ * card entity. Behavior graphs inside `behavior` are shared.
+ */
+struct CardKindContent {
+    ecs::FaceSpec face;
+    ecs::CardBehavior behavior;
+    std::optional<ecs::WindowSpec> window;
+    std::optional<ecs::AutoTrigger> auto_trigger;
+};
+
+/**
+ * @struct AssemblyContent
+ * @brief Mod-derived state shared by every match with the same content.
+ *
+ * Everything here depends only on the loaded mods and the deck's ordered mod
+ * list, never on seats, seed or deck cards. `MatchAssembler::PrepareContent`
+ * builds it once and `LobbyController` caches it per mod set, so concurrent
+ * lobbies share one copy instead of each freezing its own registries.
+ */
+struct AssemblyContent {
+    std::vector<ecs::ModRef> mods;  /**< frozen mod list, priority order. */
+    /** Sorted kind ids per `mod_index` (position in `mods`). */
+    std::vector<std::vector<std::string>> kinds_by_mod;
+    /** `kind_id` -> frozen position. */
+    std::unordered_map<std::string, KindIndex> kind_index;
+    /** Content facts for the lookup, keyed by kind id. */
+    std::map<std::string, modload::PlayCardFacts> card_facts;
+    /** `kind_id` -> true when the kind counts as numbered (starter pick). */
+    std::map<std::string, bool> numbered;
+    /** `kind_id` -> ECS components derived from its definition. */
+    std::map<std::string, CardKindContent> kinds;
+    /** `kind_id` -> declared tags (`has_card_tag` / `draw_penalty`). */
+    ops::CardTagTable card_tags;
+    /** Full-`namespace:id` -> outcome table (`roll_table`). */
+    ops::TableRegistry tables;
+    /** Card-schema data for the card-state ops. */
+    std::map<std::string, std::map<std::string, std::string>> kind_slot_members;
+    std::map<std::string, std::string> attribute_visibility;
+    std::map<std::string, std::string> member_attribute;
+    std::map<std::string, cardschema::PropertyDef> card_properties;
+    /** Full-`namespace:id` -> entity / presentation / event defs. */
+    modload::EntityRegistry entities;
+    modload::PresentationRegistry presentations;
+    modload::EventRegistry events;
+    modload::StreakRegistry streaks;
+    modload::DerivedRegistry derived;
+    modload::BindingRegistry bindings;
+    /** Every subscribed mod system, in frozen dispatch order. */
+    std::vector<ModSystem> systems;
 };
 
 /**
@@ -329,7 +350,9 @@ public:
     /** @brief Matcher installed for the restriction pipeline. */
     std::unique_ptr<modload::PlayConditionMatcher> play_matcher;
     /** @brief Content facts for the lookup, keyed by kind id. */
-    std::map<std::string, modload::PlayCardFacts> card_facts;
+    const std::map<std::string, modload::PlayCardFacts>& CardFacts() const {
+        return registries.content->card_facts;
+    }
     /** @brief Every subscribed mod system, in frozen dispatch order. */
     std::vector<ModSystem> systems;
     /** @brief Log of every system invocation (assembly and later hooks). */
@@ -376,13 +399,57 @@ struct AssemblyResult {
 };
 
 /**
+ * @struct AssemblyContentResult
+ * @brief `PrepareContent` outcome: shared content or a structured error.
+ */
+struct AssemblyContentResult {
+    std::shared_ptr<AssemblyContent> content;
+    std::optional<AssemblyError> error;
+
+    /** @brief True when `content` is present. */
+    bool ok() const { return content != nullptr; }
+};
+
+/**
  * @class MatchAssembler
  * @brief Builds a `MatchAssembly` from loaded mods, a deck and players.
  */
 class MatchAssembler {
 public:
     /**
-     * @brief Freeze registries and build the match's ECS store.
+     * @brief Freeze the mod-derived state shared by every match with this deck.
+     *
+     * Validates the deck's mod list and builds the registries, content facts,
+     * tag/table maps and def registries. The result depends only on the loaded
+     * mods and the ordered `deck.mods`, so callers may cache it per mod set.
+     *
+     * @param mods  Every loaded mod (from `ScanModsDirectory`).
+     * @param deck  The deck snapshot; `deck.mods` is the frozen mod order.
+     * @return Shared content, or a structured error (never both).
+     */
+    static AssemblyContentResult PrepareContent(
+        const std::vector<modload::LoadedMod>& mods,
+        const modload::DeckDef& deck);
+
+    /**
+     * @brief Build a match's ECS store on top of shared content.
+     *
+     * @param content  Content from `PrepareContent`, shared between matches.
+     * @param deck     The deck snapshot (cards, identity, settings).
+     * @param options  Seated players, starting hand size and optional seed.
+     * @return The pinned assembly, or a structured error (never both).
+     */
+    static AssemblyResult Assemble(
+        std::shared_ptr<const AssemblyContent> content,
+        const modload::DeckDef& deck,
+        const MatchAssemblyOptions& options);
+
+    /**
+     * @brief Freeze content for this call and build the match.
+     *
+     * Convenience overload for tests and one-off use; production callers that
+     * start several matches from the same mods should call `PrepareContent`
+     * once and cache it.
      *
      * @param mods     Every loaded mod (from `ScanModsDirectory`).
      * @param deck     The deck snapshot; `deck.mods` is the frozen mod order.

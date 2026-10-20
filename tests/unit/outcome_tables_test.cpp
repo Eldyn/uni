@@ -110,7 +110,26 @@ struct Harness {
             match::modload::TableEntry{"none", 3, 0, std::nullopt, std::nullopt,
                                        json::object()},
         };
-        registries.tables["test:loot"] = loot;
+        AddTable(loot);
+    }
+
+    /** @brief Publish a new mutable content with `table` registered. */
+    void AddTable(const match::modload::TableDef& table) {
+        auto content = std::make_shared<match::engine::AssemblyContent>(
+            *registries.content);
+        content->tables[table.table_id] = table;
+        registries.content = std::move(content);
+    }
+
+    /** @brief Replace the entries of `table_id` before it is published. */
+    void SetEntries(const std::string& table_id,
+                    std::vector<match::modload::TableEntry> entries) {
+        auto content = std::make_shared<match::engine::AssemblyContent>(
+            *registries.content);
+        const auto found = content->tables.find(table_id);
+        REQUIRE(found != content->tables.end());
+        found->second.entries = std::move(entries);
+        registries.content = std::move(content);
     }
 
     OpResult Invoke(const std::string& op, json raw) {
@@ -378,12 +397,12 @@ TEST_CASE("outcome_tables: weighted distribution favours the heavy key") {
 
 TEST_CASE("outcome_tables: a nested roll becomes the value and consumes twice") {
     Harness h;
-    h.registries.tables["test:loot"].entries = {
+    h.SetEntries("test:loot", {
         match::modload::TableEntry{"rare", 1,
                                    std::nullopt,
                                    json{{"sides", 6}, {"count", 2}},
                                    std::nullopt, json::object()},
-    };
+    });
     Entity match = AddMatch(h.store, 7);
     const OpResult result =
         h.Invoke("roll_table", json{{"table", "loot"}});
@@ -401,13 +420,13 @@ TEST_CASE("outcome_tables: a nested roll becomes the value and consumes twice") 
 TEST_CASE("outcome_tables: ineligible entries are never picked") {
     Harness h;
     // INFO: `never` where makes the heavy entry ineligible; only `six` remains.
-    h.registries.tables["test:loot"].entries = {
+    h.SetEntries("test:loot", {
         match::modload::TableEntry{"six", 1, 6, std::nullopt, std::nullopt,
                                    json::object()},
         match::modload::TableEntry{"none", 99, 0, std::nullopt,
                                    json{{"never", json::object()}},
                                    json::object()},
-    };
+    });
     AddMatch(h.store, 3);
     for (int i = 0; i < 20; ++i) {
         const OpResult result =
@@ -418,11 +437,11 @@ TEST_CASE("outcome_tables: ineligible entries are never picked") {
 
 TEST_CASE("outcome_tables: all-ineligible is a fail-safe no-op") {
     Harness h;
-    h.registries.tables["test:loot"].entries = {
+    h.SetEntries("test:loot", {
         match::modload::TableEntry{"none", 1, 0, std::nullopt,
                                    json{{"never", json::object()}},
                                    json::object()},
-    };
+    });
     Entity match = AddMatch(h.store, 5);
     const OpResult result =
         h.Invoke("roll_table", json{{"table", "loot"}});
@@ -464,10 +483,10 @@ TEST_CASE("outcome_tables: into overrides the binding key") {
 TEST_CASE("outcome_tables: outcome_is and outcome_value read the binding") {
     Harness h;
     AddMatch(h.store, 123);
-    h.registries.tables["test:loot"].entries = {
+    h.SetEntries("test:loot", {
         match::modload::TableEntry{"six", 1, 6, std::nullopt, std::nullopt,
                                    json::object()},
-    };
+    });
     const OpResult result =
         h.Invoke("roll_table", json{{"table", "loot"}});
     REQUIRE(result.value.is_object());
@@ -517,7 +536,7 @@ TEST_CASE("outcome_tables: a bare ref scopes to the invoking mod") {
     other.table_id = "aaa:loot";
     other.entries = {match::modload::TableEntry{
         "aaa_only", 1, 99, std::nullopt, std::nullopt, json::object()}};
-    h.registries.tables["aaa:loot"] = other;
+    h.AddTable(other);
 
     const std::string mod = "test";
     AddMatch(h.store, 31);
@@ -538,7 +557,7 @@ TEST_CASE("outcome_tables: an ambiguous bare ref with no invoking mod is a no-op
     other.table_id = "aaa:loot";
     other.entries = {match::modload::TableEntry{
         "aaa_only", 1, 99, std::nullopt, std::nullopt, json::object()}};
-    h.registries.tables["aaa:loot"] = other;
+    h.AddTable(other);
 
     Entity match = AddMatch(h.store, 32);
     OpArgs args("roll_table", json{{"table", "loot"}});
