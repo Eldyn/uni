@@ -9,10 +9,19 @@ describe("pixelScale", () => {
 		expect(wholePixelScale(400)).toBe(4);
 	});
 
-	it("gives a sprite size of 96, 192, 288 or 384", () => {
-		expect(fitSpriteSize(50)).toBe(96);
-		expect(fitSpriteSize(200)).toBe(192);
-		expect(fitSpriteSize(300)).toBe(288);
-		expect(fitSpriteSize(1000)).toBe(384);
+	it("gives the largest integer sprite size that fits the box", () => {
+		expect(fitSpriteSize(0)).toBe(1);
+		expect(fitSpriteSize(47)).toBe(47);
+		expect(fitSpriteSize(96)).toBe(96);
+		expect(fitSpriteSize(190)).toBe(190);
+		expect(fitSpriteSize(500)).toBe(384);
+	});
+
+	it("never exceeds a portrait-sized box", () => {
+		const heights = [1, 24, 47, 64, 95, 96, 120, 160, 191, 240, 288, 320, 383];
+
+		for (const height of heights) {
+			expect(fitSpriteSize(height)).toBeLessThanOrEqual(height);
+		}
 	});
 });
