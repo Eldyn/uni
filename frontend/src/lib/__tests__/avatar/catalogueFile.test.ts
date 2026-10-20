@@ -129,6 +129,16 @@ describe("avatar catalogue file", () => {
 		expect(bad).toEqual([]);
 	});
 
+	it("the dot eyes and the smile are flat and non-colorable", () => {
+		for (const id of ["uni:eyes_dot", "uni:mouth_smile"]) {
+			const item = catalogue.items.find((candidate) => candidate.id === id);
+			expect(item, id).toBeDefined();
+			expect(item?.regions, id).toBe(0);
+			expect(item?.tint, id).toBe("none");
+			expect(item?.default_colors, id).toBeUndefined();
+		}
+	});
+
 	it("every item asset file exists under frontend/public/assets/avatar", () => {
 		const missing = catalogue.items
 			.map((item) => join(assetRoot, item.asset.path))
