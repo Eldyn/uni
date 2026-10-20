@@ -17,7 +17,10 @@ export const SLOT_ORDER = [
 	"mask",
 	"bodywear",
 	"set",
-	"motif"
+	"motif",
+	"card_face",
+	"card_back",
+	"playmat"
 ];
 export const SOCKET_KEYS = ["eyes", "mouth", "head_top", "body_center"];
 

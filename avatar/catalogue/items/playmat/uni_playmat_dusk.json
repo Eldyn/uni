@@ -1,0 +1,21 @@
+{
+	"id": "uni:playmat_dusk",
+	"order": 10,
+	"slot": "playmat",
+	"name": "Dusk",
+	"asset": {
+		"kind": "still",
+		"path": "playmat/dusk.png",
+		"bob": [
+			[0, 0],
+			[0, 0],
+			[0, 0],
+			[0, 0],
+			[0, 0]
+		]
+	},
+	"regions": 0,
+	"tint": "none",
+	"rarity": "rare",
+	"price": 500
+}

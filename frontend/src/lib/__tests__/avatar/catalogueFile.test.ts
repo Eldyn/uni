@@ -18,6 +18,9 @@ const { inflateSync } = await nodeModule("zlib");
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../../../..");
 const assetRoot = join(repoRoot, "frontend/public/assets/avatar");
+const publicAssetRoot = join(repoRoot, "frontend/public/assets");
+/** Cosmetic art lives outside the avatar asset root. */
+const COSMETIC_SLOTS = ["card_face", "card_back", "playmat"];
 
 const catalogueDirectory = join(repoRoot, "avatar/catalogue");
 const catalogue: Catalogue = parseCatalogue(readMergedCatalogue(catalogueDirectory));
@@ -86,7 +89,10 @@ const LAUNCH_COUNTS: Record<string, number> = {
 	mask: 1,
 	bodywear: 1,
 	set: 1,
-	motif: 2
+	motif: 2,
+	card_face: 1,
+	card_back: 1,
+	playmat: 1
 };
 
 describe("avatar catalogue file", () => {
@@ -99,7 +105,7 @@ describe("avatar catalogue file", () => {
 
 	it("real catalogue parses with parseCatalogue", () => {
 		expect(catalogue.version).toBe(1);
-		expect(catalogue.items.length).toBe(16);
+		expect(catalogue.items.length).toBe(19);
 	});
 
 	it("the default body is the original UNI body, tinted by multiply", () => {
@@ -139,11 +145,32 @@ describe("avatar catalogue file", () => {
 		}
 	});
 
-	it("every item asset file exists under frontend/public/assets/avatar", () => {
+	it("every avatar item asset file exists under frontend/public/assets/avatar", () => {
 		const missing = catalogue.items
+			.filter((item) => !COSMETIC_SLOTS.includes(item.slot))
 			.map((item) => join(assetRoot, item.asset.path))
 			.filter((file) => !existsSync(file));
 		expect(missing).toEqual([]);
+	});
+
+	it("cosmetic items take no regions and their art exists under public/assets", () => {
+		const cosmetics = catalogue.items.filter((item) => COSMETIC_SLOTS.includes(item.slot));
+		expect(cosmetics.map((item) => item.id).sort()).toEqual([
+			"uni:card_back_stars",
+			"uni:card_face_midnight",
+			"uni:playmat_dusk"
+		]);
+		for (const item of cosmetics) {
+			expect(item.regions, item.id).toBe(0);
+			expect(item.tint, item.id).toBe("none");
+			expect(item.asset.kind, item.id).toBe("still");
+			const file = join(publicAssetRoot, item.asset.path);
+			expect(existsSync(file), `${item.id}: ${item.asset.path}`).toBe(true);
+		}
+		for (const skin of ["0.png", "border.png", "jolly_draw4.png"]) {
+			expect(existsSync(join(publicAssetRoot, "cards/skins/midnight", skin)), skin).toBe(true);
+		}
+		expect(existsSync(join(publicAssetRoot, "playmat/dusk_mobile.png"))).toBe(true);
 	});
 
 	it("every extra mask file exists, has the primary size and the item has enough regions", () => {
@@ -170,6 +197,7 @@ describe("avatar catalogue file", () => {
 
 	it("strip assets are 480x96 and still assets are 96x96", () => {
 		const wrong = catalogue.items
+			.filter((item) => !COSMETIC_SLOTS.includes(item.slot))
 			.filter((item) => {
 				const { width, height } = pngSize(join(assetRoot, item.asset.path));
 				return item.asset.kind === "strip"

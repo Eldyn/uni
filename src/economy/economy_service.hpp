@@ -52,6 +52,13 @@ struct BuyResult {
     std::int64_t balance;
 };
 
+/** @brief One row of the most-bought ranking, with its public wishlist count. */
+struct PopularItem {
+    std::string item_id;
+    int purchases;
+    int wishlists;
+};
+
 class EconomyService : public uni::avatar::IOwnership {
   public:
     EconomyService(Database& db, const uni::avatar::Catalogue& catalogue);
@@ -90,6 +97,44 @@ class EconomyService : public uni::avatar::IOwnership {
      */
     bool GrantItem(const std::string& username, const std::string& item_id,
                    const std::string& reason_key, std::int64_t now);
+
+    /** @brief The catalogue ids `username` has wishlisted, oldest first. */
+    std::vector<std::string> Wishlist(const std::string& username) const;
+
+    /**
+     * @brief Wishlist a catalogue item, idempotent per user and item.
+     * @return false for an unknown account or an id outside the catalogue.
+     */
+    bool AddWishlist(const std::string& username, const std::string& item_id);
+
+    /**
+     * @brief Drop a wishlisted catalogue item, idempotent per user and item.
+     * @return false for an unknown account or an id outside the catalogue.
+     */
+    bool RemoveWishlist(const std::string& username, const std::string& item_id);
+
+    /**
+     * @brief The most-bought items in the last `days`, wishlist counts included.
+     *
+     * `days` is clamped to 1..90 and `limit` to 1..50. Only `item_ownership`
+     * rows with `source = 'purchase'` count, ordered by purchases descending
+     * then by item id.
+     */
+    std::vector<PopularItem> Popular(int days, int limit) const;
+
+    /** @brief The equipped item in `slot`, or `std::nullopt` for the default look. */
+    std::optional<std::string> Cosmetic(const std::string& username,
+                                        const std::string& slot) const;
+
+    /**
+     * @brief Equip an owned cosmetic item in `slot`, replacing any previous one.
+     *
+     * `slot` must be `card_face`, `card_back` or `playmat`, and `item_id` must
+     * be a catalogue item in that same slot. The default look is no row.
+     * @return false for an unknown account, slot, item, or an unowned item.
+     */
+    bool SetCosmetic(const std::string& username, const std::string& slot,
+                     const std::string& item_id);
 
     /** @brief True for a starter item or an owned `item_ownership` row. */
     bool OwnsItem(const std::string& username,

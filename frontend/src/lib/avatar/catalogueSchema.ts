@@ -15,7 +15,10 @@ const AVATAR_SLOTS: readonly AvatarSlot[] = [
 	"mask",
 	"bodywear",
 	"set",
-	"motif"
+	"motif",
+	"card_face",
+	"card_back",
+	"playmat"
 ];
 
 /** A namespaced id is `<namespace>:<name>`; both parts must be non-empty. */
