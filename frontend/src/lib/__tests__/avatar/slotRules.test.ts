@@ -224,7 +224,7 @@ describe("default colors", () => {
 		expect(loadoutHash(loadout)).not.toBe(before);
 	});
 
-	it("ART_VERSION is 2", () => {
-		expect(ART_VERSION).toBe(2);
+	it("ART_VERSION is 3", () => {
+		expect(ART_VERSION).toBe(3);
 	});
 });

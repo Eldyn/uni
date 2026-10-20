@@ -4,7 +4,7 @@ import { bakeLoadoutPixels, type ImageLookup } from "$lib/avatar/composite";
 import { createImage, type PixelImage } from "$lib/avatar/pixels";
 import type { ResolvedLayer } from "$lib/avatar/slotRules";
 import type { Rgb } from "$lib/avatar/tint";
-import { FRAME_SIZE, STRIP_WIDTH, type CatalogueItem } from "$lib/avatar/types";
+import { FRAME_COUNT, FRAME_SIZE, STRIP_WIDTH, type CatalogueItem } from "$lib/avatar/types";
 import { FIXTURE_BOB, avatarFixture } from "./avatarFixture";
 
 const RED: Rgb = [255, 0, 0];
@@ -192,6 +192,66 @@ describe("bakeLoadoutPixels", () => {
 		);
 
 		expect(pixelAt(out, 0, 0)).toEqual([216, 69, 69, 255]);
+	});
+
+	it("a motif is clipped to the shape frame's alpha", () => {
+		const shape = {
+			...stripItem("shapes/block.png"),
+			slot: "shape" as const,
+			tint: "none" as const
+		};
+		const motif = {
+			...stripItem("motif/texture.png"),
+			slot: "motif" as const,
+			tint: "none" as const
+		};
+		const shapeArt = createImage(STRIP_WIDTH, FRAME_SIZE);
+		const motifArt = createImage(STRIP_WIDTH, FRAME_SIZE);
+
+		for (let frame = 0; frame < FRAME_COUNT; frame++) {
+			for (let y = 0; y < 10; y++) {
+				for (let x = 0; x < 10; x++) {
+					setPixel(shapeArt, frame * FRAME_SIZE + x, y, [1, 2, 3, 255]);
+				}
+			}
+			for (let y = 0; y < FRAME_SIZE; y++) {
+				for (let x = 0; x < FRAME_SIZE; x++) {
+					setPixel(motifArt, frame * FRAME_SIZE + x, y, [0, 200, 0, 255]);
+				}
+			}
+		}
+
+		const out = bakeLoadoutPixels(
+			[layer(shape), layer(motif)],
+			"uni:round",
+			lookup(["shapes/block.png", shapeArt], ["motif/texture.png", motifArt])
+		);
+
+		for (let frame = 0; frame < FRAME_COUNT; frame++) {
+			const base = frame * FRAME_SIZE;
+			expect(pixelAt(out, base + 5, 5)).toEqual([0, 200, 0, 255]);
+			expect(pixelAt(out, base + 10, 5)).toEqual([0, 0, 0, 0]);
+			expect(pixelAt(out, base + 50, 50)).toEqual([0, 0, 0, 0]);
+			expect(pixelAt(out, base + 95, 95)).toEqual([0, 0, 0, 0]);
+		}
+	});
+
+	it("a motif stays unclipped without a shape layer", () => {
+		const motif = {
+			...stripItem("motif/texture.png"),
+			slot: "motif" as const,
+			tint: "none" as const
+		};
+		const motifArt = createImage(STRIP_WIDTH, FRAME_SIZE);
+		setPixel(motifArt, 50, 50, [0, 200, 0, 255]);
+
+		const out = bakeLoadoutPixels(
+			[layer(motif)],
+			"uni:round",
+			lookup(["motif/texture.png", motifArt])
+		);
+
+		expect(pixelAt(out, 50, 50)).toEqual([0, 200, 0, 255]);
 	});
 
 	it("a missing extra mask image keeps the primary pixel", () => {
