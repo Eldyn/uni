@@ -21,7 +21,7 @@ describe("MatchEarningsLine", () => {
 	it("shows what the local player earned with a coin", () => {
 		mockGame.state = { is_over: true, payouts: { alice: 100, bob: 20 } };
 		render(MatchEarningsLine);
-		expect(screen.getByText("Earned +100")).toBeInTheDocument();
+		expect(screen.getByText("Earned +100 Blank")).toBeInTheDocument();
 		expect(document.querySelector(".earnings-line .coin")).not.toBeNull();
 	});
 

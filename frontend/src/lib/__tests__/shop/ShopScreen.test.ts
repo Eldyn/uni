@@ -178,7 +178,7 @@ describe("ShopScreen", () => {
 		await fireEvent.click(within(dialog).getByRole("button", { name: "BUY" }));
 
 		await vi.waitFor(() =>
-			expect(within(dialog).getByRole("alert")).toHaveTextContent("Not enough cash.")
+			expect(within(dialog).getByRole("alert")).toHaveTextContent("Not enough Blank.")
 		);
 		expect(container.querySelector("[data-balance]")?.getAttribute("data-balance")).toBe("1500");
 	});

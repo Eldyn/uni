@@ -56,7 +56,7 @@
 		owned
 			? shopItemText("shop_error_already_owned", "You already own this.", locale)
 			: tooPoor
-				? shopItemText("shop_insufficient_cash", "Not enough cash", locale)
+				? shopItemText("shop_insufficient_cash", "Not enough Blank", locale)
 				: null
 	);
 	const failure = $derived(

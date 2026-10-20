@@ -64,7 +64,7 @@
 			: !forSale
 				? shopItemText("shop_swatch_not_sold", "This color is not sold alone.", locale)
 				: tooPoor
-					? shopItemText("shop_insufficient_cash", "Not enough cash", locale)
+					? shopItemText("shop_insufficient_cash", "Not enough Blank", locale)
 					: null
 	);
 
