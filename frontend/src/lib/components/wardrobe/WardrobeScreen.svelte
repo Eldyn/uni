@@ -262,6 +262,8 @@
 					locked={lockedSwatches}
 					{lockedLabel}
 					paletteLabel={palettesLabel}
+					{noneLabel}
+					allowReset={false}
 					onlocked={() => storeNavigation.goto("shop")}
 					regionLabels={[skinLabel]}
 					label={skinLabel}
@@ -295,6 +297,7 @@
 						locked={lockedSwatches}
 						{lockedLabel}
 						paletteLabel={palettesLabel}
+						{noneLabel}
 						onlocked={() => storeNavigation.goto("shop")}
 						{regionLabels}
 						label={coloursLabel}

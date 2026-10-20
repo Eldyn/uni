@@ -39,10 +39,16 @@ function starterItems(slot: AvatarSlot, shapeId: string): CatalogueItem[] {
 	);
 }
 
-function starterSwatchIds(): string[] {
+/**
+ * The free swatches a random loadout may draw from. The reset sentinel is
+ * skipped: it carries no colour of its own.
+ */
+export function starterSwatchIds(): string[] {
 	return getCatalogue()
 		.palettes.filter((palette) => palette.starter === true)
-		.flatMap((palette) => palette.swatches.map((swatch) => swatch.id));
+		.flatMap((palette) =>
+			palette.swatches.filter((swatch) => swatch.pattern !== "none").map((swatch) => swatch.id)
+		);
 }
 
 /**

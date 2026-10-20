@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { getCatalogue, setCatalogueForTest } from "$lib/avatar/catalogue";
-import { randomStarterLoadout, seatLoadout } from "$lib/avatar/randomLoadout";
+import { randomStarterLoadout, seatLoadout, starterSwatchIds } from "$lib/avatar/randomLoadout";
 import { avatarFixture } from "./avatarFixture";
 import type { Catalogue } from "$lib/avatar/types";
 
@@ -8,7 +8,8 @@ function fixtureWithManyStarters(): Catalogue {
 	const base = avatarFixture();
 	base.palettes[0].swatches.push(
 		{ id: "basic:blue", hex: "#4a6ae8" },
-		{ id: "basic:gold", hex: "#e8c84a" }
+		{ id: "basic:gold", hex: "#e8c84a" },
+		{ id: "basic:none", hex: "#000000", pattern: "none" }
 	);
 	base.items.push({
 		id: "uni:tall",
@@ -59,6 +60,18 @@ describe("randomStarterLoadout", () => {
 				const item = catalogue.items.find((entry) => entry.id === choice.item);
 				expect(choice.colours).toHaveLength(item?.regions ?? -1);
 				for (const swatchId of choice.colours) expect(starterSwatches.has(swatchId)).toBe(true);
+			}
+		}
+	});
+
+	it("never picks the reset sentinel", () => {
+		expect(starterSwatchIds()).not.toContain("basic:none");
+
+		for (let seat = 0; seat < 30; seat++) {
+			const loadout = randomStarterLoadout(`RESET:${seat}`);
+			expect(loadout.skin).not.toBe("basic:none");
+			for (const choice of Object.values(loadout.slots)) {
+				expect(choice.colours).not.toContain("basic:none");
 			}
 		}
 	});

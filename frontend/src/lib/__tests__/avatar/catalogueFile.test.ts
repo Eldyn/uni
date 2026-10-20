@@ -14,6 +14,7 @@ const nodeModule = (name: string) => import(/* @vite-ignore */ `node:${name}`);
 const { existsSync, readFileSync } = await nodeModule("fs");
 const { dirname, join, resolve } = await nodeModule("path");
 const { fileURLToPath } = await nodeModule("url");
+const { inflateSync } = await nodeModule("zlib");
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../../../..");
 const assetRoot = join(repoRoot, "frontend/public/assets/avatar");
@@ -25,6 +26,55 @@ const catalogue: Catalogue = parseCatalogue(readMergedCatalogue(catalogueDirecto
 function pngSize(file: string): { width: number; height: number } {
 	const bytes = readFileSync(file);
 	return { width: bytes.readUInt32BE(16), height: bytes.readUInt32BE(20) };
+}
+
+/** Decodes an 8-bit RGBA PNG, undoing the per-row filters. */
+function pngRgba(file: string): { width: number; height: number; pixels: Uint8Array } {
+	const bytes = readFileSync(file);
+	const idat: Buffer[] = [];
+	let width = 0;
+	let height = 0;
+	for (let offset = 8; offset < bytes.length;) {
+		const length = bytes.readUInt32BE(offset);
+		const type = bytes.toString("ascii", offset + 4, offset + 8);
+		const data = bytes.subarray(offset + 8, offset + 8 + length);
+		if (type === "IHDR") {
+			width = data.readUInt32BE(0);
+			height = data.readUInt32BE(4);
+			expect(data[8], "PNG bit depth").toBe(8);
+			expect(data[9], "PNG color type").toBe(6);
+		} else if (type === "IDAT") {
+			idat.push(data);
+		} else if (type === "IEND") {
+			break;
+		}
+		offset += 12 + length;
+	}
+	const raw: Uint8Array = inflateSync(Buffer.concat(idat));
+	const stride = width * 4;
+	const pixels = new Uint8Array(stride * height);
+	for (let y = 0; y < height; y += 1) {
+		const start = y * (stride + 1);
+		const filter = raw[start];
+		for (let x = 0; x < stride; x += 1) {
+			const left = x >= 4 ? pixels[y * stride + x - 4] : 0;
+			const up = y > 0 ? pixels[(y - 1) * stride + x] : 0;
+			const upLeft = x >= 4 && y > 0 ? pixels[(y - 1) * stride + x - 4] : 0;
+			let value = raw[start + 1 + x];
+			if (filter === 1) value += left;
+			else if (filter === 2) value += up;
+			else if (filter === 3) value += Math.floor((left + up) / 2);
+			else if (filter === 4) {
+				const p = left + up - upLeft;
+				const pa = Math.abs(p - left);
+				const pb = Math.abs(p - up);
+				const pc = Math.abs(p - upLeft);
+				value += pa <= pb && pa <= pc ? left : pb <= pc ? up : upLeft;
+			}
+			pixels[y * stride + x] = value & 0xff;
+		}
+	}
+	return { width, height, pixels };
 }
 
 /** Counts per slot for the launch slice in the design, section 4. */
@@ -79,6 +129,16 @@ describe("avatar catalogue file", () => {
 		expect(bad).toEqual([]);
 	});
 
+	it("the dot eyes and the smile are flat and non-colorable", () => {
+		for (const id of ["uni:eyes_dot", "uni:mouth_smile"]) {
+			const item = catalogue.items.find((candidate) => candidate.id === id);
+			expect(item, id).toBeDefined();
+			expect(item?.regions, id).toBe(0);
+			expect(item?.tint, id).toBe("none");
+			expect(item?.default_colors, id).toBeUndefined();
+		}
+	});
+
 	it("every item asset file exists under frontend/public/assets/avatar", () => {
 		const missing = catalogue.items
 			.map((item) => join(assetRoot, item.asset.path))
@@ -120,10 +180,18 @@ describe("avatar catalogue file", () => {
 		expect(wrong).toEqual([]);
 	});
 
-	it("the basic palette has 12 swatches and is a starter palette", () => {
+	it("the basic palette has 13 swatches and is a starter palette", () => {
 		const basic = catalogue.palettes.find((palette) => palette.id === "basic");
 		expect(basic?.starter).toBe(true);
-		expect(basic?.swatches.length).toBe(12);
+		expect(basic?.swatches.length).toBe(13);
+	});
+
+	it("the basic palette holds the hidden reset swatch", () => {
+		const basic = catalogue.palettes.find((palette) => palette.id === "basic");
+		const reset = basic?.swatches.find((swatch) => swatch.id === "basic:none");
+
+		expect(reset?.pattern).toBe("none");
+		expect(reset?.hidden).toBe(true);
 	});
 
 	it("launch counts match the spec slice", () => {
@@ -160,8 +228,38 @@ describe("avatar catalogue file", () => {
 		const others = catalogue.items.filter((item) => item.starter !== true);
 		expect(others.some((item) => item.rarity === "basic")).toBe(false);
 		for (const palette of catalogue.palettes) {
-			for (const swatch of palette.swatches) {
+			for (const swatch of palette.swatches.filter((entry) => entry.pattern !== "none")) {
 				expect(swatch.rarity === "basic", swatch.id).toBe(palette.starter === true);
+			}
+		}
+	});
+
+	it("the stripes motif has a skin base and one stripe region", () => {
+		const stripes = catalogue.items.find((item) => item.id === "uni:motif_stripes");
+		expect(stripes?.regions).toBe(2);
+		expect(stripes?.default_colors).toHaveLength(1);
+	});
+
+	it("motif art is a 480x96 strip of opaque full-square frames with hard alpha", () => {
+		for (const id of ["uni:motif_stripes", "uni:motif_patches"]) {
+			const item = catalogue.items.find((candidate) => candidate.id === id);
+			expect(item, id).toBeDefined();
+			const { width, height, pixels } = pngRgba(join(assetRoot, item!.asset.path));
+			expect({ width, height }, id).toEqual({ width: 480, height: 96 });
+			const frameCount = width / 96;
+			expect(frameCount, id).toBe(5);
+			for (let frame = 0; frame < frameCount; frame += 1) {
+				let opaque = 0;
+				const softAlpha: string[] = [];
+				for (let y = 0; y < 96; y += 1) {
+					for (let x = 0; x < 96; x += 1) {
+						const alpha = pixels[(y * width + frame * 96 + x) * 4 + 3];
+						if (alpha === 255) opaque += 1;
+						else if (alpha !== 0) softAlpha.push(`${x},${y}=${alpha}`);
+					}
+				}
+				expect(softAlpha, `${id} frame ${frame} has partial alpha`).toEqual([]);
+				expect(opaque, `${id} frame ${frame} does not cover the 96x96 cell`).toBe(96 * 96);
 			}
 		}
 	});

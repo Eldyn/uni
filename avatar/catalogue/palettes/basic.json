@@ -64,6 +64,12 @@
 			"id": "basic:grey",
 			"hex": "#8a8a8a",
 			"rarity": "basic"
+		},
+		{
+			"id": "basic:none",
+			"hex": "#000000",
+			"pattern": "none",
+			"hidden": true
 		}
 	]
 }

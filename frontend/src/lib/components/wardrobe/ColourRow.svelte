@@ -21,7 +21,9 @@
 		skinFirst = false,
 		skinHex = "#000000",
 		skinLabel = undefined,
-		paletteLabel = "Palettes"
+		paletteLabel = "Palettes",
+		noneLabel = "None",
+		allowReset = true
 	}: {
 		regions: number;
 		colours: string[];
@@ -37,6 +39,10 @@
 		/** Visible label of the locked skin row of a motif. */
 		skinLabel?: string;
 		paletteLabel?: string;
+		/** Visible label of the reset swatch that clears a region's colour. */
+		noneLabel?: string;
+		/** Offer the reset swatch; off for the skin row, which has no default. */
+		allowReset?: boolean;
 	} = $props();
 
 	const pickable = $derived(skinFirst ? Math.max(0, regions - 1) : regions);
@@ -85,7 +91,11 @@
 				aria-pressed={index === region}
 				onclick={() => selectRegion(index)}
 			>
-				<span class="colour-chip" style="--swatch: {hexOf(colours[index])}" aria-hidden="true"
+				<span
+					class="colour-chip"
+					class:colour-chip--none={colours[index] === "basic:none"}
+					style="--swatch: {hexOf(colours[index])}"
+					aria-hidden="true"
 				></span>
 				<span class="colour-row-label font-tiny">{regionLabel(index)}</span>
 			</button>
@@ -102,6 +112,17 @@
 		/>
 
 		<div class="colour-swatches" data-palette={paletteId}>
+			{#if allowReset}
+				<button
+					type="button"
+					class="colour-swatch colour-swatch--none"
+					data-swatch-id="basic:none"
+					data-locked="false"
+					aria-pressed={colours[region] === "basic:none"}
+					aria-label={noneLabel}
+					onclick={() => onpick(region, "basic:none")}
+				></button>
+			{/if}
 			{#each shown as swatch (swatch.id)}
 				<button
 					type="button"
@@ -160,6 +181,10 @@
 		background: var(--swatch);
 	}
 
+	.colour-chip--none {
+		background: repeating-conic-gradient(var(--surface) 0% 25%, var(--border) 0% 50%) 0 0 / 8px 8px;
+	}
+
 	.colour-row-label {
 		color: var(--text);
 	}
@@ -186,6 +211,10 @@
 	.colour-swatch[aria-pressed="true"] {
 		border-color: var(--accent);
 		box-shadow: 0 0 0 2px var(--accent);
+	}
+
+	.colour-swatch--none {
+		background: repeating-conic-gradient(var(--surface) 0% 25%, var(--border) 0% 50%) 0 0 / 8px 8px;
 	}
 
 	.colour-swatch[data-locked="true"] {

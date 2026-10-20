@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { blit, createImage, type PixelImage } from "$lib/avatar/pixels";
+import { blit, clipToAlpha, createImage, type PixelImage } from "$lib/avatar/pixels";
 
 function pixelAt(img: PixelImage, x: number, y: number): number[] {
 	const offset = (y * img.width + x) * 4;
@@ -56,5 +56,18 @@ describe("pixels", () => {
 
 		expect(pixelAt(dest, 1, 1)).toEqual([10, 20, 30, 255]);
 		expect(pixelAt(dest, 0, 0)).toEqual([0, 0, 0, 0]);
+	});
+
+	it("clipToAlpha clears target pixels where the mask is transparent", () => {
+		const target = createImage(2, 1);
+		setPixel(target, 0, 0, [10, 20, 30, 255]);
+		setPixel(target, 1, 0, [40, 50, 60, 255]);
+		const mask = createImage(2, 1);
+		setPixel(mask, 0, 0, [0, 0, 0, 255]);
+
+		clipToAlpha(target, mask);
+
+		expect(pixelAt(target, 0, 0)).toEqual([10, 20, 30, 255]);
+		expect(pixelAt(target, 1, 0)).toEqual([0, 0, 0, 0]);
 	});
 });

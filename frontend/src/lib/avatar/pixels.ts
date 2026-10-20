@@ -10,6 +10,23 @@ export function createImage(width: number, height: number): PixelImage {
 }
 
 /**
+ * Clear every `target` pixel whose `mask` alpha is 0. INFO: `target` is clipped
+ * in place; a mask of another size leaves it untouched.
+ */
+export function clipToAlpha(target: PixelImage, mask: PixelImage): void {
+	if (target.width !== mask.width || target.height !== mask.height) return;
+
+	for (let offset = 0; offset < target.data.length; offset += 4) {
+		if (mask.data[offset + 3] !== 0) continue;
+
+		target.data[offset] = 0;
+		target.data[offset + 1] = 0;
+		target.data[offset + 2] = 0;
+		target.data[offset + 3] = 0;
+	}
+}
+
+/**
  * Copy a rectangle of `src` onto `dest` at (`destX`, `destY`), source-over.
  * INFO: avatar art is hard-edged, so alpha is only 0 or 255: a pixel either
  * copies through or is left untouched. Out-of-bounds pixels are clipped.

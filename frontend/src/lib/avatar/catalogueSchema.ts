@@ -79,7 +79,9 @@ const swatchSchema = z.object({
 	price: z.number().int().nonnegative().optional(),
 	rarity: z.enum(RARITIES).optional(),
 	hidden: z.boolean().optional(),
-	unlisted: z.boolean().optional()
+	unlisted: z.boolean().optional(),
+	/** The reset sentinel: it carries no colour of its own. */
+	pattern: z.literal("none").optional()
 });
 
 const paletteSchema = z.object({

@@ -106,6 +106,59 @@ describe("ColourRow", () => {
 		expect(onpick).toHaveBeenCalledWith(1, "basic:green");
 	});
 
+	it("shows a checkerboard reset tile for every palette", async () => {
+		const { container } = renderRow();
+		const reset = container.querySelector<HTMLElement>('[data-swatch-id="basic:none"]');
+
+		expect(reset).not.toBeNull();
+		expect(reset?.classList.contains("colour-swatch--none")).toBe(true);
+		expect(reset).toHaveAttribute("aria-label", "None");
+
+		await fireEvent.click(container.querySelector('[data-palette-id="uni:neon"]')!);
+		expect(container.querySelector('[data-swatch-id="basic:none"]')).not.toBeNull();
+	});
+
+	it("hides the reset tile when reset is not allowed", async () => {
+		const { container } = renderRow({ allowReset: false });
+
+		expect(container.querySelector('[data-swatch-id="basic:none"]')).toBeNull();
+
+		await fireEvent.click(container.querySelector('[data-palette-id="uni:neon"]')!);
+		expect(container.querySelector('[data-swatch-id="basic:none"]')).toBeNull();
+	});
+
+	it("shows the reset tile by default", () => {
+		const { container } = renderRow();
+
+		expect(container.querySelector('[data-swatch-id="basic:none"]')).not.toBeNull();
+	});
+
+	it("picks the reset swatch for the active region", async () => {
+		const { container, onpick } = renderRow();
+
+		await fireEvent.click(container.querySelector('[data-region="1"]')!);
+		await fireEvent.click(container.querySelector('[data-swatch-id="basic:none"]')!);
+
+		expect(onpick).toHaveBeenCalledWith(1, "basic:none");
+	});
+
+	it("marks the reset tile when the region stores the reset swatch", () => {
+		const { container } = renderRow({ colours: ["basic:none", ""] });
+
+		expect(container.querySelector('[data-swatch-id="basic:none"]')).toHaveAttribute(
+			"aria-pressed",
+			"true"
+		);
+	});
+
+	it("shows the checkerboard chip for a region that stores the reset swatch", () => {
+		const { container } = renderRow({ colours: ["basic:none", ""] });
+
+		expect(container.querySelector('[data-region="0"] .colour-chip')).toHaveClass(
+			"colour-chip--none"
+		);
+	});
+
 	it("shows only the swatches of the palette of the active region's color", () => {
 		const { container } = renderRow({ colours: ["uni:neon:hot", ""], locked: new Set() });
 		expect(container.querySelector('[data-swatch-id="uni:neon:hot"]')).not.toBeNull();

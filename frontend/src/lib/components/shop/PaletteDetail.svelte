@@ -43,7 +43,9 @@
 	const paletteName = $derived(shopItemText(paletteKey, palette.name, locale));
 
 	const shown = $derived(
-		palette.swatches.filter((entry) => entry.unlisted !== true || owned.has(entry.id))
+		palette.swatches.filter(
+			(entry) => entry.pattern !== "none" && (entry.unlisted !== true || owned.has(entry.id))
+		)
 	);
 	let chosenId = $state<string | null>(null);
 	const swatch = $derived(

@@ -3,10 +3,13 @@
 	import type { Swatch } from "$lib/avatar/types";
 
 	let { swatches, size = 8 }: { swatches: Swatch[]; size?: number } = $props();
+
+	// INFO: the reset sentinel is a wardrobe control, never a palette colour.
+	const shown = $derived(swatches.filter((swatch) => swatch.pattern !== "none"));
 </script>
 
 <span class="palette-swatches" style="--cell-size: {size}px" aria-hidden="true">
-	{#each swatches as swatch (swatch.id)}
+	{#each shown as swatch (swatch.id)}
 		<span class="palette-cell" data-hex={swatch.hex} style="--cell: {swatch.hex}"></span>
 	{/each}
 </span>

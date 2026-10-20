@@ -48,6 +48,7 @@ export interface Swatch {
 	rarity?: Rarity;
 	hidden?: boolean;
 	unlisted?: boolean;
+	pattern?: "none"; // the reset sentinel stores "no colour", so defaults apply
 }
 export interface Palette {
 	id: string;

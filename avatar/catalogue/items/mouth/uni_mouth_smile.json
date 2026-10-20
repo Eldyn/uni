@@ -7,8 +7,8 @@
 		"kind": "strip",
 		"path": "mouth/uni_mouth_smile.png"
 	},
-	"regions": 1,
-	"default_colors": ["#202020"],
+	"regions": 0,
+	"tint": "none",
 	"rarity": "basic",
 	"price": 0,
 	"starter": true

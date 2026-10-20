@@ -183,6 +183,22 @@ describe("default colors", () => {
 		expect(eyesColours([""])?.[0]).toEqual(hexToRgb("#4aa85a"));
 	});
 
+	it("a chosen reset swatch falls back to the item default", () => {
+		const catalogue = avatarFixture();
+		catalogue.palettes[0].swatches.push({
+			id: "basic:none",
+			hex: "#000000",
+			pattern: "none",
+			hidden: true
+		});
+		const item = catalogue.items.find((entry) => entry.id === "uni:eyes_dot");
+		if (!item) throw new Error("no item uni:eyes_dot");
+		item.default_colors = ["basic:green"];
+		setCatalogueForTest(catalogue);
+
+		expect(eyesColours(["basic:none"])?.[0]).toEqual(hexToRgb("#4aa85a"));
+	});
+
 	it("an item with no defaults and no choice stays uncolored", () => {
 		setCatalogueForTest(avatarFixture());
 
@@ -224,7 +240,7 @@ describe("default colors", () => {
 		expect(loadoutHash(loadout)).not.toBe(before);
 	});
 
-	it("ART_VERSION is 2", () => {
-		expect(ART_VERSION).toBe(2);
+	it("ART_VERSION is 3", () => {
+		expect(ART_VERSION).toBe(3);
 	});
 });
