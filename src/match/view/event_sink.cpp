@@ -291,10 +291,10 @@ json ProjectCardChanged(const match::engine::MatchInstance& match,
     //       get its own card identity, or it cannot apply the change.
     if (payload.contains("card")) CopyCardBits(match, payload, out);
 
-    // INFO: a hand value is projected per seat: the per-seat projector grants
-    //       it to the holder for `owner` and to nobody for `hidden`. A card in
-    //       the discard pile or limbo has no holder, so only a public value
-    //       reaches the wire there.
+    // INFO: a hand value is projected per seat: `owner` grants it to the
+    //       holder and a privacy-off spectator, `strict_owner` only to the
+    //       holder, and `hidden` to nobody. A card in the discard pile or limbo
+    //       has no holder, so only a public value reaches the wire there.
     const std::string visibility =
         payload.value("visibility", std::string());
     if (visibility == "public" || in_hand) {

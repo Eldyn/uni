@@ -39,6 +39,8 @@ struct SeatRoles {
     bool state_public = false;
     /** True when `card_changed` visibility is `owner`. */
     bool state_owner = false;
+    /** True when `card_changed` visibility is `strict_owner`. */
+    bool state_strict_owner = false;
 };
 
 /** @brief True when `viewer` belongs to `audience` for `roles`. */

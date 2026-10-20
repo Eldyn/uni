@@ -269,10 +269,11 @@ inline constexpr FieldRule kCardMoved[] = {
     {"source", Audience::kAll},
     {"target", Audience::kAll},
 };
-// INFO: the op writes `visibility` (`public`, `owner` or `hidden`) from the
-//       changed attribute or property. The per-seat projector reads it to
-//       decide who gets `member`, `value` and `previous`. `card` and the
-//       undeclared `_card` handle are redacted by the projector too.
+// INFO: the op writes `visibility` (`public`, `owner`, `strict_owner` or
+//       `hidden`) from the changed attribute or property. The per-seat
+//       projector reads it to decide who gets `member`, `value` and `previous`.
+//       `card` and the undeclared `_card` handle are redacted by the projector
+//       too.
 inline constexpr FieldRule kCardChanged[] = {
     {"target", Audience::kAll},
     {"slot", Audience::kAll},

@@ -151,6 +151,7 @@ SeatRoles ResolveSeatRoles(const match::engine::MatchInstance& match,
         engine_payload.value("visibility", std::string());
     roles.state_public = visibility == "public";
     roles.state_owner = visibility == "owner";
+    roles.state_strict_owner = visibility == "strict_owner";
     roles.offered_card_public =
         engine_payload.value("outcome", std::string()) != "lost";
     return roles;
@@ -207,10 +208,13 @@ json ProjectForViewer(const match::engine::MatchInstance& match,
             && !AudienceAllows(Audience::kOwner, roles, viewer)) {
             continue;
         }
-        if (field->kind == FieldKind::kStateValue && !roles.state_public
-            && !(roles.state_owner
-                 && AudienceAllows(Audience::kOwner, roles, viewer))) {
-            continue;
+        if (field->kind == FieldKind::kStateValue) {
+            const bool allowed =
+                roles.state_public
+                || (roles.state_owner
+                    && AudienceAllows(Audience::kOwner, roles, viewer))
+                || (roles.state_strict_owner && IsSeat(roles.owner, viewer));
+            if (!allowed) continue;
         }
         json kept = value;
         if (field->kind == FieldKind::kCard

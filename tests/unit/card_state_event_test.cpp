@@ -26,8 +26,9 @@
  *
  * The tests drive the Task 7 ops through the engine's default runtime and
  * project the emitted descriptor with the same `ViewBuilder` path the live
- * stream uses. An `owner` value reaches only the holder, a `hidden` value
- * reaches nobody, and a card in the discard pile shows its identity but not a
+ * stream uses. An `owner` value reaches the holder and a privacy-off
+ * spectator; a `strict_owner` value reaches only the holder; a `hidden` value
+ * reaches nobody. A card in the discard pile shows its identity but not a
  * non-public value.
  */
 
@@ -162,7 +163,40 @@ std::optional<json> CardChangedFor(ViewBuilder& builder, const json& event,
 
 const Viewer kAlice = Viewer::Player("Alice");
 const Viewer kBob = Viewer::Player("Bob");
+const Viewer kOwnerSpectator = Viewer::Spectator();
+const Viewer kPrivateSpectator = Viewer::Spectator({"Alice"});
 const Viewer kSpectator = Viewer::PublicSpectator();
+const Viewer kDirector = Viewer::PlayerDirector("Carol");
+
+/** @brief Set one loaded attribute's visibility before assembly. */
+void SetAttributeVisibility(std::vector<LoadedMod>& mods,
+                            const std::string& identifier,
+                            const std::string& visibility) {
+    for (LoadedMod& mod : mods) {
+        for (match::cardschema::AttributeDef& attribute :
+             mod.card_schema.attributes) {
+            if (attribute.identifier != identifier) continue;
+            attribute.visibility = visibility;
+            return;
+        }
+    }
+    FAIL("attribute not found: " << identifier);
+}
+
+/** @brief Set one loaded property's visibility before assembly. */
+void SetPropertyVisibility(std::vector<LoadedMod>& mods,
+                           const std::string& identifier,
+                           const std::string& visibility) {
+    for (LoadedMod& mod : mods) {
+        for (match::cardschema::PropertyDef& property :
+             mod.card_schema.properties) {
+            if (property.identifier != identifier) continue;
+            property.visibility = visibility;
+            return;
+        }
+    }
+    FAIL("property not found: " << identifier);
+}
 
 json Emit(MatchInstance& engine, const std::string& op, const json& raw,
           ecs::Entity card) {
@@ -202,7 +236,7 @@ TEST_CASE("public_change_reaches_everyone") {
     }
 }
 
-TEST_CASE("owner_change_reaches_the_holder_only") {
+TEST_CASE("owner_change_reaches_holder_and_privacy_off_spectator") {
     const std::vector<LoadedMod> mods = LoadMods();
     const std::unique_ptr<MatchInstance> engine = MakeMatch(mods);
     ViewBuilder builder(*engine, mods);
@@ -220,8 +254,109 @@ TEST_CASE("owner_change_reaches_the_holder_only") {
     CHECK((*alice)["previous"] == "uni:spade");
     CHECK(alice->contains("card"));
 
+    const std::optional<json> owner_spectator =
+        CardChangedFor(builder, event, kOwnerSpectator);
+    REQUIRE(owner_spectator.has_value());
+    CHECK((*owner_spectator)["member"] == "uni:heart");
+    CHECK((*owner_spectator)["previous"] == "uni:spade");
+    CHECK(owner_spectator->contains("card"));
+
+    CHECK_FALSE(CardChangedFor(builder, event, kPrivateSpectator).has_value());
     CHECK_FALSE(CardChangedFor(builder, event, kBob).has_value());
     CHECK_FALSE(CardChangedFor(builder, event, kSpectator).has_value());
+}
+
+TEST_CASE("strict_owner_reaches_the_holder_only") {
+    std::vector<LoadedMod> mods = LoadMods();
+    SetAttributeVisibility(mods, "uni:suit", "strict_owner");
+    const std::unique_ptr<MatchInstance> engine = MakeMatch(mods);
+    ViewBuilder builder(*engine, mods);
+    const ecs::Entity card = HandCard(*engine, "uni:red_spade_alpha");
+
+    const json event =
+        Emit(*engine, "set_card_member",
+             json{{"slot", "suit"}, {"member", "uni:heart"}}, card);
+
+    const std::optional<json> alice =
+        CardChangedFor(builder, event, kAlice);
+    REQUIRE(alice.has_value());
+    CHECK((*alice)["slot"] == "suit");
+    CHECK((*alice)["member"] == "uni:heart");
+    CHECK((*alice)["previous"] == "uni:spade");
+    CHECK(alice->contains("card"));
+
+    const std::optional<json> owner_spectator =
+        CardChangedFor(builder, event, kOwnerSpectator);
+    REQUIRE(owner_spectator.has_value());
+    CHECK((*owner_spectator)["slot"] == "suit");
+    CHECK(owner_spectator->contains("card"));
+    CHECK_FALSE(owner_spectator->contains("member"));
+    CHECK_FALSE(owner_spectator->contains("previous"));
+
+    CHECK_FALSE(CardChangedFor(builder, event, kPrivateSpectator).has_value());
+    CHECK_FALSE(CardChangedFor(builder, event, kBob).has_value());
+    CHECK_FALSE(CardChangedFor(builder, event, kSpectator).has_value());
+    CHECK_FALSE(CardChangedFor(builder, event, kDirector).has_value());
+}
+
+TEST_CASE("strict_owner_property_reaches_the_holder_only") {
+    std::vector<LoadedMod> mods = LoadMods();
+    SetPropertyVisibility(mods, "uni:revealed", "strict_owner");
+    const std::unique_ptr<MatchInstance> engine = MakeMatch(mods);
+    ViewBuilder builder(*engine, mods);
+    const ecs::Entity card = HandCard(*engine, "uni:red_spade_alpha");
+
+    const json event =
+        Emit(*engine, "set_card_property",
+             json{{"property", "uni:revealed"}, {"value", true}}, card);
+
+    const std::optional<json> alice =
+        CardChangedFor(builder, event, kAlice);
+    REQUIRE(alice.has_value());
+    CHECK((*alice)["property"] == "uni:revealed");
+    CHECK((*alice)["value"] == true);
+    CHECK((*alice)["previous"] == false);
+    CHECK(alice->contains("card"));
+
+    const std::optional<json> owner_spectator =
+        CardChangedFor(builder, event, kOwnerSpectator);
+    REQUIRE(owner_spectator.has_value());
+    CHECK((*owner_spectator)["property"] == "uni:revealed");
+    CHECK(owner_spectator->contains("card"));
+    CHECK_FALSE(owner_spectator->contains("value"));
+    CHECK_FALSE(owner_spectator->contains("previous"));
+
+    CHECK_FALSE(CardChangedFor(builder, event, kPrivateSpectator).has_value());
+    CHECK_FALSE(CardChangedFor(builder, event, kBob).has_value());
+    CHECK_FALSE(CardChangedFor(builder, event, kSpectator).has_value());
+    CHECK_FALSE(CardChangedFor(builder, event, kDirector).has_value());
+}
+
+TEST_CASE("strict_owner_on_discard_has_no_value") {
+    std::vector<LoadedMod> mods = LoadMods();
+    SetAttributeVisibility(mods, "uni:suit", "strict_owner");
+    const std::unique_ptr<MatchInstance> engine = MakeMatch(mods);
+    ViewBuilder builder(*engine, mods);
+    const ecs::Entity card = FindCard(*engine, "uni:red_spade_alpha");
+    MoveTo(*engine, card,
+           ecs::ZoneRef{ecs::ZoneKind::kDiscardPile, ecs::Entity{}});
+
+    const json event =
+        Emit(*engine, "set_card_member",
+             json{{"slot", "suit"}, {"member", "uni:heart"}}, card);
+
+    for (const Viewer* viewer : {&kAlice, &kBob, &kOwnerSpectator,
+                                 &kPrivateSpectator, &kSpectator, &kDirector}) {
+        CAPTURE(viewer->username);
+        CAPTURE(viewer->is_spectator);
+        const std::optional<json> payload =
+            CardChangedFor(builder, event, *viewer);
+        REQUIRE(payload.has_value());
+        CHECK(payload->contains("card"));
+        CHECK((*payload)["slot"] == "suit");
+        CHECK_FALSE(payload->contains("member"));
+        CHECK_FALSE(payload->contains("previous"));
+    }
 }
 
 TEST_CASE("hidden_change_reaches_nobody_with_value") {
@@ -289,6 +424,13 @@ TEST_CASE("property_visibility_owner") {
     CHECK((*alice)["previous"] == false);
     CHECK(alice->contains("card"));
 
+    const std::optional<json> owner_spectator =
+        CardChangedFor(builder, event, kOwnerSpectator);
+    REQUIRE(owner_spectator.has_value());
+    CHECK((*owner_spectator)["value"] == true);
+    CHECK(owner_spectator->contains("card"));
+
+    CHECK_FALSE(CardChangedFor(builder, event, kPrivateSpectator).has_value());
     CHECK_FALSE(CardChangedFor(builder, event, kBob).has_value());
     CHECK_FALSE(CardChangedFor(builder, event, kSpectator).has_value());
 }
