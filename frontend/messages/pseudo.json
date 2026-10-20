@@ -504,6 +504,8 @@
 	"shop_register_to_buy": "[Régîštér tö büý~~~~~~~~]",
 	"shop_currency_name": "[Blåñk~~]",
 	"shop_insufficient_cash": "[Ñöt éñöügh Blåñk~~~~~]",
+	"shop_use": "[Üšé~]",
+	"shop_equipped": "[Éqüîppéd~~~]",
 	"shop_error_insufficient_cash": "[Ñöt éñöügh Blåñk.~~~~~]",
 	"shop_error_already_owned": "[Ýöü ålréådý öwñ thîš.~~~~~~~~~~~]",
 	"shop_error_not_available": "[Thîš îtém îš ñö löñgér åvåîlåblé.~~~~~~~~~~~~~~~~]",

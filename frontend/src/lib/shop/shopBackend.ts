@@ -24,6 +24,19 @@ export interface PopularItem {
 /** The account's wishlist, or the server's error code. */
 export type WishlistResult = { ok: true; items: string[] } | { ok: false; code: string };
 
+/** The cosmetic slots an account can equip, one item id each. */
+export interface CosmeticSlots {
+	card_face: string | null;
+	card_back: string | null;
+	playmat: string | null;
+}
+
+/** A cosmetic slot name. */
+export type CosmeticSlot = keyof CosmeticSlots;
+
+/** The account's equipped cosmetic slots, or the server's error code. */
+export type CosmeticsResult = { ok: true; slots: CosmeticSlots } | { ok: false; code: string };
+
 /** The popular shelf rows, or the server's error code. */
 export type PopularResult = { ok: true; items: PopularItem[] } | { ok: false; code: string };
 
@@ -38,6 +51,10 @@ export interface ShopBackend {
 	toggleWishlist?(itemId: string): Promise<WishlistResult>;
 	/** Reads the most-bought items over `days`. */
 	popular?(days?: number): Promise<PopularResult>;
+	/** Reads the account's equipped cosmetics. Absent on backends without them. */
+	cosmetics?(): Promise<CosmeticsResult>;
+	/** Equips `item` in `slot` and returns the new slots. */
+	equipCosmetic?(slot: CosmeticSlot, item: string): Promise<CosmeticsResult>;
 }
 
 /**

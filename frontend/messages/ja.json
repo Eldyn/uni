@@ -504,6 +504,8 @@
 	"shop_register_to_buy": "登録して購入",
 	"shop_currency_name": "Blank",
 	"shop_insufficient_cash": "Blank不足",
+	"shop_use": "使用",
+	"shop_equipped": "装備中",
 	"shop_error_insufficient_cash": "Blankが足りません。",
 	"shop_error_already_owned": "すでに所持しています。",
 	"shop_error_not_available": "このアイテムはもう買えません。",

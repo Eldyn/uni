@@ -235,6 +235,33 @@ describe("ShopMock", () => {
 		});
 		expect(await guest.wishlist()).toEqual({ ok: false, code: "guest" });
 	});
+
+	it("starts with every cosmetic slot empty", async () => {
+		expect(await mock.cosmetics()).toEqual({
+			ok: true,
+			slots: { card_face: null, card_back: null, playmat: null }
+		});
+	});
+
+	it("equips a cosmetic slot and returns the new slots", async () => {
+		const result = await mock.equipCosmetic("card_back", "uni:back_neon");
+
+		expect(result).toEqual({
+			ok: true,
+			slots: { card_face: null, card_back: "uni:back_neon", playmat: null }
+		});
+		expect(await mock.cosmetics()).toEqual(result);
+	});
+
+	it("gives a guest code guest and keeps the slots empty", async () => {
+		const guest = new ShopMock(catalogue, { guest: true });
+
+		expect(await guest.cosmetics()).toEqual({ ok: false, code: "guest" });
+		expect(await guest.equipCosmetic("playmat", "uni:mat_felt")).toEqual({
+			ok: false,
+			code: "guest"
+		});
+	});
 });
 
 describe("shopMock singleton", () => {

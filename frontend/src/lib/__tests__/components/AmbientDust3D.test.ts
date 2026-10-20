@@ -25,8 +25,11 @@ vi.mock("$components/game/three/textures", () => ({
 
 import { render, cleanup } from "@testing-library/svelte";
 import { useTask } from "@threlte/core";
+import * as THREE from "three";
 import type { ShaderMaterial } from "three";
 import AmbientDust3D from "$components/game/three/AmbientDust3D.svelte";
+import { loadTexture } from "$components/game/three/textures";
+import { storeCosmetics } from "$stores/cosmetics.svelte";
 import { storeMatRipple } from "$components/game/three/ripple/matRipple.svelte";
 import type { MatPlacement } from "$components/game/layout/playmat";
 import type { ViewportInfo } from "$components/game/layout/seatLayout";
@@ -196,5 +199,56 @@ describe("AmbientDust3D continuous clock", () => {
 		step = latestTaskCallback();
 		step();
 		expect(material.uniforms.uRippleWild.value).toBe(0);
+	});
+});
+
+describe("AmbientDust3D playmat skins", () => {
+	beforeEach(() => {
+		vi.mocked(loadTexture).mockClear();
+		resetMockState();
+		vi.mocked(useTask).mockClear();
+		storeCosmetics.reset();
+	});
+
+	afterEach(() => {
+		cleanup();
+		vi.restoreAllMocks();
+		vi.mocked(loadTexture).mockResolvedValue(new THREE.Texture());
+		storeCosmetics.reset();
+	});
+
+	it("measures the desktop sheet on a landscape viewport", async () => {
+		render(AmbientDust3D, { props: { mat, viewport } });
+		await flush();
+
+		expect(loadTexture).toHaveBeenCalledWith("/assets/playmat.png");
+	});
+
+	it("measures the mobile sheet on a phone viewport", async () => {
+		const phoneViewport: ViewportInfo = { width: 390, height: 844, orientation: "portrait" };
+		render(AmbientDust3D, { props: { mat, viewport: phoneViewport } });
+		await flush();
+
+		expect(loadTexture).toHaveBeenCalledWith("/assets/mobile_playmat.png");
+	});
+
+	it("re-measures the sheet when the equipped playmat changes", async () => {
+		const baseTexture = new THREE.Texture();
+		baseTexture.image = { width: 100, height: 100 } as never;
+		const duskTexture = new THREE.Texture();
+		duskTexture.image = { width: 200, height: 200 } as never;
+		vi.mocked(loadTexture).mockImplementation(async (url: string) =>
+			url.includes("/playmat/dusk") ? duskTexture : baseTexture
+		);
+
+		render(AmbientDust3D, { props: { mat, viewport } });
+		await flush();
+		const before = dustMaterial().uniforms.uBlockWorldSize.value as number;
+
+		storeCosmetics.slots = { ...storeCosmetics.slots, playmat: "uni:playmat_dusk" };
+		await flush();
+
+		expect(loadTexture).toHaveBeenCalledWith("/assets/playmat/dusk.png");
+		expect(dustMaterial().uniforms.uBlockWorldSize.value as number).toBeCloseTo(before / 2);
 	});
 });

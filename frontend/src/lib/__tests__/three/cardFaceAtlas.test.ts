@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
 	faceKeyHash,
 	getFaceTexture,
@@ -8,6 +8,8 @@ import {
 	preloadCardArt,
 	cardFaceKeyFor,
 	hasStandardFaceArt,
+	standardArtUrls,
+	loadFirstArtSource,
 	type CardFaceKey
 } from "$components/game/three/cardFaceAtlas";
 import { NearestFilter, SRGBColorSpace } from "three";
@@ -195,5 +197,96 @@ describe("cardFaceKeyFor defs-face resolution", () => {
 			true
 		);
 		expect(key).toEqual({ type: "wild", value: "0", turned: true });
+	});
+});
+
+describe("cardFaceAtlas equipped skins", () => {
+	const FACE = "uni:card_face_midnight";
+	const BACK = "uni:card_back_stars";
+
+	it("leaves the default hashes unchanged", () => {
+		expect(faceKeyHash({ type: "red", value: "5", turned: false })).toBe("front:red:5::");
+		expect(faceKeyHash({ type: "wild", value: "0", turned: true })).toBe("back:");
+	});
+
+	it("hashes a face skin into the front key and re-bakes its slot", () => {
+		const plain: CardFaceKey = { type: "red", value: "5", turned: false };
+		const skinned: CardFaceKey = { ...plain, skinId: FACE };
+
+		expect(faceKeyHash(skinned)).not.toBe(faceKeyHash(plain));
+		expect(getFaceTexture(skinned)).not.toBe(getFaceTexture(plain));
+		expect(getFaceTexture(skinned)).toBe(getFaceTexture({ ...plain, skinId: FACE }));
+	});
+
+	it("hashes a back skin into the turned key and re-bakes its slot", () => {
+		const plain: CardFaceKey = { type: "wild", value: "0", turned: true };
+		const skinned: CardFaceKey = { ...plain, backId: BACK };
+
+		expect(faceKeyHash(skinned)).not.toBe(faceKeyHash(plain));
+		expect(getFaceTexture(skinned)).not.toBe(getFaceTexture(plain));
+		// A face skin is a front-only concern.
+		expect(faceKeyHash({ ...plain, skinId: FACE })).toBe(faceKeyHash(plain));
+	});
+
+	it("carries the equipped ids through cardFaceKeyFor", () => {
+		const card = {
+			type: "red",
+			value: "5",
+			face: { kind: "text", color: "red", label: "5", art_version: 1 }
+		};
+
+		const plain = cardFaceKeyFor(card, undefined, false);
+		expect(plain.skinId).toBeUndefined();
+		expect(plain.backId).toBeUndefined();
+
+		const front = cardFaceKeyFor(card, undefined, false, FACE, BACK);
+		expect(front.skinId).toBe(FACE);
+		expect(faceKeyHash(front)).not.toBe(faceKeyHash(plain));
+
+		const back = cardFaceKeyFor(card, undefined, true, FACE, BACK);
+		expect(back.backId).toBe(BACK);
+		expect(faceKeyHash(back)).not.toBe(faceKeyHash(cardFaceKeyFor(card, undefined, true)));
+	});
+
+	it("requests the skinned art with a per-name base fallback", () => {
+		const byName = new Map(standardArtUrls(FACE, BACK).map(({ name, urls }) => [name, urls]));
+
+		expect(byName.get("5")).toEqual(["/assets/cards/skins/midnight/5.png", "/assets/cards/5.png"]);
+		expect(byName.get("jolly_draw4")).toEqual([
+			"/assets/cards/skins/midnight/jolly_draw4.png",
+			"/assets/cards/jolly_draw4.png"
+		]);
+		expect(byName.get("back")).toEqual(["/assets/cards/backs/stars.png", "/assets/cards/back.png"]);
+	});
+
+	it("leaves preload on the base art with no skin", () => {
+		const sources = standardArtUrls();
+		expect(sources.every(({ urls }) => urls.length === 1)).toBe(true);
+		expect(sources.find(({ name }) => name === "back")?.urls).toEqual(["/assets/cards/back.png"]);
+		expect(sources.find(({ name }) => name === "5")?.urls).toEqual(["/assets/cards/5.png"]);
+	});
+
+	it("falls back to the next source when a skinned file is missing", async () => {
+		const requested: string[] = [];
+		const image = {} as CanvasImageSource;
+		const load = vi.fn(async (url: string) => {
+			requested.push(url);
+			if (url.includes("/skins/")) throw new Error("404");
+			return image;
+		});
+
+		const loaded = await loadFirstArtSource(
+			["/assets/cards/skins/midnight/5.png", "/assets/cards/5.png"],
+			load
+		);
+
+		expect(loaded).toBe(image);
+		expect(requested).toEqual(["/assets/cards/skins/midnight/5.png", "/assets/cards/5.png"]);
+	});
+
+	it("preloads the skinned variant end to end", async () => {
+		await preloadCardArt(FACE, BACK);
+		const skinned: CardFaceKey = { type: "red", value: "5", turned: false, skinId: FACE };
+		expect(getFaceTexture(skinned)).toBeDefined();
 	});
 });

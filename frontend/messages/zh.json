@@ -504,6 +504,8 @@
 	"shop_register_to_buy": "注册后购买",
 	"shop_currency_name": "Blank",
 	"shop_insufficient_cash": "Blank不足",
+	"shop_use": "使用",
+	"shop_equipped": "已装备",
 	"shop_error_insufficient_cash": "Blank不足。",
 	"shop_error_already_owned": "你已经拥有它了。",
 	"shop_error_not_available": "该物品已不可购买。",

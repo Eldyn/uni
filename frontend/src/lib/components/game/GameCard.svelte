@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { type Card, type CardValue, type CardType } from "$stores/game.svelte";
 	import TintedSprite from "$components/common/TintedSprite.svelte";
-	import { assetUrl } from "$lib/utils/assetUrl";
+	import { cardBackUrl, cardFaceUrl } from "$lib/cards/skinPaths";
+	import { storeCosmetics } from "$stores/cosmetics.svelte";
 
 	let {
 		card,
@@ -47,10 +48,17 @@
 	};
 
 	function getCardImage(value: CardValue): string {
-		return assetUrl(`/assets/cards/${value}.png`);
+		return cardFaceUrl(value, storeCosmetics.slots.card_face);
 	}
 
-	const imgSrc = $derived(getCardImage(card.value));
+	const baseImgSrc = $derived(cardFaceUrl(card.value, null));
+	const skinImgSrc = $derived(getCardImage(card.value));
+	let failedImgSrc = $state<string | null>(null);
+	const imgSrc = $derived(failedImgSrc === skinImgSrc ? baseImgSrc : skinImgSrc);
+	const backSrc = $derived(cardBackUrl(storeCosmetics.slots.card_back));
+	const baseBackSrc = cardBackUrl(null);
+	let failedBackSrc = $state<string | null>(null);
+	const displayBackSrc = $derived(failedBackSrc === backSrc ? baseBackSrc : backSrc);
 	const cardColor = $derived(COLOR_MAP[card.type] ?? "inherit");
 	const valueTint = $derived(card.value !== "jolly");
 	const borderTint = $derived(card.value !== "jolly");
@@ -82,10 +90,26 @@
 >
 	<div class="bckg">
 		{#if turned}
-			<img src="assets/cards/back.png" alt="" class="layer-bg" />
+			<img
+				src={displayBackSrc}
+				alt=""
+				class="layer-bg"
+				data-testid="game-card-back"
+				onerror={() => (failedBackSrc = backSrc)}
+			/>
 		{:else}
 			<img src="assets/cards/background.png" alt="" class="layer-bg" />
-			{#if imgSrc && valueTint}
+			{#if skinImgSrc !== baseImgSrc && failedImgSrc !== skinImgSrc}
+				<img
+					src={skinImgSrc}
+					alt=""
+					class="skin-probe"
+					aria-hidden="true"
+					data-testid="game-card-face-probe"
+					onerror={() => (failedImgSrc = skinImgSrc)}
+				/>
+			{/if}
+			{#if valueTint}
 				<div class="layer-mask">
 					<TintedSprite src={imgSrc} color="var(--card-color)" fit="100% 100%" />
 				</div>
@@ -139,6 +163,10 @@
 		display: block;
 		object-fit: fill;
 		z-index: 1;
+	}
+
+	.skin-probe {
+		display: none;
 	}
 
 	.layer-mask {

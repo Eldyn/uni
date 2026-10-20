@@ -28,6 +28,8 @@
 	import { storeWebglCapability } from "$stores/webglCapability.svelte";
 	import type { MatPlacement } from "../layout/playmat";
 	import { isPhoneLayout, type ViewportInfo } from "../layout/seatLayout";
+	import { storeCosmetics } from "$stores/cosmetics.svelte";
+	import { playmatUrls } from "./playmatSrc";
 
 	let { mat, viewport }: { mat: MatPlacement; viewport: ViewportInfo } = $props();
 
@@ -79,9 +81,12 @@
 		geometry = null;
 	}
 
-	let matSrc = $derived(
-		isPhoneLayout(viewport) ? "/assets/mobile_playmat.png" : "/assets/playmat.png"
-	);
+	// The equipped playmat skin picks the sheet whose pixel grid sets the
+	// dust's block size. A skin equip re-runs the geometry effect below
+	// (loadTexture caches by URL), keeping the spawn box in step with the art.
+	const matUrls = $derived(playmatUrls(storeCosmetics.slots.playmat));
+
+	let matSrc = $derived(isPhoneLayout(viewport) ? matUrls.mobile : matUrls.desktop);
 
 	// Rebuilds the instanced geometry whenever the mat's own placement or art
 	// changes — matSrc/mat feed both the block-size measurement (from the

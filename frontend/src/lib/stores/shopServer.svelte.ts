@@ -9,6 +9,8 @@ import { z } from "zod";
 import type {
 	BuyFailure,
 	BuyResult,
+	CosmeticSlot,
+	CosmeticsResult,
 	PopularItem,
 	PopularResult,
 	ShopBackend,
@@ -63,6 +65,15 @@ const PopularSchema = z.looseObject({
 	)
 });
 
+/** Wire shape of `GET/PUT /cosmetics/me`. */
+const CosmeticsSchema = z.looseObject({
+	slots: z.looseObject({
+		card_face: z.string().nullable(),
+		card_back: z.string().nullable(),
+		playmat: z.string().nullable()
+	})
+});
+
 /** Wire shape of a rejected request's `{ error }` body. */
 const ErrorSchema = z.looseObject({ error: z.string() });
 
@@ -71,6 +82,7 @@ const ECONOMY_ME_URL = "/economy/me";
 const BUY_URL = "/shop/buy";
 const WISHLIST_URL = "/shop/wishlist";
 const POPULAR_URL = "/shop/popular";
+const COSMETICS_URL = "/cosmetics/me";
 
 /** The failure reason each rejected purchase status stands for. */
 const BUY_FAILURE_BY_STATUS: Readonly<Record<number, BuyFailure>> = {
@@ -223,6 +235,50 @@ export class ShopServer implements ShopBackend {
 
 			const items: PopularItem[] = parsed.data.items;
 			return { ok: true, items };
+		} catch {
+			return { ok: false, code: "network" };
+		}
+	}
+
+	/**
+	 * @brief Reads the account's equipped cosmetic slots.
+	 */
+	cosmetics(): Promise<CosmeticsResult> {
+		return this.#sendCosmetics("GET");
+	}
+
+	/**
+	 * @brief Equips `item` in `slot` over `PUT /cosmetics/me`.
+	 * @param slot The slot to equip into.
+	 * @param item The owned cosmetic's id.
+	 */
+	equipCosmetic(slot: CosmeticSlot, item: string): Promise<CosmeticsResult> {
+		return this.#sendCosmetics("PUT", { slot, item });
+	}
+
+	/**
+	 * @brief Sends one cosmetics request and returns the slots the server sent.
+	 * A malformed 200 body is treated like a network failure.
+	 */
+	async #sendCosmetics(
+		method: string,
+		body?: { slot: CosmeticSlot; item: string }
+	): Promise<CosmeticsResult> {
+		try {
+			const res = await fetch(COSMETICS_URL, {
+				method,
+				credentials: "include",
+				headers: { "Content-Type": "application/json" },
+				body: body === undefined ? undefined : JSON.stringify(body)
+			});
+
+			if (!res.ok) return { ok: false, code: await this.#errorCode(res) };
+
+			const data = await res.json().catch(() => null);
+			const parsed = CosmeticsSchema.safeParse(data);
+			if (!parsed.success) return { ok: false, code: "network" };
+
+			return { ok: true, slots: parsed.data.slots };
 		} catch {
 			return { ok: false, code: "network" };
 		}

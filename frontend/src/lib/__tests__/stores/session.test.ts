@@ -1,18 +1,22 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const { chatReset, lobbyReset, gameReset, statsReset, avatarReset } = vi.hoisted(() => ({
-	chatReset: vi.fn(),
-	lobbyReset: vi.fn(),
-	gameReset: vi.fn(),
-	statsReset: vi.fn(),
-	avatarReset: vi.fn()
-}));
+const { chatReset, lobbyReset, gameReset, statsReset, avatarReset, cosmeticsReset } = vi.hoisted(
+	() => ({
+		chatReset: vi.fn(),
+		lobbyReset: vi.fn(),
+		gameReset: vi.fn(),
+		statsReset: vi.fn(),
+		avatarReset: vi.fn(),
+		cosmeticsReset: vi.fn()
+	})
+);
 
 vi.mock("$lib/stores/chat.svelte", () => ({ chatStore: { reset: chatReset } }));
 vi.mock("$lib/stores/lobby.svelte", () => ({ storeLobby: { reset: lobbyReset } }));
 vi.mock("$lib/stores/game.svelte", () => ({ storeGame: { reset: gameReset } }));
 vi.mock("$lib/stores/stats.svelte", () => ({ storeStats: { reset: statsReset } }));
 vi.mock("$lib/stores/avatar.svelte", () => ({ storeAvatar: { reset: avatarReset } }));
+vi.mock("$lib/stores/cosmetics.svelte", () => ({ storeCosmetics: { reset: cosmeticsReset } }));
 
 beforeEach(() => {
 	vi.clearAllMocks();
@@ -32,6 +36,7 @@ describe("session resets", () => {
 		expect(gameReset).toHaveBeenCalledTimes(1);
 		expect(statsReset).toHaveBeenCalledTimes(1);
 		expect(avatarReset).toHaveBeenCalledTimes(1);
+		expect(cosmeticsReset).toHaveBeenCalledTimes(1);
 	});
 
 	it("installs its subscription only once", async () => {
@@ -62,6 +67,7 @@ describe("session resets", () => {
 		expect(gameReset).toHaveBeenCalledTimes(1);
 		expect(statsReset).toHaveBeenCalledTimes(1);
 		expect(avatarReset).toHaveBeenCalledTimes(1);
+		expect(cosmeticsReset).toHaveBeenCalledTimes(1);
 		expect(errorSpy).toHaveBeenCalledTimes(1);
 
 		errorSpy.mockRestore();

@@ -36,6 +36,7 @@
 	import { storeOrientation } from "./lib/stores/orientation.svelte";
 	import { storeLobby } from "./lib/stores/lobby.svelte";
 	import { storeAvatar } from "$stores/avatar.svelte";
+	import { storeCosmetics } from "$stores/cosmetics.svelte";
 	// Eagerly construct the game store so its WebSocket listeners (state capture
 	// and the lobby→game switch) are live from boot. Otherwise it would only load
 	// with the lazy GameScreen chunk and miss the match's first state broadcast,
@@ -135,6 +136,13 @@
 		// top bar. Guests have no saved loadout; skip them.
 		if (storeAuth.isLoggedIn && storeAvatar.loadout === null && storeAvatar.status === "idle") {
 			await storeAvatar.fetchMine();
+		}
+
+		// The equipped cosmetics are likewise only fetched by the Shop screen, so
+		// a cold session would render the default card art and playmat. Guests
+		// have no equipped cosmetics; skip them.
+		if (storeAuth.isLoggedIn && storeCosmetics.status === "idle") {
+			await storeCosmetics.fetch();
 		}
 
 		// A guarded deep link (e.g. /wardrobe) lost its guard race at
