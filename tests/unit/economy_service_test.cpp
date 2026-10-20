@@ -8,6 +8,7 @@
 #include <nlohmann/json.hpp>
 
 #include <cstdint>
+#include <ctime>
 #include <random>
 #include <string>
 #include <vector>
@@ -26,6 +27,7 @@ using uni::avatar::ValidateLoadout;
 using uni::economy::BuyStatus;
 using uni::economy::EconomyService;
 using uni::economy::LedgerRow;
+using uni::economy::PopularItem;
 
 namespace {
 
@@ -159,6 +161,14 @@ void CleanupRows() {
         "DELETE FROM item_ownership WHERE user_id IN "
         "(SELECT id FROM users WHERE username LIKE 'economy_test_%');");
     REQUIRE(owned.has_value());
+    auto wishlist = Database::Get().Exec(
+        "DELETE FROM wishlist WHERE user_id IN "
+        "(SELECT id FROM users WHERE username LIKE 'economy_test_%');");
+    REQUIRE(wishlist.has_value());
+    auto cosmetics = Database::Get().Exec(
+        "DELETE FROM user_cosmetics WHERE user_id IN "
+        "(SELECT id FROM users WHERE username LIKE 'economy_test_%');");
+    REQUIRE(cosmetics.has_value());
     auto users = Database::Get().Exec(
         "DELETE FROM users WHERE username LIKE 'economy_test_%';");
     REQUIRE(users.has_value());
@@ -213,6 +223,36 @@ int OwnedCount(const std::string& username) {
     REQUIRE(row.has_value());
     REQUIRE(row->has_value());
     return row.value()->Get<int>("count");
+}
+
+/** @brief Insert one `item_ownership` row for `username` at `acquired_at`. */
+void AddOwnership(const std::string& username, const std::string& item_id,
+                  const std::string& source, std::int64_t acquired_at) {
+    auto res = Database::Get().Exec(
+        "INSERT INTO item_ownership (user_id, item_id, source, acquired_at) "
+        "VALUES ((SELECT id FROM users WHERE username = ?), ?, ?, ?);",
+        {username, item_id, source, static_cast<int>(acquired_at)});
+    REQUIRE(res.has_value());
+}
+
+/** @brief Insert one `wishlist` row for `username` at `created_at`. */
+void AddWishlistRow(const std::string& username, const std::string& item_id,
+                    std::int64_t created_at) {
+    auto res = Database::Get().Exec(
+        "INSERT INTO wishlist (user_id, item_id, created_at) "
+        "VALUES ((SELECT id FROM users WHERE username = ?), ?, ?);",
+        {username, item_id, static_cast<int>(created_at)});
+    REQUIRE(res.has_value());
+}
+
+/** @brief The ranking rows whose item id starts with `prefix`. */
+std::vector<PopularItem> WithPrefix(const std::vector<PopularItem>& ranking,
+                                    const std::string& prefix) {
+    std::vector<PopularItem> picked;
+    for (const PopularItem& entry : ranking) {
+        if (entry.item_id.rfind(prefix, 0) == 0) picked.push_back(entry);
+    }
+    return picked;
 }
 
 }  // namespace
@@ -502,4 +542,148 @@ TEST_CASE("economy: random credits and buys keep the cache equal to the ledger")
         CHECK(balance >= 0);
         CHECK(balance == LedgerSum(user));
     }
+}
+
+TEST_CASE("economy: wishlist add and remove are idempotent") {
+    EconomyFixture fixture;
+    const Catalogue catalogue = Catalogue::Parse(ValidDoc());
+    EconomyService economy(Database::Get(), catalogue);
+    const std::string user = Name("wishlist");
+    MakeUser(user);
+
+    CHECK(economy.Wishlist(user).empty());
+    CHECK(economy.AddWishlist(user, "uni:hat_cap"));
+    CHECK(economy.AddWishlist(user, "uni:hat_cap"));
+    CHECK(economy.Wishlist(user) == std::vector<std::string>{"uni:hat_cap"});
+
+    CHECK(economy.AddWishlist(user, "uni:mask_visor"));
+    CHECK(economy.Wishlist(user)
+          == std::vector<std::string>{"uni:hat_cap", "uni:mask_visor"});
+
+    CHECK(economy.RemoveWishlist(user, "uni:hat_cap"));
+    CHECK(economy.RemoveWishlist(user, "uni:hat_cap"));
+    CHECK(economy.Wishlist(user) == std::vector<std::string>{"uni:mask_visor"});
+}
+
+TEST_CASE("economy: wishlist rejects unknown users and non-catalogue items") {
+    EconomyFixture fixture;
+    const Catalogue catalogue = Catalogue::Parse(ValidDoc());
+    EconomyService economy(Database::Get(), catalogue);
+    const std::string user = Name("wishlist_bad");
+    MakeUser(user);
+
+    CHECK_FALSE(economy.AddWishlist(Name("ghost"), "uni:hat_cap"));
+    CHECK_FALSE(economy.RemoveWishlist(Name("ghost"), "uni:hat_cap"));
+    CHECK(economy.Wishlist(Name("ghost")).empty());
+
+    CHECK_FALSE(economy.AddWishlist(user, "uni:nope"));
+    CHECK_FALSE(economy.RemoveWishlist(user, "uni:nope"));
+    CHECK(economy.Wishlist(user).empty());
+}
+
+TEST_CASE("economy: Popular ranks purchases in the window and counts wishlists") {
+    EconomyFixture fixture;
+    const Catalogue catalogue = Catalogue::Parse(ValidDoc());
+    EconomyService economy(Database::Get(), catalogue);
+    const std::string buyer_a = Name("popular_a");
+    const std::string buyer_b = Name("popular_b");
+    const std::string buyer_c = Name("popular_c");
+    const std::string buyer_d = Name("popular_d");
+    MakeUser(buyer_a);
+    MakeUser(buyer_b);
+    MakeUser(buyer_c);
+    MakeUser(buyer_d);
+
+    const std::int64_t now = std::time(nullptr);
+    AddOwnership(buyer_a, "uni:popular_alpha", "purchase", now - 100);
+    AddOwnership(buyer_b, "uni:popular_alpha", "purchase", now - 200);
+    AddOwnership(buyer_c, "uni:popular_beta", "purchase", now - 300);
+    AddOwnership(buyer_d, "uni:popular_beta", "grant", now - 100);
+    AddOwnership(buyer_d, "uni:popular_gamma", "purchase", now - 2 * 86400);
+
+    AddWishlistRow(buyer_a, "uni:popular_alpha", now - 100);
+    AddWishlistRow(buyer_b, "uni:popular_alpha", now - 100);
+    AddWishlistRow(buyer_c, "uni:popular_beta", now - 100);
+
+    const std::vector<PopularItem> week =
+        WithPrefix(economy.Popular(7, 50), "uni:popular_");
+    REQUIRE(week.size() == 3);
+    CHECK(week[0].item_id == "uni:popular_alpha");
+    CHECK(week[0].purchases == 2);
+    CHECK(week[0].wishlists == 2);
+    CHECK(week[1].item_id == "uni:popular_beta");
+    CHECK(week[1].purchases == 1);
+    CHECK(week[1].wishlists == 1);
+    CHECK(week[2].item_id == "uni:popular_gamma");
+    CHECK(week[2].purchases == 1);
+    CHECK(week[2].wishlists == 0);
+
+    const std::vector<PopularItem> day =
+        WithPrefix(economy.Popular(1, 50), "uni:popular_");
+    REQUIRE(day.size() == 2);
+    CHECK(day[0].item_id == "uni:popular_alpha");
+    CHECK(day[1].item_id == "uni:popular_beta");
+    CHECK(day[1].purchases == 1);
+}
+
+TEST_CASE("economy: Popular clamps days to 1..90 and limit to 1..50") {
+    EconomyFixture fixture;
+    const Catalogue catalogue = Catalogue::Parse(ValidDoc());
+    EconomyService economy(Database::Get(), catalogue);
+    const std::string user = Name("popular_clamp");
+    MakeUser(user);
+
+    const std::int64_t now = std::time(nullptr);
+    AddOwnership(user, "uni:clamp_old", "purchase", now - 2 * 86400);
+    AddOwnership(user, "uni:clamp_recent", "purchase", now - 100);
+
+    const std::vector<PopularItem> one_day =
+        WithPrefix(economy.Popular(0, 10), "uni:clamp_");
+    REQUIRE(one_day.size() == 1);
+    CHECK(one_day[0].item_id == "uni:clamp_recent");
+
+    const std::vector<PopularItem> wide =
+        WithPrefix(economy.Popular(500, 100), "uni:clamp_");
+    REQUIRE(wide.size() == 2);
+    CHECK(wide[0].item_id == "uni:clamp_old");
+    CHECK(wide[1].item_id == "uni:clamp_recent");
+
+    CHECK(economy.Popular(7, 0).size() == 1);
+}
+
+TEST_CASE("economy: Cosmetic returns the equipped slot or nothing") {
+    EconomyFixture fixture;
+    const Catalogue catalogue = Catalogue::Parse(ValidDoc());
+    EconomyService economy(Database::Get(), catalogue);
+    const std::string user = Name("cosmetic_read");
+    MakeUser(user);
+
+    CHECK_FALSE(economy.Cosmetic(user, "card_face").has_value());
+    CHECK_FALSE(economy.Cosmetic(user, "card_back").has_value());
+    CHECK_FALSE(economy.Cosmetic(Name("ghost"), "card_face").has_value());
+
+    auto inserted = Database::Get().Exec(
+        "INSERT INTO user_cosmetics (user_id, slot, item_id, updated_at) "
+        "VALUES ((SELECT id FROM users WHERE username = ?), 'card_face', ?, 0);",
+        {user, std::string("uni:hat_cap")});
+    REQUIRE(inserted.has_value());
+
+    const auto equipped = economy.Cosmetic(user, "card_face");
+    REQUIRE(equipped.has_value());
+    CHECK(*equipped == "uni:hat_cap");
+    CHECK_FALSE(economy.Cosmetic(user, "card_back").has_value());
+}
+
+TEST_CASE("economy: SetCosmetic rejects bad slots, mismatched items and ghost users") {
+    EconomyFixture fixture;
+    const Catalogue catalogue = Catalogue::Parse(ValidDoc());
+    EconomyService economy(Database::Get(), catalogue);
+    const std::string user = Name("cosmetic_set");
+    MakeUser(user);
+
+    CHECK_FALSE(economy.SetCosmetic(user, "hat", "uni:hat_cap"));
+    CHECK_FALSE(economy.SetCosmetic(user, "card_face", "uni:nope"));
+    CHECK_FALSE(economy.SetCosmetic(user, "card_face", "uni:hat_cap"));
+    CHECK_FALSE(economy.SetCosmetic(Name("ghost"), "card_face", "uni:hat_cap"));
+    CHECK_FALSE(economy.Cosmetic(user, "card_face").has_value());
 }

@@ -1,5 +1,7 @@
 #include "economy/economy_service.hpp"
 
+#include <algorithm>
+#include <ctime>
 #include <optional>
 #include <string>
 #include <utility>
@@ -202,6 +204,113 @@ bool EconomyService::GrantItem(const std::string& username,
         "VALUES (?, ?, 'grant', ?);",
         {user->id, item_id, static_cast<int>(now)});
     if (!insert.has_value()) return false;  // already owned
+    return tx.Commit().has_value();
+}
+
+std::vector<std::string> EconomyService::Wishlist(
+    const std::string& username) const {
+    std::vector<std::string> ids;
+    auto rows = db_.Query(
+        "SELECT item_id FROM wishlist WHERE user_id = "
+        "(SELECT id FROM users WHERE username = ?) "
+        "ORDER BY created_at, item_id;",
+        {username});
+    if (!rows.has_value()) return ids;
+    for (const DbRow& row : *rows) ids.push_back(row.Get<std::string>("item_id"));
+    return ids;
+}
+
+bool EconomyService::AddWishlist(const std::string& username,
+                                 const std::string& item_id) {
+    TransactionGuard tx(db_);
+    if (!tx.Ok()) return false;
+
+    const std::optional<UserRow> user = FindUser(db_, username);
+    if (!user.has_value()) return false;
+    if (catalogue_.FindItem(item_id) == nullptr) return false;
+
+    auto insert = db_.Exec(
+        "INSERT OR IGNORE INTO wishlist (user_id, item_id, created_at) "
+        "VALUES (?, ?, ?);",
+        {user->id, item_id, static_cast<int>(std::time(nullptr))});
+    if (!insert.has_value()) return false;
+    return tx.Commit().has_value();
+}
+
+bool EconomyService::RemoveWishlist(const std::string& username,
+                                    const std::string& item_id) {
+    const std::optional<UserRow> user = FindUser(db_, username);
+    if (!user.has_value()) return false;
+    if (catalogue_.FindItem(item_id) == nullptr) return false;
+
+    auto remove = db_.Exec(
+        "DELETE FROM wishlist WHERE user_id = ? AND item_id = ?;",
+        {user->id, item_id});
+    return remove.has_value();
+}
+
+std::vector<PopularItem> EconomyService::Popular(int days, int limit) const {
+    std::vector<PopularItem> items;
+    days = std::clamp(days, 1, 90);
+    limit = std::clamp(limit, 1, 50);
+    const std::int64_t cutoff = static_cast<std::int64_t>(std::time(nullptr))
+                                - static_cast<std::int64_t>(days) * 86400;
+
+    auto rows = db_.Query(
+        "SELECT o.item_id, COUNT(*) AS purchases, "
+        "(SELECT COUNT(*) FROM wishlist w WHERE w.item_id = o.item_id) "
+        "AS wishlists "
+        "FROM item_ownership o "
+        "WHERE o.source = 'purchase' AND o.acquired_at >= ? "
+        "GROUP BY o.item_id "
+        "ORDER BY purchases DESC, o.item_id ASC "
+        "LIMIT ?;",
+        {static_cast<int>(cutoff), limit});
+    if (!rows.has_value()) return items;
+    for (const DbRow& row : *rows) {
+        items.push_back(PopularItem{row.Get<std::string>("item_id"),
+                                    row.Get<int>("purchases"),
+                                    row.Get<int>("wishlists")});
+    }
+    return items;
+}
+
+std::optional<std::string> EconomyService::Cosmetic(
+    const std::string& username, const std::string& slot) const {
+    auto row = db_.QueryOne(
+        "SELECT item_id FROM user_cosmetics WHERE user_id = "
+        "(SELECT id FROM users WHERE username = ?) AND slot = ?;",
+        {username, slot});
+    if (!row.has_value() || !row->has_value()) return std::nullopt;
+    return row.value()->Get<std::string>("item_id");
+}
+
+bool EconomyService::SetCosmetic(const std::string& username,
+                                 const std::string& slot,
+                                 const std::string& item_id) {
+    static const std::vector<std::string> kSlots = {"card_face", "card_back",
+                                                    "playmat"};
+    if (std::find(kSlots.begin(), kSlots.end(), slot) == kSlots.end()) {
+        return false;
+    }
+
+    TransactionGuard tx(db_);
+    if (!tx.Ok()) return false;
+
+    const std::optional<UserRow> user = FindUser(db_, username);
+    if (!user.has_value()) return false;
+
+    const Item* item = catalogue_.FindItem(item_id);
+    if (item == nullptr || item->slot != slot) return false;
+    if (!OwnsItem(username, item_id)) return false;
+
+    auto upsert = db_.Exec(
+        "INSERT INTO user_cosmetics (user_id, slot, item_id, updated_at) "
+        "VALUES (?, ?, ?, ?) "
+        "ON CONFLICT(user_id, slot) DO UPDATE SET "
+        "item_id = excluded.item_id, updated_at = excluded.updated_at;",
+        {user->id, slot, item_id, static_cast<int>(std::time(nullptr))});
+    if (!upsert.has_value()) return false;
     return tx.Commit().has_value();
 }
 
