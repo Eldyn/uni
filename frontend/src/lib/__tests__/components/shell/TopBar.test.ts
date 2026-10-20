@@ -1,7 +1,11 @@
-import { describe, it, expect, vi } from "vitest";
+import { beforeEach, describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/svelte";
 
 const lobbyState = { current: null as { invite_code: string; members: unknown[] } | null };
+
+const { avatarState } = vi.hoisted(() => ({
+	avatarState: { loadout: null as { shape: string; skin: string; slots: object } | null }
+}));
 
 vi.mock("$lib/stores/navigation.svelte", () => ({
 	storeNavigation: { current: "lobbies", goto: vi.fn(() => true) }
@@ -9,6 +13,7 @@ vi.mock("$lib/stores/navigation.svelte", () => ({
 vi.mock("$lib/stores/auth.svelte", () => ({
 	storeAuth: { username: "eldyn", avatar: "" }
 }));
+vi.mock("$lib/stores/avatar.svelte", () => ({ storeAvatar: avatarState }));
 vi.mock("$lib/stores/lobby.svelte", () => ({
 	storeLobby: {
 		get isInLobby() {
@@ -20,12 +25,54 @@ vi.mock("$lib/stores/lobby.svelte", () => ({
 	}
 }));
 
+// The real Avatar bakes through this helper; the fake records the last loadout
+// it was handed and always exposes a sprite URL.
+const baked = vi.hoisted(() => ({
+	loadout: null as { shape: string; skin: string; slots: object } | null,
+	set: vi.fn(),
+	destroy: vi.fn()
+}));
+vi.mock("$lib/avatar/useBakedAvatar.svelte", () => ({
+	createBakedAvatar: () => ({
+		get url() {
+			return baked.loadout ? `blob:${baked.loadout.shape}/${baked.loadout.skin}` : "blob:default";
+		},
+		set(loadout: { shape: string; skin: string; slots: object } | null) {
+			baked.loadout = loadout;
+			baked.set(loadout);
+		},
+		destroy: baked.destroy
+	})
+}));
+
 import TopBar from "$components/shell/TopBar.svelte";
 
 describe("TopBar", () => {
+	beforeEach(() => {
+		lobbyState.current = null;
+		avatarState.loadout = null;
+		baked.loadout = null;
+		baked.set.mockClear();
+		baked.destroy.mockClear();
+	});
+
 	it("shows the username", () => {
 		render(TopBar);
 		expect(screen.getByText("eldyn")).toBeInTheDocument();
+	});
+
+	it("bakes the identity avatar from the saved loadout", () => {
+		const savedLook = {
+			shape: "uni:round",
+			skin: "sunset_4",
+			slots: { eyes: { item: "uni:eyes_wide", colours: [] } }
+		};
+		avatarState.loadout = savedLook;
+
+		const { container } = render(TopBar);
+
+		expect(baked.set).toHaveBeenCalledWith(savedLook);
+		expect(container.querySelector(".shell-topbar-identity .avatar-sprite")).toBeInTheDocument();
 	});
 
 	it("hides the lobby chip when not in a lobby", () => {
