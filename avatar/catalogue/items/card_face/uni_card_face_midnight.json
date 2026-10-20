@@ -1,0 +1,21 @@
+{
+	"id": "uni:card_face_midnight",
+	"order": 10,
+	"slot": "card_face",
+	"name": "Midnight",
+	"asset": {
+		"kind": "still",
+		"path": "cards/skins/midnight",
+		"bob": [
+			[0, 0],
+			[0, 0],
+			[0, 0],
+			[0, 0],
+			[0, 0]
+		]
+	},
+	"regions": 0,
+	"tint": "none",
+	"rarity": "rare",
+	"price": 400
+}

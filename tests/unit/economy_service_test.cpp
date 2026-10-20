@@ -134,6 +134,62 @@ json ValidDoc() {
                 "price": 600
             },
             {
+                "id": "uni:card_face_midnight",
+                "slot": "card_face",
+                "name": "Midnight",
+                "asset": {
+                    "kind": "still",
+                    "path": "cards/skins/midnight",
+                    "bob": [[0, 0], [0, 0], [0, 0], [0, 0], [0, 0]]
+                },
+                "regions": 0,
+                "tint": "none",
+                "rarity": "rare",
+                "price": 400
+            },
+            {
+                "id": "uni:card_face_alt",
+                "slot": "card_face",
+                "name": "Alternate",
+                "asset": {
+                    "kind": "still",
+                    "path": "cards/skins/midnight",
+                    "bob": [[0, 0], [0, 0], [0, 0], [0, 0], [0, 0]]
+                },
+                "regions": 0,
+                "tint": "none",
+                "rarity": "rare",
+                "price": 450
+            },
+            {
+                "id": "uni:card_back_stars",
+                "slot": "card_back",
+                "name": "Stars",
+                "asset": {
+                    "kind": "still",
+                    "path": "cards/backs/stars.png",
+                    "bob": [[0, 0], [0, 0], [0, 0], [0, 0], [0, 0]]
+                },
+                "regions": 0,
+                "tint": "none",
+                "rarity": "rare",
+                "price": 300
+            },
+            {
+                "id": "uni:playmat_dusk",
+                "slot": "playmat",
+                "name": "Dusk",
+                "asset": {
+                    "kind": "still",
+                    "path": "playmat/dusk.png",
+                    "bob": [[0, 0], [0, 0], [0, 0], [0, 0], [0, 0]]
+                },
+                "regions": 0,
+                "tint": "none",
+                "rarity": "rare",
+                "price": 500
+            },
+            {
                 "id": "uni:hat_hidden",
                 "slot": "head_top",
                 "name": "Secret cap",
@@ -686,4 +742,48 @@ TEST_CASE("economy: SetCosmetic rejects bad slots, mismatched items and ghost us
     CHECK_FALSE(economy.SetCosmetic(user, "card_face", "uni:hat_cap"));
     CHECK_FALSE(economy.SetCosmetic(Name("ghost"), "card_face", "uni:hat_cap"));
     CHECK_FALSE(economy.Cosmetic(user, "card_face").has_value());
+}
+
+TEST_CASE("economy: SetCosmetic equips an owned cosmetic and overwrites its slot") {
+    EconomyFixture fixture;
+    const Catalogue catalogue = Catalogue::Parse(ValidDoc());
+    EconomyService economy(Database::Get(), catalogue);
+    const std::string user = Name("cosmetic_equip");
+    MakeUser(user);
+    AddOwnership(user, "uni:card_face_midnight", "purchase", 0);
+    AddOwnership(user, "uni:card_face_alt", "purchase", 0);
+    AddOwnership(user, "uni:playmat_dusk", "purchase", 0);
+
+    CHECK(economy.SetCosmetic(user, "card_face", "uni:card_face_midnight"));
+    const auto card_face = economy.Cosmetic(user, "card_face");
+    REQUIRE(card_face.has_value());
+    CHECK(*card_face == "uni:card_face_midnight");
+
+    CHECK(economy.SetCosmetic(user, "playmat", "uni:playmat_dusk"));
+    const auto playmat = economy.Cosmetic(user, "playmat");
+    REQUIRE(playmat.has_value());
+    CHECK(*playmat == "uni:playmat_dusk");
+
+    CHECK(economy.SetCosmetic(user, "card_face", "uni:card_face_alt"));
+    const auto overwritten = economy.Cosmetic(user, "card_face");
+    REQUIRE(overwritten.has_value());
+    CHECK(*overwritten == "uni:card_face_alt");
+
+    CHECK_FALSE(economy.SetCosmetic(user, "card_back", "uni:card_back_stars"));
+    CHECK_FALSE(economy.Cosmetic(user, "card_back").has_value());
+}
+
+TEST_CASE("economy: SetCosmetic rejects an item the user does not own") {
+    EconomyFixture fixture;
+    const Catalogue catalogue = Catalogue::Parse(ValidDoc());
+    EconomyService economy(Database::Get(), catalogue);
+    const std::string user = Name("cosmetic_unowned");
+    MakeUser(user);
+    AddOwnership(user, "uni:card_face_midnight", "purchase", 0);
+
+    CHECK_FALSE(economy.SetCosmetic(user, "card_face", "uni:card_face_alt"));
+    CHECK_FALSE(economy.Cosmetic(user, "card_face").has_value());
+    CHECK(economy.SetCosmetic(user, "card_face", "uni:card_face_midnight"));
+    CHECK_FALSE(economy.SetCosmetic(user, "card_back", "uni:card_back_stars"));
+    CHECK_FALSE(economy.Cosmetic(user, "card_back").has_value());
 }

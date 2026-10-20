@@ -1,0 +1,21 @@
+{
+	"id": "uni:card_back_stars",
+	"order": 10,
+	"slot": "card_back",
+	"name": "Stars",
+	"asset": {
+		"kind": "still",
+		"path": "cards/backs/stars.png",
+		"bob": [
+			[0, 0],
+			[0, 0],
+			[0, 0],
+			[0, 0],
+			[0, 0]
+		]
+	},
+	"regions": 0,
+	"tint": "none",
+	"rarity": "rare",
+	"price": 300
+}

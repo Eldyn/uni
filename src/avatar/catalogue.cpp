@@ -49,7 +49,9 @@ constexpr std::size_t kMaxExtraMasks = 1;
 
 const std::vector<std::string>& AvatarSlots() {
     static const std::vector<std::string> kSlots = {
-        "shape", "eyes", "mouth", "head_top", "mask", "bodywear", "set", "motif"};
+        "shape",     "eyes",      "mouth",   "head_top",  "mask",
+        "bodywear",  "set",       "motif",   "card_face", "card_back",
+        "playmat"};
     return kSlots;
 }
 
