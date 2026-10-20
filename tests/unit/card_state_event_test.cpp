@@ -302,7 +302,14 @@ TEST_CASE("strict_owner_reaches_the_holder_only") {
     CHECK_FALSE(CardChangedFor(builder, event, kPrivateSpectator).has_value());
     CHECK_FALSE(CardChangedFor(builder, event, kBob).has_value());
     CHECK_FALSE(CardChangedFor(builder, event, kSpectator).has_value());
-    CHECK_FALSE(CardChangedFor(builder, event, kDirector).has_value());
+
+    const std::optional<json> director =
+        CardChangedFor(builder, event, kDirector);
+    REQUIRE(director.has_value());
+    CHECK((*director)["slot"] == "suit");
+    CHECK(director->contains("card"));
+    CHECK_FALSE(director->contains("member"));
+    CHECK_FALSE(director->contains("previous"));
 }
 
 TEST_CASE("strict_owner_property_reaches_the_holder_only") {
@@ -335,7 +342,14 @@ TEST_CASE("strict_owner_property_reaches_the_holder_only") {
     CHECK_FALSE(CardChangedFor(builder, event, kPrivateSpectator).has_value());
     CHECK_FALSE(CardChangedFor(builder, event, kBob).has_value());
     CHECK_FALSE(CardChangedFor(builder, event, kSpectator).has_value());
-    CHECK_FALSE(CardChangedFor(builder, event, kDirector).has_value());
+
+    const std::optional<json> director =
+        CardChangedFor(builder, event, kDirector);
+    REQUIRE(director.has_value());
+    CHECK((*director)["property"] == "uni:revealed");
+    CHECK(director->contains("card"));
+    CHECK_FALSE(director->contains("value"));
+    CHECK_FALSE(director->contains("previous"));
 }
 
 TEST_CASE("strict_owner_on_discard_has_no_value") {
@@ -411,11 +425,19 @@ TEST_CASE("non_synced_property_keeps_value_off_the_event") {
     }
 
     for (const Viewer* viewer :
-         {&kBob, &kPrivateSpectator, &kSpectator, &kDirector}) {
+         {&kBob, &kPrivateSpectator, &kSpectator}) {
         CAPTURE(viewer->username);
         CAPTURE(viewer->is_spectator);
         CHECK_FALSE(CardChangedFor(builder, event, *viewer).has_value());
     }
+
+    const std::optional<json> director =
+        CardChangedFor(builder, event, kDirector);
+    REQUIRE(director.has_value());
+    CHECK((*director)["property"] == "uni:locked");
+    CHECK(director->contains("card"));
+    CHECK_FALSE(director->contains("value"));
+    CHECK_FALSE(director->contains("previous"));
 }
 
 TEST_CASE("hidden_change_reaches_nobody_with_value") {
@@ -578,6 +600,65 @@ TEST_CASE("non_string_visibility_resolves_hidden") {
     CHECK_FALSE(projected->contains("member"));
     CHECK_FALSE(projected->contains("value"));
     CHECK_FALSE(projected->contains("previous"));
+}
+
+TEST_CASE("director_sees_hand_card_bits_without_private_values") {
+    const Viewer director = Viewer::PlayerDirector("Bob");
+    {
+        const std::vector<LoadedMod> mods = LoadMods();
+        const std::unique_ptr<MatchInstance> engine = MakeMatch(mods);
+        ViewBuilder builder(*engine, mods);
+        const ecs::Entity card = HandCard(*engine, "uni:red_spade_alpha");
+
+        const json public_event =
+            Emit(*engine, "set_card_member",
+                 json{{"slot", "color"}, {"member", "uni:blue"}}, card);
+        const std::optional<json> public_payload =
+            CardChangedFor(builder, public_event, director);
+        REQUIRE(public_payload.has_value());
+        CHECK((*public_payload)["slot"] == "color");
+        CHECK((*public_payload)["member"] == "uni:blue");
+        CHECK(public_payload->contains("card"));
+
+        const json owner_event =
+            Emit(*engine, "set_card_member",
+                 json{{"slot", "suit"}, {"member", "uni:heart"}}, card);
+        const std::optional<json> owner_payload =
+            CardChangedFor(builder, owner_event, director);
+        REQUIRE(owner_payload.has_value());
+        CHECK((*owner_payload)["slot"] == "suit");
+        CHECK(owner_payload->contains("card"));
+        CHECK_FALSE(owner_payload->contains("member"));
+        CHECK_FALSE(owner_payload->contains("previous"));
+
+        MoveTo(*engine, card,
+               ecs::ZoneRef{ecs::ZoneKind::kDrawPile, ecs::Entity{}});
+        const json draw_event =
+            Emit(*engine, "set_card_member",
+                 json{{"slot", "color"}, {"member", "uni:red"}}, card);
+        const std::optional<json> draw_payload =
+            CardChangedFor(builder, draw_event, director);
+        REQUIRE(draw_payload.has_value());
+        CHECK_FALSE(draw_payload->contains("card"));
+    }
+    {
+        std::vector<LoadedMod> mods = LoadMods();
+        SetAttributeVisibility(mods, "uni:suit", "strict_owner");
+        const std::unique_ptr<MatchInstance> engine = MakeMatch(mods);
+        ViewBuilder builder(*engine, mods);
+        const ecs::Entity card = HandCard(*engine, "uni:red_spade_alpha");
+
+        const json event =
+            Emit(*engine, "set_card_member",
+                 json{{"slot", "suit"}, {"member", "uni:heart"}}, card);
+        const std::optional<json> payload =
+            CardChangedFor(builder, event, director);
+        REQUIRE(payload.has_value());
+        CHECK((*payload)["slot"] == "suit");
+        CHECK(payload->contains("card"));
+        CHECK_FALSE(payload->contains("member"));
+        CHECK_FALSE(payload->contains("previous"));
+    }
 }
 
 TEST_CASE("late_join_tail_respects_redaction") {
