@@ -683,11 +683,14 @@ TEST_CASE("late_join_tail_keeps_owner_value_after_hand_move") {
     CHECK(alice_payload["previous"] == "uni:spade");
 
     const json bob_envelopes = builder.BuildTail(kBob, tail);
-    REQUIRE(bob_envelopes.size() == 1);
-    const json& bob_payload = bob_envelopes.front()["payload"];
-    CHECK_FALSE(bob_payload.contains("member"));
-    CHECK_FALSE(bob_payload.contains("value"));
-    CHECK_FALSE(bob_payload.contains("previous"));
+    CHECK(bob_envelopes.empty());
+
+    MoveTo(*engine, card, ecs::ZoneRef{ecs::ZoneKind::kLimbo, ecs::Entity{}});
+    const json alice_limbo = builder.BuildTail(kAlice, tail);
+    REQUIRE(alice_limbo.size() == 1);
+    CHECK(alice_limbo.front()["payload"]["member"] == "uni:heart");
+    CHECK_FALSE(alice_limbo.front()["payload"].contains("card"));
+    CHECK(builder.BuildTail(kBob, tail).empty());
 }
 
 TEST_CASE("public_body_is_internal_and_wire_redacts_the_handle") {

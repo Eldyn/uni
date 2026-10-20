@@ -176,8 +176,10 @@ SeatRoles ResolveSeatRoles(const match::engine::MatchInstance& match,
 }
 
 bool CardStateIdentityAllowed(ecs::ZoneKind kind) {
-    return kind == ecs::ZoneKind::kHand
-           || kind == ecs::ZoneKind::kDiscardPile;
+    // INFO: a granted draw-pile card may reveal its identity; the per-viewer
+    //       `IsCardHiddenFrom` check still hides it from everyone else. Limbo
+    //       is out of play and never carries an identity.
+    return kind != ecs::ZoneKind::kLimbo;
 }
 
 bool IsCardHiddenFrom(const match::engine::MatchInstance& match,
@@ -264,18 +266,31 @@ json ProjectForViewer(const match::engine::MatchInstance& match,
     }
 
     // Drop a card_changed whose card this viewer cannot see when no value
-    // survives. A director x-ray keeps the card bits, so the packet stays
-    // even when every value is private.
+    // survives. A director x-ray keeps the card bits, so the packet stays even
+    // when every value is private. The emit-time `in_hand` flag keeps a move
+    // to discard or limbo from turning a dropped hand event into a late
+    // metadata packet.
     const bool has_value = projected.contains("member")
                            || projected.contains("value")
                            || projected.contains("previous");
-    if (!has_value && !projected.contains("card")
-        && wire_payload.contains("_card")) {
-        ecs::Entity card{};
-        if (EntityFromJson(wire_payload["_card"], card)
-            && match.Store().IsAlive(card)
-            && IsCardHiddenFrom(match, card, viewer)) {
-            return json::object();
+    if (!has_value && wire_payload.contains("_card")) {
+        bool was_hand = false;
+        const auto in_hand = wire_payload.find("in_hand");
+        if (in_hand != wire_payload.end() && in_hand->is_boolean()) {
+            was_hand = in_hand->get<bool>();
+        }
+        if (was_hand) {
+            const bool sees_hand =
+                AudienceAllows(Audience::kOwner, roles, viewer)
+                || viewer.director;
+            if (!sees_hand) return json::object();
+        } else if (!projected.contains("card")) {
+            ecs::Entity card{};
+            if (EntityFromJson(wire_payload["_card"], card)
+                && match.Store().IsAlive(card)
+                && IsCardHiddenFrom(match, card, viewer)) {
+                return json::object();
+            }
         }
     }
     return projected;

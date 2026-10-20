@@ -330,6 +330,9 @@ json ProjectCardChanged(const match::engine::MatchInstance& match,
         visibility == "public"
         || (value_in_hand
             && (visibility == "owner" || visibility == "strict_owner"));
+    // INFO: the per-seat drop rule reads the emit-time hand decision. The key
+    //       is undeclared, so it never reaches the wire.
+    out["in_hand"] = value_in_hand;
     if (state_value && synced) {
         if (payload.contains("member") && payload["member"].is_string()) {
             out["member"] = payload["member"];

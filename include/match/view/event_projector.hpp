@@ -80,10 +80,11 @@ bool IsCardHiddenFrom(const match::engine::MatchInstance& match,
 /**
  * @brief True when a card in `kind` may carry a card-state identity.
  *
- * The hand (subject to the owner/redaction rules) and the discard pile
- * (public) do. The draw pile keeps its order hidden and a limbo card is out
- * of play, so neither carries an identity. This is the one rule shared by the
- * `card_changed` projection and the snapshot `card_state`.
+ * A hand (subject to the owner/redaction rules), the discard pile (public)
+ * and a granted draw-pile card may. The draw pile is still hidden per viewer
+ * by `IsCardHiddenFrom`; a limbo card is out of play and never carries an
+ * identity. This is the one rule shared by the `card_changed` projection and
+ * the snapshot `card_state`.
  */
 bool CardStateIdentityAllowed(ecs::ZoneKind kind);
 
