@@ -13,6 +13,7 @@ import { storeNavigation } from "$stores/navigation.svelte";
 import type { BuyResult } from "$lib/shop/shopBackend";
 import type { Catalogue } from "$lib/avatar/types";
 import { avatarFixture } from "$lib/__tests__/avatar/avatarFixture";
+import shopSource from "../../components/shop/ShopScreen.svelte?raw";
 
 const STARTERS = ["uni:round", "uni:eyes_dot", "uni:mouth_smile"];
 
@@ -277,6 +278,30 @@ describe("ShopScreen", () => {
 		cards[0].focus();
 		await fireEvent.keyDown(cards[0], { key: "ArrowRight" });
 		expect(document.activeElement).toBe(cards[1]);
+	});
+
+	it("lays the cards out in six columns on a wide screen", () => {
+		// jsdom has no layout, so the rule is pinned in the component source.
+		expect(shopSource).toContain("const COLUMNS = 6;");
+		expect(shopSource).toMatch(/grid-template-columns:\s*repeat\(6,\s*minmax\(0,\s*1fr\)\)/);
+	});
+
+	it("keeps three columns at the 900 px breakpoint", () => {
+		expect(shopSource).toMatch(
+			/@media \(max-width: 900px\) \{\s*\.shop-grid \{\s*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);\s*\}\s*\}/
+		);
+	});
+
+	it("steps a whole row down with the six-column stride", async () => {
+		const { container } = render(ShopScreen);
+		flushSync();
+
+		const cards = container.querySelectorAll<HTMLElement>("[data-item-id]");
+		expect(cards).toHaveLength(10);
+		cards[0].focus();
+		await fireEvent.keyDown(cards[0], { key: "ArrowDown" });
+
+		expect(document.activeElement).toBe(cards[6]);
 	});
 
 	it("mounts a single backdrop", () => {

@@ -50,7 +50,7 @@
 	];
 
 	/** Cards per row; the vertical arrow keys step a whole row. */
-	const COLUMNS = 4;
+	const COLUMNS = 6;
 
 	const catalogue = getCatalogue();
 	// INFO: one "now" for the whole mount, so an item does not vanish mid-browse.
@@ -403,7 +403,7 @@
 
 	.shop-grid {
 		display: grid;
-		grid-template-columns: repeat(4, minmax(0, 1fr));
+		grid-template-columns: repeat(6, minmax(0, 1fr));
 		gap: 0.75rem;
 	}
 
