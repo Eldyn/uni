@@ -35,6 +35,10 @@ struct SeatRoles {
     bool offered_card_public = true;
     /** True when the engine marked the card public at emit time. */
     bool zone_card_public = false;
+    /** True when `card_changed` visibility is `public`. */
+    bool state_public = false;
+    /** True when `card_changed` visibility is `owner`. */
+    bool state_owner = false;
 };
 
 /** @brief True when `viewer` belongs to `audience` for `roles`. */

@@ -800,9 +800,12 @@ std::optional<nlohmann::json> ViewBuilder::Wrap(
             ? frame["actor"].get<std::string>()
             : std::string();
     const SeatRoles roles = ResolveSeatRoles(match_, type, payload, actor);
-    return sink.WrapEngineEvent(
-        type, ProjectForViewer(match_, type, *projected, roles, viewer),
-        engine_event);
+    const json projected_payload =
+        ProjectForViewer(match_, type, *projected, roles, viewer);
+    // INFO: an empty projection means no field may reach this viewer; drop
+    //       the event and do not let it consume a sequence.
+    if (projected_payload.empty()) return std::nullopt;
+    return sink.WrapEngineEvent(type, projected_payload, engine_event);
 }
 
 std::optional<nlohmann::json> ViewBuilder::WrapModEvent(

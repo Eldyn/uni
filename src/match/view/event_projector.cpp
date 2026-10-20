@@ -147,6 +147,10 @@ SeatRoles ResolveSeatRoles(const match::engine::MatchInstance& match,
     roles.target = resolve(rule->target_key);
     roles.owner = resolve(rule->owner_key);
     roles.zone_card_public = engine_payload.value("card_public", false);
+    const std::string visibility =
+        engine_payload.value("visibility", std::string());
+    roles.state_public = visibility == "public";
+    roles.state_owner = visibility == "owner";
     roles.offered_card_public =
         engine_payload.value("outcome", std::string()) != "lost";
     return roles;
@@ -203,6 +207,11 @@ json ProjectForViewer(const match::engine::MatchInstance& match,
             && !AudienceAllows(Audience::kOwner, roles, viewer)) {
             continue;
         }
+        if (field->kind == FieldKind::kStateValue && !roles.state_public
+            && !(roles.state_owner
+                 && AudienceAllows(Audience::kOwner, roles, viewer))) {
+            continue;
+        }
         json kept = value;
         if (field->kind == FieldKind::kCard
             && IsHiddenBits(match, value, viewer)) {
@@ -216,6 +225,20 @@ json ProjectForViewer(const match::engine::MatchInstance& match,
         }
         ScrubHiddenHandles(match, viewer, kept);
         projected[name] = std::move(kept);
+    }
+
+    // Drop a card_changed whose card this viewer cannot see when no value
+    // survives.
+    const bool has_value = projected.contains("member")
+                           || projected.contains("value")
+                           || projected.contains("previous");
+    if (!has_value && wire_payload.contains("_card")) {
+        ecs::Entity card{};
+        if (EntityFromJson(wire_payload["_card"], card)
+            && match.Store().IsAlive(card)
+            && IsCardHiddenFrom(match, card, viewer)) {
+            return json::object();
+        }
     }
     return projected;
 }

@@ -89,6 +89,11 @@ enum class FieldKind {
      * of the card cannot reveal it.
      */
     kZoneCard,
+    /**
+     * A value whose audience depends on the engine key `visibility` of the
+     * same payload; a missing visibility is `hidden`.
+     */
+    kStateValue,
 };
 
 /** @brief One declared payload field. */
@@ -264,6 +269,19 @@ inline constexpr FieldRule kCardMoved[] = {
     {"source", Audience::kAll},
     {"target", Audience::kAll},
 };
+// INFO: the op writes `visibility` (`public`, `owner` or `hidden`) from the
+//       changed attribute or property. The per-seat projector reads it to
+//       decide who gets `member`, `value` and `previous`. `card` and the
+//       undeclared `_card` handle are redacted by the projector too.
+inline constexpr FieldRule kCardChanged[] = {
+    {"target", Audience::kAll},
+    {"slot", Audience::kAll},
+    {"property", Audience::kAll},
+    {"card", Audience::kAll, FieldKind::kCard},
+    {"member", Audience::kAll, FieldKind::kStateValue},
+    {"value", Audience::kAll, FieldKind::kStateValue},
+    {"previous", Audience::kAll, FieldKind::kStateValue},
+};
 inline constexpr FieldRule kCardCreated[] = {
     {"target", Audience::kAll},
     {"zone", Audience::kAll},
@@ -373,6 +391,7 @@ inline constexpr EventRule kEvents[] = {
     {"hands_passed", "", "", kHandsPassed, Retention::kLog},
     {"hands_redistributed", "", "", kHandsRedistributed, Retention::kLog},
     {"card_moved", "", "target", kCardMoved, Retention::kUntilTurnEnd},
+    {"card_changed", "", "target", kCardChanged, Retention::kUntilTurnEnd},
     {"card_created", "", "", kCardCreated, Retention::kUntilTurnEnd},
     {"card_removed", "", "target", kCardRemoved, Retention::kUntilTurnEnd},
     {"card_replaced", "", "", kCardReplaced, Retention::kUntilTurnEnd},

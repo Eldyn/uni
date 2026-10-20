@@ -263,6 +263,50 @@ json ProjectCardMoved(const match::engine::MatchInstance& match,
     return out;
 }
 
+json ProjectCardChanged(const match::engine::MatchInstance& match,
+                        const json& payload) {
+    json out = json::object();
+    if (payload.contains("slot") && payload["slot"].is_string()) {
+        out["slot"] = payload["slot"];
+    }
+    if (payload.contains("property") && payload["property"].is_string()) {
+        out["property"] = payload["property"];
+    }
+    CopySeat(match, payload, "target", out);
+    // INFO: the handle is redaction-only. The audience table never names this
+    //       key, so the projector drops it before the wire.
+    if (payload.contains("card")) out["_card"] = payload["card"];
+
+    const ecs::InZone* in_zone = nullptr;
+    if (payload.contains("card")) {
+        ecs::Entity card{};
+        if (EntityFromJson(payload["card"], card)) {
+            in_zone = match.Store().Get<ecs::InZone>(card);
+        }
+    }
+    const bool in_hand =
+        in_zone != nullptr && in_zone->zone.kind == ecs::ZoneKind::kHand;
+    // INFO: the card bits go to every viewer here; the per-seat `kCard` rule
+    //       keeps them only for a viewer that may see the card. A holder must
+    //       get its own card identity, or it cannot apply the change.
+    if (payload.contains("card")) CopyCardBits(match, payload, out);
+
+    // INFO: a hand value is projected per seat: the per-seat projector grants
+    //       it to the holder for `owner` and to nobody for `hidden`. A card in
+    //       the discard pile or limbo has no holder, so only a public value
+    //       reaches the wire there.
+    const std::string visibility =
+        payload.value("visibility", std::string());
+    if (visibility == "public" || in_hand) {
+        if (payload.contains("member") && payload["member"].is_string()) {
+            out["member"] = payload["member"];
+        }
+        if (payload.contains("value")) out["value"] = payload["value"];
+        if (payload.contains("previous")) out["previous"] = payload["previous"];
+    }
+    return out;
+}
+
 json ProjectCardRemoved(const match::engine::MatchInstance& match,
                         const json& payload) {
     json out = json::object();
@@ -400,11 +444,13 @@ std::optional<nlohmann::json> EventSink::WrapPublic(
     const std::optional<nlohmann::json> projected =
         ProjectPublicEvent(type, payload, match);
     if (!projected.has_value()) return std::nullopt;
-    return WrapEngineEvent(
-        type,
+    const nlohmann::json projected_payload =
         ProjectForViewer(match, type, *projected, SeatRoles{},
-                         Viewer::PublicSpectator()),
-        engine_event);
+                         Viewer::PublicSpectator());
+    // INFO: an empty projection means no field may reach this viewer; wrap
+    //       nothing and do not consume a sequence for it.
+    if (projected_payload.empty()) return std::nullopt;
+    return WrapEngineEvent(type, projected_payload, engine_event);
 }
 
 std::optional<nlohmann::json> ProjectPublicEvent(
@@ -471,6 +517,7 @@ std::optional<nlohmann::json> ProjectPublicEvent(
         return ProjectHandsRedistributed(match, body);
     }
     if (type == "card_moved") return ProjectCardMoved(match, body);
+    if (type == "card_changed") return ProjectCardChanged(match, body);
     if (type == "card_removed") return ProjectCardRemoved(match, body);
     if (type == "card_created" || type == "card_replaced") {
         return ProjectCardZone(match, body);
