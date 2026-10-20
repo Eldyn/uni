@@ -72,6 +72,11 @@ fs::path FixtureMagenta() {
            / "magenta";
 }
 
+fs::path UniManifest() {
+    return ProjectRoot() / "tests" / "fixtures" / "card_schema" / "fifth_color"
+           / "uni_manifest.sha256";
+}
+
 // INFO: a scratch `mods/` root holding an untouched copy of the shipped uni
 // mod and the magenta fixture next to it.
 struct MagentaMods {
@@ -233,19 +238,47 @@ TEST_CASE("deck_unchanged_when_mod_inactive") {
 }
 
 TEST_CASE("uni_files_untouched") {
-    MagentaMods mods;
-    const fs::path copied = mods.directory.root / "uni";
+    const fs::path manifest_path = UniManifest();
+    std::ifstream manifest(manifest_path);
+    REQUIRE_MESSAGE(manifest.good(),
+                    "cannot read manifest " << manifest_path.string());
+
+    std::map<std::string, std::string> expected;
+    std::string line;
+    while (std::getline(manifest, line)) {
+        if (line.empty()) continue;
+        const std::size_t separator = line.find("  ");
+        REQUIRE_MESSAGE(separator != std::string::npos,
+                        "malformed manifest line: " << line);
+        expected.emplace(line.substr(separator + 2),
+                         line.substr(0, separator));
+    }
+    REQUIRE_FALSE(expected.empty());
+
     const fs::path shipped = ShippedUni();
+    std::map<std::string, std::string> actual;
+    for (const std::string& relative : RelativeFiles(shipped)) {
+        actual.emplace("mods/uni/" + relative,
+                       Sha256Hex(ReadBytes(shipped / relative)));
+    }
 
-    const std::vector<std::string> copied_files = RelativeFiles(copied);
-    const std::vector<std::string> shipped_files = RelativeFiles(shipped);
-    REQUIRE(copied_files == shipped_files);
-    REQUIRE_FALSE(copied_files.empty());
+    std::vector<std::string> expected_paths;
+    for (const auto& [path, hash] : expected) {
+        (void)hash;
+        expected_paths.push_back(path);
+    }
+    std::vector<std::string> actual_paths;
+    for (const auto& [path, hash] : actual) {
+        (void)hash;
+        actual_paths.push_back(path);
+    }
+    CHECK(actual_paths == expected_paths);
 
-    for (const std::string& relative : copied_files) {
-        CAPTURE(relative);
-        CHECK(Sha256Hex(ReadBytes(copied / relative))
-              == Sha256Hex(ReadBytes(shipped / relative)));
+    for (const auto& [path, hash] : expected) {
+        CAPTURE(path);
+        const auto found = actual.find(path);
+        if (found == actual.end()) continue;
+        CHECK(found->second == hash);
     }
 }
 
