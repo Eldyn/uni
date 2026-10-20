@@ -103,6 +103,7 @@ version; each release below corresponds to a `vX.Y.Z` git tag.
 
 ### Changed
 
+- **Internal: a match frees its engine events once they are sent** — `MatchSession::EmitEvents` now drains `MatchInstance::Events()` after the sinks and the tail have read them, so the log no longer grows for the whole match: a 16-seat lobby ends a match at about 3.6 MB instead of 8.2 MB, a 4-seat lobby at 3.0 MB instead of 4.0 MB (`uni_soak`). No wire change.
 - **UI polish** — Shop and Wardrobe titles sit top left, the menu popover centers on its button, card art stays square after a live resize, the backdrop shows dithered diagonals again and repaints after resize, and the profile shows one larger non-clickable most-played card with a shaking percentage.
 - **Shop visuals** — the backdrop brings back the diagonal lines as a dithered two-tone pattern, avatar sprites shrink to fit their card in portrait, and the grid returns to six columns with larger previews.
 - **The wardrobe saves** — the avatar loadout loads right after login, so the Wardrobe opens on the saved look after a reload and the top bar icon uses the saved avatar.

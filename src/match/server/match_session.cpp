@@ -773,6 +773,10 @@ void MatchSession::EmitEvents(IBroadcaster& broadcaster) {
             broadcaster.Send(socket, scratch, uWS::OpCode::TEXT);
         }
     }
+    // INFO: every event up to here reached its sinks and the tail, so the
+    //       engine log can release them; a match would keep them all otherwise.
+    engine_->TakeEvents();
+    cursor_ = 0;
     EmitPendingPrompt(broadcaster);
 }
 
