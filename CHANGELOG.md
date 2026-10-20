@@ -103,6 +103,7 @@ version; each release below corresponds to a `vX.Y.Z` git tag.
 
 ### Changed
 
+- **Marketplace backend** — a private wishlist, a 7-day most-bought ranking with wishlist counts, and equipped card-face, card-back and playmat skins are served by new authenticated routes.
 - **UI polish** — Shop and Wardrobe titles sit top left, the menu popover centers on its button, card art stays square after a live resize, the backdrop shows dithered diagonals again and repaints after resize, and the profile shows one larger non-clickable most-played card with a shaking percentage.
 - **Shop visuals** — the backdrop brings back the diagonal lines as a dithered two-tone pattern, avatar sprites shrink to fit their card in portrait, and the grid returns to six columns with larger previews.
 - **The wardrobe saves** — the avatar loadout loads right after login, so the Wardrobe opens on the saved look after a reload and the top bar icon uses the saved avatar.
