@@ -42,6 +42,39 @@ struct CardIdentity {
     std::string kind_id;      /**< frozen `namespace:id` reference. */
 };
 
+/**
+ * @struct CardState
+ * @brief Sparse card state: changes to the dealt members and the card properties.
+ * A card has this component only after its first change.
+ * Not in the component catalog: written only by the card-state ops.
+ */
+struct CardState {
+    std::map<std::string, std::string> member_overrides;  /**< slot name -> member identifier */
+    std::map<std::string, nlohmann::json> properties;     /**< property id -> value */
+    bool operator==(const CardState&) const = default;
+};
+
+/**
+ * @brief The effective slot member: override if present, else the dealt member,
+ *        else an empty string.
+ */
+inline std::string EffectiveMember(
+    const CardState* state,
+    const std::map<std::string, std::string>& dealt,
+    const std::string& slot) {
+    if (state != nullptr) {
+        const auto override_it = state->member_overrides.find(slot);
+        if (override_it != state->member_overrides.end()) {
+            return override_it->second;
+        }
+    }
+    const auto dealt_it = dealt.find(slot);
+    if (dealt_it != dealt.end()) {
+        return dealt_it->second;
+    }
+    return {};
+}
+
 // --- in_zone ---------------------------------------------------------------
 
 /**
