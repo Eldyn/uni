@@ -36,9 +36,7 @@ describe("card_changed contract", () => {
 			{ property: "uni:power", value: 9, previous: 0 },
 			{ property: "uni:label", value: "x", previous: "y" }
 		]) {
-			expect(generated.CardChangedPayloadSchema.safeParse(payload).success).toBe(
-				true
-			);
+			expect(generated.CardChangedPayloadSchema.safeParse(payload).success).toBe(true);
 		}
 	});
 });
