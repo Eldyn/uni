@@ -1,7 +1,7 @@
 <!-- The Shop screen: a shader backdrop, the featured hero, the slot tabs and
      the item grid, with the detail panel over the top. It reads the catalogue
-     and the mock economy. The balance chip lives here (not the TopBar, which is
-     not ours to edit) and shows the amount spent as soon as a buy succeeds. -->
+     and the mock economy. The balance lives in the TopBar's chip; the screen
+     keeps a local copy only to dress the detail panels. -->
 <script lang="ts">
 	import { getCatalogue } from "$lib/avatar/catalogue";
 	import { defaultLoadout } from "$lib/avatar/defaultLoadout";
@@ -25,7 +25,6 @@
 	import SlotTabs from "$components/shop/SlotTabs.svelte";
 	import PaletteCard from "$components/shop/PaletteCard.svelte";
 	import PaletteDetail from "$components/shop/PaletteDetail.svelte";
-	import BlankIcon from "$components/common/BlankIcon.svelte";
 
 	/** A tab either filters to one catalogue slot, or to palettes, or to all. */
 	type TabSlot = AvatarSlot | "palette" | null;
@@ -85,7 +84,6 @@
 	const tabsLabel = $derived(shopItemText("shop_tabs_label", "Shop categories", locale));
 	const gridLabel = $derived(shopItemText("shop_grid_label", "Shop items", locale));
 	const emptyLabel = $derived(shopItemText("shop_empty_slot", "Nothing here yet.", locale));
-	const currencyName = $derived(shopItemText("shop_currency_name", "Blank", locale));
 
 	/** The chosen tab's buyable-now items, plus every owned item, as OWNED. */
 	const items = $derived.by(() => {
@@ -279,12 +277,6 @@
 <div class="shop-screen" style:background-color={HOME_BACKGROUND_HINT_CSS}>
 	<ShopBackdrop dim={0.15} />
 
-	<header class="shop-header">
-		<span class="shop-balance font-pixel" data-balance={balance}>
-			<BlankIcon label={currencyName} />{balance}
-		</span>
-	</header>
-
 	{#if featured}
 		<FeaturedBanner
 			item={featured}
@@ -377,28 +369,10 @@
 		padding: 1rem;
 	}
 
-	.shop-header,
 	.shop-grid,
 	.shop-empty {
 		position: relative;
 		z-index: 1;
-	}
-
-	.shop-header {
-		display: flex;
-		align-items: center;
-		justify-content: flex-end;
-		gap: 1rem;
-	}
-
-	.shop-balance {
-		display: flex;
-		align-items: center;
-		gap: 0.4rem;
-		padding: 0.35rem 0.7rem;
-		border: 2px solid var(--accent);
-		background: var(--surface-deep);
-		color: var(--accent);
 	}
 
 	.shop-grid {

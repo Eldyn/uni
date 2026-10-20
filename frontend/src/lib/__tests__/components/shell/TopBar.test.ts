@@ -3,6 +3,10 @@ import { render, screen } from "@testing-library/svelte";
 
 const lobbyState = { current: null as { invite_code: string; members: unknown[] } | null };
 
+const { balanceState } = vi.hoisted(() => ({
+	balanceState: { balance: 1500 as number | undefined }
+}));
+
 const { avatarState } = vi.hoisted(() => ({
 	avatarState: { loadout: null as { shape: string; skin: string; slots: object } | null }
 }));
@@ -11,7 +15,14 @@ vi.mock("$lib/stores/navigation.svelte", () => ({
 	storeNavigation: { current: "lobbies", goto: vi.fn(() => true) }
 }));
 vi.mock("$lib/stores/auth.svelte", () => ({
-	storeAuth: { username: "eldyn", avatar: "" }
+	storeAuth: { username: "eldyn", avatar: "", isGuest: false }
+}));
+vi.mock("$lib/stores/shop.svelte", () => ({
+	storeShop: {
+		get balance() {
+			return balanceState.balance;
+		}
+	}
 }));
 vi.mock("$lib/stores/avatar.svelte", () => ({ storeAvatar: avatarState }));
 vi.mock("$lib/stores/lobby.svelte", () => ({
@@ -46,6 +57,7 @@ vi.mock("$lib/avatar/useBakedAvatar.svelte", () => ({
 }));
 
 import TopBar from "$components/shell/TopBar.svelte";
+import { storeAuth } from "$stores/auth.svelte";
 
 describe("TopBar", () => {
 	beforeEach(() => {
@@ -54,11 +66,48 @@ describe("TopBar", () => {
 		baked.loadout = null;
 		baked.set.mockClear();
 		baked.destroy.mockClear();
+		balanceState.balance = 1500;
+		storeAuth.isGuest = false;
 	});
 
 	it("shows the username", () => {
 		render(TopBar);
 		expect(screen.getByText("eldyn")).toBeInTheDocument();
+	});
+
+	it("shows the Blank balance chip at the far right, after the identity button", () => {
+		const { container } = render(TopBar);
+
+		const right = container.querySelector(".shell-topbar-right");
+		const chip = right?.querySelector<HTMLElement>("[data-balance]");
+		const identity = right?.querySelector(".shell-topbar-identity");
+
+		expect(chip).toBeInTheDocument();
+		expect(chip?.getAttribute("data-balance")).toBe("1500");
+		expect(chip?.querySelector('.blank-icon[role="img"]')?.getAttribute("aria-label")).toBe(
+			"Blank"
+		);
+		expect(right?.lastElementChild).toBe(chip);
+		expect(identity).not.toBeNull();
+		expect(
+			identity!.compareDocumentPosition(chip!) & Node.DOCUMENT_POSITION_FOLLOWING
+		).toBeTruthy();
+	});
+
+	it("hides the balance chip for a guest", () => {
+		storeAuth.isGuest = true;
+
+		const { container } = render(TopBar);
+
+		expect(container.querySelector("[data-balance]")).toBeNull();
+	});
+
+	it("hides the balance chip when the balance is unknown", () => {
+		balanceState.balance = undefined;
+
+		const { container } = render(TopBar);
+
+		expect(container.querySelector("[data-balance]")).toBeNull();
 	});
 
 	it("bakes the identity avatar from the saved loadout", () => {

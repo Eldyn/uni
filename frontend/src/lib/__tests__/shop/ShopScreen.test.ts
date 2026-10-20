@@ -91,13 +91,11 @@ describe("ShopScreen", () => {
 		expect(screen.queryByRole("heading", { level: 1 })).not.toBeInTheDocument();
 	});
 
-	it("shows the balance chip with the Blank icon", () => {
+	it("has no balance chip; the top bar carries it", () => {
 		const { container } = render(ShopScreen);
 		flushSync();
 
-		const chip = container.querySelector("[data-balance]");
-		expect(chip?.querySelector('.blank-icon[role="img"]')).not.toBeNull();
-		expect(chip?.querySelector(".blank-icon")?.getAttribute("aria-label")).toBe("Blank");
+		expect(container.querySelector("[data-balance]")).toBeNull();
 	});
 
 	it("lists the buyable and owned items of the chosen tab", async () => {
@@ -161,7 +159,7 @@ describe("ShopScreen", () => {
 		expect(screen.queryByRole("dialog")).toBeNull();
 	});
 
-	it("buys an item, updates the balance chip and marks the card owned", async () => {
+	it("buys an item and marks the card owned", async () => {
 		shopMock.buy.mockImplementation(async (id: string): Promise<BuyResult> => {
 			shopMock.owned.add(id);
 			shopMock.balance = 1420;
@@ -174,7 +172,6 @@ describe("ShopScreen", () => {
 		await fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "BUY" }));
 
 		await vi.waitFor(() => expect(shopMock.buy).toHaveBeenCalledWith("uni:hat_cap"));
-		expect(container.querySelector("[data-balance]")?.getAttribute("data-balance")).toBe("1420");
 		expect(screen.getAllByText("OWNED")).toHaveLength(STARTERS.length + 1);
 	});
 
@@ -190,7 +187,7 @@ describe("ShopScreen", () => {
 		await vi.waitFor(() =>
 			expect(within(dialog).getByRole("alert")).toHaveTextContent("Not enough Blank.")
 		);
-		expect(container.querySelector("[data-balance]")?.getAttribute("data-balance")).toBe("1500");
+		expect(container.querySelector("[data-balance]")).toBeNull();
 	});
 
 	it("shows the network reason and leaves the card unowned", async () => {
@@ -205,7 +202,7 @@ describe("ShopScreen", () => {
 		await vi.waitFor(() =>
 			expect(within(dialog).getByRole("alert")).toHaveTextContent(/could not reach/i)
 		);
-		expect(container.querySelector("[data-balance]")?.getAttribute("data-balance")).toBe("1500");
+		expect(container.querySelector("[data-balance]")).toBeNull();
 		expect(screen.getAllByText("OWNED")).toHaveLength(STARTERS.length);
 	});
 
