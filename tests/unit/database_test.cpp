@@ -11,7 +11,7 @@ TEST_CASE("migrations: user_version advances to latest") {
     auto ver = Database::Get().QueryOne("PRAGMA user_version;", {});
     REQUIRE(ver.has_value());
     REQUIRE(ver->has_value());
-    CHECK(ver.value()->Get<int>("user_version") == 14);
+    CHECK(ver.value()->Get<int>("user_version") == 15);
 }
 
 TEST_CASE("migrations: v13 adds users.avatar_loadout as a nullable text column") {
@@ -203,7 +203,7 @@ TEST_CASE("database: migration 14 adds the economy tables") {
     auto ver = Database::Get().QueryOne("PRAGMA user_version;", {});
     REQUIRE(ver.has_value());
     REQUIRE(ver->has_value());
-    CHECK(ver.value()->Get<int>("user_version") == 14);
+    CHECK(ver.value()->Get<int>("user_version") == 15);
 
     auto cols = Database::Get().Query("PRAGMA table_info(users);", {});
     REQUIRE(cols.has_value());
@@ -248,6 +248,30 @@ TEST_CASE("database: migration 14 adds the economy tables") {
         "VALUES (?, ?, ?, ?, ?);",
         {user_id, 20, std::string("match_base"), std::string("migration14-match"), 0});
     CHECK_FALSE(duplicate.has_value());
+}
+
+TEST_CASE("database: migration 15 adds the shop tables and ownership index") {
+    auto applied = Database::Get().RunMigrations();
+    REQUIRE(applied.has_value());
+
+    auto ver = Database::Get().QueryOne("PRAGMA user_version;", {});
+    REQUIRE(ver.has_value());
+    REQUIRE(ver->has_value());
+    CHECK(ver.value()->Get<int>("user_version") == 15);
+
+    for (const char* table : {"wishlist", "user_cosmetics"}) {
+        auto rows = Database::Get().Query(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?;",
+            {std::string(table)});
+        REQUIRE(rows.has_value());
+        CHECK(rows->size() == 1);
+    }
+
+    auto index = Database::Get().Query(
+        "SELECT name FROM sqlite_master WHERE type = 'index' AND name = ?;",
+        {std::string("idx_item_ownership_purchased")});
+    REQUIRE(index.has_value());
+    CHECK(index->size() == 1);
 }
 
 TEST_CASE("DbRow: Get/GetOr/Has round-trip through a real query") {
