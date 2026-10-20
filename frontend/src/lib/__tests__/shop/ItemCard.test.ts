@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/svelte";
 import ItemCard, { itemLabelKey, shopItemText } from "$components/shop/ItemCard.svelte";
+import itemCardSource from "../../components/shop/ItemCard.svelte?raw";
 import { itemPreviewLoadout } from "$lib/avatar/previewLoadout";
 import type { CatalogueItem, Loadout } from "$lib/avatar/types";
 
@@ -37,6 +38,14 @@ function renderCard(item: CatalogueItem, props: Record<string, unknown> = {}) {
 		props: { item, owned: false, selected: false, loadout: viewer, onselect, ...props }
 	});
 	return { onselect, ...utils };
+}
+
+/** The declarations of one CSS rule, read straight from the component source. */
+function cssBlock(source: string, selector: string): string {
+	const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+	const match = source.match(new RegExp(`${escaped}\\s*\\{([^}]*)\\}`));
+	if (!match) throw new Error(`rule not found: ${selector}`);
+	return match[1];
 }
 
 afterEach(cleanup);
@@ -132,5 +141,14 @@ describe("ItemCard", () => {
 
 		const idle = renderCard(makeItem());
 		expect(idle.container.querySelector(".item-card")?.getAttribute("tabindex")).toBe("-1");
+	});
+});
+
+describe("ItemCard art tile CSS", () => {
+	it("keeps the art square after a live resize", () => {
+		const tile = cssBlock(itemCardSource, ".item-art-tile");
+		expect(tile).toMatch(/aspect-ratio:\s*1/);
+		expect(tile).toMatch(/grid-template-columns:\s*minmax\(0,\s*1fr\)/);
+		expect(tile).toMatch(/overflow:\s*hidden/);
 	});
 });

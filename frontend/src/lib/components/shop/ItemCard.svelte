@@ -123,9 +123,11 @@
 
 	.item-art-tile {
 		display: grid;
+		grid-template-columns: minmax(0, 1fr);
 		place-items: center;
 		width: 100%;
 		aspect-ratio: 1;
+		overflow: hidden;
 		border-radius: 0;
 		--pc-fill: var(--surface);
 	}
