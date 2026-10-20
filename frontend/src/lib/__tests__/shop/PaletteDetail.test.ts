@@ -68,7 +68,7 @@ describe("PaletteDetail", () => {
 		expect(screen.getByRole("heading", { name: "Volt" })).toBeInTheDocument();
 		expect(previewSkin(container)).toBe("uni:neon:volt");
 		expect(screen.getByRole("button", { name: "BUY" })).toBeDisabled();
-		expect(screen.getByText("Not enough cash")).toBeInTheDocument();
+		expect(screen.getByText("Not enough Blank")).toBeInTheDocument();
 	});
 
 	it("disables BUY for a color that is not sold alone", async () => {
@@ -112,6 +112,6 @@ describe("PaletteDetail", () => {
 	it("shows a failure reason", () => {
 		renderDetail({ error: "insufficient_cash" });
 
-		expect(screen.getByRole("alert")).toHaveTextContent("Not enough cash.");
+		expect(screen.getByRole("alert")).toHaveTextContent("Not enough Blank.");
 	});
 });

@@ -145,7 +145,7 @@ describe("GameEndPopup race outcome", () => {
 
 		render(GameEndPopup);
 
-		expect(screen.getByText("Earned +100")).toBeInTheDocument();
+		expect(screen.getByText("Earned +100 Blank")).toBeInTheDocument();
 	});
 });
 

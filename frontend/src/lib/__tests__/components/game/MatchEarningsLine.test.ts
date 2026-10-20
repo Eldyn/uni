@@ -18,11 +18,14 @@ describe("MatchEarningsLine", () => {
 		mockAuth.isGuest = false;
 	});
 
-	it("shows what the local player earned with a coin", () => {
+	it("shows what the local player earned with the Blank icon", () => {
 		mockGame.state = { is_over: true, payouts: { alice: 100, bob: 20 } };
 		render(MatchEarningsLine);
-		expect(screen.getByText("Earned +100")).toBeInTheDocument();
-		expect(document.querySelector(".earnings-line .coin")).not.toBeNull();
+		expect(screen.getByText("Earned +100 Blank")).toBeInTheDocument();
+		const icon = document.querySelector(".earnings-line .blank-icon");
+		expect(icon).not.toBeNull();
+		expect(icon).toHaveAttribute("aria-hidden", "true");
+		expect(document.querySelector(".earnings-line .coin")).toBeNull();
 	});
 
 	it("shows nothing when the local player earned nothing", () => {

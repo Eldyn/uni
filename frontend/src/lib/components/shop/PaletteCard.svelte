@@ -2,6 +2,7 @@
      name, and the lowest price still for sale or an OWNED ribbon. -->
 <script lang="ts">
 	import RarityFrame from "$components/shop/RarityFrame.svelte";
+	import BlankIcon from "$components/common/BlankIcon.svelte";
 	import PaletteSwatches from "$components/shop/PaletteSwatches.svelte";
 	import { shopItemText } from "$components/shop/ItemCard.svelte";
 	import { paletteRarity } from "$lib/shop/rarity";
@@ -16,6 +17,7 @@
 	}: { palette: Palette; price: number | null; selected: boolean; onselect: () => void } = $props();
 
 	const locale = $derived(storeI18n.locale);
+	const currencyName = $derived(shopItemText("shop_currency_name", "Blank", locale));
 	const paletteKey = $derived(`shop_palette_${palette.id.replaceAll(":", "_")}`);
 	const name = $derived(shopItemText(paletteKey, palette.name, locale));
 	const ownedLabel = $derived(shopItemText("shop_owned", "OWNED", locale));
@@ -43,7 +45,7 @@
 			<span class="palette-card-owned font-tiny">{ownedLabel}</span>
 		{:else}
 			<span class="palette-card-price font-pixel">
-				<span class="coin" aria-hidden="true"></span>{price}
+				<BlankIcon label={currencyName} />{price}
 			</span>
 		{/if}
 	</RarityFrame>
@@ -105,19 +107,11 @@
 	}
 
 	.palette-card-price {
-		color: var(--gold);
+		color: var(--accent);
 	}
 
 	.palette-card-owned {
 		color: var(--accent);
 		letter-spacing: 0.06em;
-	}
-
-	.coin {
-		display: inline-block;
-		width: 0.6em;
-		height: 0.6em;
-		border-radius: 50%;
-		background: var(--gold);
 	}
 </style>

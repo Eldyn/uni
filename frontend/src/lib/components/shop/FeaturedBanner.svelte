@@ -3,6 +3,7 @@
      actions. It renders nothing when the catalogue has no featured item. -->
 <script lang="ts">
 	import AvatarSprite from "$components/common/AvatarSprite.svelte";
+	import BlankIcon from "$components/common/BlankIcon.svelte";
 	import { itemLabelKey, shopItemText } from "$components/shop/ItemCard.svelte";
 	import { storeI18n } from "$stores/i18n.svelte";
 	import { RARITY_COLOURS, rarityLabelKey } from "$lib/shop/rarity";
@@ -38,6 +39,7 @@
 	});
 
 	const locale = $derived(storeI18n.locale);
+	const currencyName = $derived(shopItemText("shop_currency_name", "Blank", locale));
 	const name = $derived(item ? shopItemText(itemLabelKey(item.id), item.id, locale) : "");
 	const rarityName = $derived(
 		item ? shopItemText(rarityLabelKey(item.rarity), item.rarity, locale) : ""
@@ -74,7 +76,7 @@
 			<h2 class="featured-name">{name}</h2>
 			<p class="featured-rarity">{rarityName}</p>
 			<p class="featured-price">
-				<span class="coin" aria-hidden="true"></span>{item.price}
+				<BlankIcon label={currencyName} />{item.price}
 			</p>
 		</div>
 
@@ -170,7 +172,7 @@
 		align-items: center;
 		gap: 0.3rem;
 		margin: 0;
-		color: var(--gold);
+		color: var(--accent);
 	}
 
 	.featured-actions {
@@ -182,13 +184,5 @@
 	.featured-actions button:disabled {
 		opacity: 0.5;
 		cursor: not-allowed;
-	}
-
-	.coin {
-		display: inline-block;
-		width: 0.6em;
-		height: 0.6em;
-		border-radius: 50%;
-		background: var(--gold);
 	}
 </style>

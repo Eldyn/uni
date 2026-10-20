@@ -3,6 +3,7 @@
 <script lang="ts">
 	import { onMount } from "svelte";
 	import Avatar from "$components/common/Avatar.svelte";
+	import BlankIcon from "$components/common/BlankIcon.svelte";
 	import RarityFrame from "$components/shop/RarityFrame.svelte";
 	import { shopItemText } from "$components/shop/ItemCard.svelte";
 	import { BUY_FAILURE_TEXT } from "$lib/shop/buyFailure";
@@ -37,6 +38,7 @@
 	} = $props();
 
 	const locale = $derived(storeI18n.locale);
+	const currencyName = $derived(shopItemText("shop_currency_name", "Blank", locale));
 	const paletteKey = $derived(`shop_palette_${palette.id.replaceAll(":", "_")}`);
 	const paletteName = $derived(shopItemText(paletteKey, palette.name, locale));
 
@@ -64,7 +66,7 @@
 			: !forSale
 				? shopItemText("shop_swatch_not_sold", "This color is not sold alone.", locale)
 				: tooPoor
-					? shopItemText("shop_insufficient_cash", "Not enough cash", locale)
+					? shopItemText("shop_insufficient_cash", "Not enough Blank", locale)
 					: null
 	);
 
@@ -130,7 +132,7 @@
 
 		{#if forSale && !isOwned}
 			<p class="detail-price font-pixel">
-				<span class="coin" aria-hidden="true"></span>{price}
+				<BlankIcon label={currencyName} />{price}
 			</p>
 		{/if}
 
@@ -247,7 +249,7 @@
 		align-items: center;
 		gap: 0.3rem;
 		margin: 0;
-		color: var(--gold);
+		color: var(--accent);
 	}
 
 	.detail-error {
@@ -271,13 +273,5 @@
 		margin: 0;
 		color: var(--text);
 		text-align: center;
-	}
-
-	.coin {
-		display: inline-block;
-		width: 0.6em;
-		height: 0.6em;
-		border-radius: 50%;
-		background: var(--gold);
 	}
 </style>

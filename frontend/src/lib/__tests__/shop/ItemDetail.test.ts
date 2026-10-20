@@ -73,7 +73,7 @@ describe("ItemDetail", () => {
 	it("disables BUY and shows the reason when the balance is below the price", () => {
 		renderDetail(makeItem(), { balance: 100 });
 		expect(screen.getByRole("button", { name: /buy/i })).toBeDisabled();
-		expect(screen.getByText(/not enough cash/i)).toBeInTheDocument();
+		expect(screen.getByText(/not enough blank/i)).toBeInTheDocument();
 	});
 
 	it("styles BUY as the primary button and TRY ON as the secondary button", () => {
@@ -130,7 +130,7 @@ describe("ItemDetail", () => {
 	});
 
 	const FAILURES: [BuyFailure, RegExp][] = [
-		["insufficient_cash", /not enough cash/i],
+		["insufficient_cash", /not enough blank/i],
 		["already_owned", /already own/i],
 		["not_available", /no longer available/i],
 		["unknown_item", /does not exist/i],

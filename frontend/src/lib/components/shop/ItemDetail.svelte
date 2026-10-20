@@ -5,6 +5,7 @@
 <script lang="ts">
 	import { onMount } from "svelte";
 	import AvatarFit from "$components/common/AvatarFit.svelte";
+	import BlankIcon from "$components/common/BlankIcon.svelte";
 	import RarityFrame from "$components/shop/RarityFrame.svelte";
 	import { itemLabelKey, shopItemText } from "$components/shop/ItemCard.svelte";
 	import { itemPreviewLoadout } from "$lib/avatar/previewLoadout";
@@ -38,6 +39,7 @@
 	} = $props();
 
 	const locale = $derived(storeI18n.locale);
+	const currencyName = $derived(shopItemText("shop_currency_name", "Blank", locale));
 	const name = $derived(shopItemText(itemLabelKey(item.id), item.id, locale));
 	const rarityName = $derived(shopItemText(rarityLabelKey(item.rarity), item.rarity, locale));
 	const preview = $derived(itemPreviewLoadout(item, loadout, owned));
@@ -56,7 +58,7 @@
 		owned
 			? shopItemText("shop_error_already_owned", "You already own this.", locale)
 			: tooPoor
-				? shopItemText("shop_insufficient_cash", "Not enough cash", locale)
+				? shopItemText("shop_insufficient_cash", "Not enough Blank", locale)
 				: null
 	);
 	const failure = $derived(
@@ -94,7 +96,7 @@
 		{rarityName}
 	</p>
 	<p class="detail-price font-pixel">
-		<span class="coin" aria-hidden="true"></span>{item.price}
+		<BlankIcon label={currencyName} />{item.price}
 	</p>
 
 	{#if failure}
@@ -190,7 +192,7 @@
 		align-items: center;
 		gap: 0.3rem;
 		margin: 0;
-		color: var(--gold);
+		color: var(--accent);
 	}
 
 	.detail-error {
@@ -214,13 +216,5 @@
 		margin: 0;
 		color: var(--text);
 		text-align: center;
-	}
-
-	.coin {
-		display: inline-block;
-		width: 0.6em;
-		height: 0.6em;
-		border-radius: 50%;
-		background: var(--gold);
 	}
 </style>

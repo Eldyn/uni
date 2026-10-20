@@ -90,6 +90,15 @@ describe("ShopScreen", () => {
 		expect(screen.queryByRole("heading", { level: 1 })).not.toBeInTheDocument();
 	});
 
+	it("shows the balance chip with the Blank icon", () => {
+		const { container } = render(ShopScreen);
+		flushSync();
+
+		const chip = container.querySelector("[data-balance]");
+		expect(chip?.querySelector('.blank-icon[role="img"]')).not.toBeNull();
+		expect(chip?.querySelector(".blank-icon")?.getAttribute("aria-label")).toBe("Blank");
+	});
+
 	it("lists the buyable and owned items of the chosen tab", async () => {
 		const { container } = render(ShopScreen);
 		flushSync();
@@ -178,7 +187,7 @@ describe("ShopScreen", () => {
 		await fireEvent.click(within(dialog).getByRole("button", { name: "BUY" }));
 
 		await vi.waitFor(() =>
-			expect(within(dialog).getByRole("alert")).toHaveTextContent("Not enough cash.")
+			expect(within(dialog).getByRole("alert")).toHaveTextContent("Not enough Blank.")
 		);
 		expect(container.querySelector("[data-balance]")?.getAttribute("data-balance")).toBe("1500");
 	});
