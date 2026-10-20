@@ -16,6 +16,11 @@ HttpRouter& HttpRouter::Put(const std::string& path, HttpHandler handler) {
     return *this;
 }
 
+HttpRouter& HttpRouter::Delete(const std::string& path, HttpHandler handler) {
+    routes_.emplace_back("DELETE", path, std::move(handler));
+    return *this;
+}
+
 HttpRouter& HttpRouter::OnAny(std::function<bool(AppResponse*, AppRequest*)> handler) {
     wildcards_.push_back(std::move(handler));
     return *this;
@@ -69,6 +74,10 @@ void HttpRouter::Attach(AppHttp& app) {
             });
         } else if (route.method == "PUT") {
             app.put(route.path, [wrapped](AppResponse* res, AppRequest* req) {
+                wrapped(res, req);
+            });
+        } else if (route.method == "DELETE") {
+            app.del(route.path, [wrapped](AppResponse* res, AppRequest* req) {
                 wrapped(res, req);
             });
         } else {
