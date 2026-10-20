@@ -4,6 +4,7 @@ import { storeAuth } from "$lib/stores/auth.svelte";
 import { storeAvatar } from "$stores/avatar.svelte";
 import { storeToast } from "$lib/stores/toast.svelte";
 import { storeNavigation } from "$lib/stores/navigation.svelte";
+import { defaultLoadout } from "$lib/avatar/defaultLoadout";
 import * as m from "$lib/paraglide/messages.js";
 import App from "../../App.svelte";
 
@@ -111,7 +112,7 @@ describe("App", () => {
 
 	it("does not refetch a loadout that is already hydrated", async () => {
 		vi.mocked(storeAuth).isLoggedIn = true;
-		(storeAvatar as { loadout: unknown }).loadout = { shape: "uni:shape_round" };
+		(storeAvatar as { loadout: unknown }).loadout = defaultLoadout();
 
 		render(App);
 
