@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { render, screen, fireEvent } from "@testing-library/svelte";
 import { tick } from "svelte";
 
@@ -128,5 +130,35 @@ describe("NavBar", () => {
 		render(NavBar);
 		const homeLink = screen.getByRole("link", { name: /home/i });
 		expect(homeLink.getAttribute("style")).toContain("--nav-item-color");
+	});
+});
+
+describe("NavBar menu popover CSS", () => {
+	const source = readFileSync(
+		resolve(__dirname, "../../../components/shell/NavBar.svelte"),
+		"utf8"
+	);
+	const popoverRules = [...source.matchAll(/\.menu-grid-popover\s*\{([^}]*)\}/g)].map(
+		(match) => match[1]
+	);
+	// The rail override is the one anchored to the right edge of the Menu item;
+	// the other rule is the mobile bottom sheet.
+	const railRule = popoverRules.find((rule) => /left:\s*100%/.test(rule));
+	const sheetRule = popoverRules.find((rule) => /position:\s*fixed/.test(rule));
+
+	it("centers the rail popover vertically on its button", () => {
+		expect(railRule, "expected a rail .menu-grid-popover rule").toBeTruthy();
+		expect(railRule).toMatch(/top:\s*50%/);
+		expect(railRule).toMatch(/transform:\s*translateY\(-50%\)/);
+		expect(railRule).toMatch(/bottom:\s*auto/);
+		expect(railRule).not.toMatch(/bottom:\s*0[;\s]/);
+		expect(railRule).toMatch(/left:\s*100%/);
+		expect(railRule).toMatch(/margin-left:\s*var\(--space-2\)/);
+	});
+
+	it("leaves the mobile bottom sheet anchored to the bar", () => {
+		expect(sheetRule, "expected the mobile .menu-grid-popover sheet").toBeTruthy();
+		expect(sheetRule).toMatch(/bottom:\s*var\(--menu-sheet-bottom\)/);
+		expect(sheetRule).not.toMatch(/top:\s*50%/);
 	});
 });

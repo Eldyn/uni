@@ -284,13 +284,17 @@
 			flex: none;
 			width: 100%;
 		}
-		/* Popover layout (rail): anchored to the right of the Menu item,
-		   bottom-aligned with it. About three tiles wide. */
+		/* Popover layout (rail): anchored to the right of the Menu item and
+		   centered on it vertically — the popover is taller than the button,
+		   so bottom-aligning the two misplaces the visual center. About three
+		   tiles wide. */
 		.menu-grid-popover {
 			position: absolute;
 			left: 100%;
 			right: auto;
-			bottom: 0;
+			bottom: auto;
+			top: 50%;
+			transform: translateY(-50%);
 			margin-left: var(--space-2);
 		}
 		.shell-navbar-item[aria-current="page"]::after {
