@@ -107,6 +107,7 @@ components:
     hands_passed: HandsPassedPayload
     hands_redistributed: HandsRedistributedPayload
     card_moved: CardMovedPayload
+    card_changed: CardChangedPayload
     card_created: CardCreatedPayload
     card_removed: CardRemovedPayload
     card_replaced: CardReplacedPayload
@@ -1920,6 +1921,34 @@ components:
         target:
           $ref: "#/components/schemas/PlayerRef"
           description: The seat whose hand the card entered. Absent for a pile.
+
+    CardChangedPayload:
+      type: object
+      x-packet-version: "1"
+      properties:
+        card:
+          $ref: "#/components/schemas/CompactCardV2"
+          description: >
+            The changed card. The server sends it only when the viewer may see
+            the card identity.
+        target:
+          $ref: "#/components/schemas/PlayerRef"
+          description: The seat that holds the card, when it is in a hand.
+        slot:
+          type: string
+          description: The attribute slot that changed (member change).
+        member:
+          type: string
+          description: The new member identifier. Absent when the viewer may not see it.
+        property:
+          type: string
+          description: The card property that changed (property change).
+        value:
+          x-any: true
+          description: The new property value. Absent when the viewer may not see it.
+        previous:
+          x-any: true
+          description: The old member or property value. Absent when the viewer may not see it.
 
     CardCreatedPayload:
       type: object
