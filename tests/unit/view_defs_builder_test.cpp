@@ -100,14 +100,14 @@ TEST_CASE("view defs: builds the frozen mod and kind table") {
         match::view::DefsBuilder::Build(assembly->registries, content.mods);
 
     REQUIRE(defs["mods"].is_array());
-    CHECK(defs["mods"].size() == assembly->registries.mods.size());
+    CHECK(defs["mods"].size() == assembly->registries.content->mods.size());
     CHECK(defs["mods"][0]["id"] == "uni");
     CHECK_FALSE(defs["mods"][0]["version"].get<std::string>().empty());
     CHECK(defs["mods"][0]["index"] == 0);
 
     std::size_t expected_kinds = 0;
     for (const std::vector<std::string>& kinds :
-         assembly->registries.kinds_by_mod) {
+         assembly->registries.content->kinds_by_mod) {
         expected_kinds += kinds.size();
     }
     REQUIRE(defs["kinds"].is_array());

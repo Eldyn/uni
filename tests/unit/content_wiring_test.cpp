@@ -79,21 +79,23 @@ TEST_CASE("content_wiring: loads card tags into the per-match table") {
     CardDef unnamed;  // INFO: empty kind id is ignored.
     unnamed.tags = {"ignored"};
 
+    auto content = std::make_shared<match::engine::AssemblyContent>();
+    match::wiring::LoadCardTags({red, blue, unnamed}, content->card_tags);
     MatchRegistries registries;
-    match::wiring::LoadCardTags({red, blue, unnamed}, registries.card_tags);
+    registries.content = content;
 
     CHECK(CardHasTag(&registries, "uni:red_5", "stackable"));
     CHECK(CardHasTag(&registries, "uni:red_5", "red"));
     CHECK(CardHasTag(&registries, "uni:blue_2", "cold"));
     CHECK_FALSE(CardHasTag(&registries, "uni:red_5", "cold"));
     CHECK_FALSE(CardHasTag(&registries, "", "ignored"));
-    CHECK(registries.card_tags.size() == 2);
+    CHECK(content->card_tags.size() == 2);
 
     // INFO: a later load replaces the previous table entirely.
-    match::wiring::LoadCardTags({blue}, registries.card_tags);
+    match::wiring::LoadCardTags({blue}, content->card_tags);
     CHECK_FALSE(CardHasTag(&registries, "uni:red_5", "stackable"));
     CHECK(CardHasTag(&registries, "uni:blue_2", "cold"));
-    CHECK(registries.card_tags.size() == 1);
+    CHECK(content->card_tags.size() == 1);
 }
 
 TEST_CASE("content_wiring: WireContent installs conditions and tags") {
@@ -102,9 +104,10 @@ TEST_CASE("content_wiring: WireContent installs conditions and tags") {
     card.kind_id = "uni:red_7";
     card.tags = {"stackable"};
 
+    auto content = std::make_shared<match::engine::AssemblyContent>();
+    match::wiring::WireContent(harness.conditions, {card}, content->card_tags);
     MatchRegistries registries;
-    match::wiring::WireContent(harness.conditions, {card},
-                               registries.card_tags);
+    registries.content = content;
 
     CHECK(harness.conditions.Has("turns_elapsed"));
     CHECK(CardHasTag(&registries, "uni:red_7", "stackable"));

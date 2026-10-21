@@ -7,6 +7,7 @@
 
 #include <cstdint>
 #include <map>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -144,7 +145,13 @@ struct FaceSpec {
  * graphs, already post-mutation once assembly has applied them.
  */
 struct CardBehavior {
-    std::map<std::string, nlohmann::json> triggers;
+    /**
+     * @brief Trigger name -> graph JSON.
+     *
+     * The JSON is shared between every card of the kind and every match built
+     * from the same content; only the map nodes are per card.
+     */
+    std::map<std::string, std::shared_ptr<const nlohmann::json>> triggers;
 };
 
 // --- auto_trigger ----------------------------------------------------------

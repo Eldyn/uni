@@ -376,8 +376,8 @@ json CardEntry(const match::engine::MatchInstance& match, ecs::Entity card,
         if (identity != nullptr) out["kind"] = kind;
     }
     if (HasAspect(mask, kAspectColor) || HasAspect(mask, kAspectValue)) {
-        const auto facts = match.Assembly().card_facts.find(kind);
-        if (facts != match.Assembly().card_facts.end()) {
+        const auto facts = match.Assembly().CardFacts().find(kind);
+        if (facts != match.Assembly().CardFacts().end()) {
             if (HasAspect(mask, kAspectColor)) {
                 out["color"] = facts->second.color;
             }
@@ -1028,27 +1028,27 @@ nlohmann::json ViewBuilder::BuildSnapshot(
         json members = json::object();
         for (const auto& [slot, member] : component->member_overrides) {
             const auto dealt_kind =
-                registries.kind_slot_members.find(kind_id);
-            if (dealt_kind != registries.kind_slot_members.end()) {
+                registries.content->kind_slot_members.find(kind_id);
+            if (dealt_kind != registries.content->kind_slot_members.end()) {
                 const auto dealt = dealt_kind->second.find(slot);
                 if (dealt != dealt_kind->second.end()
                     && dealt->second == member) {
                     continue;
                 }
             }
-            const auto attribute = registries.member_attribute.find(member);
-            if (attribute == registries.member_attribute.end()) continue;
+            const auto attribute = registries.content->member_attribute.find(member);
+            if (attribute == registries.content->member_attribute.end()) continue;
             const auto visibility =
-                registries.attribute_visibility.find(attribute->second);
-            if (visibility == registries.attribute_visibility.end()) continue;
+                registries.content->attribute_visibility.find(attribute->second);
+            if (visibility == registries.content->attribute_visibility.end()) continue;
             if (!visible_to(visibility->second)) continue;
             members[slot] = member;
         }
 
         json properties = json::object();
         for (const auto& [property_id, value] : component->properties) {
-            const auto property = registries.card_properties.find(property_id);
-            if (property == registries.card_properties.end()) continue;
+            const auto property = registries.content->card_properties.find(property_id);
+            if (property == registries.content->card_properties.end()) continue;
             if (value == property->second.default_value) continue;
             // INFO: a non-synced property never reaches the wire, even when
             //       its visibility is public.

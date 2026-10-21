@@ -111,11 +111,13 @@ void AttachPassHandsSystem(MatchInstance& engine) {
     system.registration_index = 0;
     system.hook = ecs::HookId{"play", ecs::HookPhase::kAfter};
     system.source_id = "test:pass_hands_probe";
-    system.graph.nodes = json::array(
+    BehaviorGraph graph;
+    graph.nodes = json::array(
         {json{{"id", "n1"},
               {"op", "pass_hands"},
               {"args", json{{"direction", "forward"}}}}});
-    system.graph.raw = json{{"nodes", system.graph.nodes}};
+    graph.raw = json{{"nodes", graph.nodes}};
+    system.graph = std::move(graph);
     const std::size_t index = assembly.systems.size();
     assembly.systems.push_back(std::move(system));
     MatchAssembly* self = &engine.Assembly();
@@ -133,11 +135,13 @@ void AttachSwapHandsSystem(MatchInstance& engine) {
     system.registration_index = 0;
     system.hook = ecs::HookId{"play", ecs::HookPhase::kAfter};
     system.source_id = "test:swap_hands_probe";
-    system.graph.nodes = json::array(
+    BehaviorGraph graph;
+    graph.nodes = json::array(
         {json{{"id", "n1"},
               {"op", "swap_hands"},
               {"args", json{{"a", "@self"}, {"b", "@choose_player"}}}}});
-    system.graph.raw = json{{"nodes", system.graph.nodes}};
+    graph.raw = json{{"nodes", graph.nodes}};
+    system.graph = std::move(graph);
     const std::size_t index = assembly.systems.size();
     assembly.systems.push_back(std::move(system));
     MatchAssembly* self = &engine.Assembly();

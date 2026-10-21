@@ -15,6 +15,7 @@
 #include <filesystem>
 #include <iostream>
 #include <memory>
+#include <optional>
 #include <sstream>
 #include <string>
 #include <utility>
@@ -107,7 +108,9 @@ Content LoadContent(const std::vector<StreakDef>& streaks) {
     return content;
 }
 
-std::unique_ptr<MatchInstance> MakeEngine(Content& content) {
+std::unique_ptr<MatchInstance> MakeEngine(
+    Content& content,
+    std::optional<std::vector<std::string>> event_context = std::nullopt) {
     MatchAssemblyOptions options;
     options.starting_cards = 7;
     options.seed = 42;
@@ -116,13 +119,15 @@ std::unique_ptr<MatchInstance> MakeEngine(Content& content) {
         spec.username = "player" + std::to_string(index);
         options.players.push_back(spec);
     }
+    AssemblyContentResult prepared =
+        MatchAssembler::PrepareContent(content.mods, content.deck);
+    REQUIRE(prepared.ok());
+    prepared.content->events[kEventId].context =
+        event_context.value_or(std::vector<std::string>{"test:apple_total"});
     AssemblyResult result =
-        MatchAssembler::Assemble(content.mods, content.deck, options);
+        MatchAssembler::Assemble(prepared.content, content.deck, options);
     REQUIRE(result.ok());
-    auto engine = std::make_unique<MatchInstance>(std::move(result.assembly));
-    engine->Assembly().registries.events[kEventId].context = {
-        "test:apple_total"};
-    return engine;
+    return std::make_unique<MatchInstance>(std::move(result.assembly));
 }
 
 void AttachAppleSystem(MatchInstance& engine) {
@@ -236,9 +241,8 @@ TEST_CASE("streak context: an event that asks for nothing has no context") {
 
 TEST_CASE("streak context: a name that no streak defines is skipped") {
     Content content = LoadContent({AppleStreak("apple_total", "total")});
-    std::unique_ptr<MatchInstance> engine = MakeEngine(content);
-    engine->Assembly().registries.events[kEventId].context = {
-        "test:missing"};
+    std::unique_ptr<MatchInstance> engine =
+        MakeEngine(content, std::vector<std::string>{"test:missing"});
     AttachAppleSystem(*engine);
     DrawOnce(*engine);
     const std::vector<json> apples =
@@ -284,9 +288,9 @@ TEST_CASE("streak leak: a streak over a hidden field reads nothing of it") {
     last_color.value_field = "color";
     Content content = LoadContent({AppleStreak("apple_total", "total"),
                                    by_secret, last_secret, last_color});
-    std::unique_ptr<MatchInstance> engine = MakeEngine(content);
-    engine->Assembly().registries.events[kEventId].context = {
-        "test:by_secret", "test:last_secret", "test:last_color"};
+    std::unique_ptr<MatchInstance> engine = MakeEngine(
+        content, std::vector<std::string>{"test:by_secret", "test:last_secret",
+                                          "test:last_color"});
     AttachAppleSystem(*engine);
     DrawOnce(*engine);
     CHECK(engine->Streaks().ValueOf("test:by_secret") == json{{"", 1}});

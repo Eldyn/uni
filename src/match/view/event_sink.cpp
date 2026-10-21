@@ -41,7 +41,7 @@ json ProjectCardPlayed(const match::engine::MatchInstance& match,
     //       is public too), so the tags of its kind are public. A streak
     //       reads them with the `has_tag` test.
     json tags = json::array();
-    const auto& table = match.Registries().card_tags;
+    const auto& table = match.Registries().content->card_tags;
     const auto declared =
         payload.contains("card") ? table.find(KindIdFor(match, payload["card"]))
                                  : table.end();
@@ -320,7 +320,7 @@ json ProjectCardChanged(const match::engine::MatchInstance& match,
     }
     bool synced = true;
     if (payload.contains("property") && payload["property"].is_string()) {
-        const auto& properties = match.Registries().card_properties;
+        const auto& properties = match.Registries().content->card_properties;
         const auto property =
             properties.find(payload["property"].get<std::string>());
         synced = property != properties.end()
@@ -376,7 +376,7 @@ json ProjectAutoPlayed(const match::engine::MatchInstance& match,
     //       kind are public too. The `auto_play` binding reads them to skip a
     //       wild (same contract as the `card_played` tags).
     json tags = json::array();
-    const auto& table = match.Registries().card_tags;
+    const auto& table = match.Registries().content->card_tags;
     const auto declared =
         payload.contains("card") ? table.find(KindIdFor(match, payload["card"]))
                                  : table.end();

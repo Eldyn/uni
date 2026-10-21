@@ -107,11 +107,14 @@ ecs::CardBehavior ToEcsBehavior(
         if (mutated) {
             const modload::BehaviorGraph compiled = CompileMutations(
                 entry.graph, target->second, compile_options);
-            out.triggers[entry.hook] = compiled.raw;
+            out.triggers[entry.hook] =
+                std::make_shared<const json>(compiled.raw);
         } else if (entry.graph.raw.is_object()) {
-            out.triggers[entry.hook] = entry.graph.raw;
+            out.triggers[entry.hook] =
+                std::make_shared<const json>(entry.graph.raw);
         } else {
-            out.triggers[entry.hook] = json{{"nodes", entry.graph.nodes}};
+            out.triggers[entry.hook] =
+                std::make_shared<const json>(json{{"nodes", entry.graph.nodes}});
         }
     }
     return out;
@@ -344,10 +347,13 @@ std::string OpenDiscard(ecs::EntityStore& store, ecs::Entity draw_pile,
 
 // --- MatchRegistries -------------------------------------------------------
 
+MatchRegistries::MatchRegistries()
+    : content(std::make_shared<AssemblyContent>()) {}
+
 std::optional<KindIndex> MatchRegistries::FindKind(
     const std::string& kind_id) const {
-    const auto it = kind_index.find(kind_id);
-    if (it == kind_index.end()) return std::nullopt;
+    const auto it = content->kind_index.find(kind_id);
+    if (it == content->kind_index.end()) return std::nullopt;
     return it->second;
 }
 
@@ -453,12 +459,11 @@ void MatchAssembly::RunSystem(std::size_t index, ecs::HookPayload& payload) {
 
 // --- MatchAssembler --------------------------------------------------------
 
-AssemblyResult MatchAssembler::Assemble(
+AssemblyContentResult MatchAssembler::PrepareContent(
     const std::vector<modload::LoadedMod>& mods,
-    const modload::DeckDef& deck,
-    const MatchAssemblyOptions& options) {
+    const modload::DeckDef& deck) {
     auto fail = [](std::string check, std::string message) {
-        AssemblyResult result;
+        AssemblyContentResult result;
         result.error = AssemblyError{std::move(check), std::move(message)};
         return result;
     };
@@ -471,16 +476,9 @@ AssemblyResult MatchAssembler::Assemble(
                     "active mod count " + std::to_string(deck.mods.size())
                         + " exceeds " + std::to_string(ecs::kMaxMods));
     }
-    if (options.players.empty()) {
-        return fail("assembly.no_players", "no players seated");
-    }
-    if (options.starting_cards < 0) {
-        return fail("assembly.starting_cards",
-                    "starting_cards must be non-negative");
-    }
 
     // INFO: freeze the mod list in the deck's declared order (priority).
-    MatchRegistries registries;
+    auto content = std::make_shared<AssemblyContent>();
     std::vector<const modload::LoadedMod*> active;
     active.reserve(deck.mods.size());
     std::set<std::string> seen_mods;
@@ -495,7 +493,7 @@ AssemblyResult MatchAssembler::Assemble(
                                                     + "' is not available");
         }
         active.push_back(found);
-        registries.mods.push_back(
+        content->mods.push_back(
             ecs::ModRef{found->manifest.id, found->manifest.version});
     }
 
@@ -516,41 +514,15 @@ AssemblyResult MatchAssembler::Assemble(
                             + std::to_string(ecs::kMaxKindsPerMod));
         }
         const uint32_t mod_index =
-            static_cast<uint32_t>(registries.kinds_by_mod.size());
+            static_cast<uint32_t>(content->kinds_by_mod.size());
         for (uint32_t ki = 0; ki < kinds.size(); ++ki) {
-            registries.kind_index[kinds[ki]] = KindIndex{mod_index, ki};
+            content->kind_index[kinds[ki]] = KindIndex{mod_index, ki};
         }
-        registries.kinds_by_mod.push_back(std::move(kinds));
-    }
-
-    // INFO: validate the deck multiset against the frozen kind table and the
-    //       per-kind instance bound.
-    std::map<std::string, int> counts;
-    for (const std::pair<std::string, int>& entry : deck.cards) {
-        if (entry.second < 0) {
-            return fail("assembly.copy_count",
-                        "negative count for kind '" + entry.first + "'");
-        }
-        if (static_cast<uint32_t>(entry.second)
-            > ecs::kMaxInstancesPerKind) {
-            return fail("assembly.copy_count",
-                        "kind '" + entry.first + "' count "
-                            + std::to_string(entry.second) + " exceeds "
-                            + std::to_string(ecs::kMaxInstancesPerKind));
-        }
-        if (registries.kind_index.find(entry.first)
-            == registries.kind_index.end()) {
-            return fail("assembly.unknown_kind",
-                        "kind '" + entry.first
-                            + "' is not in the active mod set");
-        }
-        counts[entry.first] = entry.second;
+        content->kinds_by_mod.push_back(std::move(kinds));
     }
 
     // INFO: Content-static facts for the lookup and the tag table.
     std::vector<modload::CardDef> active_cards;
-    std::map<std::string, modload::PlayCardFacts> card_facts;
-    std::map<std::string, bool> numbered;
     for (const modload::LoadedMod* mod : active) {
         for (const modload::CardDef& card : mod->cards) {
             if (!modload::CardActive(card, deck.mods)) continue;
@@ -558,8 +530,8 @@ AssemblyResult MatchAssembler::Assemble(
             facts.color = card.face.color.value_or("");
             facts.value = card.face.label.value_or("");
             facts.tags = card.tags;
-            card_facts[card.kind_id] = std::move(facts);
-            numbered[card.kind_id] = IsNumbered(card);
+            content->card_facts[card.kind_id] = std::move(facts);
+            content->numbered[card.kind_id] = IsNumbered(card);
             active_cards.push_back(card);
         }
     }
@@ -569,21 +541,21 @@ AssemblyResult MatchAssembler::Assemble(
     for (const modload::LoadedMod* mod : active) {
         for (const cardschema::AttributeDef& attribute :
              mod->card_schema.attributes) {
-            registries.attribute_visibility[attribute.identifier] =
+            content->attribute_visibility[attribute.identifier] =
                 attribute.visibility;
         }
         for (const cardschema::MemberDef& member : mod->card_schema.members) {
-            registries.member_attribute[member.identifier] = member.attribute;
+            content->member_attribute[member.identifier] = member.attribute;
         }
         for (const cardschema::PropertyDef& property :
              mod->card_schema.properties) {
             if (property.scope == "card") {
-                registries.card_properties[property.identifier] = property;
+                content->card_properties[property.identifier] = property;
             }
         }
     }
     for (const modload::CardDef& card : active_cards) {
-        registries.kind_slot_members[card.kind_id] = card.slot_members;
+        content->kind_slot_members[card.kind_id] = card.slot_members;
     }
 
     // INFO: mutations are applied at assembly, not walk time.
@@ -644,9 +616,197 @@ AssemblyResult MatchAssembler::Assemble(
         }
     }
 
+    // INFO: The tag table is shared per mod set
+    //       (`registries.content->card_tags`), never a process global, so
+    //       concurrent matches with different content cannot clobber each
+    //       other's `has_card_tag` / `draw_penalty` / `tag:` semantics.
+    wiring::LoadCardTags(active_cards, content->card_tags);
+
+    // INFO: the outcome-table registry is shared per mod set like `card_tags`.
+    //       Flatten every active mod's tables so `roll_table` resolves them.
+    {
+        std::vector<modload::TableDef> active_tables;
+        for (const modload::LoadedMod* mod : active) {
+            for (const modload::TableDef& table : mod->tables) {
+                active_tables.push_back(table);
+            }
+        }
+        wiring::LoadTables(active_tables, content->tables);
+    }
+
+    // INFO: entity/presentation registries are shared per mod set like
+    //       `tables`.
+    //       Flatten every active mod's defs so the `defs` packet can publish
+    //       them and the client entity runtime can resolve by def id.
+    {
+        std::vector<modload::EntityDef> active_entities;
+        std::vector<modload::PresentationDef> active_presentations;
+        std::vector<modload::EventDef> active_events;
+        std::vector<modload::StreakDef> active_streaks;
+        std::vector<modload::DerivedEventDef> active_derived;
+        std::vector<modload::BindingDef> active_bindings;
+        for (const modload::LoadedMod* mod : active) {
+            for (const modload::EntityDef& entity : mod->entities) {
+                active_entities.push_back(entity);
+            }
+            for (const modload::PresentationDef& presentation :
+                 mod->presentations) {
+                active_presentations.push_back(presentation);
+            }
+            for (const modload::EventDef& event : mod->events) {
+                active_events.push_back(event);
+            }
+            for (const modload::StreakDef& streak : mod->streaks) {
+                active_streaks.push_back(streak);
+            }
+            for (const modload::DerivedEventDef& derived :
+                 mod->derived_events) {
+                active_derived.push_back(derived);
+            }
+            for (const modload::BindingDef& binding : mod->bindings) {
+                active_bindings.push_back(binding);
+            }
+        }
+        wiring::LoadEntities(active_entities, content->entities);
+        wiring::LoadPresentations(active_presentations,
+                                  content->presentations);
+        wiring::LoadEvents(active_events, content->events);
+        wiring::LoadStreaks(active_streaks, content->streaks);
+        wiring::LoadDerived(active_derived, content->derived);
+        wiring::LoadBindings(active_bindings, content->bindings);
+    }
+
+    // INFO: freeze one component set per kind; assembly copies it onto every
+    //       card entity, and the behavior graph JSON stays shared.
+    for (const modload::CardDef& card : active_cards) {
+        CardKindContent kind;
+        kind.face = ToEcsFace(card.face);
+        kind.behavior = ToEcsBehavior(card, mutations_by_target,
+                                      compile_options);
+        if (card.window.has_value()) {
+            kind.window = ToEcsWindow(*card.window);
+        }
+        if (card.auto_trigger.has_value()) {
+            kind.auto_trigger = ToEcsAutoTrigger(*card.auto_trigger);
+        }
+        content->kinds[card.kind_id] = std::move(kind);
+    }
+
+    // --- systems: rules then card behaviors, frozen order -------
+    for (const modload::LoadedMod* mod : active) {
+        uint32_t registration = 0;
+        for (const modload::RuleDef& rule : mod->rules) {
+            for (const modload::BehaviorEntry& entry : rule.hooks) {
+                const std::optional<ecs::HookId> hook =
+                    ResolveEntryHook(entry);
+                if (!hook.has_value()) continue;
+                ModSystem system;
+                system.mod_id = mod->manifest.id;
+                system.registration_index = registration++;
+                system.hook = *hook;
+                system.source_id = rule.rule_id;
+                system.where = entry.where;
+                system.graph = entry.graph;
+                if (const auto mutated = mutations_by_target.find(rule.rule_id);
+                    mutated != mutations_by_target.end()) {
+                    // INFO: compiled here so the Resolver walks the effective
+                    //       graph; `call_original` never reaches it.
+                    system.graph = CompileMutations(entry.graph, mutated->second,
+                                                    compile_options);
+                }
+                content->systems.push_back(std::move(system));
+            }
+        }
+        for (const modload::CardDef& card : mod->cards) {
+            if (!modload::CardActive(card, deck.mods)) continue;
+            for (const modload::BehaviorEntry& entry : card.behaviors) {
+                const std::optional<ecs::HookId> hook =
+                    ResolveEntryHook(entry);
+                if (!hook.has_value()) continue;
+                ModSystem system;
+                system.mod_id = mod->manifest.id;
+                system.registration_index = registration++;
+                system.hook = *hook;
+                system.source_id = card.kind_id;
+                system.card_kind = card.kind_id;
+                system.graph = entry.graph;
+                if (const auto mutated = mutations_by_target.find(card.kind_id);
+                    mutated != mutations_by_target.end()) {
+                    // INFO: the subscribed card behavior graph is what the bus
+                    //       walks; compile it exactly like the component above.
+                    system.graph = CompileMutations(entry.graph, mutated->second,
+                                                    compile_options);
+                }
+                content->systems.push_back(std::move(system));
+            }
+        }
+    }
+
+    return AssemblyContentResult{std::move(content), std::nullopt};
+}
+
+AssemblyResult MatchAssembler::Assemble(
+    std::shared_ptr<const AssemblyContent> content,
+    const modload::DeckDef& deck,
+    const MatchAssemblyOptions& options) {
+    auto fail = [](std::string check, std::string message) {
+        AssemblyResult result;
+        result.error = AssemblyError{std::move(check), std::move(message)};
+        return result;
+    };
+
+    if (content == nullptr) {
+        return fail("assembly.no_content", "no prepared content");
+    }
+    if (content->mods.size() != deck.mods.size()) {
+        return fail("assembly.content_mismatch",
+                    "prepared content has "
+                        + std::to_string(content->mods.size())
+                        + " mod(s), deck declares "
+                        + std::to_string(deck.mods.size()));
+    }
+    for (std::size_t i = 0; i < deck.mods.size(); ++i) {
+        if (content->mods[i].id == deck.mods[i]) continue;
+        return fail("assembly.content_mismatch",
+                    "prepared content mod '" + content->mods[i].id
+                        + "' does not match deck mod '" + deck.mods[i] + "'");
+    }
+    if (options.players.empty()) {
+        return fail("assembly.no_players", "no players seated");
+    }
+    if (options.starting_cards < 0) {
+        return fail("assembly.starting_cards",
+                    "starting_cards must be non-negative");
+    }
+
+    // INFO: validate the deck multiset against the frozen kind table and the
+    //       per-kind instance bound.
+    std::map<std::string, int> counts;
+    for (const std::pair<std::string, int>& entry : deck.cards) {
+        if (entry.second < 0) {
+            return fail("assembly.copy_count",
+                        "negative count for kind '" + entry.first + "'");
+        }
+        if (static_cast<uint32_t>(entry.second)
+            > ecs::kMaxInstancesPerKind) {
+            return fail("assembly.copy_count",
+                        "kind '" + entry.first + "' count "
+                            + std::to_string(entry.second) + " exceeds "
+                            + std::to_string(ecs::kMaxInstancesPerKind));
+        }
+        if (content->kind_index.find(entry.first)
+            == content->kind_index.end()) {
+            return fail("assembly.unknown_kind",
+                        "kind '" + entry.first
+                            + "' is not in the active mod set");
+        }
+        counts[entry.first] = entry.second;
+    }
+
     auto assembly = std::make_unique<MatchAssembly>();
-    assembly->registries = registries;
-    assembly->card_facts = card_facts;
+    assembly->registries.content = std::move(content);
+    const AssemblyContent& frozen = *assembly->registries.content;
+
     // INFO: retain the deck identity + settings so the view layer can build
     //       `match_start` and `match_ended` without the caller re-supplying them
     //       (resolves the former match_instance.cpp TODO).
@@ -690,7 +850,7 @@ AssemblyResult MatchAssembler::Assemble(
     // --- match entity ------------------------------------------------------
     reg.match = store.Create();
     ecs::MatchMeta meta;
-    meta.mods = reg.mods;
+    meta.mods = frozen.mods;
     meta.direction = ecs::Direction::kForward;
     meta.round = 0;
     // INFO: fixed once from the seated count; later leavers or bot takeovers
@@ -707,20 +867,12 @@ AssemblyResult MatchAssembler::Assemble(
     store.Add(reg.match, ecs::PendingSchedule{});
 
     // --- cards (kind-sorted, per-kind instance counter) --------------------
-    for (uint32_t mi = 0; mi < reg.kinds_by_mod.size(); ++mi) {
-        const modload::LoadedMod* mod = active[mi];
-        for (uint32_t ki = 0; ki < reg.kinds_by_mod[mi].size(); ++ki) {
-            const std::string& kind_id = reg.kinds_by_mod[mi][ki];
+    for (uint32_t mi = 0; mi < frozen.kinds_by_mod.size(); ++mi) {
+        for (uint32_t ki = 0; ki < frozen.kinds_by_mod[mi].size(); ++ki) {
+            const std::string& kind_id = frozen.kinds_by_mod[mi][ki];
             const auto count_it = counts.find(kind_id);
             const int count = count_it == counts.end() ? 0 : count_it->second;
-            const modload::CardDef* def = nullptr;
-            for (const modload::CardDef& card : mod->cards) {
-                if (!modload::CardActive(card, deck.mods)) continue;
-                if (card.kind_id == kind_id) {
-                    def = &card;
-                    break;
-                }
-            }
+            const auto kind_it = frozen.kinds.find(kind_id);
             for (int instance = 0; instance < count; ++instance) {
                 const std::optional<ecs::CompactCardV2> compact =
                     ecs::MakeCompactCard(mi, ki,
@@ -743,16 +895,14 @@ AssemblyResult MatchAssembler::Assemble(
                 zone.ordinal = static_cast<uint32_t>(reg.cards.size());
                 store.Add(entity, zone);
 
-                if (def != nullptr) {
-                    store.Add(entity, ToEcsFace(def->face));
-                    store.Add(entity, ToEcsBehavior(*def, mutations_by_target,
-                                                    compile_options));
-                    if (def->window.has_value()) {
-                        store.Add(entity, ToEcsWindow(*def->window));
+                if (kind_it != frozen.kinds.end()) {
+                    store.Add(entity, kind_it->second.face);
+                    store.Add(entity, kind_it->second.behavior);
+                    if (kind_it->second.window.has_value()) {
+                        store.Add(entity, *kind_it->second.window);
                     }
-                    if (def->auto_trigger.has_value()) {
-                        store.Add(entity,
-                                  ToEcsAutoTrigger(*def->auto_trigger));
+                    if (kind_it->second.auto_trigger.has_value()) {
+                        store.Add(entity, *kind_it->second.auto_trigger);
                     }
                 }
 
@@ -780,10 +930,10 @@ AssemblyResult MatchAssembler::Assemble(
         DealCards(store, reg.draw_pile, player, options.starting_cards);
     }
     const std::string starter =
-        OpenDiscard(store, reg.draw_pile, reg.discard_pile, numbered);
+        OpenDiscard(store, reg.draw_pile, reg.discard_pile, frozen.numbered);
     if (!starter.empty()) {
-        const auto facts = card_facts.find(starter);
-        if (facts != card_facts.end()) {
+        const auto facts = frozen.card_facts.find(starter);
+        if (facts != frozen.card_facts.end()) {
             if (ecs::ActiveTypeReq* req =
                     store.Get<ecs::ActiveTypeReq>(reg.match);
                 req != nullptr) {
@@ -794,126 +944,20 @@ AssemblyResult MatchAssembler::Assemble(
 
     // --- the validator matcher and the op layer tag table
     // ------------------------------------
+    const auto* facts = &frozen.card_facts;
     assembly->play_matcher = std::make_unique<modload::PlayConditionMatcher>(
-        [facts = card_facts](const std::string& kind_id,
-                             modload::PlayCardFacts& out) {
-            const auto it = facts.find(kind_id);
-            if (it == facts.end()) return false;
+        [facts](const std::string& kind_id,
+                modload::PlayCardFacts& out) {
+            const auto it = facts->find(kind_id);
+            if (it == facts->end()) return false;
             out = it->second;
             return true;
         });
-    // INFO: The tag table is per-match (`registries.card_tags`),
-    //       never a process global, so concurrent assemblies cannot clobber
-    //       each other's `has_card_tag` / `draw_penalty` / `tag:` semantics.
-    wiring::LoadCardTags(active_cards, assembly->registries.card_tags);
-
-    // INFO: the outcome-table registry is per-match like `card_tags`.
-    //       Flatten every active mod's tables so `roll_table` resolves them.
-    {
-        std::vector<modload::TableDef> active_tables;
-        for (const modload::LoadedMod* mod : active) {
-            for (const modload::TableDef& table : mod->tables) {
-                active_tables.push_back(table);
-            }
-        }
-        wiring::LoadTables(active_tables, assembly->registries.tables);
-    }
-
-    // INFO: entity/presentation registries are per-match like `tables`.
-    //       Flatten every active mod's defs so the `defs` packet can publish
-    //       them and the client entity runtime can resolve by def id.
-    {
-        std::vector<modload::EntityDef> active_entities;
-        std::vector<modload::PresentationDef> active_presentations;
-        std::vector<modload::EventDef> active_events;
-        std::vector<modload::StreakDef> active_streaks;
-        std::vector<modload::DerivedEventDef> active_derived;
-        std::vector<modload::BindingDef> active_bindings;
-        for (const modload::LoadedMod* mod : active) {
-            for (const modload::EntityDef& entity : mod->entities) {
-                active_entities.push_back(entity);
-            }
-            for (const modload::PresentationDef& presentation :
-                 mod->presentations) {
-                active_presentations.push_back(presentation);
-            }
-            for (const modload::EventDef& event : mod->events) {
-                active_events.push_back(event);
-            }
-            for (const modload::StreakDef& streak : mod->streaks) {
-                active_streaks.push_back(streak);
-            }
-            for (const modload::DerivedEventDef& derived :
-                 mod->derived_events) {
-                active_derived.push_back(derived);
-            }
-            for (const modload::BindingDef& binding : mod->bindings) {
-                active_bindings.push_back(binding);
-            }
-        }
-        wiring::LoadEntities(active_entities, assembly->registries.entities);
-        wiring::LoadPresentations(active_presentations,
-                                  assembly->registries.presentations);
-        wiring::LoadEvents(active_events, assembly->registries.events);
-        wiring::LoadStreaks(active_streaks, assembly->registries.streaks);
-        wiring::LoadDerived(active_derived, assembly->registries.derived);
-        wiring::LoadBindings(active_bindings, assembly->registries.bindings);
-    }
-
-    // --- systems: rules then card behaviors, frozen order -------
-    for (const modload::LoadedMod* mod : active) {
-        uint32_t registration = 0;
-        for (const modload::RuleDef& rule : mod->rules) {
-            for (const modload::BehaviorEntry& entry : rule.hooks) {
-                const std::optional<ecs::HookId> hook =
-                    ResolveEntryHook(entry);
-                if (!hook.has_value()) continue;
-                ModSystem system;
-                system.mod_id = mod->manifest.id;
-                system.registration_index = registration++;
-                system.hook = *hook;
-                system.source_id = rule.rule_id;
-                system.where = entry.where;
-                system.graph = entry.graph;
-                if (const auto mutated = mutations_by_target.find(rule.rule_id);
-                    mutated != mutations_by_target.end()) {
-                    // INFO: compiled here so the Resolver walks the effective
-                    //       graph; `call_original` never reaches it.
-                    system.graph = CompileMutations(entry.graph, mutated->second,
-                                                    compile_options);
-                }
-                assembly->systems.push_back(std::move(system));
-            }
-        }
-        for (const modload::CardDef& card : mod->cards) {
-            if (!modload::CardActive(card, deck.mods)) continue;
-            for (const modload::BehaviorEntry& entry : card.behaviors) {
-                const std::optional<ecs::HookId> hook =
-                    ResolveEntryHook(entry);
-                if (!hook.has_value()) continue;
-                ModSystem system;
-                system.mod_id = mod->manifest.id;
-                system.registration_index = registration++;
-                system.hook = *hook;
-                system.source_id = card.kind_id;
-                system.card_kind = card.kind_id;
-                system.graph = entry.graph;
-                if (const auto mutated = mutations_by_target.find(card.kind_id);
-                    mutated != mutations_by_target.end()) {
-                    // INFO: the subscribed card behavior graph is what the bus
-                    //       walks; compile it exactly like the component above.
-                    system.graph = CompileMutations(entry.graph, mutated->second,
-                                                    compile_options);
-                }
-                assembly->systems.push_back(std::move(system));
-            }
-        }
-    }
 
     // --- bus wiring, resolver, match_start (installs restrictions) ---------
     std::vector<std::string> mod_order;
-    mod_order.reserve(reg.mods.size());
-    for (const ecs::ModRef& mod : reg.mods) mod_order.push_back(mod.id);
+    mod_order.reserve(frozen.mods.size());
+    for (const ecs::ModRef& mod : frozen.mods) mod_order.push_back(mod.id);
     assembly->bus.SetModOrder(mod_order);
 
     ops::RegisterDefaultOps(assembly->runtime);
@@ -926,6 +970,7 @@ AssemblyResult MatchAssembler::Assemble(
     //       ops emit wire `CompactCardV2.bits`.
     assembly->resolver->SetRegistries(&assembly->registries);
 
+    assembly->systems = frozen.systems;
     for (std::size_t i = 0; i < assembly->systems.size(); ++i) {
         MatchAssembly* self = assembly.get();
         assembly->bus.Subscribe(
@@ -960,6 +1005,19 @@ AssemblyResult MatchAssembler::Assemble(
     AssemblyResult result;
     result.assembly = std::move(assembly);
     return result;
+}
+
+AssemblyResult MatchAssembler::Assemble(
+    const std::vector<modload::LoadedMod>& mods,
+    const modload::DeckDef& deck,
+    const MatchAssemblyOptions& options) {
+    AssemblyContentResult prepared = PrepareContent(mods, deck);
+    if (!prepared.ok()) {
+        AssemblyResult result;
+        result.error = std::move(prepared.error);
+        return result;
+    }
+    return Assemble(std::move(prepared.content), deck, options);
 }
 
 }  // namespace match::engine

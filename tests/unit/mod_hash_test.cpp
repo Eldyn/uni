@@ -150,16 +150,17 @@ FixtureDefs LoadFixtureDefs(const fs::path& mods_root) {
     FixtureDefs fixture;
     fixture.loaded = match::modload::ScanModsDirectory(mods_root.string());
     REQUIRE(fixture.loaded.ok());
+    auto content = std::make_shared<match::engine::AssemblyContent>();
     for (const auto& mod : fixture.loaded.mods) {
-        fixture.registries.mods.push_back(
-            {mod.manifest.id, mod.manifest.version});
-        fixture.registries.kinds_by_mod.emplace_back();
+        content->mods.push_back({mod.manifest.id, mod.manifest.version});
+        content->kinds_by_mod.emplace_back();
     }
     std::vector<match::modload::EventDef> events;
     for (const auto& mod : fixture.loaded.mods) {
         events.insert(events.end(), mod.events.begin(), mod.events.end());
     }
-    match::wiring::LoadEvents(events, fixture.registries.events);
+    match::wiring::LoadEvents(events, content->events);
+    fixture.registries.content = std::move(content);
     return fixture;
 }
 

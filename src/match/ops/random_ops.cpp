@@ -213,7 +213,7 @@ OpResult OpRollTable(ecs::EntityStore& store, const OpArgs& args,
     }
 
     const TableDef* table = ResolveTable(
-        ctx.registries == nullptr ? nullptr : &ctx.registries->tables,
+        ctx.registries == nullptr ? nullptr : &ctx.registries->content->tables,
         table_ref, ctx.mod_id);
     if (table == nullptr || table->entries.empty()) {
         return OpResult::Resolved();

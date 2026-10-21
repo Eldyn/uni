@@ -340,8 +340,10 @@ void AttachStatusPromptSystem(MatchInstance& engine,
     system.registration_index = 0;
     system.hook = ecs::HookId{"status_applied", ecs::HookPhase::kAfter};
     system.source_id = "wp9x_prompt:status_applied";
-    system.graph.nodes = nodes;
-    system.graph.raw = json{{"nodes", nodes}};
+    BehaviorGraph graph;
+    graph.nodes = nodes;
+    graph.raw = json{{"nodes", nodes}};
+    system.graph = std::move(graph);
     const std::size_t index = assembly.systems.size();
     assembly.systems.push_back(std::move(system));
     assembly.bus.Subscribe(

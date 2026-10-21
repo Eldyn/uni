@@ -166,11 +166,13 @@ void CheckGolden(const fs::path& golden, const json& actual) {
 }
 
 json BuildDefs(const LoadResult& loaded) {
-    match::engine::MatchRegistries registries;
+    auto content = std::make_shared<match::engine::AssemblyContent>();
     for (const auto& mod : loaded.mods) {
-        registries.mods.push_back({mod.manifest.id, mod.manifest.version});
-        registries.kinds_by_mod.emplace_back();
+        content->mods.push_back({mod.manifest.id, mod.manifest.version});
+        content->kinds_by_mod.emplace_back();
     }
+    match::engine::MatchRegistries registries;
+    registries.content = std::move(content);
     return match::view::DefsBuilder::Build(registries, loaded.mods);
 }
 

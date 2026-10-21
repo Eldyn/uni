@@ -61,8 +61,14 @@ struct OpHarness {
     OpHarness() {
         match = store.Create();
         store.Add(match, ecs::MatchMeta{});
-        const EventDef wide = WideEvent("test", 8);
-        registries.events[wide.event_id] = wide;
+        AddEvent(WideEvent("test", 8));
+    }
+
+    /** @brief Publish a new mutable content with `definition` registered. */
+    void AddEvent(const EventDef& definition) {
+        auto content = std::make_shared<AssemblyContent>(*registries.content);
+        content->events[definition.event_id] = definition;
+        registries.content = std::move(content);
     }
 
     void SetTurn(uint32_t turn) {
@@ -224,7 +230,7 @@ TEST_CASE("emit_signal: the mod event passes the same checks as "
           "emit_event") {
     OpHarness harness;
     const EventDef foreign = WideEvent("other", 1);
-    harness.registries.events[foreign.event_id] = foreign;
+    harness.AddEvent(foreign);
 
     SUBCASE("a foreign namespace drops the mod event, keeps the signal") {
         const ops::OpResult result = harness.Run(

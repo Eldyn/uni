@@ -105,8 +105,9 @@ TEST_CASE("slot_members_dealt") {
     REQUIRE(result.ok());
 
     const auto found =
-        result.assembly->registries.kind_slot_members.find("uni:red_1");
-    REQUIRE(found != result.assembly->registries.kind_slot_members.end());
+        result.assembly->registries.content->kind_slot_members.find("uni:red_1");
+    REQUIRE(found !=
+            result.assembly->registries.content->kind_slot_members.end());
     const std::map<std::string, std::string> expected = {
         {"color", "uni:red"}, {"value", "uni:1"}};
     CHECK(found->second == expected);
@@ -120,9 +121,10 @@ TEST_CASE("attribute_visibility_loaded") {
         MatchAssembler::Assemble(content.mods, content.deck, Players(2, 0, 1));
     REQUIRE(result.ok());
 
-    const auto found =
-        result.assembly->registries.attribute_visibility.find("uni:color");
-    REQUIRE(found != result.assembly->registries.attribute_visibility.end());
+    const auto found = result.assembly->registries.content->attribute_visibility
+                           .find("uni:color");
+    REQUIRE(found !=
+            result.assembly->registries.content->attribute_visibility.end());
     CHECK(found->second == "public");
 }
 
@@ -135,8 +137,9 @@ TEST_CASE("member_attribute_loaded") {
     REQUIRE(result.ok());
 
     const auto found =
-        result.assembly->registries.member_attribute.find("uni:red");
-    REQUIRE(found != result.assembly->registries.member_attribute.end());
+        result.assembly->registries.content->member_attribute.find("uni:red");
+    REQUIRE(found !=
+            result.assembly->registries.content->member_attribute.end());
     CHECK(found->second == "uni:color");
 }
 
@@ -149,8 +152,9 @@ TEST_CASE("card_property_loaded") {
     REQUIRE(result.ok());
 
     const auto found =
-        result.assembly->registries.card_properties.find("uni:revealed");
-    REQUIRE(found != result.assembly->registries.card_properties.end());
+        result.assembly->registries.content->card_properties.find("uni:revealed");
+    REQUIRE(found !=
+            result.assembly->registries.content->card_properties.end());
     CHECK(found->second.type == "boolean");
     CHECK(found->second.visibility == "owner");
 }
@@ -225,15 +229,15 @@ TEST_CASE("inactive_mod_members_absent") {
     REQUIRE(result.ok());
 
     const auto& registries = result.assembly->registries;
-    CHECK(registries.member_attribute.count("uni:red") == 1);
-    CHECK(registries.member_attribute.count("magenta:magenta") == 0);
-    CHECK(registries.attribute_visibility.count("magenta:suit") == 0);
-    CHECK(registries.card_properties.count("magenta:secret") == 0);
-    for (const auto& [member, attribute] : registries.member_attribute) {
+    CHECK(registries.content->member_attribute.count("uni:red") == 1);
+    CHECK(registries.content->member_attribute.count("magenta:magenta") == 0);
+    CHECK(registries.content->attribute_visibility.count("magenta:suit") == 0);
+    CHECK(registries.content->card_properties.count("magenta:secret") == 0);
+    for (const auto& [member, attribute] : registries.content->member_attribute) {
         (void)attribute;
         CHECK_FALSE(member.starts_with("magenta:"));
     }
-    for (const auto& [kind, slots] : registries.kind_slot_members) {
+    for (const auto& [kind, slots] : registries.content->kind_slot_members) {
         (void)kind;
         for (const auto& [slot, member] : slots) {
             (void)slot;

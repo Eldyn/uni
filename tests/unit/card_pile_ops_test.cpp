@@ -498,7 +498,9 @@ TEST_CASE("card_pile_ops: transfer_card by random, tag and kind") {
     PutInHand(h.store, from, red);
     PutInHand(h.store, from, blue);
 
-    h.registries.card_tags["uni:red_5"] = {"stackable"};
+    auto content = std::make_shared<match::engine::AssemblyContent>();
+    content->card_tags["uni:red_5"] = {"stackable"};
+    h.registries.content = std::move(content);
 
     const OpResult by_tag = h.Invoke(
         "transfer_card", json{{"selector", "tag:stackable"}},

@@ -292,9 +292,9 @@ std::vector<Step> Replay(const MatchInstance& engine,
                          const std::vector<HandSizes>& step_hands,
                          json& replayed_derived, json& live_derived) {
     match::streak::StreakEngine server;
-    server.SetDefinitions(engine.Registries().streaks);
+    server.SetDefinitions(engine.Registries().content->streaks);
     match::streak::DerivedEngine derived;
-    derived.SetDefinitions(engine.Registries().derived);
+    derived.SetDefinitions(engine.Registries().content->derived);
     LogEventPort port(engine);
     std::vector<Step> steps;
     std::size_t index = 0;

@@ -105,12 +105,15 @@ std::unique_ptr<MatchInstance> MakeEngine(
         spec.username = "player" + std::to_string(index);
         options.players.push_back(spec);
     }
-    AssemblyResult result =
-        MatchAssembler::Assemble(content.mods, content.classic, options);
-    REQUIRE(result.ok());
+    AssemblyContentResult prepared =
+        MatchAssembler::PrepareContent(content.mods, content.classic);
+    REQUIRE(prepared.ok());
     for (const StreakDef& streak : extra_streaks) {
-        result.assembly->registries.streaks[streak.streak_id] = streak;
+        prepared.content->streaks[streak.streak_id] = streak;
     }
+    AssemblyResult result =
+        MatchAssembler::Assemble(prepared.content, content.classic, options);
+    REQUIRE(result.ok());
     return std::make_unique<MatchInstance>(std::move(result.assembly));
 }
 

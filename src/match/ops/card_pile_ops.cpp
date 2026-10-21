@@ -343,8 +343,8 @@ bool CoercePropertyValue(
     if (property.type == "member") {
         if (!raw.is_string()) return false;
         const std::string member = raw.get<std::string>();
-        const auto found = registries.member_attribute.find(member);
-        if (found == registries.member_attribute.end()
+        const auto found = registries.content->member_attribute.find(member);
+        if (found == registries.content->member_attribute.end()
             || found->second != property.member_attribute) {
             return false;
         }
@@ -1102,19 +1102,19 @@ OpResult OpSetCardMember(ecs::EntityStore& store, const OpArgs& args,
     const ecs::CardIdentity* identity = store.Get<ecs::CardIdentity>(*card);
     if (identity == nullptr) return OpResult::Resolved();
     const auto dealt_slots =
-        ctx.registries->kind_slot_members.find(identity->kind_id);
-    if (dealt_slots == ctx.registries->kind_slot_members.end()) {
+        ctx.registries->content->kind_slot_members.find(identity->kind_id);
+    if (dealt_slots == ctx.registries->content->kind_slot_members.end()) {
         return OpResult::Resolved();
     }
     const auto dealt_member = dealt_slots->second.find(slot);
     if (dealt_member == dealt_slots->second.end()) return OpResult::Resolved();
 
     const auto dealt_attribute =
-        ctx.registries->member_attribute.find(dealt_member->second);
+        ctx.registries->content->member_attribute.find(dealt_member->second);
     const auto candidate_attribute =
-        ctx.registries->member_attribute.find(member);
-    if (dealt_attribute == ctx.registries->member_attribute.end()
-        || candidate_attribute == ctx.registries->member_attribute.end()
+        ctx.registries->content->member_attribute.find(member);
+    if (dealt_attribute == ctx.registries->content->member_attribute.end()
+        || candidate_attribute == ctx.registries->content->member_attribute.end()
         || candidate_attribute->second != dealt_attribute->second) {
         return OpResult::Resolved();
     }
@@ -1134,9 +1134,9 @@ OpResult OpSetCardMember(ecs::EntityStore& store, const OpArgs& args,
     // INFO: an active mod can deal a card whose attribute belongs to an
     //       inactive mod; a missing attribute is hidden, never public.
     std::string visibility = "hidden";
-    const auto found_visibility = ctx.registries->attribute_visibility.find(
+    const auto found_visibility = ctx.registries->content->attribute_visibility.find(
         dealt_attribute->second);
-    if (found_visibility != ctx.registries->attribute_visibility.end()) {
+    if (found_visibility != ctx.registries->content->attribute_visibility.end()) {
         visibility = found_visibility->second;
     }
 
@@ -1161,8 +1161,8 @@ OpResult OpSetCardProperty(ecs::EntityStore& store, const OpArgs& args,
     if (!args.GetString("property", property_id) || property_id.empty()) {
         return OpResult::Resolved();
     }
-    const auto property = ctx.registries->card_properties.find(property_id);
-    if (property == ctx.registries->card_properties.end()) {
+    const auto property = ctx.registries->content->card_properties.find(property_id);
+    if (property == ctx.registries->content->card_properties.end()) {
         return OpResult::Resolved();
     }
     const json* raw_value = args.Find("value");

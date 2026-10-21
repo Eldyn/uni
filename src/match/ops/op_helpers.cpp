@@ -407,11 +407,12 @@ std::optional<std::string> LastOutcomeTable(const ResolutionFrame& frame,
 
 bool CardHasTag(const engine::MatchRegistries* registries,
                 std::string_view kind_id, std::string_view tag) {
-    // INFO: The table is per-match (`MatchRegistries::card_tags`),
-    //       never a process global, so a concurrent match cannot change this
+    // INFO: The table is shared per mod set
+    //       (`MatchRegistries::content->card_tags`), never a process global,
+    //       so a concurrent match with different content cannot change this
     //       result. A null handle means no assembled match (bare-op tests).
     if (registries == nullptr) return false;
-    const CardTagTable& table = registries->card_tags;
+    const CardTagTable& table = registries->content->card_tags;
     auto it = table.find(std::string(kind_id));
     if (it == table.end()) return false;
     for (const std::string& declared : it->second) {

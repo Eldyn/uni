@@ -18,6 +18,7 @@
  */
 
 namespace match::engine {
+struct AssemblyContent;
 struct MatchRegistries;
 }  // namespace match::engine
 
@@ -46,6 +47,21 @@ public:
      */
     static nlohmann::json Build(
         const match::engine::MatchRegistries& registries,
+        const std::vector<match::modload::LoadedMod>& mods);
+
+    /**
+     * @brief Build the `defs` packet from content shared between matches.
+     *
+     * Same bytes as the registries overload; callers that publish
+     * `AssemblyContent` build the table once here and attach it to
+     * `AssemblyContent::defs` so every session reuses it.
+     *
+     * @param content Frozen content (mod list + kind table + defs registries).
+     * @param mods    Loaded mods, for each kind's face and tags.
+     * @return The `defs` payload, including its digest.
+     */
+    static nlohmann::json Build(
+        const match::engine::AssemblyContent& content,
         const std::vector<match::modload::LoadedMod>& mods);
 
     /**
@@ -93,6 +109,23 @@ public:
         const match::engine::MatchRegistries& registries,
         const std::vector<match::modload::LoadedMod>& mods,
         const std::string& deck_id, const std::string& deck_name,
+        const nlohmann::json& settings = nlohmann::json::object());
+
+    /**
+     * @brief Build the `match_start` packet from an already built `defs` table.
+     *
+     * Reuses the shared DOM instead of rebuilding it, so a match start costs
+     * one `defs` build per content, not per match.
+     *
+     * @param defs      A payload produced by `Build`.
+     * @param deck_id   Deck `namespace:id`, or empty.
+     * @param deck_name Human-readable deck name, or empty.
+     * @param settings  Lobby settings snapshot (defaults to `{}`).
+     * @return The `match_start` payload.
+     */
+    static nlohmann::json BuildMatchStart(
+        const nlohmann::json& defs, const std::string& deck_id,
+        const std::string& deck_name,
         const nlohmann::json& settings = nlohmann::json::object());
 };
 
