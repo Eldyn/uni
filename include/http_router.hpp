@@ -20,7 +20,8 @@ using HttpHandler = std::function<void(AppResponse*, AppRequest*)>;
 
 /**
  * @class HttpRouter
- * @brief Handles the registration and routing of HTTP calls (GET, POST, PUT and middleware).
+ * @brief Handles the registration and routing of HTTP calls (GET, POST, PUT,
+ * DELETE and middleware).
  * * The approach differs slightly from the ActionRouter because uWebSockets requires
  * HTTP routes to be registered explicitly directly on its native instance.
  */
@@ -56,6 +57,14 @@ public:
     HttpRouter& Put(const std::string& path, HttpHandler handler);
 
     /**
+     * @brief Registers a handler for a DELETE route.
+     * @param path The URI path, must start with "/".
+     * @param handler The function to execute.
+     * @return HttpRouter& Reference for chaining.
+     */
+    HttpRouter& Delete(const std::string& path, HttpHandler handler);
+
+    /**
      * @brief Registers a middleware that is executed before any HTTP request.
      * Very useful to configure global logging or CORS headers.
      * * WARNING: If it returns false to interrupt the chain, the middleware
@@ -84,7 +93,7 @@ public:
      * Intended for tests that want to drive a registered handler without a
      * live uWS request; it does not fake `AppRequest`/`AppResponse` and so
      * still requires real (or otherwise obtained) instances of both.
-     * @param method The HTTP method ("GET", "POST" or "PUT").
+     * @param method The HTTP method ("GET", "POST", "PUT" or "DELETE").
      * @param path The exact, registered URI path.
      * @param res Pointer to the HTTP response passed through to the handler.
      * @param req Pointer to the HTTP request passed through to the handler.

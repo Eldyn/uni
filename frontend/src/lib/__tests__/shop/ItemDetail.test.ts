@@ -1,6 +1,7 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/svelte";
 import ItemDetail from "$components/shop/ItemDetail.svelte";
+import { storeCosmetics } from "$stores/cosmetics.svelte";
 import type { BuyFailure } from "$lib/shop/shopBackend";
 import { itemPreviewLoadout } from "$lib/avatar/previewLoadout";
 import type { CatalogueItem, Loadout } from "$lib/avatar/types";
@@ -48,6 +49,10 @@ function renderDetail(item: CatalogueItem, props: Record<string, unknown> = {}) 
 	});
 	return { ...handlers, ...utils };
 }
+
+beforeEach(() => {
+	storeCosmetics.reset();
+});
 
 afterEach(cleanup);
 
@@ -127,6 +132,47 @@ describe("ItemDetail", () => {
 		const { onclose } = renderDetail(makeItem());
 		await fireEvent.keyDown(window, { key: "Escape" });
 		expect(onclose).toHaveBeenCalledTimes(1);
+	});
+
+	const cosmetic = makeItem({ id: "uni:face_neon", slot: "card_face" });
+
+	it("shows Use instead of BUY and TRY ON for an owned cosmetic", () => {
+		renderDetail(cosmetic, { owned: true });
+
+		const use = screen.getByRole("button", { name: /^use$/i });
+		expect(use).toBeEnabled();
+		expect(use).toHaveAttribute("data-cosmetic-use");
+		expect(screen.queryByRole("button", { name: /buy/i })).toBeNull();
+		expect(screen.queryByRole("button", { name: /try on/i })).toBeNull();
+	});
+
+	it("shows a disabled Equipped state for the equipped cosmetic", () => {
+		storeCosmetics.slots = { card_face: cosmetic.id, card_back: null, playmat: null };
+
+		renderDetail(cosmetic, { owned: true });
+
+		const equipped = screen.getByRole("button", { name: /^equipped$/i });
+		expect(equipped).toBeDisabled();
+		expect(equipped).toHaveAttribute("data-cosmetic-equipped");
+		expect(screen.queryByRole("button", { name: /^use$/i })).toBeNull();
+	});
+
+	it("equips the owned cosmetic when Use is clicked", async () => {
+		const equip = vi.spyOn(storeCosmetics, "equip").mockResolvedValue({ ok: true });
+
+		renderDetail(cosmetic, { owned: true });
+		await fireEvent.click(screen.getByRole("button", { name: /^use$/i }));
+
+		expect(equip).toHaveBeenCalledWith("card_face", cosmetic.id);
+		equip.mockRestore();
+	});
+
+	it("keeps BUY and TRY ON for a non-cosmetic item", () => {
+		renderDetail(makeItem(), { owned: true });
+
+		expect(screen.queryByRole("button", { name: /^use$/i })).toBeNull();
+		expect(screen.getByRole("button", { name: /buy/i })).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: /try on/i })).toBeInTheDocument();
 	});
 
 	const FAILURES: [BuyFailure, RegExp][] = [

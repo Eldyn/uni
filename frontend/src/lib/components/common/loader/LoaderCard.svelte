@@ -1,6 +1,7 @@
 <script lang="ts">
 	import TintedSprite from "$components/common/TintedSprite.svelte";
-	import { assetUrl } from "$lib/utils/assetUrl";
+	import { cardBackUrl, cardFaceUrl } from "$lib/cards/skinPaths";
+	import { storeCosmetics } from "$stores/cosmetics.svelte";
 	import type { LoaderFace } from "./loaderFaces";
 
 	let { face, color }: { face: LoaderFace; color?: string } = $props();
@@ -15,12 +16,29 @@
 
 	const cardColor = $derived(color ?? COLOR_MAP[face.type] ?? "inherit");
 	const tinted = $derived(face.value !== "jolly");
-	const faceSrc = $derived(assetUrl(`/assets/cards/${face.value}.png`));
+	const baseFaceSrc = $derived(cardFaceUrl(face.value, null));
+	const skinFaceSrc = $derived(cardFaceUrl(face.value, storeCosmetics.slots.card_face));
+	let failedFaceSrc = $state<string | null>(null);
+	const faceSrc = $derived(failedFaceSrc === skinFaceSrc ? baseFaceSrc : skinFaceSrc);
+	const backSrc = $derived(cardBackUrl(storeCosmetics.slots.card_back));
+	const baseBackSrc = cardBackUrl(null);
+	let failedBackSrc = $state<string | null>(null);
+	const displayBackSrc = $derived(failedBackSrc === backSrc ? baseBackSrc : backSrc);
 </script>
 
 <div class="loader-card" data-testid="loader-card" style="--card-color: {cardColor};">
 	<div class="side front">
 		<img src="/assets/cards/background.png" alt="" class="layer" />
+		{#if skinFaceSrc !== baseFaceSrc && failedFaceSrc !== skinFaceSrc}
+			<img
+				src={skinFaceSrc}
+				alt=""
+				class="skin-probe"
+				aria-hidden="true"
+				data-testid="loader-card-face-probe"
+				onerror={() => (failedFaceSrc = skinFaceSrc)}
+			/>
+		{/if}
 		{#if tinted}
 			<div class="layer">
 				<TintedSprite src={faceSrc} color="var(--card-color)" fit="100% 100%" />
@@ -34,7 +52,13 @@
 		{/if}
 	</div>
 	<div class="side back">
-		<img src="/assets/cards/back.png" alt="" class="layer" />
+		<img
+			src={displayBackSrc}
+			alt=""
+			class="layer"
+			data-testid="loader-card-back"
+			onerror={() => (failedBackSrc = backSrc)}
+		/>
 	</div>
 </div>
 
@@ -61,6 +85,9 @@
 		width: 100%;
 		height: 100%;
 		image-rendering: pixelated;
+	}
+	.skin-probe {
+		display: none;
 	}
 	/* TintedSprite defaults to a fixed 32px icon box; the card art must
 	   full-bleed its layer instead (mirrors GameCard.svelte's override). */

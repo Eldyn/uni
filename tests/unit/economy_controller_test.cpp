@@ -13,6 +13,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <ctime>
 #include <future>
 #include <map>
 #include <memory>
@@ -41,6 +42,9 @@ namespace {
 constexpr int kTestPort = 49162;
 constexpr const char* kMePath = "/economy/me";
 constexpr const char* kBuyPath = "/shop/buy";
+constexpr const char* kWishlistPath = "/shop/wishlist";
+constexpr const char* kPopularPath = "/shop/popular";
+constexpr const char* kCosmeticsPath = "/cosmetics/me";
 
 /** @brief A tiny catalogue with starters, two buyable items and one hidden. */
 json ValidDoc() {
@@ -144,6 +148,58 @@ json ValidDoc() {
                 "rarity": "common",
                 "price": 100,
                 "hidden": true
+            },
+            {
+                "id": "uni:hat_unlisted",
+                "slot": "head_top",
+                "name": "Draft cap",
+                "asset": { "kind": "strip", "path": "head_top/uni_hat_draft.png" },
+                "regions": 1,
+                "rarity": "common",
+                "price": 100,
+                "unlisted": true
+            },
+            {
+                "id": "uni:card_face_midnight",
+                "slot": "card_face",
+                "name": "Midnight face",
+                "asset": {
+                    "kind": "still",
+                    "path": "cards/skins/midnight",
+                    "bob": [[0, 0], [0, 0], [0, 0], [0, 0], [0, 0]]
+                },
+                "regions": 0,
+                "tint": "none",
+                "rarity": "rare",
+                "price": 400
+            },
+            {
+                "id": "uni:card_back_stars",
+                "slot": "card_back",
+                "name": "Stars back",
+                "asset": {
+                    "kind": "still",
+                    "path": "cards/backs/stars.png",
+                    "bob": [[0, 0], [0, 0], [0, 0], [0, 0], [0, 0]]
+                },
+                "regions": 0,
+                "tint": "none",
+                "rarity": "rare",
+                "price": 300
+            },
+            {
+                "id": "uni:playmat_dusk",
+                "slot": "playmat",
+                "name": "Dusk mat",
+                "asset": {
+                    "kind": "still",
+                    "path": "playmat/dusk.png",
+                    "bob": [[0, 0], [0, 0], [0, 0], [0, 0], [0, 0]]
+                },
+                "regions": 0,
+                "tint": "none",
+                "rarity": "rare",
+                "price": 500
             }
         ],
         "featured": ["uni:hat_cap"]
@@ -176,7 +232,7 @@ TestHttpResponse Curl(const std::string& method, const std::string& path,
                       " -H 'Content-Type: application/json' ";
     if (!cookies.empty()) cmd += "-H 'Cookie: " + cookies + "' ";
     if (!body.empty()) cmd += "-d '" + body + "' ";
-    cmd += "https://127.0.0.1:" + std::to_string(kTestPort) + path;
+    cmd += "'https://127.0.0.1:" + std::to_string(kTestPort) + path + "'";
 
     const std::string output = Exec(cmd.c_str());
     TestHttpResponse res;
@@ -255,7 +311,7 @@ struct EconomyTestServer {
             options.cert_file_name = "cert.pem";
 
             HttpRouter router;
-            EconomyController economy_controller(router, *economy);
+            EconomyController economy_controller(router, *economy, *catalogue);
 
             AppHttp app(options);
             router.Attach(app);
@@ -465,4 +521,210 @@ TEST_CASE("economy controller: buy a hidden swatch is 410 not_available") {
                           BuyBody("uni:neon:secret", "req-swatch-hidden"));
     REQUIRE(res.status == 410);
     CHECK(res.body["error"] == "not_available");
+}
+
+TEST_CASE("economy controller: wishlist round trip keeps the oldest first") {
+    EconomyTestServer server;
+    const TestUser user = RegisterUser(Name("wishlist"));
+
+    const auto empty = Curl("GET", kWishlistPath, user.cookies, "");
+    REQUIRE(empty.status == 200);
+    CHECK(empty.body["items"].empty());
+
+    const std::string first_body = json{{"item", "uni:hat_cap"}}.dump();
+    const std::string second_body = json{{"item", "uni:mask_visor"}}.dump();
+
+    const auto first = Curl("POST", kWishlistPath, user.cookies, first_body);
+    REQUIRE(first.status == 200);
+    CHECK(first.body["items"] == json::array({"uni:hat_cap"}));
+
+    const auto second = Curl("POST", kWishlistPath, user.cookies, second_body);
+    REQUIRE(second.status == 200);
+    CHECK(second.body["items"] == json::array({"uni:hat_cap", "uni:mask_visor"}));
+
+    const auto duplicate = Curl("POST", kWishlistPath, user.cookies, first_body);
+    REQUIRE(duplicate.status == 200);
+    CHECK(duplicate.body["items"].size() == 2);
+
+    const auto listed = Curl("GET", kWishlistPath, user.cookies, "");
+    REQUIRE(listed.status == 200);
+    CHECK(listed.body["items"] == json::array({"uni:hat_cap", "uni:mask_visor"}));
+
+    const auto removed = Curl("DELETE", kWishlistPath, user.cookies, first_body);
+    REQUIRE(removed.status == 200);
+    CHECK(removed.body["items"] == json::array({"uni:mask_visor"}));
+
+    const auto again = Curl("DELETE", kWishlistPath, user.cookies, first_body);
+    REQUIRE(again.status == 200);
+    CHECK(again.body["items"] == json::array({"uni:mask_visor"}));
+}
+
+TEST_CASE("economy controller: wishlist rejects unknown or hidden, allows unlisted") {
+    EconomyTestServer server;
+    const TestUser user = RegisterUser(Name("wishlist_rules"));
+
+    const auto unknown = Curl("POST", kWishlistPath, user.cookies,
+                              json{{"item", "uni:does_not_exist"}}.dump());
+    REQUIRE(unknown.status == 404);
+    CHECK(unknown.body["error"] == "unknown_item");
+
+    const auto hidden = Curl("POST", kWishlistPath, user.cookies,
+                             json{{"item", "uni:hat_hidden"}}.dump());
+    REQUIRE(hidden.status == 404);
+    CHECK(hidden.body["error"] == "not_available");
+
+    const auto unlisted = Curl("POST", kWishlistPath, user.cookies,
+                               json{{"item", "uni:hat_unlisted"}}.dump());
+    REQUIRE(unlisted.status == 200);
+    CHECK(unlisted.body["items"] == json::array({"uni:hat_unlisted"}));
+
+    const auto bad = Curl("POST", kWishlistPath, user.cookies, "{not valid json");
+    REQUIRE(bad.status == 400);
+    CHECK(bad.body["error"] == "bad_json");
+}
+
+TEST_CASE("economy controller: wishlist refuses guests and missing sessions") {
+    EconomyTestServer server;
+    const TestUser guest = MakeGuest();
+
+    const auto no_cookie = Curl("GET", kWishlistPath, "", "");
+    REQUIRE(no_cookie.status == 401);
+
+    const auto as_guest = Curl("GET", kWishlistPath, guest.cookies, "");
+    REQUIRE(as_guest.status == 403);
+    CHECK(as_guest.body["error"] == "guest");
+
+    const auto guest_add = Curl("POST", kWishlistPath, guest.cookies,
+                                json{{"item", "uni:mask_visor"}}.dump());
+    REQUIRE(guest_add.status == 403);
+    CHECK(guest_add.body["error"] == "guest");
+}
+
+TEST_CASE("economy controller: popular orders by purchases and counts wishlists") {
+    EconomyTestServer server;
+    const TestUser buyer_a = RegisterUser(Name("popular_a"));
+    const TestUser buyer_b = RegisterUser(Name("popular_b"));
+    REQUIRE(server.economy->Credit(buyer_a.username, 1000, "grant", "seed", 1000));
+    REQUIRE(server.economy->Credit(buyer_b.username, 1000, "grant", "seed", 1000));
+
+    const auto now = static_cast<std::int64_t>(std::time(nullptr));
+    REQUIRE(server.economy->Buy(buyer_a.username, "uni:card_back_stars",
+                                "popular-a-1", now).status ==
+            uni::economy::BuyStatus::kOk);
+    REQUIRE(server.economy->Buy(buyer_b.username, "uni:card_back_stars",
+                                "popular-b-1", now).status ==
+            uni::economy::BuyStatus::kOk);
+    REQUIRE(server.economy->Buy(buyer_a.username, "uni:playmat_dusk",
+                                "popular-a-2", now).status ==
+            uni::economy::BuyStatus::kOk);
+
+    const auto wishlisted = Curl("POST", kWishlistPath, buyer_a.cookies,
+                                 json{{"item", "uni:card_back_stars"}}.dump());
+    REQUIRE(wishlisted.status == 200);
+
+    const auto res = Curl("GET", std::string(kPopularPath) + "?days=7&limit=12",
+                          buyer_a.cookies, "");
+    REQUIRE(res.status == 200);
+    CHECK(res.body["days"] == 7);
+
+    int stars_at = -1;
+    int dusk_at = -1;
+    for (int i = 0; i < static_cast<int>(res.body["items"].size()); ++i) {
+        const json& entry = res.body["items"][i];
+        if (entry["item"] == "uni:card_back_stars") {
+            stars_at = i;
+            CHECK(entry["purchases"] == 2);
+            CHECK(entry["wishlists"] == 1);
+        }
+        if (entry["item"] == "uni:playmat_dusk") {
+            dusk_at = i;
+            CHECK(entry["purchases"] == 1);
+            CHECK(entry["wishlists"] == 0);
+        }
+    }
+    REQUIRE(stars_at >= 0);
+    REQUIRE(dusk_at >= 0);
+    CHECK(stars_at < dusk_at);
+
+    const auto clamped = Curl("GET", std::string(kPopularPath) + "?days=0&limit=1",
+                              buyer_a.cookies, "");
+    REQUIRE(clamped.status == 200);
+    CHECK(clamped.body["days"] == 1);
+    CHECK(clamped.body["items"].size() == 1);
+
+    const TestUser guest = MakeGuest();
+    const auto as_guest = Curl("GET", kPopularPath, guest.cookies, "");
+    REQUIRE(as_guest.status == 403);
+    CHECK(as_guest.body["error"] == "guest");
+}
+
+TEST_CASE("economy controller: cosmetics start empty and equip owned items") {
+    EconomyTestServer server;
+    const TestUser user = RegisterUser(Name("cosmetics"));
+
+    const auto empty = Curl("GET", kCosmeticsPath, user.cookies, "");
+    REQUIRE(empty.status == 200);
+    REQUIRE(empty.body["slots"].is_object());
+    CHECK(empty.body["slots"]["card_face"].is_null());
+    CHECK(empty.body["slots"]["card_back"].is_null());
+    CHECK(empty.body["slots"]["playmat"].is_null());
+
+    REQUIRE(server.economy->GrantItem(user.username, "uni:card_back_stars",
+                                      "test", 1000));
+    const auto equipped = Curl(
+        "PUT", kCosmeticsPath, user.cookies,
+        json{{"slot", "card_back"}, {"item", "uni:card_back_stars"}}.dump());
+    REQUIRE(equipped.status == 200);
+    CHECK(equipped.body["slots"]["card_back"] == "uni:card_back_stars");
+    CHECK(equipped.body["slots"]["card_face"].is_null());
+    CHECK(equipped.body["slots"]["playmat"].is_null());
+
+    REQUIRE(server.economy->GrantItem(user.username, "uni:card_face_midnight",
+                                      "test", 1000));
+    const auto second = Curl(
+        "PUT", kCosmeticsPath, user.cookies,
+        json{{"slot", "card_face"}, {"item", "uni:card_face_midnight"}}.dump());
+    REQUIRE(second.status == 200);
+    CHECK(second.body["slots"]["card_face"] == "uni:card_face_midnight");
+    CHECK(second.body["slots"]["card_back"] == "uni:card_back_stars");
+
+    const auto loaded = Curl("GET", kCosmeticsPath, user.cookies, "");
+    REQUIRE(loaded.status == 200);
+    CHECK(loaded.body["slots"] == second.body["slots"]);
+}
+
+TEST_CASE("economy controller: cosmetics reject unowned, unknown and bad slots") {
+    EconomyTestServer server;
+    const TestUser user = RegisterUser(Name("cosmetics_rules"));
+
+    const auto unowned = Curl(
+        "PUT", kCosmeticsPath, user.cookies,
+        json{{"slot", "playmat"}, {"item", "uni:playmat_dusk"}}.dump());
+    REQUIRE(unowned.status == 404);
+    CHECK(unowned.body["error"] == "not_owned");
+
+    const auto unknown = Curl(
+        "PUT", kCosmeticsPath, user.cookies,
+        json{{"slot", "card_back"}, {"item", "uni:does_not_exist"}}.dump());
+    REQUIRE(unknown.status == 404);
+    CHECK(unknown.body["error"] == "unknown_item");
+
+    REQUIRE(server.economy->GrantItem(user.username, "uni:card_back_stars",
+                                      "test", 1000));
+    const auto wrong_slot = Curl(
+        "PUT", kCosmeticsPath, user.cookies,
+        json{{"slot", "card_face"}, {"item", "uni:card_back_stars"}}.dump());
+    REQUIRE(wrong_slot.status == 400);
+    CHECK(wrong_slot.body["error"] == "bad_json");
+
+    const auto bad_slot = Curl(
+        "PUT", kCosmeticsPath, user.cookies,
+        json{{"slot", "hat"}, {"item", "uni:card_back_stars"}}.dump());
+    REQUIRE(bad_slot.status == 400);
+    CHECK(bad_slot.body["error"] == "bad_json");
+
+    const TestUser guest = MakeGuest();
+    const auto as_guest = Curl("GET", kCosmeticsPath, guest.cookies, "");
+    REQUIRE(as_guest.status == 403);
+    CHECK(as_guest.body["error"] == "guest");
 }

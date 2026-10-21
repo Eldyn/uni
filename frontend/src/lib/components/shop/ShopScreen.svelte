@@ -1,7 +1,8 @@
-<!-- The Shop screen: a shader backdrop, the featured hero, the slot tabs and
-     the item grid, with the detail panel over the top. It reads the catalogue
-     and the mock economy. The balance chip lives here (not the TopBar, which is
-     not ours to edit) and shows the amount spent as soon as a buy succeeds. -->
+<!-- The Shop screen: a marketplace shell with a secondary sidebar, a hero row, a
+     section tab row, three category tiles and the shelf, with the detail panels
+     over the top. It reads the catalogue and the mock economy. The balance lives
+     in the TopBar's chip; the screen keeps a local copy only to dress the detail
+     panels. -->
 <script lang="ts">
 	import { getCatalogue } from "$lib/avatar/catalogue";
 	import { defaultLoadout } from "$lib/avatar/defaultLoadout";
@@ -10,47 +11,78 @@
 	import { isBuyableNow, isSwatchBuyable } from "$lib/shop/shopBackend";
 	import { compareRarity, paletteRarity } from "$lib/shop/rarity";
 	import type { BuyFailure } from "$lib/shop/shopBackend";
-	import type { AvatarSlot, CatalogueItem, Loadout, Palette, Swatch } from "$lib/avatar/types";
+	import type {
+		AvatarSlot,
+		CatalogueItem,
+		Loadout,
+		Palette,
+		Rarity,
+		Swatch
+	} from "$lib/avatar/types";
 	import { storeShop } from "$lib/stores/shop.svelte";
 	import { storeAuth } from "$stores/auth.svelte";
 	import { storeAvatar } from "$stores/avatar.svelte";
 	import { storeI18n } from "$stores/i18n.svelte";
 	import { storeNavigation } from "$stores/navigation.svelte";
-	import { shopItemText } from "$components/shop/ItemCard.svelte";
-	import ItemCard from "$components/shop/ItemCard.svelte";
+	import { itemLabelKey, shopItemText } from "$components/shop/ItemCard.svelte";
+	import MarketplaceCard from "$components/shop/MarketplaceCard.svelte";
+	import ShopFilters from "$components/shop/ShopFilters.svelte";
+	import type { ShopRarityFilter, ShopSort } from "$components/shop/ShopFilters.svelte";
 	import ItemDetail from "$components/shop/ItemDetail.svelte";
 	import ShopBackdrop from "$components/shop/ShopBackdrop.svelte";
 	import { HOME_BACKGROUND_HINT_CSS } from "$lib/shaders/homePalette";
-	import FeaturedBanner from "$components/shop/FeaturedBanner.svelte";
+	import ShopSidebar from "$components/shop/ShopSidebar.svelte";
+	import ShopHero from "$components/shop/ShopHero.svelte";
+	import CategoryTile from "$components/shop/CategoryTile.svelte";
 	import SlotTabs from "$components/shop/SlotTabs.svelte";
 	import PaletteCard from "$components/shop/PaletteCard.svelte";
 	import PaletteDetail from "$components/shop/PaletteDetail.svelte";
-	import BlankIcon from "$components/common/BlankIcon.svelte";
 
-	/** A tab either filters to one catalogue slot, or to palettes, or to all. */
-	type TabSlot = AvatarSlot | "palette" | null;
+	/** The marketplace sections: curated shelves, then the catalogue's groups. */
+	type ShopSection =
+		"featured" | "popular" | "new" | "wishlist" | "character" | "table" | "collections";
 
-	interface TabDef {
-		id: string;
+	type ShopCategory = "character" | "table" | "collections";
+
+	interface SectionDef {
+		id: ShopSection;
 		key: string;
 		fallback: string;
-		slot: TabSlot;
+		group: "discover" | "categories";
 	}
 
-	const TAB_DEFS: TabDef[] = [
-		{ id: "all", key: "shop_tab_all", fallback: "All", slot: null },
-		{ id: "eyes", key: "shop_tab_eyes", fallback: "Eyes", slot: "eyes" },
-		{ id: "mouth", key: "shop_tab_mouths", fallback: "Mouths", slot: "mouth" },
-		{ id: "head_top", key: "shop_tab_hats", fallback: "Hats", slot: "head_top" },
-		{ id: "mask", key: "shop_tab_masks", fallback: "Masks", slot: "mask" },
-		{ id: "bodywear", key: "shop_tab_body", fallback: "Body", slot: "bodywear" },
-		{ id: "set", key: "shop_tab_sets", fallback: "Sets", slot: "set" },
-		{ id: "motif", key: "shop_tab_motifs", fallback: "Motifs", slot: "motif" },
-		{ id: "palettes", key: "shop_tab_palettes", fallback: "Palettes", slot: "palette" }
+	const SECTION_DEFS: SectionDef[] = [
+		{ id: "featured", key: "shop_nav_featured", fallback: "Featured", group: "discover" },
+		{ id: "popular", key: "shop_nav_popular", fallback: "Popular", group: "discover" },
+		{ id: "new", key: "shop_nav_new", fallback: "New", group: "discover" },
+		{ id: "wishlist", key: "shop_nav_wishlist", fallback: "Wishlist", group: "discover" },
+		{ id: "character", key: "shop_nav_character", fallback: "Character", group: "categories" },
+		{ id: "table", key: "shop_nav_table", fallback: "Table", group: "categories" },
+		{ id: "collections", key: "shop_nav_collections", fallback: "Collections", group: "categories" }
 	];
 
-	/** Cards per row; the vertical arrow keys step a whole row. */
-	const COLUMNS = 6;
+	/** The hero row: one large tile plus a 2x2 grid of small ones. */
+	const HERO_COUNT = 5;
+
+	/** Shelf cards per row; the vertical arrow keys step a whole row. */
+	const COLUMNS = 3;
+
+	const CHARACTER_SLOTS: ReadonlySet<AvatarSlot> = new Set([
+		"shape",
+		"eyes",
+		"mouth",
+		"head_top",
+		"mask",
+		"bodywear",
+		"motif"
+	]);
+	const TABLE_SLOTS: ReadonlySet<AvatarSlot> = new Set(["card_face", "card_back", "playmat"]);
+
+	const CATEGORY_TILES: Array<{ id: ShopCategory; art: string; sprite: boolean }> = [
+		{ id: "character", art: "/assets/base_player_strip.png", sprite: true },
+		{ id: "table", art: "/assets/playmat.png", sprite: false },
+		{ id: "collections", art: "/assets/avatar/set/uni_set_astronaut.png", sprite: true }
+	];
 
 	const catalogue = getCatalogue();
 	// INFO: one "now" for the whole mount, so an item does not vanish mid-browse.
@@ -63,7 +95,11 @@
 	/** True once the account's session was rejected, so the screen hands off to login. */
 	let needsLogin = $state(false);
 
-	let activeTab = $state("all");
+	let section = $state<ShopSection>("featured");
+	/** Shelf filters: they apply to every section, not only the catalogue ones. */
+	let rarity = $state<ShopRarityFilter>("all");
+	let query = $state("");
+	let sort = $state<ShopSort>("popular");
 	let selected = $state<CatalogueItem | null>(null);
 	let selectedPalette = $state<Palette | null>(null);
 	let buyError = $state<BuyFailure | null>(null);
@@ -78,24 +114,106 @@
 	/** The viewer's saved look: the shape and skin that dress each item tile. */
 	const viewerLoadout = $derived(storeAvatar.loadout ?? defaultLoadout());
 
-	const tabs = $derived(
-		TAB_DEFS.map((tab) => ({ id: tab.id, label: shopItemText(tab.key, tab.fallback, locale) }))
+	const sectionLinks = $derived(
+		SECTION_DEFS.map((def) => ({
+			id: def.id,
+			label: shopItemText(def.key, def.fallback, locale),
+			group: def.group
+		}))
 	);
-
+	const discoverLabel = $derived(shopItemText("shop_nav_discover", "Discover", locale));
 	const tabsLabel = $derived(shopItemText("shop_tabs_label", "Shop categories", locale));
 	const gridLabel = $derived(shopItemText("shop_grid_label", "Shop items", locale));
 	const emptyLabel = $derived(shopItemText("shop_empty_slot", "Nothing here yet.", locale));
-	const currencyName = $derived(shopItemText("shop_currency_name", "Blank", locale));
 
-	/** The chosen tab's buyable-now items, plus every owned item, as OWNED. */
-	const items = $derived.by(() => {
-		const tab = TAB_DEFS.find((entry) => entry.id === activeTab);
-		return catalogue.items
-			.filter((item) => {
-				if (tab && tab.slot !== null && item.slot !== tab.slot) return false;
-				return isBuyableNow(item, nowMs) || owned.has(item.id);
-			})
-			.sort((a, b) => compareRarity(a.rarity, b.rarity));
+	const tabs = $derived(sectionLinks.map((link) => ({ id: link.id, label: link.label })));
+
+	function categoryLabel(id: ShopCategory): string {
+		return sectionLinks.find((link) => link.id === id)?.label ?? id;
+	}
+
+	/** Every item for sale now, plus every owned item, in catalogue order. */
+	const catalogueOrderItems = $derived(
+		catalogue.items.filter((item) => isBuyableNow(item, nowMs) || owned.has(item.id))
+	);
+
+	/** The same items, lowest rarity first. The shelves read this by default. */
+	const baseItems = $derived(
+		[...catalogueOrderItems].sort((a, b) => compareRarity(a.rarity, b.rarity))
+	);
+
+	/** The section's buyable-now items, plus every owned item, as OWNED. */
+	const sectionItems = $derived.by(() => {
+		switch (section) {
+			case "featured": {
+				const featuredIds = new Set(catalogue.featured);
+				return baseItems.filter((item) => featuredIds.has(item.id));
+			}
+			case "popular": {
+				const order = new Map(storeShop.popular.map((entry, index) => [entry.item, index]));
+				// INFO: an empty popular shelf falls back to the catalogue's order.
+				if (order.size === 0) return catalogueOrderItems;
+				return [...catalogueOrderItems].sort(
+					(a, b) => (order.get(a.id) ?? Infinity) - (order.get(b.id) ?? Infinity)
+				);
+			}
+			case "new":
+				return catalogueOrderItems.filter((item) => item.starter !== true);
+			case "wishlist": {
+				const wanted = storeShop.wishlist;
+				return baseItems.filter((item) => wanted.has(item.id));
+			}
+			case "character":
+				return baseItems.filter((item) => CHARACTER_SLOTS.has(item.slot));
+			case "table":
+				return baseItems.filter((item) => TABLE_SLOTS.has(item.slot));
+			case "collections":
+				return baseItems.filter((item) => item.slot === "set");
+		}
+	});
+
+	/** The shelf name shown to the viewer: its localized label, else the id. */
+	function itemName(item: CatalogueItem): string {
+		return shopItemText(itemLabelKey(item.id), item.id, locale);
+	}
+
+	function paletteName(palette: Palette): string {
+		return shopItemText(`shop_palette_${palette.id.replaceAll(":", "_")}`, palette.name, locale);
+	}
+
+	function matchesQuery(name: string): boolean {
+		const needle = query.trim().toLocaleLowerCase(locale);
+		return needle.length === 0 || name.toLocaleLowerCase(locale).includes(needle);
+	}
+
+	function matchesRarity(value: Rarity): boolean {
+		return rarity === "all" || value === rarity;
+	}
+
+	/** The section's items after the toolbar's rarity and name filters. */
+	const filteredItems = $derived(
+		sectionItems.filter((item) => matchesRarity(item.rarity) && matchesQuery(itemName(item)))
+	);
+
+	/** The filtered items in the chosen sort order. */
+	const visibleItems = $derived.by(() => {
+		const list = filteredItems;
+		switch (sort) {
+			case "popular": {
+				const order = new Map(storeShop.popular.map((entry, index) => [entry.item, index]));
+				return [...list].sort(
+					(a, b) => (order.get(a.id) ?? Infinity) - (order.get(b.id) ?? Infinity)
+				);
+			}
+			case "wishlist":
+				return [...list].sort(
+					(a, b) => storeShop.wishlistCount(b.id) - storeShop.wishlistCount(a.id)
+				);
+			case "price":
+				return [...list].sort((a, b) => a.price - b.price);
+			case "name":
+				return [...list].sort((a, b) => itemName(a).localeCompare(itemName(b), locale));
+		}
 	});
 
 	/** Paid palettes with a swatch for sale or owned, lowest rarity first. */
@@ -117,17 +235,46 @@
 			.map((swatch) => swatch.price ?? 0);
 		return prices.length > 0 ? Math.min(...prices) : null;
 	}
-	const showingPalettes = $derived(activeTab === "palettes");
-	const cardCount = $derived(showingPalettes ? paletteCards.length : items.length);
 
-	const featured = $derived.by(() => {
-		const id = catalogue.featured[0];
-		return id ? (catalogue.items.find((item) => item.id === id) ?? null) : null;
+	/** Palettes are character colours, so they shelf beside the avatar items. */
+	const paletteShelf = $derived(section === "character" ? paletteCards : []);
+
+	/** The character palettes after the same rarity and name filters. */
+	const visiblePalettes = $derived(
+		paletteShelf.filter(
+			(palette) => matchesRarity(paletteRarity(palette)) && matchesQuery(paletteName(palette))
+		)
+	);
+
+	const cardCount = $derived(visibleItems.length + visiblePalettes.length);
+	const noResultsLabel = $derived(shopItemText("shop_no_results", "No items match.", locale));
+
+	/** The hero row: featured first, then sets and collections, then the catalogue. */
+	const heroItems = $derived.by(() => {
+		const picked: CatalogueItem[] = [];
+		const push = (item: CatalogueItem | undefined): void => {
+			if (!item || picked.length >= HERO_COUNT) return;
+			if (picked.some((entry) => entry.id === item.id)) return;
+			picked.push(item);
+		};
+
+		for (const id of catalogue.featured) {
+			push(baseItems.find((item) => item.id === id));
+		}
+		for (const item of baseItems) {
+			if (item.slot === "set" || TABLE_SLOTS.has(item.slot)) push(item);
+		}
+		for (const item of baseItems) {
+			push(item);
+		}
+		return picked;
 	});
-	const featuredOwned = $derived(featured ? owned.has(featured.id) : false);
 
-	function selectTab(id: string): void {
-		activeTab = id;
+	const leadHero = $derived(heroItems[0] ?? null);
+	const smallHeroes = $derived(heroItems.slice(1, HERO_COUNT));
+
+	function selectSection(id: string): void {
+		section = id as ShopSection;
 		focusedCard = 0;
 	}
 
@@ -191,10 +338,10 @@
 		};
 	}
 
-	/** The featured hero shows the draft avatar already wearing the item. */
-	const featuredPreview = $derived(
-		featured ? withItem(previewLoadout ?? defaultLoadout(), featured) : previewLoadout
-	);
+	/** The hero art bakes the draft avatar already wearing the item. */
+	function heroLoadout(item: CatalogueItem): Loadout {
+		return withItem(previewLoadout ?? defaultLoadout(), item);
+	}
 
 	function tryOn(item: CatalogueItem): void {
 		previewLoadout = withItem(previewLoadout ?? defaultLoadout(), item);
@@ -218,12 +365,19 @@
 		}
 	}
 
+	/** The card's wishlist control; the store updates optimistically. */
+	function toggleWishlist(item: CatalogueItem): void {
+		void storeShop.toggleWishlist(item.id);
+	}
+
 	onMount(async () => {
 		if (guest) return;
 		await storeShop.fetchMine?.();
 		balance = storeShop.balance;
 		owned = new Set(storeShop.owned);
 		needsLogin = storeShop.needsLogin === true;
+		void storeShop.fetchWishlist();
+		void storeShop.fetchPopular(7);
 	});
 
 	$effect(() => {
@@ -279,23 +433,106 @@
 <div class="shop-screen" style:background-color={HOME_BACKGROUND_HINT_CSS}>
 	<ShopBackdrop dim={0.15} />
 
-	<header class="shop-header">
-		<span class="shop-balance font-pixel" data-balance={balance}>
-			<BlankIcon label={currencyName} />{balance}
-		</span>
-	</header>
+	<div class="shop-layout">
+		<div class="shop-sidebar-slot">
+			<ShopSidebar
+				active={section}
+				onselect={selectSection}
+				{discoverLabel}
+				categoriesLabel={tabsLabel}
+				links={sectionLinks}
+			/>
+		</div>
 
-	{#if featured}
-		<FeaturedBanner
-			item={featured}
-			owned={featuredOwned}
-			{balance}
-			{guest}
-			loadout={featuredPreview}
-			onbuy={() => buy(featured)}
-			ontry={() => tryOn(featured)}
-		/>
-	{/if}
+		<main class="shop-main">
+			{#if heroItems.length > 0}
+				<div class="shop-hero-row">
+					{#if leadHero}
+						<ShopHero
+							item={leadHero}
+							size="large"
+							owned={owned.has(leadHero.id)}
+							{balance}
+							{guest}
+							loadout={heroLoadout(leadHero)}
+							onbuy={() => buy(leadHero)}
+							ontry={() => tryOn(leadHero)}
+							onselect={() => openDetail(leadHero)}
+						/>
+					{/if}
+					<div class="shop-hero-grid">
+						{#each smallHeroes as hero (hero.id)}
+							<ShopHero
+								item={hero}
+								size="small"
+								owned={owned.has(hero.id)}
+								{balance}
+								{guest}
+								loadout={heroLoadout(hero)}
+								onbuy={() => buy(hero)}
+								ontry={() => tryOn(hero)}
+								onselect={() => openDetail(hero)}
+							/>
+						{/each}
+					</div>
+				</div>
+			{/if}
+
+			<SlotTabs {tabs} active={section} onselect={selectSection} label={tabsLabel} />
+
+			<div class="shop-categories">
+				{#each CATEGORY_TILES as tile (tile.id)}
+					<CategoryTile
+						category={tile.id}
+						label={categoryLabel(tile.id)}
+						art={tile.art}
+						sprite={tile.sprite}
+						onselect={() => selectSection(tile.id)}
+					/>
+				{/each}
+			</div>
+
+			<ShopFilters bind:rarity bind:query bind:sort />
+
+			{#if cardCount > 0}
+				<div
+					class="shop-grid"
+					role="grid"
+					tabindex="-1"
+					aria-label={gridLabel}
+					bind:this={gridEl}
+					onfocusin={handleGridFocus}
+					onkeydown={handleGridKeydown}
+				>
+					{#each visibleItems as item, index (item.id)}
+						<MarketplaceCard
+							{item}
+							owned={owned.has(item.id)}
+							selected={index === focusedCard}
+							loadout={viewerLoadout}
+							wishlisted={storeShop.wishlist.has(item.id)}
+							wishlistCount={storeShop.wishlistCount(item.id)}
+							showWishlist={!guest}
+							onselect={() => openDetail(item)}
+							ontoggle={() => toggleWishlist(item)}
+						/>
+					{/each}
+					{#each visiblePalettes as palette, index (palette.id)}
+						<PaletteCard
+							{palette}
+							price={lowestPrice(palette)}
+							selected={visibleItems.length + index === focusedCard}
+							onselect={() => openPalette(palette)}
+						/>
+					{/each}
+				</div>
+			{:else}
+				<p class="shop-empty font-tiny">
+					{sectionItems.length + paletteShelf.length > 0 ? noResultsLabel : emptyLabel}
+				</p>
+			{/if}
+		</main>
+	</div>
 
 	{#if selected}
 		<ItemDetail
@@ -324,43 +561,6 @@
 			error={buyError}
 		/>
 	{/if}
-
-	<SlotTabs {tabs} active={activeTab} onselect={selectTab} label={tabsLabel} />
-
-	{#if cardCount > 0}
-		<div
-			class="shop-grid"
-			role="grid"
-			tabindex="-1"
-			aria-label={gridLabel}
-			bind:this={gridEl}
-			onfocusin={handleGridFocus}
-			onkeydown={handleGridKeydown}
-		>
-			{#if showingPalettes}
-				{#each paletteCards as palette, index (palette.id)}
-					<PaletteCard
-						{palette}
-						price={lowestPrice(palette)}
-						selected={index === focusedCard}
-						onselect={() => openPalette(palette)}
-					/>
-				{/each}
-			{:else}
-				{#each items as item, index (item.id)}
-					<ItemCard
-						{item}
-						owned={owned.has(item.id)}
-						selected={index === focusedCard}
-						loadout={viewerLoadout}
-						onselect={() => openDetail(item)}
-					/>
-				{/each}
-			{/if}
-		</div>
-	{:else}
-		<p class="shop-empty font-tiny">{emptyLabel}</p>
-	{/if}
 </div>
 
 <style>
@@ -370,40 +570,56 @@
 		flex-direction: column;
 		gap: 1rem;
 		/* Fill the shell's main pane and scroll inside it, so the backdrop and
-		   the grid never spill past the TopBar/NavBar chrome. */
+		   the shelves never spill past the TopBar/NavBar chrome. */
 		height: 100%;
 		min-height: 0;
 		overflow-y: auto;
 		padding: 1rem;
 	}
 
-	.shop-header,
-	.shop-grid,
-	.shop-empty {
+	.shop-layout {
 		position: relative;
 		z-index: 1;
-	}
-
-	.shop-header {
-		display: flex;
-		align-items: center;
-		justify-content: flex-end;
+		display: grid;
+		grid-template-columns: 14rem minmax(0, 1fr);
 		gap: 1rem;
+		align-items: start;
 	}
 
-	.shop-balance {
+	.shop-sidebar-slot {
+		min-width: 0;
+	}
+
+	.shop-main {
 		display: flex;
-		align-items: center;
-		gap: 0.4rem;
-		padding: 0.35rem 0.7rem;
-		border: 2px solid var(--accent);
-		background: var(--surface-deep);
-		color: var(--accent);
+		flex-direction: column;
+		gap: 1rem;
+		min-width: 0;
+	}
+
+	.shop-hero-row {
+		display: grid;
+		grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+		gap: 0.75rem;
+		align-items: stretch;
+	}
+
+	.shop-hero-grid {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		grid-template-rows: repeat(2, minmax(0, 1fr));
+		gap: 0.5rem;
+	}
+
+	.shop-categories {
+		display: grid;
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		gap: 0.75rem;
 	}
 
 	.shop-grid {
 		display: grid;
-		grid-template-columns: repeat(6, minmax(0, 1fr));
+		grid-template-columns: repeat(3, minmax(0, 1fr));
 		gap: 0.75rem;
 	}
 
@@ -417,8 +633,28 @@
 	}
 
 	@media (max-width: 900px) {
+		.shop-layout {
+			grid-template-columns: minmax(0, 1fr);
+		}
+
+		.shop-sidebar-slot {
+			display: none;
+		}
+
+		.shop-hero-row {
+			grid-template-columns: minmax(0, 1fr);
+		}
+
+		.shop-categories,
 		.shop-grid {
-			grid-template-columns: repeat(3, minmax(0, 1fr));
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+		}
+	}
+
+	@media (max-width: 600px) {
+		.shop-categories,
+		.shop-grid {
+			grid-template-columns: minmax(0, 1fr);
 		}
 	}
 </style>

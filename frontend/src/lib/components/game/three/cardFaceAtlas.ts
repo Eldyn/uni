@@ -12,6 +12,7 @@ import { CARD_COLOR_MAP } from "$lib/palette";
 import { assetOrigin, isAllowedAssetUrl } from "./assetTrust";
 import type { Card } from "$stores/game.svelte";
 import { assetUrl } from "$lib/utils/assetUrl";
+import { cardBackUrl, cardFaceUrl } from "$lib/cards/skinPaths";
 import type { FaceOverride } from "$components/game/affliction/overrideChannel";
 import {
 	PersistentFaceStore,
@@ -33,6 +34,10 @@ export interface CardFaceKey {
 	wildColor?: string;
 	turned: boolean;
 	artVersion?: string;
+	/** Equipped `card_face` item id; part of the front hash so a skin change re-bakes. */
+	skinId?: string | null;
+	/** Equipped `card_back` item id; part of the turned (back) hash. */
+	backId?: string | null;
 }
 
 /** @brief A single composited layer of a default face. */
@@ -75,6 +80,49 @@ const STANDARD_ART_NAMES = [
 	"jolly",
 	"jolly_draw4"
 ] as const;
+
+/** One standard art name and the URLs to try for it, skinned first. */
+export interface StandardArtSource {
+	name: string;
+	/** Ordered candidates: the equipped skin's file, then the base file. */
+	urls: string[];
+}
+
+/**
+ * @brief Keys `loadedArt` by the skin the pixels were requested for.
+ *
+ * A key without `skinId`/`backId` keeps the bare name, so the default art keeps
+ * the exact cache keys (and atlas hashes) it had before skins existed.
+ */
+function loadedArtKey(name: string, skinId?: string | null, backId?: string | null): string {
+	if (name === "back") return backId ? `back:${backId}` : "back";
+	return skinId ? `${name}:${skinId}` : name;
+}
+
+/**
+ * @brief The URL candidates for every standard art name under the equipped skins.
+ *
+ * A `card_face` skin is a folder of per-value PNGs, so each front name is tried
+ * from that folder first and falls back to the base file. The back tile is a
+ * single `card_back` PNG instead, and never comes from the face folder.
+ */
+export function standardArtUrls(
+	skinId?: string | null,
+	backId?: string | null
+): StandardArtSource[] {
+	return STANDARD_ART_NAMES.map((name) => {
+		const base = assetUrl(`/assets/cards/${name}.png`);
+		const skinned =
+			name === "back"
+				? backId
+					? cardBackUrl(backId)
+					: null
+				: skinId
+					? cardFaceUrl(name, skinId)
+					: null;
+		return { name, urls: skinned && skinned !== base ? [skinned, base] : [base] };
+	});
+}
 
 /**
  * @brief True when `name` is one of the pre-baked default art assets.
@@ -137,14 +185,21 @@ export function entryWithOverride(
  * the face hash. Faces with no baked art — and cards with no defs entry at all
  * — fall back to the card's own `type`/`value`, which is exactly how default
  * cards rendered before the defs table existed.
+ *
+ * The optional equipped skin ids join the key, so an equipped `card_face`
+ * re-bakes the front and an equipped `card_back` re-bakes the back.
  */
 export function cardFaceKeyFor(
 	card: Pick<Card, "type" | "value" | "face">,
 	wildColor: string | undefined,
-	turned: boolean
+	turned: boolean,
+	skinId?: string | null,
+	backId?: string | null
 ): CardFaceKey {
 	if (turned) {
-		return { type: "wild", value: "0", turned: true };
+		const backKey: CardFaceKey = { type: "wild", value: "0", turned: true };
+		if (backId) backKey.backId = backId;
+		return backKey;
 	}
 	const face = card.face;
 	if (face && hasStandardFaceArt(face.label)) {
@@ -153,10 +208,17 @@ export function cardFaceKeyFor(
 			value: face.label,
 			wildColor,
 			turned: false,
-			artVersion: face.art_version !== undefined ? String(face.art_version) : undefined
+			artVersion: face.art_version !== undefined ? String(face.art_version) : undefined,
+			...(skinId ? { skinId } : {})
 		};
 	}
-	return { type: card.type, value: card.value, wildColor, turned: false };
+	return {
+		type: card.type,
+		value: card.value,
+		wildColor,
+		turned: false,
+		...(skinId ? { skinId } : {})
+	};
 }
 
 interface AtlasPage {
@@ -255,12 +317,15 @@ ensurePage(0);
 /**
  * Deterministically hashes a CardFaceKey for atlas slot caching.
  * Turned cards share a single visual representation (back.png) per artVersion.
+ * The equipped skin ids join the hash so changing a skin allocates fresh slots.
  */
 export function faceKeyHash(key: CardFaceKey): string {
+	const skin = key.skinId ? `:${key.skinId}` : "";
+	const back = key.backId ? `:${key.backId}` : "";
 	if (key.turned) {
-		return `back:${key.artVersion ?? ""}`;
+		return `back:${key.artVersion ?? ""}${back}`;
 	}
-	return `front:${key.type}:${key.value}:${key.wildColor ?? ""}:${key.artVersion ?? ""}`;
+	return `front:${key.type}:${key.value}:${key.wildColor ?? ""}:${key.artVersion ?? ""}${skin}`;
 }
 
 export function atlasPageCount(): number {
@@ -296,11 +361,20 @@ function drawTinted(
 	destCtx.drawImage(sctx.canvas, dx, dy, w, h);
 }
 
+/** The `loadedArt` key for one standard name under a face key's equipped skins. */
+function artKeyFor(key: CardFaceKey, name: string): string {
+	return loadedArtKey(name, key.skinId, key.backId);
+}
+
 function canBakeKey(key: CardFaceKey): boolean {
 	if (key.turned) {
-		return loadedArt.has("back");
+		return loadedArt.has(artKeyFor(key, "back"));
 	}
-	return loadedArt.has("background") && loadedArt.has(key.value) && loadedArt.has("border");
+	return (
+		loadedArt.has(artKeyFor(key, "background")) &&
+		loadedArt.has(artKeyFor(key, key.value)) &&
+		loadedArt.has(artKeyFor(key, "border"))
+	);
 }
 
 function bakeSlot(slot: AllocatedSlot): boolean {
@@ -315,13 +389,13 @@ function bakeSlot(slot: AllocatedSlot): boolean {
 	ctx.clearRect(drawX - TILE_PAD, drawY - TILE_PAD, SLOT_WIDTH, SLOT_HEIGHT);
 
 	if (key.turned) {
-		const backImg = loadedArt.get("back");
+		const backImg = loadedArt.get(artKeyFor(key, "back"));
 		if (backImg) {
 			ctx.drawImage(backImg, drawX, drawY, w, h);
 		}
 	} else {
 		// Layer 1: Background untinted
-		const bgImg = loadedArt.get("background");
+		const bgImg = loadedArt.get(artKeyFor(key, "background"));
 		if (bgImg) {
 			ctx.drawImage(bgImg, drawX, drawY, w, h);
 		}
@@ -332,7 +406,7 @@ function bakeSlot(slot: AllocatedSlot): boolean {
 		const paintedJolly = key.value === "jolly" && key.wildColor !== undefined;
 		const shouldTint = key.value !== "jolly" || paintedJolly;
 
-		const valImg = loadedArt.get(key.value);
+		const valImg = loadedArt.get(artKeyFor(key, key.value));
 		if (valImg) {
 			if (shouldTint) {
 				drawTinted(ctx, valImg, tintColorHex, drawX, drawY, w, h);
@@ -342,7 +416,7 @@ function bakeSlot(slot: AllocatedSlot): boolean {
 		}
 
 		// Layer 3: Border tinted
-		const borderImg = loadedArt.get("border");
+		const borderImg = loadedArt.get(artKeyFor(key, "border"));
 		if (borderImg) {
 			drawTinted(ctx, borderImg, tintColorHex, drawX, drawY, w, h);
 		}
@@ -511,8 +585,9 @@ export function pruneStaleAtlasFaces(liveHashes: Iterable<string>): Promise<numb
 
 function canBakeLayer(key: CardFaceKey, layer: FaceLayer): boolean {
 	if (key.turned) return false;
-	if (!loadedArt.has("background") || !loadedArt.has("border")) return false;
-	if (layer === "value" && !loadedArt.has(key.value)) return false;
+	if (!loadedArt.has(artKeyFor(key, "background")) || !loadedArt.has(artKeyFor(key, "border")))
+		return false;
+	if (layer === "value" && !loadedArt.has(artKeyFor(key, key.value))) return false;
 	return true;
 }
 
@@ -531,12 +606,12 @@ function bakeLayerSlot(slot: AllocatedSlot, layer: FaceLayer): boolean {
 	const tintColorHex = CARD_COLOR_MAP[tintType] ?? "#ffffff";
 
 	if (layer === "background") {
-		const bgImg = loadedArt.get("background");
+		const bgImg = loadedArt.get(artKeyFor(key, "background"));
 		if (bgImg) ctx.drawImage(bgImg, drawX, drawY, w, h);
 	} else if (layer === "value") {
 		const paintedJolly = key.value === "jolly" && key.wildColor !== undefined;
 		const shouldTint = key.value !== "jolly" || paintedJolly;
-		const valImg = loadedArt.get(key.value);
+		const valImg = loadedArt.get(artKeyFor(key, key.value));
 		if (valImg) {
 			if (shouldTint) {
 				drawTinted(ctx, valImg, tintColorHex, drawX, drawY, w, h);
@@ -545,7 +620,7 @@ function bakeLayerSlot(slot: AllocatedSlot, layer: FaceLayer): boolean {
 			}
 		}
 	} else {
-		const borderImg = loadedArt.get("border");
+		const borderImg = loadedArt.get(artKeyFor(key, "border"));
 		if (borderImg) drawTinted(ctx, borderImg, tintColorHex, drawX, drawY, w, h);
 	}
 
@@ -624,22 +699,45 @@ async function loadArtImage(url: string): Promise<CanvasImageSource> {
 	}
 }
 
-let artLoadingPromise: Promise<void> | null = null;
+/** Decodes the first URL that loads; skinned art falls back to the base file. */
+export async function loadFirstArtSource(
+	urls: readonly string[],
+	load: (url: string) => Promise<CanvasImageSource> = loadArtImage
+): Promise<CanvasImageSource> {
+	let failure: unknown;
+	for (const url of urls) {
+		try {
+			return await load(url);
+		} catch (err) {
+			failure ??= err;
+		}
+	}
+	throw failure ?? new Error("no card art source");
+}
+
+/** One in-flight decode per equipped skin pair. */
+const artLoadingPromises = new Map<string, Promise<void>>();
 
 /**
  * Pre-decodes all standard card art PNGs and bakes any pending atlas slots.
- * Safe for concurrent and repeated calls via singleton promise caching.
+ * Safe for concurrent and repeated calls: each equipped skin pair shares one
+ * singleton promise, and a changed pair loads and bakes its own art.
  */
-export async function preloadCardArt(): Promise<void> {
+export async function preloadCardArt(
+	skinId?: string | null,
+	backId?: string | null
+): Promise<void> {
 	await hydrateAtlasFaces();
 
+	const variant = `${skinId ?? ""}|${backId ?? ""}`;
+	let artLoadingPromise = artLoadingPromises.get(variant);
 	if (!artLoadingPromise) {
 		artLoadingPromise = (async () => {
-			const loadPromises = STANDARD_ART_NAMES.map(async (name) => {
-				if (loadedArt.has(name)) return;
+			const loadPromises = standardArtUrls(skinId, backId).map(async ({ name, urls }) => {
+				const key = loadedArtKey(name, skinId, backId);
+				if (loadedArt.has(key)) return;
 				try {
-					const img = await loadArtImage(assetUrl(`/assets/cards/${name}.png`));
-					loadedArt.set(name, img);
+					loadedArt.set(key, await loadFirstArtSource(urls));
 				} catch {
 					// Ignore loading error for missing asset in fallback
 				}
@@ -647,6 +745,7 @@ export async function preloadCardArt(): Promise<void> {
 
 			await Promise.all(loadPromises);
 		})();
+		artLoadingPromises.set(variant, artLoadingPromise);
 	}
 
 	await artLoadingPromise;

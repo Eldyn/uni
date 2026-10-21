@@ -202,6 +202,26 @@ static constexpr Migration MIGRATIONS[] = {
         );
         ALTER TABLE users ADD COLUMN cash_balance INTEGER NOT NULL DEFAULT 0;
     )sql" },
+    // Migration v15: shop backend. `wishlist` is private per-user membership;
+    // `user_cosmetics` keeps one equipped cosmetic per slot. The ownership
+    // index serves the "most bought in the last N days" ranking.
+    { 15, R"sql(
+        CREATE TABLE IF NOT EXISTS wishlist (
+            user_id INTEGER NOT NULL REFERENCES users(id),
+            item_id TEXT NOT NULL,
+            created_at INTEGER NOT NULL,
+            PRIMARY KEY(user_id, item_id)
+        );
+        CREATE TABLE IF NOT EXISTS user_cosmetics (
+            user_id INTEGER NOT NULL REFERENCES users(id),
+            slot TEXT NOT NULL,
+            item_id TEXT NOT NULL,
+            updated_at INTEGER NOT NULL,
+            PRIMARY KEY(user_id, slot)
+        );
+        CREATE INDEX IF NOT EXISTS idx_item_ownership_purchased
+            ON item_ownership(source, acquired_at, item_id);
+    )sql" },
 };
 
 }  // namespace

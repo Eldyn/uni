@@ -68,6 +68,7 @@
 	import { CARD_COLOR_MAP } from "$lib/palette";
 	import { storePresentation } from "$stores/presentation.svelte";
 	import { storeAffliction } from "$stores/affliction.svelte";
+	import { storeCosmetics } from "$stores/cosmetics.svelte";
 	import { isDragged } from "./renderOrder";
 
 	let {
@@ -239,12 +240,20 @@
 	// expiring the affliction re-resolves the face. UV/texture only — no
 	// material params or shaders.
 	let cardOverride = $derived(storeAffliction.override(String(card.id)));
-	let baseFrontKey = $derived(cardFaceKeyFor({ ...card, face: resolvedFace }, wildColor, false));
+	// The equipped cosmetics join the face key, so changing either skin allocates
+	// fresh atlas slots (filled by Scene3D's re-preload).
+	let faceSkinId = $derived(storeCosmetics.slots.card_face);
+	let backSkinId = $derived(storeCosmetics.slots.card_back);
+	let baseFrontKey = $derived(
+		cardFaceKeyFor({ ...card, face: resolvedFace }, wildColor, false, faceSkinId, backSkinId)
+	);
 
 	let frontEntry = $derived(
 		entryWithOverride(getFaceTexture(faceKeyForOverride(baseFrontKey, cardOverride)), cardOverride)
 	);
-	let backEntry = $derived(getFaceTexture(cardFaceKeyFor(card, wildColor, true)));
+	let backEntry = $derived(
+		getFaceTexture(cardFaceKeyFor(card, wildColor, true, faceSkinId, backSkinId))
+	);
 
 	let activeFront = $derived(turned ? backEntry : frontEntry);
 	let activeBack = $derived(turned ? frontEntry : backEntry);

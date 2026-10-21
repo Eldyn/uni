@@ -6,8 +6,14 @@ export const MAX_REGIONS = 6;
 export const REGIONS_PER_FILE = 3; // R, G, B of one mask file
 export const MAX_EXTRA_MASKS = 1; // regions 4-6 are the R, G, B of file two
 
+/** Cosmetic slots: one equipped item per slot, independent of the avatar look. */
+export type CosmeticSlot = "card_face" | "card_back" | "playmat";
+/**
+ * Catalogue slots. The cosmetic slots are served to the marketplace and never
+ * enter an avatar loadout; the server rejects them in `src/avatar/loadout.cpp`.
+ */
 export type AvatarSlot =
-	"shape" | "eyes" | "mouth" | "head_top" | "mask" | "bodywear" | "set" | "motif";
+	"shape" | "eyes" | "mouth" | "head_top" | "mask" | "bodywear" | "set" | "motif" | CosmeticSlot;
 export type PartSlot = "eyes" | "mouth" | "head_top" | "mask" | "bodywear";
 export type Socket = "eyes" | "mouth" | "head_top" | "body_center";
 /** Every rarity, lowest first. The Shop sorts by this order. */

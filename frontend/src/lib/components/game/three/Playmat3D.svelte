@@ -16,6 +16,7 @@
 	import type { Texture } from "three";
 	import { storeGame } from "$stores/game.svelte";
 	import { storeMatchIntro } from "$stores/matchIntro.svelte";
+	import { storeCosmetics } from "$stores/cosmetics.svelte";
 	import { CARD_COLOR_MAP } from "$lib/palette";
 	import { loadTexture } from "./textures";
 	import playmatFeltVertexSource from "$lib/shaders/playmatFelt.vert.glsl?raw";
@@ -33,6 +34,7 @@
 	import { sheetBlockCount } from "./loopGeometry";
 	import { DESKTOP_MAT_SHEET, PHONE_MAT_SHEET, type MatPlacement } from "../layout/playmat";
 	import { isPhoneLayout, type ViewportInfo } from "../layout/seatLayout";
+	import { playmatUrls } from "./playmatSrc";
 	import TurnLoop3D from "./TurnLoop3D.svelte";
 
 	/** layout/playmat.ts owns the fit, because the hand and the seat ring are
@@ -177,9 +179,12 @@
 
 	let matTexture = $state<Texture | null>(null);
 
-	let matSrc = $derived(
-		isPhoneLayout(viewport) ? "/assets/mobile_playmat.png" : "/assets/playmat.png"
-	);
+	// The equipped playmat skin picks the sheet; both sheets share the same
+	// felt metrics, so only the texture URL changes here. The URL is tracked,
+	// so an equip re-runs the load below (loadTexture caches by URL).
+	const matUrls = $derived(playmatUrls(storeCosmetics.slots.playmat));
+
+	let matSrc = $derived(isPhoneLayout(viewport) ? matUrls.mobile : matUrls.desktop);
 
 	$effect(() => {
 		if (!showFelt) return;

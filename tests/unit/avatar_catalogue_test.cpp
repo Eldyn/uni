@@ -427,6 +427,49 @@ TEST_CASE("avatar catalogue: the real avatar/catalogue folder loads") {
     REQUIRE(patches != nullptr);
     CHECK(patches->regions == 3);
     CHECK(patches->default_colors.size() == 2);
+
+    const Item* card_face = catalogue.FindItem("uni:card_face_midnight");
+    REQUIRE(card_face != nullptr);
+    CHECK(card_face->slot == "card_face");
+    CHECK(card_face->price == 400);
+    CHECK(card_face->regions == 0);
+    CHECK(card_face->tint == "none");
+
+    const Item* card_back = catalogue.FindItem("uni:card_back_stars");
+    REQUIRE(card_back != nullptr);
+    CHECK(card_back->slot == "card_back");
+    CHECK(card_back->price == 300);
+
+    const Item* playmat = catalogue.FindItem("uni:playmat_dusk");
+    REQUIRE(playmat != nullptr);
+    CHECK(playmat->slot == "playmat");
+    CHECK(playmat->price == 500);
+}
+
+TEST_CASE("avatar catalogue: cosmetic slots accept flat still items") {
+    const std::map<std::string, std::string> paths = {
+        {"card_face", "cards/skins/midnight"},
+        {"card_back", "cards/backs/stars.png"},
+        {"playmat", "playmat/dusk.png"}};
+    for (const auto& [slot, path] : paths) {
+        json doc = ValidDoc();
+        json item = {
+            {"id", "uni:cosmetic_item"},
+            {"slot", slot},
+            {"name", "Cosmetic"},
+            {"asset",
+             {{"kind", "still"},
+              {"path", path},
+              {"bob", json::array({json::array({0, 0}), json::array({0, 0}),
+                                   json::array({0, 0}), json::array({0, 0}),
+                                   json::array({0, 0})})}}},
+            {"regions", 0},
+            {"tint", "none"},
+            {"rarity", "rare"},
+            {"price", 400}};
+        doc["items"].push_back(item);
+        CHECK_NOTHROW(Catalogue::Parse(doc));
+    }
 }
 
 TEST_CASE("avatar catalogue folder: merge rules") {
