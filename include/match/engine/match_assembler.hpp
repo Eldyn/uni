@@ -266,7 +266,7 @@ struct AssemblyContent {
      * @brief The client-facing `defs` table derived from this content.
      *
      * Filled once by whoever publishes the content (`LobbyController` in
-     * production) and then read-only: `match::view::MatchSession` serves the
+     * production) and then read-only: `match::server::MatchSession` serves the
      * same DOM to every match with this mod set instead of building one per
      * session. Null means "not built yet"; sessions then build their own copy,
      * which keeps fixtures and the three-argument `Assemble` working.

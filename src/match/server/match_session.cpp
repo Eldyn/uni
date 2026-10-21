@@ -616,9 +616,12 @@ void MatchSession::EmitMatchStart(IBroadcaster& broadcaster) {
     if (match_start_sent_) return;
 
     // INFO: `defs` is content-derived and identical for every recipient; the
-    //       digest doubles as the `match_start` correlation id. Built once
-    //       per session via CachedDefs (late joiners reuse the same copy
-    //       through EnsureDefs) instead of once per recipient.
+    //       digest doubles as the `match_start` correlation id. Production
+    //       builds it once per assembly content and every match of that
+    //       content shares it; CachedDefs only falls back to one lazy build
+    //       per session when the content carries no shared DOM (fixtures and
+    //       the three-argument `Assemble`). Late joiners reuse the same copy
+    //       through EnsureDefs.
     const json& defs = CachedDefs();
     const match::engine::MatchDeckSnapshot& deck = engine_->Assembly().Deck();
     const json start = match::view::DefsBuilder::BuildMatchStart(
