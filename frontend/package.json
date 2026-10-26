@@ -46,7 +46,7 @@
 		"esbuild": "^0.28.0",
 		"gsap": "^3.15.0",
 		"howler": "^2.2.4",
-		"pixelarticons": "^2.4.1",
+		"pixelarticons": "^2.4.2",
 		"svelte-dnd-action": "^0.9.69",
 		"svelte-gestures": "^5.2.2",
 		"tailwindcss": "^4.3.3",
